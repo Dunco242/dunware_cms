@@ -1,0 +1,17 @@
+{% extends 'core/base.html' %}
+{% block title %}Tasks{% endblock %}
+{% block content %}
+<div class="card shadow">
+    <div class="card-header bg-primary text-white">Tasks</div>
+    <div class="card-body">
+        <ul class="list-group">
+            {% for task in tasks %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <a href="{% url 'task-detail' task.pk %}">{{ task.title }}</a>
+                    <a href="{% url 'task-update' task.pk %}" class="btn btn-warning btn-sm">Edit</a>
+                </li>
+            {% endfor %}
+        </ul>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,18 @@
+{% extends 'core/base.html' %}
+{% block title %}Employees{% endblock %}
+{% block content %}
+<div class="card shadow">
+    <div class="card-header bg-primary text-white">Employees</div>
+    <div class="card-body">
+        <a href="{% url 'employee-create' %}" class="btn btn-success mb-3">Add Employee</a>
+        <ul class="list-group">
+            {% for employee in employees %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <a href="{% url 'employee-detail' employee.pk %}">{{ employee.user.get_full_name }}</a>
+                    <a href="{% url 'employee-update' employee.pk %}" class="btn btn-warning btn-sm">Edit</a>
+                </li>
+            {% endfor %}
+        </ul>
+    </div>
+</div>
+{% endblock %}

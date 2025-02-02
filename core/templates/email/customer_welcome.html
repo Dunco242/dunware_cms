@@ -1,0 +1,32 @@
+<!-- templates/email/customer_welcome.html -->
+{% extends 'email/base_email.html' %}
+
+{% block title %}Welcome to DunWare CRM{% endblock %}
+
+{% block header %}Welcome to DunWare CRM{% endblock %}
+
+{% block content %}
+<p>Dear {{ customer.contact_person }},</p>
+
+<p>Welcome to DunWare CRM! We're excited to have {{ customer.company_name }} as our valued customer.</p>
+
+<div style="background-color: #f8f9fc; padding: 15px; margin: 15px 0; border-radius: 5px;">
+    <h3 style="margin-top: 0;">Your Account Details:</h3>
+    <p><strong>Account Manager:</strong> {{ customer.assigned_to.get_full_name }}</p>
+    <p><strong>Email:</strong> {{ customer.assigned_to.email }}</p>
+    <p><strong>Phone:</strong> {{ customer.assigned_to.phone }}</p>
+</div>
+
+<p>Here are some important next steps:</p>
+<ul>
+    <li>Review your account details</li>
+    <li>Schedule an onboarding meeting with your account manager</li>
+    <li>Explore our available services</li>
+</ul>
+
+<div style="text-align: center; margin: 20px 0;">
+    <a href="{{ portal_url }}" class="button">Access Customer Portal</a>
+</div>
+
+<p>If you have any questions or need assistance, please don't hesitate to contact your account manager.</p>
+{% endblock %}

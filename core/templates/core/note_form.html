@@ -1,0 +1,69 @@
+{% extends 'core/base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}
+    {% if form.instance.pk %}
+        Edit Note
+    {% else %}
+        New Note
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card shadow">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    {% if form.instance.pk %}
+                        Edit Note
+                    {% else %}
+                        New Note
+                    {% endif %}
+                </h6>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    {{ form|crispy }}  {# ✅ Apply crispy formatting to the entire form #}
+
+                    <div class="d-flex justify-content-between mt-4">
+                        <a href="{% url 'note-list' %}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> Back
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i>
+                            {% if form.instance.pk %}
+                                Update Note
+                            {% else %}
+                                Save Note
+                            {% endif %}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    $(document).ready(function() {
+        // Handle customer/lead mutual exclusivity
+        $('#id_customer, #id_lead').change(function() {
+            const customerId = $('#id_customer').val();
+            const leadId = $('#id_lead').val();
+
+            if (customerId && leadId) {
+                if (this.id === 'id_customer') {
+                    $('#id_lead').val('').trigger('change');
+                } else {
+                    $('#id_customer').val('').trigger('change');
+                }
+                alert('A note can only be associated with either a customer or a lead, not both.');
+            }
+        });
+    });
+</script>
+{% endblock %}

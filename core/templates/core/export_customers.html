@@ -1,0 +1,11 @@
+{% extends 'core/base.html' %}
+{% block title %}Export Customers{% endblock %}
+{% block content %}
+<div class="card shadow">
+    <div class="card-header bg-primary text-white">Export Customers</div>
+    <div class="card-body">
+        <p>Click below to export customer data.</p>
+        <a href="{% url 'export-customers' %}" class="btn btn-success">Export</a>
+    </div>
+</div>
+{% endblock %}

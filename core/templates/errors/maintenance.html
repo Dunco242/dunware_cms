@@ -1,0 +1,60 @@
+<!-- templates/core/errors/maintenance.html -->
+{% extends 'core/base.html' %}
+
+{% block title %}Maintenance{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-lg-6">
+            <div class="text-center mt-5">
+                <div class="error-icon mb-4">
+                    <i class="fas fa-tools fa-4x text-primary"></i>
+                </div>
+                <h1 class="display-4">Under Maintenance</h1>
+                <p class="lead">We're making some improvements</p>
+                <p class="text-muted mb-4">
+                    DunWare CRM is currently undergoing scheduled maintenance.
+                    We'll be back shortly. Thank you for your patience.
+                </p>
+                <div class="maintenance-timer mb-4">
+                    <p class="text-muted">Estimated time remaining:</p>
+                    <div id="countdown" class="display-4 text-primary">--:--:--</div>
+                </div>
+                <button onclick="location.reload()" class="btn btn-primary">
+                    <i class="fas fa-sync-alt me-2"></i>Check Again
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block extra_js %}
+<script>
+    // Add countdown functionality if you want to use it
+    function startCountdown(duration) {
+        let timer = duration;
+        const countdown = document.getElementById('countdown');
+
+        const interval = setInterval(function () {
+            const hours = Math.floor(timer / 3600);
+            const minutes = Math.floor((timer % 3600) / 60);
+            const seconds = timer % 60;
+
+            countdown.textContent =
+                String(hours).padStart(2, '0') + ':' +
+                String(minutes).padStart(2, '0') + ':' +
+                String(seconds).padStart(2, '0');
+
+            if (--timer < 0) {
+                clearInterval(interval);
+                location.reload();
+            }
+        }, 1000);
+    }
+
+    // Set countdown duration (in seconds)
+    // startCountdown(3600); // 1 hour
+</script>
+{% endblock %}
+{% endblock %}

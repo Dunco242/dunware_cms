@@ -1,0 +1,14 @@
+{% extends 'core/base.html' %}
+{% block title %}Service Detail{% endblock %}
+{% block content %}
+<div class="card shadow">
+    <div class="card-header bg-primary text-white">Service Detail</div>
+    <div class="card-body">
+        <p><strong>Name:</strong> {{ service.name }}</p>
+        <p><strong>Description:</strong> {{ service.description }}</p>
+        <p><strong>Price:</strong> ${{ service.price }}</p>
+        <a href="{% url 'service-update' service.pk %}" class="btn btn-warning">Edit</a>
+        <a href="{% url 'service-delete' service.pk %}" class="btn btn-danger">Delete</a>
+    </div>
+</div>
+{% endblock %}

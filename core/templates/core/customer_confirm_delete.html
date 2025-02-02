@@ -1,0 +1,37 @@
+<!-- templates/core/customer_confirm_delete.html -->
+
+{% extends 'core/base.html' %}
+
+{% block title %}Delete {{ customer.company_name }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-6">
+        <div class="card shadow">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">Delete Customer</h6>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-danger">
+                    <h5 class="alert-heading">Warning!</h5>
+                    <p>Are you sure you want to delete {{ customer.company_name }}?</p>
+                    <hr>
+                    <p class="mb-0">This action cannot be undone. All associated data (notes, tasks, meetings) will be permanently deleted.</p>
+                </div>
+
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="d-flex justify-content-between">
+                        <a href="{% url 'customer-detail' customer.pk %}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> Cancel
+                        </a>
+                        <button type="submit" class="btn btn-danger">
+                            <i class="fas fa-trash"></i> Delete Customer
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,176 @@
+<!-- templates/core/task_detail.html -->
+
+{% extends 'core/base.html' %}
+{% load humanize %}
+
+{% block title %}{{ task.title }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8">
+        <!-- Task Details Card -->
+        <div class="card shadow mb-4">
+            <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                <h6 class="m-0 font-weight-bold text-primary">Task Details</h6>
+                <div class="btn-group">
+                    <button class="btn btn-sm btn-success task-status-btn" data-status="completed"
+                            {% if task.status == 'completed' %}disabled{% endif %}>
+                        <i class="fas fa-check"></i> Mark Complete
+                    </button>
+                    <a href="{% url 'task-update' task.pk %}" class="btn btn-sm btn-warning">
+                        <i class="fas fa-edit"></i> Edit
+                    </a>
+                    <a href="{% url 'task-delete' task.pk %}" class="btn btn-sm btn-danger">
+                        <i class="fas fa-trash"></i> Delete
+                    </a>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="mb-4">
+                    <h5 class="font-weight-bold">{{ task.title }}</h5>
+                    <div class="mb-2">
+                        <span class="badge bg-{{ task.get_priority_color }}">
+                            {{ task.get_priority_display }} Priority
+                        </span>
+                        <span class="badge bg-{{ task.get_status_color }}">
+                            {{ task.get_status_display }}
+                        </span>
+                    </div>
+                </div>
+
+                <dl class="row">
+                    <dt class="col-sm-3">Description</dt>
+                    <dd class="col-sm-9">{{ task.description|linebreaks }}</dd>
+
+                    <dt class="col-sm-3">Due Date</dt>
+                    <dd class="col-sm-9">
+                        {{ task.due_date|date:"l, F j, Y g:i A" }}
+                        {% if task.is_overdue %}
+                            <span class="badge bg-danger">Overdue</span>
+                        {% endif %}
+                    </dd>
+
+                    <dt class="col-sm-3">Assigned To</dt>
+                    <dd class="col-sm-9">
+                        <a href="{% url 'employee-detail' task.assigned_to.pk %}">
+                            {{ task.assigned_to.user.get_full_name }}
+                        </a>
+                    </dd>
+
+                    {% if task.customer %}
+                        <dt class="col-sm-3">Related Customer</dt>
+                        <dd class="col-sm-9">
+                            <a href="{% url 'customer-detail' task.customer.pk %}">
+                                {{ task.customer.company_name }}
+                            </a>
+                        </dd>
+                    {% elif task.lead %}
+                        <dt class="col-sm-3">Related Lead</dt>
+                        <dd class="col-sm-9">
+                            <a href="{% url 'lead-detail' task.lead.pk %}">
+                                {{ task.lead.company_name }}
+                            </a>
+                        </dd>
+                    {% endif %}
+
+                    <dt class="col-sm-3">Created</dt>
+                    <dd class="col-sm-9">{{ task.created_at|naturaltime }}</dd>
+
+                    <dt class="col-sm-3">Last Updated</dt>
+                    <dd class="col-sm-9">{{ task.updated_at|naturaltime }}</dd>
+                </dl>
+            </div>
+        </div>
+
+        <!-- Task Notes -->
+        <div class="card shadow">
+            <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                <h6 class="m-0 font-weight-bold text-primary">Task Notes</h6>
+                <a href="{% url 'note-create' %}?task={{ task.pk }}" class="btn btn-sm btn-primary">
+                    <i class="fas fa-plus"></i> Add Note
+                </a>
+            </div>
+            <div class="card-body">
+                {% if notes %}
+                    {% for note in notes %}
+                        <div class="card mb-3">
+                            <div class="card-body">
+                                <h6 class="card-title">{{ note.title }}</h6>
+                                <p class="card-text">{{ note.content }}</p>
+                                <div class="d-flex justify-content-between">
+                                    <small class="text-muted">
+                                        Added by {{ note.created_by.user.get_full_name }}
+                                        {{ note.created_at|naturaltime }}
+                                    </small>
+                                    <div class="btn-group">
+                                        <a href="{% url 'note-update' note.pk %}"
+                                           class="btn btn-sm btn-warning">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        <a href="{% url 'note-delete' note.pk %}"
+                                           class="btn btn-sm btn-danger">
+                                            <i class="fas fa-trash"></i>
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-center text-muted">No notes have been added yet.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <!-- Task Timeline -->
+        <div class="card shadow">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">Task Timeline</h6>
+            </div>
+            <div class="card-body">
+                <div class="timeline">
+                    {% for event in task_timeline %}
+                        <div class="timeline-item">
+                            <div class="timeline-marker bg-{{ event.color }}">
+                                <i class="fas {{ event.icon }}"></i>
+                            </div>
+                            <div class="timeline-content">
+                                <h6 class="timeline-title">{{ event.title }}</h6>
+                                <p class="timeline-text">{{ event.description }}</p>
+                                <small class="text-muted">{{ event.timestamp|naturaltime }}</small>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    $(document).ready(function() {
+        // Handle task status updates
+        $('.task-status-btn').click(function() {
+            const status = $(this).data('status');
+            $.ajax({
+                url: "{% url 'task-status-update' task.pk %}",
+                method: 'POST',
+                data: {
+                    status: status,
+                    csrfmiddlewaretoken: '{{ csrf_token }}'
+                },
+                success: function(response) {
+                    location.reload();
+                },
+                error: function(xhr, status, error) {
+                    alert('Error updating task status');
+                }
+            });
+        });
+    });
+</script>
+{% endblock %}

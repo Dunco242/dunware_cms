@@ -1,0 +1,105 @@
+<!-- templates/core/meeting_form.html -->
+
+{% extends 'core/base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}
+    {% if form.instance.pk %}
+        Edit Meeting: {{ form.instance.title }}
+    {% else %}
+        Schedule New Meeting
+    {% endif %}
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card shadow">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    {% if form.instance.pk %}
+                        Edit Meeting: {{ form.instance.title }}
+                    {% else %}
+                        Schedule New Meeting
+                    {% endif %}
+                </h6>
+            </div>
+            <div class="card-body">
+                <form method="post" id="meetingForm">
+                    {% csrf_token %}
+
+                    {{ form|crispy }}  {# ✅ Apply crispy to the entire form #}
+
+                    <div class="d-flex justify-content-between mt-4">
+                        <a href="{% url 'meeting-list' %}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> Back
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i>
+                            {% if form.instance.pk %}
+                                Update Meeting
+                            {% else %}
+                                Schedule Meeting
+                            {% endif %}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+    $(document).ready(function() {
+        // Initialize datetime pickers
+        flatpickr("#id_start_time", {
+            enableTime: true,
+            dateFormat: "Y-m-d H:i",
+            minDate: "today",
+            time_24hr: false
+        });
+
+        flatpickr("#id_end_time", {
+            enableTime: true,
+            dateFormat: "Y-m-d H:i",
+            minDate: "today",
+            time_24hr: false
+        });
+
+        // Initialize select2 for multiple selects
+        $('#id_attendees, #id_customers, #id_leads').select2({
+            placeholder: "Select options",
+            width: '100%'
+        });
+
+        // Show/hide Zoom settings based on meeting type
+        $('#id_meeting_type').change(function() {
+            if ($(this).val() === 'zoom') {
+                $('#zoomSettings').show();
+            } else {
+                $('#zoomSettings').hide();
+            }
+        }).trigger('change');
+
+        // Form validation
+        $('#meetingForm').submit(function(e) {
+            const startTime = new Date($('#id_start_time').val());
+            const endTime = new Date($('#id_end_time').val());
+
+            if (endTime <= startTime) {
+                e.preventDefault();
+                alert('End time must be after start time');
+            }
+        });
+    });
+</script>
+{% endblock %}

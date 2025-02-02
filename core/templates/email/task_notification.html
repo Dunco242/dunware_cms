@@ -1,0 +1,39 @@
+<!-- templates/email/task_notification.html -->
+{% extends 'email/base_email.html' %}
+
+{% block title %}Task Notification{% endblock %}
+
+{% block header %}Task Notification{% endblock %}
+
+{% block content %}
+<p>Hello {{ recipient_name }},</p>
+
+<p>{% if is_new %}A new task has been assigned to you{% else %}A task has been updated{% endif %}:</p>
+
+<div style="background-color: #f8f9fc; padding: 15px; margin: 15px 0; border-radius: 5px;">
+    <h2 style="margin-top: 0;">{{ task.title }}</h2>
+    <p><strong>Priority:</strong>
+        <span style="color:
+            {% if task.priority == 'high' %}#e74a3b
+            {% elif task.priority == 'medium' %}#f6c23e
+            {% else %}#36b9cc{% endif %}">
+            {{ task.get_priority_display }}
+        </span>
+    </p>
+    <p><strong>Status:</strong> {{ task.get_status_display }}</p>
+    <p><strong>Due Date:</strong> {{ task.due_date|date:"l, F j, Y g:i A" }}</p>
+    {% if task.description %}
+        <p><strong>Description:</strong><br>{{ task.description }}</p>
+    {% endif %}
+</div>
+
+<div style="text-align: center; margin: 20px 0;">
+    <a href="{{ task_url }}" class="button">View Task</a>
+</div>
+
+{% if task.is_overdue %}
+    <p style="color: #e74a3b;">
+        <strong>⚠️ This task is overdue!</strong> Please update its status or request an extension.
+    </p>
+{% endif %}
+{% endblock %}

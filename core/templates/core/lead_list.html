@@ -1,0 +1,122 @@
+{% extends 'core/base.html' %}
+{% block title %}Leads{% endblock %}
+
+{% block content %}
+<div class="card shadow">
+    <div class="card-header py-3 d-flex justify-content-between align-items-center">
+        <h6 class="m-0 font-weight-bold text-primary">Leads</h6>
+        <a href="{% url 'lead-create' %}" class="btn btn-primary">
+            <i class="fas fa-plus"></i> New Lead
+        </a>
+    </div>
+    <div class="card-body">
+        {% if leads %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Company Name</th>
+                            <th>Contact Person</th>
+                            <th>Email</th>
+                            <th>Phone</th>
+                            <th>Source</th>
+                            <th>Status</th>
+                            <th>Assigned To</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for lead in leads %}
+                            <tr>
+                                <td>
+                                    <a href="{% url 'lead-detail' lead.pk %}">
+                                        {{ lead.company_name }}
+                                    </a>
+                                </td>
+                                <td>{{ lead.contact_person }}</td>
+                                <td>
+                                    <a href="mailto:{{ lead.email }}">
+                                        {{ lead.email }}
+                                    </a>
+                                </td>
+                                <td>{{ lead.phone }}</td>
+                                <td>{{ lead.get_source_display }}</td>
+                                <td>
+                                    <span class="badge bg-{{ lead.get_status_color }}">
+                                        {{ lead.get_status_display }}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% if lead.assigned_to %}
+                                        {{ lead.assigned_to.user.get_full_name }}
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="btn-group">
+                                        <a href="{% url 'lead-update' lead.pk %}" class="btn btn-sm btn-warning">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        <a href="{% url 'lead-delete' lead.pk %}" class="btn btn-sm btn-danger">
+                                            <i class="fas fa-trash"></i>
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            {% if is_paginated %}
+                <nav aria-label="Page navigation" class="mt-4">
+                    <ul class="pagination justify-content-center">
+                        {% if page_obj.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page=1">First</a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link"
+                                   href="?page={{ page_obj.previous_page_number }}">
+                                    Previous
+                                </a>
+                            </li>
+                        {% endif %}
+
+                        {% for num in page_obj.paginator.page_range %}
+                            {% if page_obj.number == num %}
+                                <li class="page-item active">
+                                    <span class="page-link">{{ num }}</span>
+                                </li>
+                            {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                                </li>
+                            {% endif %}
+                        {% endfor %}
+
+                        {% if page_obj.has_next %}
+                            <li class="page-item">
+                                <a class="page-link"
+                                   href="?page={{ page_obj.next_page_number }}">
+                                    Next
+                                </a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link"
+                                   href="?page={{ page_obj.paginator.num_pages }}">
+                                    Last
+                                </a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            {% endif %}
+        {% else %}
+            <p class="text-center text-muted my-5">No leads found</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

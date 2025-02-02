@@ -1,0 +1,284 @@
+<!-- templates/core/customer_detail.html -->
+
+{% extends 'core/base.html' %}
+{% load humanize %}
+
+{% block title %}{{ customer.company_name }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- Customer Information -->
+    <div class="col-lg-4 mb-4">
+        <div class="card shadow">
+            <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                <h6 class="m-0 font-weight-bold text-primary">Customer Information</h6>
+                <div class="btn-group">
+                    <a href="{% url 'customer-update' customer.pk %}" class="btn btn-sm btn-warning">
+                        <i class="fas fa-edit"></i> Edit
+                    </a>
+                    <a href="{% url 'customer-delete' customer.pk %}" class="btn btn-sm btn-danger">
+                        <i class="fas fa-trash"></i> Delete
+                    </a>
+                </div>
+            </div>
+            <div class="card-body">
+                <dl class="row">
+                    <dt class="col-sm-4">Company Name</dt>
+                    <dd class="col-sm-8">{{ customer.company_name }}</dd>
+
+                    <dt class="col-sm-4">Contact Person</dt>
+                    <dd class="col-sm-8">{{ customer.contact_person }}</dd>
+
+                    <dt class="col-sm-4">Email</dt>
+                    <dd class="col-sm-8">
+                        <a href="mailto:{{ customer.email }}">{{ customer.email }}</a>
+                    </dd>
+
+                    <dt class="col-sm-4">Phone</dt>
+                    <dd class="col-sm-8">
+                        <a href="tel:{{ customer.phone }}">{{ customer.phone }}</a>
+                    </dd>
+
+                    <dt class="col-sm-4">Address</dt>
+                    <dd class="col-sm-8">
+                        {{ customer.address }}<br>
+                        {{ customer.city }}, {{ customer.state }} {{ customer.zip_code }}
+                    </dd>
+
+                    <dt class="col-sm-4">Website</dt>
+                    <dd class="col-sm-8">
+                        {% if customer.website %}
+                            <a href="{{ customer.website }}" target="_blank">{{ customer.website }}</a>
+                        {% else %}
+                            -
+                        {% endif %}
+                    </dd>
+
+                    <dt class="col-sm-4">Status</dt>
+                    <dd class="col-sm-8">
+                        <span class="badge bg-{{ customer.get_status_color }}">
+                            {{ customer.get_status_display }}
+                        </span>
+                    </dd>
+
+                    <dt class="col-sm-4">Assigned To</dt>
+                    <dd class="col-sm-8">
+                        {% if customer.assigned_to %}
+                            <a href="{% url 'employee-detail' customer.assigned_to.pk %}">
+                                {{ customer.assigned_to.user.get_full_name }}
+                            </a>
+                        {% else %}
+                            -
+                        {% endif %}
+                    </dd>
+
+                    <dt class="col-sm-4">Created</dt>
+                    <dd class="col-sm-8">{{ customer.created_at|naturaltime }}</dd>
+
+                    <dt class="col-sm-4">Last Updated</dt>
+                    <dd class="col-sm-8">{{ customer.updated_at|naturaltime }}</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+
+    <!-- Related Information Tabs -->
+    <div class="col-lg-8 mb-4">
+        <div class="card shadow">
+            <div class="card-header">
+                <ul class="nav nav-tabs card-header-tabs" role="tablist">
+                    <li class="nav-item">
+                        <a class="nav-link active" data-bs-toggle="tab" href="#notes">
+                            <i class="fas fa-sticky-note"></i> Notes
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-bs-toggle="tab" href="#tasks">
+                            <i class="fas fa-tasks"></i> Tasks
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-bs-toggle="tab" href="#meetings">
+                            <i class="fas fa-video"></i> Meetings
+                        </a>
+                    </li>
+                </ul>
+            </div>
+            <div class="card-body">
+                <div class="tab-content">
+                    <!-- Notes Tab -->
+                    <div class="tab-pane fade show active" id="notes">
+                        <div class="d-flex justify-content-end mb-3">
+                            <a href="{% url 'note-create' %}?customer={{ customer.pk }}"
+                               class="btn btn-primary">
+                                <i class="fas fa-plus"></i> Add Note
+                            </a>
+                        </div>
+                        {% if notes %}
+                            {% for note in notes %}
+                                <div class="card mb-3">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <h6 class="card-title">{{ note.title }}</h6>
+                                            <span class="badge bg-{{ note.get_note_type_color }}">
+                                                {{ note.get_note_type_display }}
+                                            </span>
+                                        </div>
+                                        <p class="card-text">{{ note.content }}</p>
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <small class="text-muted">
+                                                Created by {{ note.created_by.user.get_full_name }}
+                                                {{ note.created_at|naturaltime }}
+                                            </small>
+                                            <div class="btn-group">
+                                                <a href="{% url 'note-update' note.pk %}"
+                                                   class="btn btn-sm btn-warning">
+                                                    <i class="fas fa-edit"></i>
+                                                </a>
+                                                <a href="{% url 'note-delete' note.pk %}"
+                                                   class="btn btn-sm btn-danger">
+                                                    <i class="fas fa-trash"></i>
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        {% else %}
+                            <p class="text-center text-muted">No notes found</p>
+                        {% endif %}
+                    </div>
+
+                    <!-- Tasks Tab -->
+                    <div class="tab-pane fade" id="tasks">
+                        <div class="d-flex justify-content-end mb-3">
+                            <a href="{% url 'task-create' %}?customer={{ customer.pk }}"
+                               class="btn btn-primary">
+                                <i class="fas fa-plus"></i> Add Task
+                            </a>
+                        </div>
+                        {% if tasks %}
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Title</th>
+                                            <th>Priority</th>
+                                            <th>Status</th>
+                                            <th>Due Date</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for task in tasks %}
+                                            <tr>
+                                                <td>{{ task.title }}</td>
+                                                <td>
+                                                    <span class="badge bg-{{ task.get_priority_color }}">
+                                                        {{ task.get_priority_display }}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <span class="badge bg-{{ task.get_status_color }}">
+                                                        {{ task.get_status_display }}
+                                                    </span>
+                                                </td>
+                                                <td>{{ task.due_date|date:"M d, Y" }}</td>
+                                                <td>
+                                                    <div class="btn-group">
+                                                        <a href="{% url 'task-detail' task.pk %}"
+                                                           class="btn btn-sm btn-info">
+                                                            <i class="fas fa-eye"></i>
+                                                        </a>
+                                                        <a href="{% url 'task-update' task.pk %}"
+                                                           class="btn btn-sm btn-warning">
+                                                            <i class="fas fa-edit"></i>
+                                                        </a>
+                                                        <a href="{% url 'task-delete' task.pk %}"
+                                                           class="btn btn-sm btn-danger">
+                                                            <i class="fas fa-trash"></i>
+                                                        </a>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <p class="text-center text-muted">No tasks found</p>
+                        {% endif %}
+                    </div>
+
+                    <!-- Meetings Tab -->
+                    <div class="tab-pane fade" id="meetings">
+                        <div class="d-flex justify-content-end mb-3">
+                            <a href="{% url 'meeting-create' %}?customer={{ customer.pk }}"
+                               class="btn btn-primary">
+                                <i class="fas fa-plus"></i> Schedule Meeting
+                            </a>
+                        </div>
+                        {% if meetings %}
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Title</th>
+                                            <th>Type</th>
+                                            <th>Date & Time</th>
+                                            <th>Status</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for meeting in meetings %}
+                                            <tr>
+                                                <td>{{ meeting.title }}</td>
+                                                <td>
+                                                    <span class="badge bg-{{ meeting.get_meeting_type_color }}">
+                                                        {{ meeting.get_meeting_type_display }}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    {{ meeting.start_time|date:"M d, Y g:i A" }}
+                                                </td>
+                                                <td>
+                                                    {% if meeting.start_time > now %}
+                                                        <span class="badge bg-primary">Upcoming</span>
+                                                    {% else %}
+                                                        <span class="badge bg-secondary">Past</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    <div class="btn-group">
+                                                        <a href="{% url 'meeting-detail' meeting.pk %}"
+                                                           class="btn btn-sm btn-info">
+                                                            <i class="fas fa-eye"></i>
+                                                        </a>
+                                                        {% if meeting.start_time > now %}
+                                                            <a href="{% url 'meeting-update' meeting.pk %}"
+                                                               class="btn btn-sm btn-warning">
+                                                                <i class="fas fa-edit"></i>
+                                                            </a>
+                                                            <a href="{% url 'meeting-delete' meeting.pk %}"
+                                                               class="btn btn-sm btn-danger">
+                                                                <i class="fas fa-trash"></i>
+                                                            </a>
+                                                        {% endif %}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <p class="text-center text-muted">No meetings found</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

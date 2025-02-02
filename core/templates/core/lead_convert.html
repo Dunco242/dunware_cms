@@ -1,0 +1,14 @@
+{% extends 'core/base.html' %}
+{% block title %}Convert Lead{% endblock %}
+{% block content %}
+<div class="card shadow">
+    <div class="card-header bg-success text-white">Convert Lead to Customer</div>
+    <div class="card-body">
+        <p>Are you sure you want to convert <strong>{{ lead.company_name }}</strong> into a customer?</p>
+        <form method="post">{% csrf_token %}
+            <button type="submit" class="btn btn-success">Convert</button>
+            <a href="{% url 'lead-list' %}" class="btn btn-secondary">Cancel</a>
+        </form>
+    </div>
+</div>
+{% endblock %}

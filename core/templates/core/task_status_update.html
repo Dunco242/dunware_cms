@@ -1,0 +1,12 @@
+{% extends 'core/base.html' %}
+{% block title %}Update Task Status{% endblock %}
+{% block content %}
+<div class="card shadow">
+    <div class="card-header bg-info text-white">Update Task Status</div>
+    <div class="card-body">
+        <form method="post">{% csrf_token %}{{ form.as_p }}
+            <button type="submit" class="btn btn-success">Update Status</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,14 @@
+{% extends 'core/base.html' %}
+{% block title %}Delete Lead{% endblock %}
+{% block content %}
+<div class="card shadow">
+    <div class="card-header bg-danger text-white">Delete Lead</div>
+    <div class="card-body">
+        <p>Are you sure you want to delete <strong>{{ lead.company_name }}</strong>?</p>
+        <form method="post">{% csrf_token %}
+            <button type="submit" class="btn btn-danger">Delete</button>
+            <a href="{% url 'lead-list' %}" class="btn btn-secondary">Cancel</a>
+        </form>
+    </div>
+</div>
+{% endblock %}

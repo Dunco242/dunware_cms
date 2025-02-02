@@ -1,0 +1,14 @@
+{% extends 'core/base.html' %}
+{% block title %}Note Detail{% endblock %}
+{% block content %}
+<div class="card shadow">
+    <div class="card-header bg-primary text-white">Note Detail</div>
+    <div class="card-body">
+        <p><strong>Title:</strong> {{ note.title }}</p>
+        <p><strong>Content:</strong> {{ note.content }}</p>
+        <p><strong>Created By:</strong> {{ note.created_by.user.get_full_name }}</p>
+        <a href="{% url 'note-update' note.pk %}" class="btn btn-warning">Edit</a>
+        <a href="{% url 'note-delete' note.pk %}" class="btn btn-danger">Delete</a>
+    </div>
+</div>
+{% endblock %}

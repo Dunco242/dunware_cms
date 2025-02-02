@@ -1,0 +1,75 @@
+<!-- templates/core/customer_form.html -->
+
+{% extends 'core/base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}
+    {% if form.instance.pk %}
+        Edit {{ form.instance.company_name }}
+    {% else %}
+        New Customer
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card shadow">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    {% if form.instance.pk %}
+                        Edit Customer: {{ form.instance.company_name }}
+                    {% else %}
+                        New Customer
+                    {% endif %}
+                </h6>
+            </div>
+            <div class="card-body">
+                <form method="post" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    {{ form|crispy }}  {# ✅ Use this instead of calling crispy on each field #}
+
+                    <div class="d-flex justify-content-between mt-4">
+                        <a href="{% url 'customer-list' %}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> Back
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i>
+                            {% if form.instance.pk %}
+                                Update Customer
+                            {% else %}
+                                Create Customer
+                            {% endif %}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Initialize form enhancements
+    $(document).ready(function() {
+        // Add phone number formatting
+        $('#id_phone').on('input', function() {
+            let phone = $(this).val().replace(/\D/g, '');
+            if (phone.length >= 10) {
+                phone = phone.match(/^(\d{3})(\d{3})(\d{4})$/);
+                $(this).val('(' + phone[1] + ') ' + phone[2] + '-' + phone[3]);
+            }
+        });
+
+        // Add ZIP code validation
+        $('#id_zip_code').on('input', function() {
+            let zip = $(this).val().replace(/\D/g, '');
+            if (zip.length > 5) {
+                zip = zip.substr(0, 5);
+            }
+            $(this).val(zip);
+        });
+    });
+</script>
+{% endblock %}

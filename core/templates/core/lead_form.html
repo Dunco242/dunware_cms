@@ -1,0 +1,71 @@
+{% extends 'core/base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}
+    {% if form.instance.pk %}
+        Edit Lead: {{ form.instance.company_name }}
+    {% else %}
+        New Lead
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card shadow">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    {% if form.instance.pk %}
+                        Edit Lead: {{ form.instance.company_name }}
+                    {% else %}
+                        New Lead
+                    {% endif %}
+                </h6>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    {{ form|crispy }}
+
+                    <div class="d-flex justify-content-between mt-4">
+                        <a href="{% url 'lead-list' %}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> Back
+                        </a>
+                        <div>
+                            {% if form.instance.pk and form.instance.status != 'converted' %}
+                                <a href="{% url 'lead-convert' form.instance.pk %}"
+                                   class="btn btn-success me-2">
+                                    <i class="fas fa-exchange-alt"></i> Convert to Customer
+                                </a>
+                            {% endif %}
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i>
+                                {% if form.instance.pk %}
+                                    Update Lead
+                                {% else %}
+                                    Create Lead
+                                {% endif %}
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    $(document).ready(function() {
+        // Phone number formatting
+        $('#id_phone').on('input', function() {
+            let phone = $(this).val().replace(/\D/g, '');
+            if (phone.length >= 10) {
+                phone = phone.match(/^(\d{3})(\d{3})(\d{4})$/);
+                $(this).val('(' + phone[1] + ') ' + phone[2] + '-' + phone[3]);
+            }
+        });
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,12 @@
+{% extends 'core/base.html' %}
+{% block title %}Create Employee{% endblock %}
+{% block content %}
+<div class="card shadow">
+    <div class="card-header bg-primary text-white">Create Employee</div>
+    <div class="card-body">
+        <form method="post">{% csrf_token %}{{ form.as_p }}
+            <button type="submit" class="btn btn-success">Create</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

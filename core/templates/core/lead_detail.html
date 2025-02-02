@@ -1,0 +1,17 @@
+{% extends 'core/base.html' %}
+{% block title %}Lead Detail{% endblock %}
+{% block content %}
+<div class="card shadow">
+    <div class="card-header bg-primary text-white">Lead Detail</div>
+    <div class="card-body">
+        <p><strong>Company Name:</strong> {{ lead.company_name }}</p>
+        <p><strong>Contact Person:</strong> {{ lead.contact_person }}</p>
+        <p><strong>Email:</strong> {{ lead.email }}</p>
+        <p><strong>Phone:</strong> {{ lead.phone }}</p>
+        <p><strong>Status:</strong> {{ lead.get_status_display }}</p>
+        <p><strong>Assigned To:</strong> {{ lead.assigned_to.user.get_full_name }}</p>
+        <a href="{% url 'lead-update' lead.pk %}" class="btn btn-warning">Edit</a>
+        <a href="{% url 'lead-delete' lead.pk %}" class="btn btn-danger">Delete</a>
+    </div>
+</div>
+{% endblock %}

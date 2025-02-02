@@ -1,0 +1,167 @@
+<!-- templates/core/meeting_detail.html -->
+
+{% extends 'core/base.html' %}
+{% load humanize %}
+
+{% block title %}{{ meeting.title }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8">
+        <!-- Meeting Details Card -->
+        <div class="card shadow mb-4">
+            <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                <h6 class="m-0 font-weight-bold text-primary">Meeting Details</h6>
+                <div class="btn-group">
+                    {% if meeting.start_time > now %}
+                        <a href="{% url 'meeting-update' meeting.pk %}" class="btn btn-sm btn-warning">
+                            <i class="fas fa-edit"></i> Edit
+                        </a>
+                        <a href="{% url 'meeting-delete' meeting.pk %}" class="btn btn-sm btn-danger">
+                            <i class="fas fa-trash"></i> Delete
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="mb-4">
+                    <h5 class="font-weight-bold">{{ meeting.title }}</h5>
+                    <span class="badge bg-{{ meeting.get_meeting_type_color }}">
+                        {{ meeting.get_meeting_type_display }}
+                    </span>
+                    {% if meeting.start_time > now %}
+                        <span class="badge bg-success">Upcoming</span>
+                    {% else %}
+                        <span class="badge bg-secondary">Past</span>
+                    {% endif %}
+                </div>
+
+                <dl class="row">
+                    <dt class="col-sm-3">Date & Time</dt>
+                    <dd class="col-sm-9">
+                        {{ meeting.start_time|date:"l, F j, Y" }}<br>
+                        {{ meeting.start_time|date:"g:i A" }} - {{ meeting.end_time|date:"g:i A" }}
+                    </dd>
+
+                    <dt class="col-sm-3">Duration</dt>
+                    <dd class="col-sm-9">
+                        {{ meeting.get_duration_display }}
+                    </dd>
+
+                    <dt class="col-sm-3">Description</dt>
+                    <dd class="col-sm-9">{{ meeting.description|linebreaks }}</dd>
+
+                    {% if meeting.meeting_type == 'zoom' and meeting.zoom_join_url %}
+                        <dt class="col-sm-3">Zoom Link</dt>
+                        <dd class="col-sm-9">
+                            <a href="{{ meeting.zoom_join_url }}" target="_blank" class="btn btn-info btn-sm">
+                                <i class="fas fa-video"></i> Join Meeting
+                            </a>
+                        </dd>
+                    {% endif %}
+                </dl>
+            </div>
+        </div>
+
+        <!-- Meeting Notes -->
+        <div class="card shadow mb-4">
+            <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                <h6 class="m-0 font-weight-bold text-primary">Meeting Notes</h6>
+                <a href="{% url 'note-create' %}?meeting={{ meeting.pk }}" class="btn btn-sm btn-primary">
+                    <i class="fas fa-plus"></i> Add Note
+                </a>
+            </div>
+            <div class="card-body">
+                {% if notes %}
+                    {% for note in notes %}
+                        <div class="card mb-3">
+                            <div class="card-body">
+                                <h6 class="card-title">{{ note.title }}</h6>
+                                <p class="card-text">{{ note.content }}</p>
+                                <small class="text-muted">
+                                    Added by {{ note.created_by.user.get_full_name }}
+                                    {{ note.created_at|naturaltime }}
+                                </small>
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-center text-muted">No notes have been added yet.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <!-- Participants Card -->
+        <div class="card shadow mb-4">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">Participants</h6>
+            </div>
+            <div class="card-body">
+                <h6 class="mb-2">Organizer</h6>
+                <div class="mb-3">
+                    <a href="{% url 'employee-detail' meeting.organizer.pk %}" class="text-decoration-none">
+                        <i class="fas fa-user"></i>
+                        {{ meeting.organizer.user.get_full_name }}
+                    </a>
+                </div>
+
+                <h6 class="mb-2">Attendees</h6>
+                <div class="mb-3">
+                    {% if meeting.attendees.exists %}
+                        <ul class="list-unstyled">
+                            {% for attendee in meeting.attendees.all %}
+                                <li>
+                                    <a href="{% url 'employee-detail' attendee.pk %}"
+                                       class="text-decoration-none">
+                                        <i class="fas fa-user"></i>
+                                        {{ attendee.user.get_full_name }}
+                                    </a>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <p class="text-muted">No internal attendees</p>
+                    {% endif %}
+                </div>
+
+                {% if meeting.customers.exists or meeting.leads.exists %}
+                    <h6 class="mb-2">External Participants</h6>
+                    <div>
+                        {% if meeting.customers.exists %}
+                            <h6 class="small text-muted mb-2">Customers</h6>
+                            <ul class="list-unstyled mb-3">
+                                {% for customer in meeting.customers.all %}
+                                    <li>
+                                        <a href="{% url 'customer-detail' customer.pk %}"
+                                           class="text-decoration-none">
+                                            <i class="fas fa-building"></i>
+                                            {{ customer.company_name }}
+                                        </a>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        {% endif %}
+
+                        {% if meeting.leads.exists %}
+                            <h6 class="small text-muted mb-2">Leads</h6>
+                            <ul class="list-unstyled">
+                                {% for lead in meeting.leads.all %}
+                                    <li>
+                                        <a href="{% url 'lead-detail' lead.pk %}"
+                                           class="text-decoration-none">
+                                            <i class="fas fa-user-tie"></i>
+                                            {{ lead.company_name }}
+                                        </a>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        {% endif %}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

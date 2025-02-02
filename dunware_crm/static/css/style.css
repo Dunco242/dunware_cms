@@ -1,0 +1,94 @@
+/* static/css/style.css */
+
+/* General Layout */
+body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.container-fluid {
+    flex: 1;
+}
+
+/* Navbar Customization */
+.navbar {
+    box-shadow: 0 2px 4px rgba(0,0,0,.1);
+}
+
+.navbar-brand i {
+    margin-right: 0.5rem;
+}
+
+/* Card Styling */
+.card {
+    box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+    border: none;
+    margin-bottom: 1.5rem;
+}
+
+.card-header {
+    background-color: #f8f9fc;
+    border-bottom: 1px solid #e3e6f0;
+}
+
+/* Stats Cards */
+.border-left-primary {
+    border-left: 0.25rem solid #4e73df !important;
+}
+
+.border-left-success {
+    border-left: 0.25rem solid #1cc88a !important;
+}
+
+.border-left-info {
+    border-left: 0.25rem solid #36b9cc !important;
+}
+
+.border-left-warning {
+    border-left: 0.25rem solid #f6c23e !important;
+}
+
+/* Forms */
+.form-control:focus {
+    border-color: #4e73df;
+    box-shadow: 0 0 0 0.2rem rgba(78, 115, 223, 0.25);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+/* Footer */
+.footer {
+    margin-top: auto;
+    box-shadow: 0 -2px 4px rgba(0,0,0,.1);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .navbar-nav {
+        padding: 0.5rem 0;
+    }
+
+    .dropdown-menu {
+        border: none;
+        box-shadow: none;
+        padding: 0;
+    }
+}

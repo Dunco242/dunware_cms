@@ -1,0 +1,17 @@
+{% extends 'core/base.html' %}
+{% block title %}Notes{% endblock %}
+{% block content %}
+<div class="card shadow">
+    <div class="card-header bg-primary text-white">Notes</div>
+    <div class="card-body">
+        <ul class="list-group">
+            {% for note in notes %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <a href="{% url 'note-detail' note.pk %}">{{ note.title }}</a>
+                    <a href="{% url 'note-update' note.pk %}" class="btn btn-warning btn-sm">Edit</a>
+                </li>
+            {% endfor %}
+        </ul>
+    </div>
+</div>
+{% endblock %}
