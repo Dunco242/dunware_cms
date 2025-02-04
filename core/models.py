@@ -8,6 +8,8 @@ from zoom_integration.models import ZoomMeeting
 from django.conf import settings
 from zoomus import ZoomClient
 from datetime import timedelta
+import uuid
+from decimal import Decimal
 
 
 
@@ -16,7 +18,21 @@ class Employee(models.Model):
     employee_id = models.CharField(max_length=10, unique=True)
     department = models.CharField(max_length=100, default="General")  # ✅ Default
     position = models.CharField(max_length=100, default="Unassigned")  # ✅ Default
-    phone = models.CharField(max_length=15, default="000-000-0000")  # ✅ Default
+    phone = models.CharField(max_length=15, blank=True)
+    carrier = models.CharField(
+        max_length=20,
+        choices=[
+            ('att', 'AT&T'),
+            ('tmobile', 'T-Mobile'),
+            ('verizon', 'Verizon'),
+            ('sprint', 'Sprint'),
+            ('boost', 'Boost Mobile'),
+            ('cricket', 'Cricket'),
+            ('metro', 'Metro PCS'),
+            ('virgin', 'Virgin Mobile'),
+        ],
+        blank=True
+    )
     hire_date = models.DateField(null=True, blank=True)  # ✅ Allow NULL to prevent errors
     profile_picture = models.ImageField(upload_to='employee_photos/', null=True, blank=True)
     is_active = models.BooleanField(default=True)
@@ -321,3 +337,203 @@ class Meeting(models.Model):
         emails.update(self.leads.values_list('email', flat=True))
 
         return list(filter(None, emails))
+
+class Invoice(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('paid', 'Paid'),
+        ('overdue', 'Overdue'),
+        ('cancelled', 'Cancelled')
+    ]
+
+    customer = models.ForeignKey('Customer', on_delete=models.CASCADE, related_name='invoices')
+    services = models.ManyToManyField('ServiceSubscription', blank=True, related_name='invoices')
+    invoice_number = models.CharField(max_length=20, unique=True)
+    issue_date = models.DateField(default=timezone.now)
+    due_date = models.DateField()
+    total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    amount_due = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)  # ✅ Track remaining balance
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Invoice {self.invoice_number} - {self.customer.company_name}"
+
+    def get_absolute_url(self):
+        return reverse('invoice-detail', kwargs={'pk': self.pk})
+
+    @property
+    def balance_due(self):
+        """Calculate remaining balance dynamically"""
+        total_paid = sum(payment.amount for payment in self.payments.all())
+        return max(self.total_amount - total_paid, 0)
+
+    def update_balance(self):
+        """Update the invoice amount_due field dynamically"""
+        self.amount_due = self.balance_due
+        self.update_status()  # ✅ Ensure status updates correctly
+        self.save()
+
+    def update_status(self):
+        """Update the invoice status based on payments"""
+        if self.balance_due == 0:
+            self.status = 'paid'
+        elif self.balance_due > 0 and self.due_date < timezone.now().date():
+            self.status = 'overdue'
+        else:
+            self.status = 'pending'
+        self.save()
+
+
+
+
+class Payment(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+    ]
+
+    customer = models.ForeignKey('Customer', on_delete=models.CASCADE, related_name='payments')
+    invoice = models.ForeignKey('Invoice', on_delete=models.CASCADE, related_name='payments')
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    transaction_date = models.DateTimeField(default=timezone.now)
+
+    def __str__(self):
+        return f"Payment #{self.id} - {self.customer.company_name} - {self.status}"
+
+    def save(self, *args, **kwargs):
+        """ Auto-update invoice balance when payment is made """
+        super().save(*args, **kwargs)
+        self.invoice.update_status()  # ✅ Update invoice balance automatically
+
+
+class Subscription(models.Model):
+    STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('inactive', 'Inactive'),
+        ('cancelled', 'Cancelled'),
+        ('expired', 'Expired')
+    ]
+
+    customer = models.ForeignKey('Customer', on_delete=models.CASCADE, related_name='billing_subscriptions')
+    plan = models.CharField(max_length=100)
+    start_date = models.DateField()
+    end_date = models.DateField(null=True, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')  # ✅ Add this
+
+    def __str__(self):
+        return f"{self.customer} - {self.plan} ({self.get_status_display()})"
+
+    def get_absolute_url(self):
+        return reverse('subscription-detail', kwargs={'pk': self.pk})
+
+
+class Transaction(models.Model):
+    TRANSACTION_TYPE = [
+        ('invoice_payment', 'Invoice Payment'),
+        ('refund', 'Refund'),
+        ('subscription', 'Subscription Payment')
+    ]
+
+    customer = models.ForeignKey('Customer', on_delete=models.CASCADE, related_name='transactions')
+    invoice = models.ForeignKey('Invoice', on_delete=models.SET_NULL, null=True, blank=True, related_name='transactions')  # ✅ Add this
+    payment = models.ForeignKey('Payment', on_delete=models.SET_NULL, null=True, blank=True, related_name='transactions')  # ✅ Add this
+    transaction_type = models.CharField(max_length=20, choices=TRANSACTION_TYPE)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    transaction_date = models.DateTimeField(default=timezone.now)
+    reference = models.CharField(max_length=50, unique=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        if not self.reference:
+            self.reference = f"TXN-{uuid.uuid4().hex[:10].upper()}"
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.customer.company_name} - {self.get_transaction_type_display()} - {self.amount}"
+
+    def get_absolute_url(self):
+        return reverse('transaction-detail', kwargs={'pk': self.pk})
+
+import random
+from django.db import models
+from django.utils import timezone
+from django.urls import reverse
+
+import random
+from django.db import models
+from django.utils import timezone
+from datetime import timedelta
+from django.urls import reverse
+
+
+import random
+from datetime import timedelta
+from django.db import models
+from django.utils import timezone
+
+class ServiceSubscription(models.Model):
+    STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('paused', 'Paused'),
+        ('canceled', 'Canceled'),
+        ('expired', 'Expired'),
+    ]
+
+    customer = models.ForeignKey('Customer', on_delete=models.CASCADE, related_name='service_subscriptions')
+    service = models.ForeignKey('Service', on_delete=models.CASCADE, related_name='service_subscriptions')
+    start_date = models.DateField(default=timezone.now)
+    end_date = models.DateField(null=True, blank=True)
+    billing_cycle = models.CharField(max_length=20, choices=[
+        ('hourly', 'Hourly'),
+        ('monthly', 'Monthly'),
+        ('quarterly', 'Quarterly'),
+        ('yearly', 'Yearly'),
+    ], default='monthly')
+    price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)  # Total Price for non-hourly
+    hourly_rate = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)  # Per-hour rate
+    hours = models.DecimalField(max_digits=6, decimal_places=2, default=0.00)  # Number of hours billed
+    is_active = models.BooleanField(default=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='active')
+
+    def __str__(self):
+        return f"{self.customer.company_name} - {self.service.name} ({self.get_status_display()})"
+
+    def save(self, *args, **kwargs):
+        """Ensure an invoice is created when a service is added to a customer."""
+        super().save(*args, **kwargs)
+
+        # Prevent duplicate invoices for active subscriptions
+        if self.is_active and not Invoice.objects.filter(customer=self.customer, status='pending').exists():
+            self.generate_invoice()
+
+    def generate_invoice(self):
+        """Generate an invoice when a service is assigned."""
+        unique_invoice_number = self.get_unique_invoice_number()
+
+        total_amount = self.calculate_total()
+
+        invoice = Invoice.objects.create(
+            customer=self.customer,
+            invoice_number=unique_invoice_number,
+            due_date=self.start_date + timedelta(days=30),
+            total_amount=total_amount,
+            status='pending'
+        )
+        invoice.services.add(self)
+        invoice.calculate_total()
+
+    def get_unique_invoice_number(self):
+        """Generate a unique invoice number."""
+        while True:
+            new_invoice_number = f"INV-{random.randint(100000, 999999)}"
+            if not Invoice.objects.filter(invoice_number=new_invoice_number).exists():
+                return new_invoice_number
+
+
+    def calculate_total(self):
+        """Calculate total price for the subscription"""
+        if self.billing_cycle == 'hourly':
+            return Decimal(self.hours) * self.hourly_rate  # Convert hours to Decimal before multiplying
+        return self.price

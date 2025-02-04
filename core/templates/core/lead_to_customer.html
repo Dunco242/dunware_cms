@@ -1,0 +1,23 @@
+{% extends "core/base.html" %}
+
+{% block content %}
+<h2>Convert Lead to Customer</h2>
+<p>Are you sure you want to convert this lead to a customer?</p>
+
+<form method="post">
+    {% csrf_token %}
+    {{ form.non_field_errors }}  <!-- Display form-level errors -->
+
+    {% for field in form %}
+        <div>
+            {{ field.label }}: {{ field }}
+            {% if field.errors %}
+                <div style="color: red;">{{ field.errors }}</div>
+            {% endif %}
+        </div>
+    {% endfor %}
+
+    <button type="submit">Convert</button>
+    <a href="{% url 'lead-list' %}">Cancel</a>
+</form>
+{% endblock %}

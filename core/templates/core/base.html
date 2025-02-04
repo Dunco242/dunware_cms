@@ -6,7 +6,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DunWare CRM - {% block title %}{% endblock %}</title>
 
-    <!-- CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.2/css/all.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" rel="stylesheet">
@@ -14,7 +13,6 @@
     {% block extra_css %}{% endblock %}
 </head>
 <body>
-    <!-- Navbar -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
         <div class="container-fluid">
             <a class="navbar-brand" href="{% url 'dashboard' %}">
@@ -26,51 +24,68 @@
 
             <div class="collapse navbar-collapse" id="navbarMain">
                 {% if user.is_authenticated %}
-                    <ul class="navbar-nav me-auto">
-                        <li class="nav-item">
-                            <a class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}"
-                               href="{% url 'dashboard' %}">
-                                <i class="fas fa-tachometer-alt"></i> Dashboard
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link {% if 'customer' in request.resolver_match.url_name %}active{% endif %}"
-                               href="{% url 'customer-list' %}">
-                                <i class="fas fa-users"></i> Customers
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link {% if 'lead' in request.resolver_match.url_name %}active{% endif %}"
-                               href="{% url 'lead-list' %}">
-                                <i class="fas fa-user-plus"></i> Leads
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link {% if 'task' in request.resolver_match.url_name %}active{% endif %}"
-                               href="{% url 'task-list' %}">
-                                <i class="fas fa-tasks"></i> Tasks
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link {% if 'meeting' in request.resolver_match.url_name %}active{% endif %}"
-                               href="{% url 'meeting-list' %}">
-                                <i class="fas fa-video"></i> Meetings
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link {% if 'calendar' in request.resolver_match.url_name %}active{% endif %}"
-                               href="{% url 'calendar' %}">
-                                <i class="fas fa-calendar-alt"></i> Calendar
-                            </a>
-                        </li>
-                        <!-- ✅ NEW: Services Navigation Link -->
-                        <li class="nav-item">
-                            <a class="nav-link {% if 'service' in request.resolver_match.url_name %}active{% endif %}"
-                               href="{% url 'service-list' %}">
-                                <i class="fas fa-cogs"></i> Services
-                            </a>
-                        </li>
-                    </ul>
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}"
+                           href="{% url 'dashboard' %}">
+                            <i class="fas fa-tachometer-alt"></i> Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if 'customer' in request.resolver_match.url_name %}active{% endif %}"
+                           href="{% url 'customer-list' %}">
+                            <i class="fas fa-users"></i> Customers
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if 'lead' in request.resolver_match.url_name %}active{% endif %}"
+                           href="{% url 'lead-list' %}">
+                            <i class="fas fa-user-plus"></i> Leads
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if 'task' in request.resolver_match.url_name %}active{% endif %}"
+                           href="{% url 'task-list' %}">
+                            <i class="fas fa-tasks"></i> Tasks
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if 'meeting' in request.resolver_match.url_name %}active{% endif %}"
+                           href="{% url 'meeting-list' %}">
+                            <i class="fas fa-video"></i> Meetings
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if 'calendar' in request.resolver_match.url_name %}active{% endif %}"
+                           href="{% url 'calendar' %}">
+                            <i class="fas fa-calendar-alt"></i> Calendar
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if 'service' in request.resolver_match.url_name %}active{% endif %}"
+                           href="{% url 'service-list' %}">
+                            <i class="fas fa-cogs"></i> Services
+                        </a>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle {% if 'billing' in request.resolver_match.url_name %}active{% endif %}" href="#" id="billingDropdown" role="button" data-bs-toggle="dropdown">Billing</a>
+                        <ul class="dropdown-menu" aria-labelledby="billingDropdown">
+                            <li><a class="dropdown-item" href="{% url 'billing-dashboard' %}">Billing Dashboard</a></li>
+                            <li><a class="dropdown-item" href="{% url 'invoice-list' %}">All Invoices</a></li>
+                            <li><a class="dropdown-item" href="{% url 'payment-list' %}">Payments</a></li>
+                            <li><a class="dropdown-item" href="{% url 'subscription-list' %}">Subscriptions</a></li>
+                            <li><a class="dropdown-item" href="{% url 'paid-invoices' %}">Paid Invoices</a></li>
+                        </ul>
+                    </li>
+                    <!-- 🆕 Add Payments Tab -->
+                    <li class="nav-item">
+                        <a class="nav-link {% if 'payment' in request.resolver_match.url_name %}active{% endif %}"
+                           href="{% url 'payment-list' %}">
+                            <i class="fas fa-credit-card"></i> Payments
+                        </a>
+                    </li>
+                </ul>
+
 
                     <ul class="navbar-nav ms-auto">
                         <li class="nav-item dropdown">
@@ -108,7 +123,6 @@
         </div>
     </nav>
 
-    <!-- Main Content -->
     <div class="container-fluid py-4">
         {% if messages %}
             {% for message in messages %}
@@ -122,19 +136,16 @@
         {% block content %}{% endblock %}
     </div>
 
-    <!-- Footer -->
     <footer class="footer mt-auto py-3 bg-light">
         <div class="container text-center">
             <span class="text-muted">© {% now "Y" %} DunWare CRM. All rights reserved.</span>
         </div>
     </footer>
 
-    <!-- JavaScript -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="{% static 'js/main.js' %}"></script>
     {% block extra_js %}{% endblock %}
-
 </body>
 </html>

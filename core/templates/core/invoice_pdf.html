@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Invoice #{{ invoice.invoice_number }}</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .header { text-align: center; font-size: 22px; font-weight: bold; }
+        .company-info, .customer-info { margin-bottom: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #4CAF50; color: white; }
+        .total-section { text-align: right; font-size: 18px; margin-top: 20px; }
+        .total-section strong { color: #4CAF50; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <img src="https://via.placeholder.com/150" alt="Company Logo"> <!-- Replace with your logo -->
+        <p>Dunware Solutions</p>
+        <p>90 Leitch Avenue, North York, Ontario, M3J 0C9</p>
+        <p>Phone: (437) 907-8647 | Email: damienduncombe@gmail.com</p>
+    </div>
+
+    <hr>
+
+    <div class="customer-info">
+        <p><strong>Recipient:</strong></p>
+        <p>{{ customer.company_name }}</p>
+        <p>{{ customer.contact_person }}</p>
+        <p>{{ customer.address }}, {{ customer.city }}, {{ customer.state }}</p>
+        <p>Email: {{ customer.email }} | Phone: {{ customer.phone }}</p>
+    </div>
+
+    <div class="invoice-details">
+        <h2>Invoice #{{ invoice.invoice_number }}</h2>
+        <p><strong>Issued:</strong> {{ invoice.issue_date }}</p>
+        <p><strong>Due:</strong> {{ invoice.due_date }}</p>
+        <p><strong>Status:</strong> {{ invoice.get_status_display }}</p>
+    </div>
+
+    <h3>For Services Rendered</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Product / Service</th>
+                <th>Description</th>
+                <th>QTY</th>
+                <th>Unit Price</th>
+                <th>Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for service in services %}
+            <tr>
+                <td>{{ service.service.name }}</td>
+                <td>{{ service.service.description }}</td>
+                <td>{% if service.billing_cycle == 'hourly' %}{{ service.billed_hours }} hours{% else %}1{% endif %}</td>
+                <td>${{ service.hourly_rate|default:service.price }}</td>
+                <td>${{ service.calculate_total }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="total-section">
+        <p>Subtotal: ${{ subtotal }}</p>
+        <p>Tax (13%): ${{ tax_amount }}</p>
+        <p><strong>Total: ${{ total }}</strong></p>
+    </div>
+
+    <hr>
+    <p>Thank you for your business!</p>
+
+</body>
+</html>

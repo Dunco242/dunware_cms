@@ -3,6 +3,9 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from datetime import datetime, timedelta
 from django.contrib.auth.decorators import login_required
+import tempfile
+import os
+from io import BytesIO
 from zoomus import ZoomClient
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.views.generic import (
@@ -11,18 +14,23 @@ from django.views.generic import (
 from django.contrib.auth.forms import PasswordChangeForm
 from django.contrib.auth import update_session_auth_hash
 from django.urls import reverse_lazy
+from decimal import Decimal
 from django.contrib import messages
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.utils import timezone
 from django.db.models import Q
 from django.core.paginator import Paginator
+from django.template.loader import render_to_string
+from weasyprint import HTML
+import tempfile
+
 from .models import (
-    Employee, Customer, Lead, Service, Note, Task, Meeting
+    Employee, Customer, Lead, Service, Note, Task, Meeting, Invoice, Payment, Subscription, Transaction, ServiceSubscription
 )
 from .forms import (
     UserRegistrationForm, EmployeeForm, CustomerForm, LeadForm,
     ServiceForm, NoteForm, TaskForm, MeetingForm,
-    MeetingSearchForm, TaskSearchForm
+    MeetingSearchForm, TaskSearchForm, InvoiceForm, PaymentForm, SubscriptionForm, ServiceSubscriptionForm
 )
 
 class DashboardView(LoginRequiredMixin, TemplateView):
@@ -235,6 +243,7 @@ class CustomerDetailView(LoginRequiredMixin, DetailView):
         context = super().get_context_data(**kwargs)
         customer = self.get_object()
         context.update({
+            'invoices': customer.invoices.all().order_by('-created_at'),
             'notes': Note.objects.filter(customer=customer).order_by('-created_at'),
             'tasks': Task.objects.filter(customer=customer).order_by('-created_at'),
             'meetings': Meeting.objects.filter(customers=customer).order_by('-start_time'),
@@ -1160,5 +1169,609 @@ def export_meetings(request):
             attendees,
             meeting.created_at.strftime('%Y-%m-%d %H:%M:%S')
         ])
+
+    return response
+
+class InvoiceListView(LoginRequiredMixin, ListView):
+    model = Invoice
+    template_name = 'core/invoice_list.html'
+    context_object_name = 'invoices'
+    paginate_by = 10
+
+    def get_queryset(self):
+        """Retrieve invoices based on user role, excluding those marked as 'paid'."""
+        if self.request.user.is_superuser:
+            return Invoice.objects.exclude(status='paid').order_by('-issue_date')
+
+        return Invoice.objects.filter(
+            customer__assigned_to=self.request.user.employee
+        ).exclude(status='paid').order_by('-created_at')
+
+class InvoiceDetailView(LoginRequiredMixin, DetailView):
+    model = Invoice
+    template_name = 'core/invoice_detail.html'
+    context_object_name = 'invoice'
+
+
+class InvoiceCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
+    model = Invoice
+    form_class = InvoiceForm
+    template_name = 'core/invoice_form.html'
+    success_url = reverse_lazy('invoice-list')
+
+    def test_func(self):
+        """Only superusers can create invoices"""
+        return self.request.user.is_superuser
+
+    def form_valid(self, form):
+        messages.success(self.request, 'Invoice created successfully.')
+        return super().form_valid(form)
+
+
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.views.generic import UpdateView
+from django.urls import reverse_lazy
+from django.contrib import messages
+from django.utils import timezone
+from django.db.models import Q
+
+from .models import Invoice, Payment, ServiceSubscription
+from .forms import InvoiceForm
+
+
+class InvoiceUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+    model = Invoice
+    form_class = InvoiceForm
+    template_name = 'core/invoice_form.html'
+    success_url = reverse_lazy('invoice-list')
+
+    def test_func(self):
+        """Only superusers can edit invoices."""
+        return self.request.user.is_superuser
+
+    def form_valid(self, form):
+        invoice = form.save(commit=False)
+        previous_status = self.get_object().status  # Get previous status before update
+
+        # ✅ Ensure services are assigned correctly as IDs, not objects
+        invoice.services.set([s.id for s in form.cleaned_data['services']])
+
+        # ✅ Status Mapping for Payments
+        status_mapping = {
+            'paid': 'completed',
+            'failed': 'pending',
+            'pending': 'pending',
+            'overdue': 'pending',
+        }
+
+        # ✅ Check if payment record should be created
+        if invoice.status in status_mapping and previous_status != invoice.status:
+            existing_payment = Payment.objects.filter(invoice=invoice).exists()
+
+            if not existing_payment:
+                Payment.objects.create(
+                    customer=invoice.customer,
+                    invoice=invoice,
+                    amount=invoice.total_amount,
+                    status=status_mapping[invoice.status],  # ✅ Apply status mapping
+                    transaction_date=timezone.now(),
+                )
+                messages.success(self.request, f'Invoice marked as {invoice.status}, payment recorded.')
+
+        invoice.save()
+        messages.success(self.request, 'Invoice updated successfully.')
+        return super().form_valid(form)
+
+
+
+
+class InvoiceDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
+    model = Invoice
+    template_name = 'core/invoice_confirm_delete.html'
+    success_url = reverse_lazy('invoice-list')
+
+    def test_func(self):
+        """Only superusers can delete invoices"""
+        return self.request.user.is_superuser
+
+    def delete(self, request, *args, **kwargs):
+        messages.success(request, 'Invoice deleted successfully.')
+        return super().delete(request, *args, **kwargs)
+
+
+# -------------------------------
+# 💳 PAYMENT VIEWS
+# -------------------------------
+
+class PaymentListView(LoginRequiredMixin, ListView):
+    model = Payment
+    template_name = 'core/payment_list.html'
+    context_object_name = 'payments'
+    paginate_by = 10
+
+    def get_queryset(self):
+        """Ensure correct payments are retrieved, including completed ones from invoices"""
+        queryset = Payment.objects.all().order_by('-transaction_date')
+        search_query = self.request.GET.get('search', '').strip()
+
+        if search_query:
+            queryset = queryset.filter(
+                Q(invoice__invoice_number__icontains=search_query) |
+                Q(customer__company_name__icontains=search_query)
+            )
+
+        return queryset
+
+
+
+
+class PaymentDetailView(LoginRequiredMixin, DetailView):
+    model = Payment
+    template_name = 'core/payment_detail.html'
+    context_object_name = 'payment'
+
+
+class PaymentCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
+    model = Payment
+    form_class = PaymentForm
+    template_name = 'core/payment_form.html'
+    success_url = reverse_lazy('payment-list')
+
+    def test_func(self):
+        """Only superusers can process payments"""
+        return self.request.user.is_superuser
+
+    def get_initial(self):
+        """Pre-fill invoice if provided in URL"""
+        initial = super().get_initial()
+        invoice_id = self.request.GET.get('invoice')
+        if invoice_id:
+            try:
+                invoice = Invoice.objects.get(pk=invoice_id)
+                initial['invoice'] = invoice
+                initial['customer'] = invoice.customer
+                initial['amount'] = invoice.amount_due  # ✅ Correct field for remaining balance
+            except Invoice.DoesNotExist:
+                pass
+        return initial
+
+    def form_valid(self, form):
+        payment = form.save(commit=False)
+        invoice = payment.invoice
+
+        # ✅ Prevent overpayment
+        balance_due = invoice.amount_due  # ✅ Use correct field
+        if payment.amount > balance_due:
+            messages.error(self.request, f"Payment exceeds the outstanding balance of ${balance_due:.2f}!")
+            return self.form_invalid(form)
+
+        # ✅ Assign a transaction ID
+        payment.transaction_id = f"TXN-{timezone.now().strftime('%Y%m%d%H%M%S')}"
+        payment.status = 'completed' if payment.amount > 0 else 'pending'
+        payment.save()
+
+        # ✅ Update invoice balance and status
+        invoice.update_balance()  # ✅ Correctly track payments
+
+        # ✅ Log Transaction
+        Transaction.objects.create(
+            customer=invoice.customer,
+            invoice=invoice,
+            transaction_type='invoice_payment',
+            amount=payment.amount,
+            reference=payment.transaction_id
+        )
+
+        messages.success(self.request, f'Payment of ${payment.amount:.2f} applied to Invoice {invoice.invoice_number}.')
+        return super().form_valid(form)
+
+
+
+
+# -------------------------------
+# 📜 SUBSCRIPTION VIEWS
+# -------------------------------
+
+class SubscriptionListView(LoginRequiredMixin, ListView):
+    model = Subscription
+    template_name = 'core/subscription_list.html'
+    context_object_name = 'subscriptions'
+    paginate_by = 10
+
+    def get_queryset(self):
+        """Filter subscriptions based on user role"""
+        if self.request.user.is_superuser:
+            return Subscription.objects.all().order_by('-start_date')
+        return Subscription.objects.filter(customer__assigned_to=self.request.user.employee).order_by('-start_date')
+
+
+class SubscriptionDetailView(LoginRequiredMixin, DetailView):
+    model = Subscription
+    template_name = 'core/subscription_detail.html'
+    context_object_name = 'subscription'
+
+
+class SubscriptionCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
+    model = Subscription
+    form_class = SubscriptionForm
+    template_name = 'core/subscription_form.html'
+    success_url = reverse_lazy('subscription-list')
+
+    def test_func(self):
+        """Only superusers can create subscriptions"""
+        return self.request.user.is_superuser
+
+    def form_valid(self, form):
+        messages.success(self.request, 'Subscription created successfully.')
+        return super().form_valid(form)
+
+
+class SubscriptionUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+    model = Subscription
+    form_class = SubscriptionForm
+    template_name = 'core/subscription_form.html'
+    success_url = reverse_lazy('subscription-list')
+
+    def test_func(self):
+        """Only superusers can update subscriptions"""
+        return self.request.user.is_superuser
+
+    def form_valid(self, form):
+        messages.success(self.request, 'Subscription updated successfully.')
+        return super().form_valid(form)
+
+
+class SubscriptionDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
+    model = Subscription
+    template_name = 'core/subscription_confirm_delete.html'
+    success_url = reverse_lazy('subscription-list')
+
+    def test_func(self):
+        """Only superusers can delete subscriptions"""
+        return self.request.user.is_superuser
+
+    def delete(self, request, *args, **kwargs):
+        messages.success(request, 'Subscription deleted successfully.')
+        return super().delete(request, *args, **kwargs)
+
+
+# Billing Dashboard View
+class BillingDashboardView(LoginRequiredMixin, TemplateView):
+    template_name = "core/billing_dashboard.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update({
+            'invoices': Invoice.objects.exclude(status='paid').order_by('-created_at'),  # ✅ Show only unpaid invoices
+            'payments': Payment.objects.all().order_by('-transaction_date'),
+            'subscriptions': Subscription.objects.all().order_by('-start_date'),
+            'transactions': Transaction.objects.all().order_by('-transaction_date'),
+        })
+        return context
+
+
+# Invoice Views
+class InvoiceListView(LoginRequiredMixin, ListView):
+    model = Invoice
+    template_name = 'core/invoice_list.html'
+    context_object_name = 'invoices'
+    paginate_by = 10
+
+    def get_queryset(self):
+        """Exclude paid invoices so they don't appear in the invoice list"""
+        return Invoice.objects.exclude(status='paid').order_by('-created_at')
+
+class InvoiceDetailView(LoginRequiredMixin, DetailView):
+    model = Invoice
+    template_name = 'core/invoice_detail.html'
+    context_object_name = 'invoice'
+
+class InvoiceCreateView(LoginRequiredMixin, CreateView):
+    model = Invoice
+    fields = ['customer', 'issue_date', 'due_date', 'total_amount', 'status']
+    template_name = 'core/invoice_form.html'
+    success_url = reverse_lazy('invoice-list')
+
+    def form_valid(self, form):
+        messages.success(self.request, 'Invoice created successfully.')
+        return super().form_valid(form)
+
+class InvoiceUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+    model = Invoice
+    form_class = InvoiceForm
+    template_name = 'core/invoice_form.html'
+    success_url = reverse_lazy('invoice-list')
+
+    def test_func(self):
+        """Only superusers can edit invoices"""
+        return self.request.user.is_superuser
+
+    def form_valid(self, form):
+        invoice = form.save(commit=False)
+        previous_status = self.get_object().status  # Get previous status before update
+
+        # ✅ If invoice is marked as PAID, create a corresponding payment entry
+        if invoice.status == 'paid' and previous_status != 'paid':
+            existing_payment = Payment.objects.filter(invoice=invoice).exists()
+
+            if not existing_payment:
+                Payment.objects.create(
+                    customer=invoice.customer,
+                    invoice=invoice,
+                    amount=invoice.total_amount,
+                    status='completed',  # ✅ Ensuring "paid" invoices create "completed" payments
+                    transaction_date=timezone.now(),
+                )
+
+                messages.success(self.request, 'Invoice marked as paid and moved to payments.')
+
+        invoice.save()  # ✅ Ensure invoice status is saved
+        messages.success(self.request, 'Invoice updated successfully.')
+        return super().form_valid(form)
+
+
+class InvoiceDeleteView(LoginRequiredMixin, DeleteView):
+    model = Invoice
+    template_name = 'core/invoice_confirm_delete.html'
+    success_url = reverse_lazy('invoice-list')
+
+    def delete(self, request, *args, **kwargs):
+        messages.success(request, 'Invoice deleted successfully.')
+        return super().delete(request, *args, **kwargs)
+
+# Payment Views
+class PaymentListView(LoginRequiredMixin, ListView):
+    model = Payment
+    template_name = 'core/payment_list.html'
+    context_object_name = 'payments'
+    paginate_by = 10
+
+    def get_queryset(self):
+        """Retrieve only completed payments for invoices marked as paid."""
+        queryset = Payment.objects.filter(
+            status='completed',
+            invoice__status='paid'
+        ).order_by('-transaction_date')
+
+        # Apply search filter if a search query is provided
+        search_query = self.request.GET.get('search', '').strip()
+        if search_query:
+            queryset = queryset.filter(
+                Q(invoice__invoice_number__icontains=search_query) |
+                Q(customer__company_name__icontains=search_query)
+            )
+
+        return queryset
+
+
+
+class PaymentDetailView(LoginRequiredMixin, DetailView):
+    model = Payment
+    template_name = 'core/payment_detail.html'
+    context_object_name = 'payment'
+
+
+class PaymentCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
+    model = Payment
+    form_class = PaymentForm
+    template_name = 'core/payment_form.html'
+    success_url = reverse_lazy('payment-list')
+
+    def test_func(self):
+        """Only superusers can process payments"""
+        return self.request.user.is_superuser
+
+    def get_initial(self):
+        """Pre-fill invoice if provided in URL"""
+        initial = super().get_initial()
+        invoice_id = self.request.GET.get('invoice')
+        if invoice_id:
+            try:
+                invoice = Invoice.objects.get(pk=invoice_id)
+                initial['invoice'] = invoice
+                initial['customer'] = invoice.customer
+                initial['amount'] = invoice.balance_due  # ✅ Correctly reference balance_due property
+            except Invoice.DoesNotExist:
+                pass
+        return initial
+
+    def form_valid(self, form):
+        payment = form.save(commit=False)
+        invoice = payment.invoice
+
+        # ✅ Prevent overpayment
+        balance_due = invoice.balance_due  # Use the correct property
+        if payment.amount > balance_due:
+            messages.error(self.request, f"Payment exceeds the outstanding balance of ${balance_due:.2f}!")
+            return self.form_invalid(form)
+
+        # ✅ Assign a transaction ID
+        payment.transaction_id = f"TXN-{timezone.now().strftime('%Y%m%d%H%M%S')}"
+        payment.status = 'completed' if payment.amount > 0 else 'pending'
+        payment.save()
+
+        # ✅ Update invoice status
+        invoice.update_status()  # Correct method instead of `update_balance()`
+
+        # ✅ Log Transaction
+        Transaction.objects.create(
+            customer=invoice.customer,
+            invoice=invoice,
+            transaction_type='invoice_payment',
+            amount=payment.amount,
+            reference=payment.transaction_id
+        )
+
+        messages.success(self.request, f'Payment of ${payment.amount:.2f} applied to Invoice {invoice.invoice_number}.')
+        return super().form_valid(form)
+
+
+
+
+class PaymentUpdateView(LoginRequiredMixin, UpdateView):
+    model = Payment
+    fields = ['customer', 'amount', 'payment_method', 'payment_date', 'status']
+    template_name = 'core/payment_form.html'
+    success_url = reverse_lazy('payment-list')
+
+    def form_valid(self, form):
+        messages.success(self.request, 'Payment updated successfully.')
+        return super().form_valid(form)
+
+class PaymentDeleteView(LoginRequiredMixin, DeleteView):
+    model = Payment
+    template_name = 'core/payment_confirm_delete.html'
+    success_url = reverse_lazy('payment-list')
+
+    def delete(self, request, *args, **kwargs):
+        messages.success(request, 'Payment deleted successfully.')
+        return super().delete(request, *args, **kwargs)
+
+# Subscription Views
+class SubscriptionListView(LoginRequiredMixin, ListView):
+    model = Subscription
+    template_name = 'core/subscription_list.html'
+    context_object_name = 'subscriptions'
+    paginate_by = 10
+
+class SubscriptionDetailView(LoginRequiredMixin, DetailView):
+    model = Subscription
+    template_name = 'core/subscription_detail.html'
+    context_object_name = 'subscription'
+
+class SubscriptionCreateView(LoginRequiredMixin, CreateView):
+    model = Subscription
+    fields = ['customer', 'plan', 'start_date', 'end_date', 'status']
+    template_name = 'core/subscription_form.html'
+    success_url = reverse_lazy('subscription-list')
+
+    def form_valid(self, form):
+        messages.success(self.request, 'Subscription created successfully.')
+        return super().form_valid(form)
+
+class SubscriptionUpdateView(LoginRequiredMixin, UpdateView):
+    model = Subscription
+    fields = ['customer', 'plan', 'start_date', 'end_date', 'status']
+    template_name = 'core/subscription_form.html'
+    success_url = reverse_lazy('subscription-list')
+
+    def form_valid(self, form):
+        messages.success(self.request, 'Subscription updated successfully.')
+        return super().form_valid(form)
+
+class SubscriptionCancelView(LoginRequiredMixin, DeleteView):
+    model = Subscription
+    template_name = 'core/subscription_confirm_cancel.html'
+    success_url = reverse_lazy('subscription-list')
+
+    def delete(self, request, *args, **kwargs):
+        messages.success(request, 'Subscription cancelled successfully.')
+        return super().delete(request, *args, **kwargs)
+
+# Billing Settings View
+class BillingSettingsView(LoginRequiredMixin, TemplateView):
+    template_name = 'core/billing_settings.html'
+
+
+class ServiceSubscriptionListView(ListView):
+    model = ServiceSubscription
+    template_name = 'core/service_subscription_list.html'
+    context_object_name = 'subscriptions'
+    paginate_by = 10
+
+class ServiceSubscriptionCreateView(CreateView):
+    model = ServiceSubscription
+    form_class = ServiceSubscriptionForm
+    template_name = 'core/service_subscription_form.html'
+    success_url = reverse_lazy('subscription-list')
+
+    def form_valid(self, form):
+        messages.success(self.request, 'Service subscription created successfully.')
+        response = super().form_valid(form)
+        self.object.generate_invoice()  # ✅ Generate invoice on subscription
+        return response
+
+class ServiceSubscriptionUpdateView(LoginRequiredMixin, UpdateView):
+    model = ServiceSubscription
+    form_class = ServiceSubscriptionForm
+    template_name = 'core/service_subscription_form.html'
+    success_url = reverse_lazy('subscription-list')
+
+    def form_valid(self, form):
+        """Ensure invoice generation upon service assignment."""
+        messages.success(self.request, 'Service subscription created successfully.')
+        response = super().form_valid(form)
+        self.object.generate_invoice()
+        return response
+
+        # Save status changes
+        if self.request.method == "POST":
+            subscription.save()
+
+        messages.success(self.request, "Subscription updated successfully.")
+        return super().form_valid(form)
+
+
+class ServiceSubscriptionDeleteView(LoginRequiredMixin, DeleteView):
+    model = ServiceSubscription
+    template_name = 'core/service_subscription_confirm_delete.html'
+    success_url = reverse_lazy('customer-list')
+
+    def delete(self, request, *args, **kwargs):
+        messages.success(request, "Service removed from customer.")
+        return super().delete(request, *args, **kwargs)
+
+
+def custom_404(request, exception):
+    return render(request, 'core/errors/404.html', status=404)
+
+def custom_500(request):
+    return render(request, 'core/errors/500.html', status=500)
+
+
+class PaidInvoicesListView(LoginRequiredMixin, ListView):
+    model = Invoice
+    template_name = 'core/paid_invoices.html'
+    context_object_name = 'invoices'
+    paginate_by = 10
+
+    def get_queryset(self):
+        """Show only fully paid invoices"""
+        return Invoice.objects.filter(status='paid').order_by('-created_at')
+
+
+def generate_invoice_pdf(request, invoice_id):
+    invoice = get_object_or_404(Invoice, id=invoice_id)
+
+    # Calculate amounts
+    service_totals = [Decimal(service.calculate_total()) for service in invoice.services.all()]
+    subtotal = sum(service_totals)
+    tax_rate = Decimal("0.13")  # 13% tax rate
+    tax_amount = subtotal * tax_rate
+    total = subtotal + tax_amount
+
+    # Prepare context for template
+    context = {
+        "invoice": invoice,
+        "customer": invoice.customer,
+        "services": invoice.services.all(),
+        "payments": invoice.payments.all(),
+        "subtotal": subtotal,
+        "tax_rate": tax_rate,
+        "tax_amount": tax_amount,
+        "total": total,
+    }
+
+    # Render invoice template as HTML
+    html_string = render_to_string("core/invoice_pdf.html", context)
+
+    # Generate PDF in memory
+    pdf_buffer = BytesIO()
+    HTML(string=html_string, base_url=request.build_absolute_uri()).write_pdf(pdf_buffer)
+    pdf_buffer.seek(0)
+
+    # Return response as PDF file
+    response = HttpResponse(pdf_buffer.read(), content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="invoice_{invoice.invoice_number}.pdf"'
 
     return response

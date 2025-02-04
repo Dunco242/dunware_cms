@@ -24,7 +24,7 @@ body {
 .card {
     box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
     border: none;
-    margin-bottom: 1.5rem;
+    margin-bottom: 1rem; /* Reduced margin */
 }
 
 .card-header {
@@ -49,10 +49,62 @@ body {
     border-left: 0.25rem solid #f6c23e !important;
 }
 
-/* Forms */
+/* === 📝 Form Styling Fixes === */
+
+/* Reduce Form Spacing */
+.form-group,
+.mb-3 {
+    margin-bottom: 0.6rem !important; /* Reduced excessive spacing */
+    padding-bottom: 0 !important;
+}
+
+/* Reduce Label & Input Spacing */
+.form-label {
+    margin-bottom: 0.2rem; /* Reduce label spacing */
+    font-weight: 500;
+    display: block;
+}
+
+/* Adjust Form Inputs */
+.form-control {
+    padding: 0.3rem 0.6rem; /* Reduce padding */
+    font-size: 0.95rem;
+    border-radius: 4px;
+}
+
+/* 🔹 Forcefully Remove the Unwanted Dropdown Chevron */
+select.form-control,
+select {
+    -webkit-appearance: none !important; /* Safari & Chrome */
+    -moz-appearance: none !important; /* Firefox */
+    appearance: none !important;
+    background: none !important; /* Remove any injected chevrons */
+    padding-right: 0.6rem;
+}
+
+/* Ensure No Default Dropdown Arrow */
+select::-ms-expand {
+    display: none !important;
+}
+
+/* Remove Any Bootstrap or Extra Dropdown Icons */
+.form-control::after,
+select::after {
+    display: none !important;
+    content: "" !important;
+}
+
+/* Ensure All Padding is Minimal */
+.form-control,
+.form-group {
+    margin-bottom: 0.5rem !important;
+    padding: 0 !important;
+}
+
+/* Focus Effect on Input */
 .form-control:focus {
     border-color: #4e73df;
-    box-shadow: 0 0 0 0.2rem rgba(78, 115, 223, 0.25);
+    box-shadow: 0 0 0 0.12rem rgba(78, 115, 223, 0.25);
 }
 
 /* Custom Scrollbar */
@@ -91,4 +143,33 @@ body {
         box-shadow: none;
         padding: 0;
     }
+}
+
+/* Remove Extra Dropdown Chevron */
+.relative .pointer-events-none {
+    display: none !important; /* Hide unnecessary chevron container */
+}
+
+/* Remove Bootstrap/Tailwind auto-generated chevrons */
+select.form-control,
+select {
+    -webkit-appearance: none !important; /* Remove on Safari & Chrome */
+    -moz-appearance: none !important; /* Remove on Firefox */
+    appearance: none !important;
+    background: none !important; /* Remove background image */
+    padding-right: 0.6rem;
+}
+
+/* Ensure Extra Spacing is Removed */
+.form-group,
+.mb-3 {
+    margin-bottom: 0.5rem !important; /* Reduce spacing */
+    padding-bottom: 0 !important;
+}
+
+/* Reduce Dropdown Padding */
+select {
+    padding: 0.3rem 0.6rem !important;
+    font-size: 0.95rem;
+    border-radius: 4px;
 }

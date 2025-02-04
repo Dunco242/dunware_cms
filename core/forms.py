@@ -7,7 +7,7 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 from .models import (
     Employee, Customer, Lead, Service,
-    Note, Task, Meeting
+    Note, Task, Meeting, Invoice, Payment, Subscription, Transaction, ServiceSubscription
 )
 
 class UserRegistrationForm(UserCreationForm):
@@ -205,3 +205,67 @@ class TaskSearchForm(forms.Form):
         required=False,
         widget=forms.DateInput(attrs={'type': 'date'})
     )
+
+class InvoiceForm(forms.ModelForm):
+    services = forms.ModelMultipleChoiceField(
+        queryset=ServiceSubscription.objects.all(),  # ✅ Use ServiceSubscription, not Service
+        widget=forms.CheckboxSelectMultiple,  # ✅ Allow selecting multiple service subscriptions
+        required=True
+    )
+
+    class Meta:
+        model = Invoice
+        fields = ['customer', 'services', 'issue_date', 'due_date', 'total_amount', 'status']
+        widgets = {
+            'issue_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+            'due_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+            'total_amount': forms.NumberInput(attrs={'class': 'form-control'}),
+            'status': forms.Select(attrs={'class': 'form-control'}),
+            'customer': forms.Select(attrs={'class': 'form-control'}),
+        }
+
+    def clean_services(self):
+        """Ensure selected services are valid subscriptions."""
+        services = self.cleaned_data.get('services')
+
+        if not services:
+            raise forms.ValidationError("At least one service must be selected.")
+
+        return services
+
+class PaymentForm(forms.ModelForm):
+    class Meta:
+        model = Payment
+        fields = ['customer', 'invoice', 'amount', 'status', 'transaction_date']
+        widgets = {
+            'status': forms.Select(choices=Payment.STATUS_CHOICES, attrs={'class': 'form-select'}),  # ✅ Fixed
+            'transaction_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+        }
+
+class SubscriptionForm(forms.ModelForm):
+    class Meta:
+        model = Subscription
+        fields = ['customer', 'plan', 'start_date', 'end_date', 'status']
+        widgets = {
+            'start_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+            'end_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+            'status': forms.Select(attrs={'class': 'form-select'}),
+        }
+
+class TransactionForm(forms.ModelForm):
+    class Meta:
+        model = Transaction
+        fields = ['customer', 'transaction_type', 'amount', 'transaction_date']
+        widgets = {
+            'transaction_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+            'transaction_type': forms.Select(choices=Transaction.TRANSACTION_TYPE, attrs={'class': 'form-select'}),
+        }
+
+class ServiceSubscriptionForm(forms.ModelForm):
+    class Meta:
+        model = ServiceSubscription
+        fields = ['customer', 'service', 'start_date', 'end_date', 'billing_cycle', 'price', 'is_active', 'status']
+        widgets = {
+            'start_date': forms.DateInput(attrs={'type': 'date'}),
+            'end_date': forms.DateInput(attrs={'type': 'date'}),
+        }

@@ -1,0 +1,40 @@
+{% extends 'core/base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}Edit Invoice{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1>Edit Invoice</h1>
+
+    <form method="post">
+        {% csrf_token %}
+        {{ form|crispy }}
+
+        <div class="d-flex justify-content-between mt-3">
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-save"></i> Save Changes
+            </button>
+
+            <a href="{% url 'invoice-list' %}" class="btn btn-secondary">Cancel</a>
+
+            {% if invoice.balance_due > 0 %}
+            <a href="{% url 'payment-create' %}?invoice={{ invoice.pk }}" class="btn btn-success">
+                <i class="fas fa-credit-card"></i> Make Payment
+            </a>
+            {% endif %}
+        </div>
+    </form>
+
+    {% if invoice.balance_due > 0 %}
+    <div class="alert alert-warning mt-3">
+        <strong>Balance Due:</strong> ${{ invoice.balance_due|floatformat:2 }}
+    </div>
+    {% else %}
+    <div class="alert alert-success mt-3">
+        This invoice has been fully paid.
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}

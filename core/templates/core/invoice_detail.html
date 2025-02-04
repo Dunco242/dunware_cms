@@ -1,0 +1,39 @@
+{% extends 'core/base.html' %}
+{% load humanize %}
+
+{% block title %}Invoice {{ invoice.invoice_number }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1>Invoice #{{ invoice.invoice_number }}</h1>
+
+    <div class="card">
+        <div class="card-body">
+            <h5 class="card-title">Customer: {{ invoice.customer.company_name }}</h5>
+            <p><strong>Total Amount:</strong> ${{ invoice.total_amount|floatformat:2 }}</p>
+            <p><strong>Balance Due:</strong> ${{ invoice.balance_due|floatformat:2 }}</p>
+            <p><strong>Status:</strong>
+                <span class="badge bg-{% if invoice.status == 'paid' %}success{% elif invoice.status == 'partially_paid' %}warning{% elif invoice.status == 'overdue' %}danger{% else %}primary{% endif %}">
+                    {{ invoice.get_status_display }}
+                </span>
+            </p>
+
+            <div class="d-flex">
+                <a href="{% url 'invoice-update' invoice.pk %}" class="btn btn-warning">
+                    <i class="fas fa-edit"></i> Edit Invoice
+                </a>
+
+                {% if invoice.balance_due > 0 %}
+                <a href="{% url 'payment-create' %}?invoice={{ invoice.pk }}" class="btn btn-success ms-2">
+                    <i class="fas fa-credit-card"></i> Make Payment
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <a href="{% url 'invoice-pdf' invoice.id %}" class="btn btn-success">
+        <i class="fas fa-file-pdf"></i> Download Invoice (PDF)
+    </a>
+
+</div>
+{% endblock %}

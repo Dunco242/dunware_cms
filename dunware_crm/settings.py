@@ -1,6 +1,7 @@
 from pathlib import Path
 import os
 from dotenv import load_dotenv
+import tempfile
 
 load_dotenv()
 
@@ -39,9 +40,12 @@ INSTALLED_APPS = [
     'allauth.socialaccount',
     'schedule',
     'zoom_integration',
+    'django_q',
+
     #Local Apps #
     'core',
     'dunware_crm',
+
 ]
 
 MIDDLEWARE = [
@@ -82,7 +86,10 @@ WSGI_APPLICATION = 'dunware_crm.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'NAME': str(BASE_DIR / 'db.sqlite3'),
+        'OPTIONS': {
+            'timeout':20,
+        },
     }
 }
 
@@ -111,7 +118,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'America/New_York'
 
 USE_I18N = True
 
@@ -121,9 +128,9 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
-STATIC_URL = 'static/'
-STATICFILES_DIRS = [BASE_DIR / 'static']
-STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATIC_URL = '/static/'
+STATICFILES_DIRS = [BASE_DIR / 'staticfiles']
+STATIC_ROOT = BASE_DIR / 'static'
 
 MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
@@ -168,3 +175,18 @@ SITE_ID = 1
 # Zoom API settings
 ZOOM_API_KEY = os.getenv('ZOOM_API_KEY')
 ZOOM_API_SECRET = os.getenv('ZOOM_API_SECRET')
+
+
+Q_CLUSTER = {
+    'name': 'DjangoQ',
+    'workers': 4,
+    'timeout': 90,
+    'retry': 120,
+    'queue_limit': 50,
+    'bulk': 10,
+    'orm': 'default'
+}
+
+
+WEASYPRINT_TEMP_DIR = os.path.join(tempfile.gettempdir(), "weasyprint")
+os.makedirs(WEASYPRINT_TEMP_DIR, exist_ok=True)

@@ -1,0 +1,25 @@
+{% extends 'core/base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}Process Payment{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1>Process Payment</h1>
+
+    <div class="alert alert-info">
+        <strong>Invoice:</strong> {{ form.invoice.value.invoice_number }}<br>
+        <strong>Balance Due:</strong> ${{ form.invoice.value.balance_due|floatformat:2 }}
+    </div>
+
+    <form method="post">
+        {% csrf_token %}
+        {{ form|crispy }}
+
+        <button type="submit" class="btn btn-success">
+            <i class="fas fa-check"></i> Submit Payment
+        </button>
+        <a href="{% url 'invoice-list' %}" class="btn btn-secondary">Cancel</a>
+    </form>
+</div>
+{% endblock %}

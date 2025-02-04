@@ -1,0 +1,27 @@
+{% extends 'core/base.html' %}
+{% block title %}Service Subscriptions{% endblock %}
+{% block content %}
+<h2>Service Subscriptions</h2>
+<table class="table">
+    <thead>
+        <tr>
+            <th>Customer</th>
+            <th>Service</th>
+            <th>Billing Cycle</th>
+            <th>Price</th>
+            <th>Status</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for subscription in subscriptions %}
+        <tr>
+            <td>{{ subscription.customer }}</td>
+            <td>{{ subscription.service }}</td>
+            <td>{{ subscription.get_billing_cycle_display }}</td>
+            <td>${{ subscription.price }}</td>
+            <td>{% if subscription.is_active %} Active {% else %} Inactive {% endif %}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

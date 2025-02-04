@@ -2,6 +2,8 @@
 
 from django.urls import path
 from . import views
+from .views import ServiceSubscriptionListView, ServiceSubscriptionCreateView, PaidInvoicesListView, generate_invoice_pdf
+
 
 urlpatterns = [
     # Dashboard
@@ -73,6 +75,41 @@ urlpatterns = [
     path('api/meetings/check-availability/', views.check_meeting_availability, name='api-check-meeting-availability'),
     path('api/meetings/schedule/', views.schedule_meeting, name='api-schedule-meeting'),
 
+
+    # Billing URLs
+    path('billing/', views.BillingDashboardView.as_view(), name='billing-dashboard'),
+    path('billing/invoices/paid/', PaidInvoicesListView.as_view(), name='paid-invoices'),
+    # Invoices
+    path('billing/invoices/', views.InvoiceListView.as_view(), name='invoice-list'),
+    path('billing/invoices/create/', views.InvoiceCreateView.as_view(), name='invoice-create'),
+    path('billing/invoices/<int:pk>/', views.InvoiceDetailView.as_view(), name='invoice-detail'),
+    path('billing/invoices/<int:pk>/update/', views.InvoiceUpdateView.as_view(), name='invoice-update'),
+    path('billing/invoices/<int:pk>/delete/', views.InvoiceDeleteView.as_view(), name='invoice-delete'),
+    path("billing/invoice/<int:invoice_id>/pdf/", generate_invoice_pdf, name="invoice-pdf"),
+
+    # Payments
+    path('billing/payments/', views.PaymentListView.as_view(), name='payment-list'),
+    path('billing/payments/create/', views.PaymentCreateView.as_view(), name='payment-create'),
+    path('billing/payments/<int:pk>/', views.PaymentDetailView.as_view(), name='payment-detail'),
+    path('billing/payments/<int:pk>/update/', views.PaymentUpdateView.as_view(), name='payment-update'),
+    path('billing/payments/<int:pk>/delete/', views.PaymentDeleteView.as_view(), name='payment-delete'),
+
+    # Subscriptions
+    path('billing/subscriptions/', views.SubscriptionListView.as_view(), name='service-subscription-list'),
+    path('billing/subscriptions/create/', views.SubscriptionCreateView.as_view(), name='subscription-create'),
+    path('billing/subscriptions/<int:pk>/', views.SubscriptionDetailView.as_view(), name='subscription-detail'),
+    path('billing/subscriptions/<int:pk>/update/', views.SubscriptionUpdateView.as_view(), name='subscription-update'),
+    path('billing/subscriptions/<int:pk>/cancel/', views.SubscriptionCancelView.as_view(), name='subscription-cancel'),
+
+    # Service Subscription URLs
+    path('subscriptions/', ServiceSubscriptionListView.as_view(), name='subscription-list'),
+    path('subscriptions/create/', ServiceSubscriptionCreateView.as_view(), name='subscription-create'),
+    path('customers/subscriptions/<int:pk>/edit/', views.ServiceSubscriptionUpdateView.as_view(), name='subscription-update'),
+    path('customers/subscriptions/<int:pk>/delete/', views.ServiceSubscriptionDeleteView.as_view(), name='subscription-delete'),
+
+    # Billing Settings
+    path('billing/settings/', views.BillingSettingsView.as_view(), name='billing-settings'),
+
     # Export URLs
     path('export/customers/', views.export_customers, name='export-customers'),
     path('export/leads/', views.export_leads, name='export-leads'),
@@ -82,10 +119,3 @@ urlpatterns = [
 
 handler404 = 'core.views.custom_404'
 handler500 = 'core.views.custom_500'
-
-# Add these view functions to core/views.py
-def custom_404(request, exception):
-    return render(request, 'core/errors/404.html', status=404)
-
-def custom_500(request):
-    return render(request, 'core/errors/500.html', status=500)

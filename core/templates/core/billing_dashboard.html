@@ -1,0 +1,63 @@
+{% extends "core/base.html" %}
+{% block title %}Billing Dashboard{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h2>Billing Dashboard</h2>
+    <hr>
+
+    <h4>Invoices</h4>
+<table class="table">
+    <thead>
+        <tr>
+            <th>Invoice #</th>
+            <th>Customer</th>
+            <th>Amount</th>
+            <th>Status</th>
+            <th>Created At</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for invoice in invoices %}
+        {% if invoice.status != 'paid' %}  <!-- ✅ Ensure paid invoices don't show -->
+        <tr>
+            <td>
+                <a href="{% url 'invoice-update' invoice.pk %}">
+                    {{ invoice.invoice_number }}
+                </a>
+            </td>
+            <td>{{ invoice.customer.company_name }}</td>
+            <td>${{ invoice.total_amount }}</td>
+            <td>{{ invoice.get_status_display }}</td>
+            <td>{{ invoice.created_at|date:"Y-m-d" }}</td>
+        </tr>
+        {% endif %}
+        {% endfor %}
+    </tbody>
+</table>
+
+    <h4>Subscriptions</h4>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Plan</th>
+                <th>Customer</th>
+                <th>Status</th>
+                <th>Start Date</th>
+                <th>End Date</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for subscription in subscriptions %}
+            <tr>
+                <td>{{ subscription.plan }}</td>
+                <td>{{ subscription.customer.company_name }}</td>
+                <td>{{ subscription.get_status_display }}</td>
+                <td>{{ subscription.start_date|date:"Y-m-d" }}</td>
+                <td>{{ subscription.end_date|date:"Y-m-d" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
