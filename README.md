@@ -13,3 +13,7 @@ come up with another recurring expense. This is where we step in to assist.
 How about having all these services, and more all in one application,
 one that belongs to your company, bearing your company logo? With this
 option, there is no need for a subscription based CRM.
+
+
+**
+Added email messaging to alert user of upcoming meetings and tasks. A five minute reminder before meetings, 1 week reminder to tasks and day before task due.
