@@ -1,147 +1,28 @@
-<!-- templates/core/calendar.html -->
-
 {% extends 'core/base.html' %}
+{% load humanize %}
 
-{% block title %}Calendar{% endblock %}
+{% block title %}My Calendar{% endblock %}
 
 {% block extra_css %}
 <link href='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.css' rel='stylesheet' />
-<style>
-    .fc-event {
-        cursor: pointer;
-    }
-    .meeting-tooltip {
-        background: white;
-        border: 1px solid #ddd;
-        padding: 10px;
-        border-radius: 4px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-    .fc-toolbar-title {
-        text-transform: capitalize;
-    }
-</style>
 {% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-lg-9">
-        <!-- Calendar Card -->
-        <div class="card shadow mb-4">
-            <div class="card-header py-3">
-                <h6 class="m-0 font-weight-bold text-primary">Calendar</h6>
-            </div>
-            <div class="card-body">
-                <div id="calendar"></div>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-lg-3">
-        <!-- Quick Actions -->
-        <div class="card shadow mb-4">
-            <div class="card-header py-3">
-                <h6 class="m-0 font-weight-bold text-primary">Quick Actions</h6>
-            </div>
-            <div class="card-body">
-                <div class="d-grid gap-2">
-                    <a href="{% url 'meeting-create' %}" class="btn btn-primary btn-block">
-                        <i class="fas fa-plus"></i> Schedule Meeting
-                    </a>
-                    <a href="{% url 'task-create' %}" class="btn btn-success btn-block">
-                        <i class="fas fa-plus"></i> Create Task
-                    </a>
-                </div>
+<div class="container-fluid">
+    <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex justify-content-between align-items-center">
+            <h6 class="m-0 font-weight-bold text-primary">My Calendar</h6>
+            <div class="btn-group">
+                <a href="{% url 'task-create' %}" class="btn btn-sm btn-outline-primary">
+                    <i class="fas fa-tasks"></i> New Task
+                </a>
+                <a href="{% url 'meeting-create' %}" class="btn btn-sm btn-outline-primary">
+                    <i class="fas fa-video"></i> New Meeting
+                </a>
             </div>
         </div>
-
-        <!-- Legend -->
-        <div class="card shadow mb-4">
-            <div class="card-header py-3">
-                <h6 class="m-0 font-weight-bold text-primary">Legend</h6>
-            </div>
-            <div class="card-body">
-                <div class="mb-2">
-                    <span class="badge bg-primary">&nbsp;</span> Zoom Meetings
-                </div>
-                <div class="mb-2">
-                    <span class="badge bg-success">&nbsp;</span> In-Person Meetings
-                </div>
-                <div class="mb-2">
-                    <span class="badge bg-info">&nbsp;</span> Phone Calls
-                </div>
-                <div class="mb-2">
-                    <span class="badge bg-danger">&nbsp;</span> High Priority Tasks
-                </div>
-                <div class="mb-2">
-                    <span class="badge bg-warning">&nbsp;</span> Medium Priority Tasks
-                </div>
-                <div class="mb-2">
-                    <span class="badge bg-secondary">&nbsp;</span> Low Priority Tasks
-                </div>
-            </div>
-        </div>
-
-        <!-- Filters -->
-        <div class="card shadow">
-            <div class="card-header py-3">
-                <h6 class="m-0 font-weight-bold text-primary">Filters</h6>
-            </div>
-            <div class="card-body">
-                <div class="form-check mb-2">
-                    <input class="form-check-input" type="checkbox" id="showMeetings" checked>
-                    <label class="form-check-label" for="showMeetings">
-                        Show Meetings
-                    </label>
-                </div>
-                <div class="form-check mb-2">
-                    <input class="form-check-input" type="checkbox" id="showTasks" checked>
-                    <label class="form-check-label" for="showTasks">
-                        Show Tasks
-                    </label>
-                </div>
-                <hr>
-                <div class="mb-3">
-                    <label class="form-label">Priority Filter</label>
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="showHighPriority" checked>
-                        <label class="form-check-label" for="showHighPriority">
-                            High Priority
-                        </label>
-                    </div>
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="showMediumPriority" checked>
-                        <label class="form-check-label" for="showMediumPriority">
-                            Medium Priority
-                        </label>
-                    </div>
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="showLowPriority" checked>
-                        <label class="form-check-label" for="showLowPriority">
-                            Low Priority
-                        </label>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Event Detail Modal -->
-<div class="modal fade" id="eventModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title"></h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <!-- Content will be dynamically loaded -->
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                <a href="#" class="btn btn-primary view-details-btn">View Details</a>
-            </div>
+        <div class="card-body">
+            <div id="user-calendar"></div>
         </div>
     </div>
 </div>
@@ -150,61 +31,40 @@
 {% block extra_js %}
 <script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.js'></script>
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        var calendarEl = document.getElementById('calendar');
-        var calendar = new FullCalendar.Calendar(calendarEl, {
-            initialView: 'dayGridMonth',
-            headerToolbar: {
-                left: 'prev,next today',
-                center: 'title',
-                right: 'dayGridMonth,timeGridWeek,timeGridDay'
-            },
-            eventSources: [
-                {
-                    url: "{% url 'calendar-events' %}",
-                    method: 'GET',
-                    failure: function() {
-                        alert('There was an error fetching events!');
-                    }
-                }
-            ],
-            eventClick: function(info) {
-                showEventDetails(info.event);
-            },
-            eventDidMount: function(info) {
-                // Add tooltips
-                $(info.el).tooltip({
-                    title: info.event.title,
-                    placement: 'top',
-                    trigger: 'hover',
-                    container: 'body'
-                });
-            }
-        });
-        calendar.render();
-
-        // Handle filters
-        $('.form-check-input').change(function() {
-            calendar.refetchEvents();
-        });
-
-        function showEventDetails(event) {
-            const modal = $('#eventModal');
-            modal.find('.modal-title').text(event.title);
-
-            let content = `
-                <p><strong>Date:</strong> ${event.start.toLocaleDateString()}</p>
-                <p><strong>Time:</strong> ${event.start.toLocaleTimeString()}</p>
-            `;
-
-            if (event.extendedProps.description) {
-                content += `<p><strong>Description:</strong> ${event.extendedProps.description}</p>`;
-            }
-
-            modal.find('.modal-body').html(content);
-            modal.find('.view-details-btn').attr('href', event.extendedProps.detailUrl);
-            modal.modal('show');
+document.addEventListener('DOMContentLoaded', function() {
+    var calendarEl = document.getElementById('user-calendar');
+    var calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        height: 'auto',
+        headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,timeGridWeek,timeGridDay'
+        },
+        events: "{% url 'user-calendar-events' %}",
+        editable: true,
+        selectable: true,
+        select: function(info) {
+            // Show a modal to choose between creating a task or meeting
+            $('#event-type-modal').modal('show');
+        },
+        eventClick: function(info) {
+            window.location.href = info.event.url;
+        },
+        eventContent: function(arg) {
+            return {
+                html: `
+                    <div class="fc-content">
+                        <i class="fas ${arg.event.extendedProps.icon}"></i>
+                        <span>${arg.event.title}</span>
+                        ${arg.event.extendedProps.customer ?
+                          `<small class="d-block text-muted">📋 ${arg.event.extendedProps.customer}</small>` : ''}
+                    </div>
+                `
+            };
         }
     });
+    calendar.render();
+});
 </script>
 {% endblock %}

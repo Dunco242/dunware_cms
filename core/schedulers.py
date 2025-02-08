@@ -15,7 +15,7 @@ class ReminderScheduler(Thread):
     def run(self):
         while self._running:
             try:
-                logger.info("Running reminder check...")
+                logger.info("Looking for Meetings/Reminders and Tasks...")
                 call_command('check_reminders')
                 # Sleep for 5 minutes
                 time.sleep(300)

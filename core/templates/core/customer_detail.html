@@ -3,15 +3,36 @@
 
 {% block title %}{{ customer.company_name }}{% endblock %}
 
+{% block extra_css %}
+<link href='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.css' rel='stylesheet' />
+<style>
+.fc-event {
+    margin: 2px 0;
+    padding: 2px;
+}
+.fc-event .fc-content {
+    white-space: normal;
+}
+.fc-event i {
+    margin-right: 4px;
+}
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="row">
+    <!-- Customer Info Card -->
     <div class="col-lg-4 mb-4">
         <div class="card shadow">
             <div class="card-header py-3 d-flex justify-content-between align-items-center">
                 <h6 class="m-0 font-weight-bold text-primary">Customer Information</h6>
                 <div class="btn-group">
-                    <a href="{% url 'customer-update' customer.pk %}" class="btn btn-sm btn-warning"><i class="fas fa-edit"></i> Edit</a>
-                    <a href="{% url 'customer-delete' customer.pk %}" class="btn btn-sm btn-danger"><i class="fas fa-trash"></i> Delete</a>
+                    <a href="{% url 'customer-update' customer.pk %}" class="btn btn-sm btn-warning">
+                        <i class="fas fa-edit"></i> Edit
+                    </a>
+                    <a href="{% url 'customer-delete' customer.pk %}" class="btn btn-sm btn-danger">
+                        <i class="fas fa-trash"></i> Delete
+                    </a>
                 </div>
             </div>
             <div class="card-body">
@@ -29,7 +50,9 @@
                     <dt class="col-sm-4">Status</dt>
                     <dd class="col-sm-8"><span class="badge bg-{{ customer.get_status_color }}">{{ customer.get_status_display }}</span></dd>
                     <dt class="col-sm-4">Assigned To</dt>
-                    <dd class="col-sm-8">{% if customer.assigned_to %}<a href="{% url 'employee-detail' customer.assigned_to.pk %}">{{ customer.assigned_to.user.get_full_name }}</a>{% else %}-{% endif %}</dd>
+                    <dd class="col-sm-8">{% if customer.assigned_to %}
+                        <a href="{% url 'employee-detail' customer.assigned_to.pk %}">{{ customer.assigned_to.user.get_full_name }}</a>
+                        {% else %}-{% endif %}</dd>
                     <dt class="col-sm-4">Created</dt>
                     <dd class="col-sm-8">{{ customer.created_at|naturaltime }}</dd>
                 </dl>
@@ -37,98 +60,333 @@
         </div>
     </div>
 
+    <!-- Tabs Card -->
     <div class="col-lg-8 mb-4">
         <div class="card shadow">
             <div class="card-header">
                 <ul class="nav nav-tabs card-header-tabs" role="tablist">
-                    <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#notes"><i class="fas fa-sticky-note"></i> Notes</a></li>
-                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tasks"><i class="fas fa-tasks"></i> Tasks</a></li>
-                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#meetings"><i class="fas fa-video"></i> Meetings</a></li>
-                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#subscriptions"><i class="fas fa-receipt"></i> Subscriptions</a></li>
-                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#invoices"><i class="fas fa-file-invoice"></i> Invoices</a></li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-bs-toggle="tab" href="#notes">
+                            <i class="fas fa-sticky-note"></i> Notes
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-bs-toggle="tab" href="#tasks">
+                            <i class="fas fa-tasks"></i> Tasks
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-bs-toggle="tab" href="#meetings">
+                            <i class="fas fa-video"></i> Meetings
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-bs-toggle="tab" href="#subscriptions">
+                            <i class="fas fa-receipt"></i> Subscriptions
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-bs-toggle="tab" href="#invoices">
+                            <i class="fas fa-file-invoice"></i> Invoices
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-bs-toggle="tab" href="#payments">
+                            <i class="fas fa-money-bill"></i> Payments
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" data-bs-toggle="tab" href="#calendar">
+                            <i class="fas fa-calendar"></i> Calendar
+                        </a>
+                    </li>
                 </ul>
             </div>
             <div class="card-body">
                 <div class="tab-content">
-                    <div class="tab-pane fade show active" id="notes">
+                    <!-- Notes Section -->
+                    <div class="tab-pane fade" id="notes">
                         <div class="d-flex justify-content-end mb-3">
-                            <a href="{% url 'note-create' %}?customer={{ customer.pk }}" class="btn btn-primary"><i class="fas fa-plus"></i> Add Note</a>
+                            <a href="{% url 'note-create' %}?customer={{ customer.pk }}" class="btn btn-primary">
+                                <i class="fas fa-plus"></i> Add Note
+                            </a>
                         </div>
                         {% if notes %}
-                            <ul class="list-group">
+                            <div class="list-group">
                                 {% for note in notes %}
-                                    <li class="list-group-item">
-                                        <strong>{{ note.title }}</strong><br>
-                                        <small>{{ note.created_at|date:"M d, Y H:i" }}</small>
-                                        <p>{{ note.content }}</p>
-                                    </li>
+                                    <div class="list-group-item">
+                                        <div class="d-flex w-100 justify-content-between">
+                                            <h5 class="mb-1">{{ note.title }}</h5>
+                                            <small>{{ note.created_at|naturaltime }}</small>
+                                        </div>
+                                        <p class="mb-1">{{ note.content }}</p>
+                                        <small>By {{ note.created_by.user.get_full_name }}</small>
+                                    </div>
                                 {% endfor %}
-                            </ul>
+                            </div>
                         {% else %}
                             <p class="text-center text-muted">No notes found</p>
                         {% endif %}
                     </div>
 
+                    <!-- Tasks Section -->
                     <div class="tab-pane fade" id="tasks">
                         <div class="d-flex justify-content-end mb-3">
-                            <a href="{% url 'task-create' %}?customer={{ customer.pk }}" class="btn btn-primary"><i class="fas fa-plus"></i> Add Task</a>
+                            <a href="{% url 'task-create' %}?customer={{ customer.pk }}" class="btn btn-primary">
+                                <i class="fas fa-plus"></i> Add Task
+                            </a>
                         </div>
                         {% if tasks %}
-                            <ul class="list-group">
+                            <div class="list-group">
                                 {% for task in tasks %}
-                                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                                        <div>
-                                            <strong>{{ task.title }}</strong> - {{ task.get_status_display }}
-                                            <br>
-                                            <small>Due: {{ task.due_date|date:"M d, Y H:i" }}</small>
+                                    <div class="list-group-item">
+                                        <div class="d-flex w-100 justify-content-between">
+                                            <h5 class="mb-1">{{ task.title }}</h5>
+                                            <span class="badge bg-{{ task.status }}">{{ task.get_status_display }}</span>
                                         </div>
-                                    </li>
+                                        <p class="mb-1">{{ task.description }}</p>
+                                        <small>Due: {{ task.due_date|date:"M d, Y H:i" }} |
+                                               Assigned to: {{ task.assigned_to.user.get_full_name }}</small>
+                                    </div>
                                 {% endfor %}
-                            </ul>
+                            </div>
                         {% else %}
                             <p class="text-center text-muted">No tasks found</p>
                         {% endif %}
                     </div>
 
+                    <!-- Meetings Section -->
                     <div class="tab-pane fade" id="meetings">
                         <div class="d-flex justify-content-end mb-3">
-                            <a href="{% url 'meeting-create' %}?customer={{ customer.pk }}" class="btn btn-primary"><i class="fas fa-plus"></i> Add Meeting</a>
+                            <a href="{% url 'meeting-create' %}?customer={{ customer.pk }}" class="btn btn-primary">
+                                <i class="fas fa-plus"></i> Add Meeting
+                            </a>
                         </div>
                         {% if meetings %}
-                            <ul class="list-group">
+                            <div class="list-group">
                                 {% for meeting in meetings %}
-                                    <li class="list-group-item">
-                                        <strong>{{ meeting.title }}</strong> - {{ meeting.get_meeting_type_display }}
-                                        <br>
-                                        <small>Starts: {{ meeting.start_time|date:"M d, Y H:i" }}</small>
-                                    </li>
+                                    <div class="list-group-item">
+                                        <div class="d-flex w-100 justify-content-between">
+                                            <h5 class="mb-1">{{ meeting.title }}</h5>
+                                            <span class="badge bg-{{ meeting.meeting_type }}">
+                                                {{ meeting.get_meeting_type_display }}
+                                            </span>
+                                        </div>
+                                        <p class="mb-1">{{ meeting.description }}</p>
+                                        <small>
+                                            Start: {{ meeting.start_time|date:"M d, Y H:i" }} |
+                                            End: {{ meeting.end_time|date:"M d, Y H:i" }}
+                                        </small>
+                                    </div>
                                 {% endfor %}
-                            </ul>
+                            </div>
                         {% else %}
                             <p class="text-center text-muted">No meetings found</p>
                         {% endif %}
                     </div>
 
+                    <!-- Subscriptions Section -->
+                    <div class="tab-pane fade" id="subscriptions">
+                        <div class="d-flex justify-content-end mb-3">
+                            <a href="{% url 'subscription-create' %}?customer={{ customer.pk }}" class="btn btn-primary">
+                                <i class="fas fa-plus"></i> Add Subscription
+                            </a>
+                        </div>
+                        {% if customer.service_subscriptions.all %}
+                            <div class="list-group">
+                                {% for subscription in customer.service_subscriptions.all %}
+                                    <div class="list-group-item">
+                                        <div class="d-flex w-100 justify-content-between">
+                                            <h5 class="mb-1">{{ subscription.service.name }}</h5>
+                                            <span class="badge bg-{{ subscription.status }}">
+                                                {{ subscription.get_status_display }}
+                                            </span>
+                                        </div>
+                                        <p class="mb-1">
+                                            {{ subscription.get_billing_cycle_display }} - ${{ subscription.calculate_total }}
+                                        </p>
+                                        <small>
+                                            Start: {{ subscription.start_date|date:"M d, Y" }}
+                                            {% if subscription.end_date %}
+                                                | End: {{ subscription.end_date|date:"M d, Y" }}
+                                            {% endif %}
+                                        </small>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <p class="text-center text-muted">No subscriptions found</p>
+                        {% endif %}
+                    </div>
+
+                    <!-- Invoices Section -->
                     <div class="tab-pane fade" id="invoices">
                         <div class="d-flex justify-content-end mb-3">
-                            <a href="{% url 'invoice-create' %}?customer={{ customer.pk }}" class="btn btn-primary"><i class="fas fa-plus"></i> Create Invoice</a>
+                            <a href="{% url 'invoice-create' %}?customer={{ customer.pk }}" class="btn btn-primary">
+                                <i class="fas fa-plus"></i> Create Invoice
+                            </a>
                         </div>
                         {% if invoices %}
-                            <ul class="list-group">
+                            <div class="list-group">
                                 {% for invoice in invoices %}
-                                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                                        <a href="{% url 'invoice-detail' invoice.pk %}">Invoice #{{ invoice.invoice_number }}</a>
-                                        <span class="badge bg-{{ invoice.status }}">{{ invoice.get_status_display }}</span>
-                                    </li>
+                                    <div class="list-group-item">
+                                        <div class="d-flex w-100 justify-content-between">
+                                            <h5 class="mb-1">
+                                                <a href="{% url 'invoice-detail' invoice.pk %}">
+                                                    Invoice #{{ invoice.invoice_number }}
+                                                </a>
+                                            </h5>
+                                            <span class="badge bg-{{ invoice.status }}">
+                                                {{ invoice.get_status_display }}
+                                            </span>
+                                        </div>
+                                        <p class="mb-1">
+                                            Amount: ${{ invoice.total_amount|floatformat:2 }} |
+                                            Due: ${{ invoice.amount_due|floatformat:2 }}
+                                        </p>
+                                        <small>
+                                            Issued: {{ invoice.issue_date|date:"M d, Y" }} |
+                                            Due: {{ invoice.due_date|date:"M d, Y" }}
+                                        </small>
+                                    </div>
                                 {% endfor %}
-                            </ul>
+                            </div>
                         {% else %}
                             <p class="text-center text-muted">No invoices found</p>
                         {% endif %}
+                    </div>
+
+                    <!-- Payments Section -->
+                    <div class="tab-pane fade" id="payments">
+                        <div class="card mb-3 bg-light">
+                            <div class="card-body">
+                                <h5 class="card-title">Total Payments Made: ${{ total_paid|floatformat:2 }}</h5>
+                            </div>
+                        </div>
+                        {% if payments %}
+                            <div class="table-responsive">
+                                <table class="table table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>Date</th>
+                                            <th>Invoice #</th>
+                                            <th>Amount</th>
+                                            <th>Method</th>
+                                            <th>Status</th>
+                                            <th>Reference</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for payment in payments %}
+                                            <tr>
+                                                <td>{{ payment.transaction_date|date:"M d, Y H:i" }}</td>
+                                                <td>
+                                                    {% if payment.invoice %}
+                                                        <a href="{% url 'invoice-detail' payment.invoice.pk %}">
+                                                            {{ payment.invoice.invoice_number }}
+                                                        </a>
+                                                    {% else %}
+                                                        -
+                                                    {% endif %}
+                                                </td>
+                                                <td>${{ payment.amount|floatformat:2 }}</td>
+                                                <td>{{ payment.get_payment_method_display }}</td>
+                                                <td>
+                                                    <span class="badge bg-{{ payment.status }}">
+                                                        {{ payment.get_status_display }}
+                                                    </span>
+                                                </td>
+                                                <td>{{ payment.reference }}</td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <p class="text-center text-muted">No payments found</p>
+                        {% endif %}
+                    </div>
+
+                    <!-- Calendar Section -->
+                    <div class="tab-pane fade show active" id="calendar">
+                        <div class="d-flex justify-content-end mb-3">
+                            <div class="btn-group">
+                                <a href="{% url 'task-create' %}?customer={{ customer.pk }}" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-tasks"></i> New Task
+                                </a>
+                                <a href="{% url 'meeting-create' %}?customer={{ customer.pk }}" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-video"></i> New Meeting
+                                </a>
+                                <a href="{% url 'create-event' customer.pk %}" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-calendar-plus"></i> New Event
+                                </a>
+                            </div>
+                        </div>
+                        <div id="customer-calendar"></div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.js'></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var calendarEl = document.getElementById('customer-calendar');
+    var calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        height: 'auto',
+        headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,timeGridWeek,timeGridDay'
+        },
+        events: "{% url 'customer-events' customer.id %}",
+        editable: true,
+        selectable: true,
+        select: function(info) {
+            var createTask = confirm('Create a task for this customer? (Cancel for meeting/event)');
+
+            if (createTask) {
+                window.location.href = "{% url 'task-create' %}?customer={{ customer.pk }}&due_date=" + info.startStr;
+            } else {
+                var createMeeting = confirm('Create a meeting? (Cancel for event)');
+                if (createMeeting) {
+                    window.location.href = "{% url 'meeting-create' %}?customer={{ customer.pk }}&start_time=" + info.startStr;
+                } else {
+                    window.location.href = "{% url 'create-event' customer.pk %}?start=" + info.startStr + "&end=" + info.endStr;
+                }
+            }
+
+            calendar.unselect();
+        },
+        eventClick: function(info) {
+            if (info.event.url) {
+                window.location.href = info.event.url;
+            }
+        },
+        eventContent: function(arg) {
+            return {
+                html: `
+                    <div class="fc-content">
+                        <i class="fas ${arg.event.extendedProps.icon}"></i>
+                        <span>${arg.event.title}</span>
+                        ${arg.event.extendedProps.assigned_to ?
+                          `<small class="d-block text-muted">👤 ${arg.event.extendedProps.assigned_to}</small>` : ''}
+                    </div>
+                `
+            };
+        }
+    });
+    calendar.render();
+
+    // Add periodic refresh
+    setInterval(function() {
+        calendar.refetchEvents();
+    }, 60000); // Refresh every minute
+});
+</script>
 {% endblock %}

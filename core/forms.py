@@ -3,11 +3,12 @@
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
+from allauth.account.forms import LoginForm
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 from .models import (
     Employee, Customer, Lead, Service,
-    Note, Task, Meeting, Invoice, Payment, Subscription, Transaction, ServiceSubscription
+    Note, Task, Meeting, Invoice, Payment, Subscription, Transaction, ServiceSubscription, Event, UploadedICSFile
 )
 
 class UserRegistrationForm(UserCreationForm):
@@ -264,8 +265,91 @@ class TransactionForm(forms.ModelForm):
 class ServiceSubscriptionForm(forms.ModelForm):
     class Meta:
         model = ServiceSubscription
-        fields = ['customer', 'service', 'start_date', 'end_date', 'billing_cycle', 'price', 'is_active', 'status']
+        fields = [
+            'customer',
+            'service',
+            'billing_cycle',
+            'price',
+            'hourly_rate',
+            'hours',
+            'start_date',
+            'end_date'
+        ]
         widgets = {
             'start_date': forms.DateInput(attrs={'type': 'date'}),
             'end_date': forms.DateInput(attrs={'type': 'date'}),
+            'hours': forms.NumberInput(attrs={'step': '0.5', 'min': '0'}),
+            'hourly_rate': forms.NumberInput(attrs={'step': '0.01', 'min': '0'}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['billing_cycle'].widget.attrs.update({'class': 'form-control', 'id': 'billing_cycle'})
+        self.fields['hours'].widget.attrs.update({'class': 'form-control'})
+        self.fields['hourly_rate'].widget.attrs.update({'class': 'form-control'})
+        self.fields['price'].widget.attrs.update({'class': 'form-control'})
+
+        # Add help text
+        self.fields['hours'].help_text = 'Number of hours to bill (for hourly billing)'
+        self.fields['hourly_rate'].help_text = 'Rate per hour (for hourly billing)'
+
+    def clean(self):
+        cleaned_data = super().clean()
+        billing_cycle = cleaned_data.get('billing_cycle')
+        hours = cleaned_data.get('hours')
+        hourly_rate = cleaned_data.get('hourly_rate')
+        price = cleaned_data.get('price')
+
+        if billing_cycle == 'hourly':
+            if not hours or hours <= 0:
+                raise forms.ValidationError("Please specify the number of hours for hourly billing.")
+            if not hourly_rate or hourly_rate <= 0:
+                raise forms.ValidationError("Please specify the hourly rate.")
+        else:
+            if not price or price <= 0:
+                raise forms.ValidationError("Please specify the price for the subscription.")
+
+        return cleaned_data
+
+
+class ICSUploadForm(forms.ModelForm):
+    class Meta:
+        model = UploadedICSFile
+        fields = ['file']
+        widgets = {
+            'file': forms.FileInput(attrs={'accept': '.ics'})
+        }
+
+    def clean_file(self):
+        file = self.cleaned_data['file']
+        if file:
+            if not file.name.endswith('.ics'):
+                raise forms.ValidationError("Only .ics files are allowed")
+            if file.size > 5242880:  # 5MB limit
+                raise forms.ValidationError("File size should not exceed 5MB")
+        return file
+
+
+class EventForm(forms.ModelForm):
+    class Meta:
+        model = Event
+        fields = ['customer', 'title', 'description', 'location', 'start_time', 'end_time', 'attendees']
+        widgets = {
+            'start_time': forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': 'form-control'}),
+            'end_time': forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': 'form-control'}),
+        }
+
+
+class CustomLoginForm(LoginForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Customize form fields here
+        # For example, modify placeholders, add classes, etc.
+        self.fields['login'].widget.attrs.update({
+            'class': 'form-control form-control-lg',
+            'placeholder': 'Email or Username'
+        })
+        self.fields['password'].widget.attrs.update({
+            'class': 'form-control form-control-lg',
+            'placeholder': 'Password'
+        })

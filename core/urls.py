@@ -4,11 +4,7 @@ from django.urls import path
 from . import views
 from .views import ServiceSubscriptionListView, ServiceSubscriptionCreateView, PaidInvoicesListView, generate_invoice_pdf
 
-
 urlpatterns = [
-    # Dashboard
-   # path('', views.DashboardView.as_view(), name='dashboard'),
-
     # Authentication URLs
     path('register/', views.register, name='register'),
     path('profile/', views.profile, name='profile'),
@@ -65,20 +61,33 @@ urlpatterns = [
     path('meetings/<int:pk>/update/', views.MeetingUpdateView.as_view(), name='meeting-update'),
     path('meetings/<int:pk>/delete/', views.MeetingDeleteView.as_view(), name='meeting-delete'),
 
-    # Calendar URLs
-    path('calendar/', views.CalendarView.as_view(), name='calendar'),
-    path('calendar/events/', views.calendar_events, name='calendar-events'),
-    path('calendar/available-slots/', views.available_slots, name='calendar-available-slots'),
+    # Calendar System URLs
+    # Personal Calendar Routes
+    path('calendar/', views.user_calendar_view, name='calendar'),
+    path('api/user-calendar-events/', views.user_calendar_events, name='user-calendar-events'),
+    path('calendar/upload-ics/', views.upload_ics, name='upload-ics'),
+    path('event/create/', views.create_event, name='create-event-user'),
 
-    # API URLs
+    # Customer Calendar Routes
+    path('customer/<int:customer_id>/calendar/', views.CalendarView.as_view(), name='customer-calendar'),
+    path('api/customer/<int:customer_id>/events/', views.customer_calendar_events, name='customer-events'),
+    path('customer/<int:customer_id>/upload-ics/', views.upload_ics, name='customer-upload-ics'),
+    path('customer/<int:customer_id>/event/create/', views.create_event, name='create-event'),
+
+    # Event Management Routes
+    path('event/<int:event_id>/edit/', views.edit_event, name='edit-event'),
+    path('event/<int:event_id>/delete/', views.delete_event, name='delete-event'),
+    path('event/update/', views.update_event, name='update-event'),
+
+    # Calendar API Routes
     path('api/tasks/update-status/', views.update_task_status, name='api-update-task-status'),
     path('api/meetings/check-availability/', views.check_meeting_availability, name='api-check-meeting-availability'),
     path('api/meetings/schedule/', views.schedule_meeting, name='api-schedule-meeting'),
 
-
     # Billing URLs
     path('billing/', views.BillingDashboardView.as_view(), name='billing-dashboard'),
     path('billing/invoices/paid/', PaidInvoicesListView.as_view(), name='paid-invoices'),
+
     # Invoices
     path('billing/invoices/', views.InvoiceListView.as_view(), name='invoice-list'),
     path('billing/invoices/create/', views.InvoiceCreateView.as_view(), name='invoice-create'),

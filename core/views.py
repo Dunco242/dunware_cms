@@ -1,37 +1,84 @@
 # core/views.py
 
-from django.shortcuts import render, redirect, get_object_or_404
-from datetime import datetime, timedelta
-from django.contrib.auth.decorators import login_required
-import tempfile
+# Python Standard Library
 import os
+import csv
+import tempfile
 from io import BytesIO
-from zoomus import ZoomClient
-from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from datetime import datetime, timedelta
+from decimal import Decimal
+
+# Django Core
+from django.db import transaction
+from django.conf import settings
+from django.shortcuts import render, redirect, get_object_or_404
+from django.http import JsonResponse, HttpResponse, HttpResponseRedirect
+from django.urls import reverse_lazy, reverse
+from django.utils import timezone
+from django.utils.timezone import make_aware
+from django.db.models import Q, Sum
+from django.contrib import messages
+from django.contrib.auth import update_session_auth_hash
+from django.core.paginator import Paginator
+from django.template.loader import render_to_string
+from django.views.decorators.csrf import csrf_exempt
+from django.contrib.auth.decorators import login_required
+
+# Django Class-Based Views
 from django.views.generic import (
     ListView, DetailView, CreateView, UpdateView, DeleteView, TemplateView
 )
-from django.contrib.auth.forms import PasswordChangeForm
-from django.contrib.auth import update_session_auth_hash
-from django.urls import reverse_lazy
-from decimal import Decimal
-from django.contrib import messages
-from django.http import JsonResponse, HttpResponse
-from django.utils import timezone
-from django.db.models import Q
-from django.core.paginator import Paginator
-from django.template.loader import render_to_string
-from weasyprint import HTML
-import tempfile
+from django.views.generic.edit import FormView
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 
-from .models import (
-    Employee, Customer, Lead, Service, Note, Task, Meeting, Invoice, Payment, Subscription, Transaction, ServiceSubscription
-)
+# Third-Party Libraries
+import pytz
+from dateutil.parser import parse
+from weasyprint import HTML
+from zoomus import ZoomClient
+from icalendar import Calendar
+from googleapiclient.discovery import build
+
+# Forms
+from django.contrib.auth.forms import PasswordChangeForm
 from .forms import (
-    UserRegistrationForm, EmployeeForm, CustomerForm, LeadForm,
-    ServiceForm, NoteForm, TaskForm, MeetingForm,
-    MeetingSearchForm, TaskSearchForm, InvoiceForm, PaymentForm, SubscriptionForm, ServiceSubscriptionForm
+    UserRegistrationForm,
+    EmployeeForm,
+    CustomerForm,
+    LeadForm,
+    ServiceForm,
+    NoteForm,
+    TaskForm,
+    MeetingForm,
+    MeetingSearchForm,
+    TaskSearchForm,
+    InvoiceForm,
+    PaymentForm,
+    SubscriptionForm,
+    ServiceSubscriptionForm,
+    UploadedICSFile,  # If this is a form
+    EventForm
 )
+
+# Models
+from .models import (
+    Employee,
+    Customer,
+    Lead,
+    Service,
+    Note,
+    Task,
+    Meeting,
+    Invoice,
+    Payment,
+    Subscription,
+    Transaction,
+    ServiceSubscription,
+    UploadedICSFile,  # If this is a model
+    Event
+)
+
+
 
 class DashboardView(LoginRequiredMixin, TemplateView):
     template_name = 'core/dashboard.html'
@@ -247,6 +294,11 @@ class CustomerDetailView(LoginRequiredMixin, DetailView):
             'notes': Note.objects.filter(customer=customer).order_by('-created_at'),
             'tasks': Task.objects.filter(customer=customer).order_by('-created_at'),
             'meetings': Meeting.objects.filter(customers=customer).order_by('-start_time'),
+            'payments': Payment.objects.filter(customer=customer).order_by('-transaction_date'),  # Add this line
+            'total_paid': Payment.objects.filter(
+                customer=customer,
+                status='completed'
+            ).aggregate(total=Sum('amount'))['total'] or 0,
         })
         return context
 
@@ -766,99 +818,166 @@ class CalendarView(LoginRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        employee = self.request.user.employee
         today = timezone.now().date()
+        employee = getattr(self.request.user, 'employee', None)
 
-        # Get upcoming meetings
-        meetings = Meeting.objects.filter(
-            Q(organizer=employee) | Q(attendees=employee),
-            start_time__gte=today
-        ).order_by('start_time')
+        if not employee:
+            messages.warning(self.request, 'No employee profile found. Please contact an administrator.')
+            return context
 
-        # Get upcoming tasks
+        # Get events where user is creator or attendee
+        events = Event.objects.filter(
+            Q(created_by=employee) |  # Events created by the user
+            Q(attendees=employee)     # Events where user is an attendee
+        ).distinct().order_by('start_time')
+
+        # Get tasks assigned to or created by the user
         tasks = Task.objects.filter(
-            assigned_to=employee,
+            Q(assigned_to=employee) |
+            Q(created_by=employee)
+        ).filter(
             status__in=['pending', 'in_progress'],
             due_date__gte=today
         ).order_by('due_date')
 
+        # Get meetings where user is an organizer or attendee
+        meetings = Meeting.objects.filter(
+            Q(organizer=employee) |
+            Q(attendees=employee)
+        ).filter(
+            start_time__gte=today
+        ).order_by('start_time')
+
         context.update({
-            'meetings': meetings,
+            'events': events,
             'tasks': tasks,
+            'meetings': meetings,
             'today': today,
+            'is_personal_calendar': True,  # Add this flag to distinguish personal calendar
         })
         return context
 
-    def get_events_data(self):
-        """Helper method to get calendar events in the required format"""
-        employee = self.request.user.employee
-        start_date = self.request.GET.get('start')
-        end_date = self.request.GET.get('end')
+@login_required
+def calendar_events(request):
+    """Retrieve events for calendar"""
+    employee = request.user.employee
+    customer_id = request.GET.get('customer_id')
+
+    if customer_id:
+        # Customer-specific events
+        events = Event.objects.filter(customer_id=customer_id)
+    else:
+        # Personal calendar events
+        events = Event.objects.filter(
+            Q(created_by=employee) |
+            Q(attendees=employee)
+        ).distinct()
+
+    return JsonResponse([event.get_calendar_event_data() for event in events], safe=False)
+
+
+    def get_events_data(self, request):
+        """Returns calendar events as JSON"""
+        employee = getattr(request.user, 'employee', None)
+        if not employee:
+            return JsonResponse({"error": "No employee profile found"}, status=400)
 
         try:
-            start_date = datetime.strptime(start_date, '%Y-%m-%d')
-            end_date = datetime.strptime(end_date, '%Y-%m-%d')
-        except (TypeError, ValueError):
-            # Default to current month if dates not provided
-            today = timezone.now()
-            start_date = today.replace(day=1)
-            end_date = (start_date + timedelta(days=45)).replace(day=1)
+            start_date = make_aware(datetime.strptime(request.GET.get('start', ''), '%Y-%m-%d'))
+            end_date = make_aware(datetime.strptime(request.GET.get('end', ''), '%Y-%m-%d'))
+        except ValueError:
+            return JsonResponse({"error": "Invalid date format"}, status=400)
 
-        # Get meetings
-        meetings = Meeting.objects.filter(
-            Q(organizer=employee) | Q(attendees=employee),
-            start_time__range=[start_date, end_date]
-        )
+        customer_id = request.GET.get('customer_id')
+        events_list = []
 
-        # Get tasks
-        tasks = Task.objects.filter(
-            assigned_to=employee,
-            due_date__range=[start_date, end_date]
-        )
+        # Get Events
+        if customer_id:
+            events = Event.objects.filter(
+                customer_id=customer_id,
+                start_time__range=[start_date, end_date]
+            )
+        else:
+            events = Event.objects.filter(
+                Q(created_by=employee) |
+                Q(attendees=employee),
+                start_time__range=[start_date, end_date]
+            ).distinct()
 
-        events = []
+        for event in events:
+            events_list.append(event.get_calendar_event_data())
 
-        # Add meetings to events
-        for meeting in meetings:
-            events.append({
-                'id': f'meeting_{meeting.id}',
-                'title': meeting.title,
-                'start': meeting.start_time.isoformat(),
-                'end': meeting.end_time.isoformat(),
-                'url': meeting.get_absolute_url(),
-                'type': 'meeting',
-                'className': f'event-meeting event-{meeting.meeting_type}',
-                'extendedProps': {
-                    'description': meeting.description,
-                    'meetingType': meeting.get_meeting_type_display(),
-                    'organizer': meeting.organizer.user.get_full_name()
-                }
-            })
+        # Get Tasks (if viewing personal calendar)
+        if not customer_id:
+            tasks = Task.objects.filter(
+                Q(assigned_to=employee) |
+                Q(created_by=employee),
+                due_date__range=[start_date, end_date]
+            )
 
-        # Add tasks to events
-        for task in tasks:
-            events.append({
-                'id': f'task_{task.id}',
-                'title': task.title,
-                'start': task.due_date.isoformat(),
-                'allDay': True,
-                'url': task.get_absolute_url(),
-                'type': 'task',
-                'className': f'event-task event-priority-{task.priority}',
-                'extendedProps': {
-                    'description': task.description,
-                    'priority': task.get_priority_display(),
-                    'status': task.get_status_display()
-                }
-            })
+            for task in tasks:
+                events_list.append({
+                    'id': f'task_{task.id}',
+                    'title': f'Task: {task.title}',
+                    'start': task.due_date.isoformat(),
+                    'allDay': True,
+                    'className': f'task-priority-{task.priority}',
+                    'type': 'task',
+                    'url': f'/tasks/{task.id}/',
+                    'extendedProps': {
+                        'description': task.description,
+                        'status': task.get_status_display(),
+                        'priority': task.get_priority_display()
+                    }
+                })
 
-        return events
+            # Get Meetings
+            meetings = Meeting.objects.filter(
+                Q(organizer=employee) |
+                Q(attendees=employee),
+                start_time__range=[start_date, end_date]
+            )
 
+            for meeting in meetings:
+                events_list.append({
+                    'id': f'meeting_{meeting.id}',
+                    'title': f'Meeting: {meeting.title}',
+                    'start': meeting.start_time.isoformat(),
+                    'end': meeting.end_time.isoformat(),
+                    'className': f'meeting-type-{meeting.meeting_type}',
+                    'type': 'meeting',
+                    'url': f'/meetings/{meeting.id}/',
+                    'extendedProps': {
+                        'description': meeting.description,
+                        'meetingType': meeting.get_meeting_type_display(),
+                        'organizer': meeting.organizer.user.get_full_name(),
+                        'attendees': [att.user.get_full_name() for att in meeting.attendees.all()]
+                    }
+                })
+
+        return JsonResponse(events_list, safe=False)
+
+
+@login_required
 def calendar_events(request):
-    view = CalendarView()
-    view.request = request
-    events = view.get_events_data()
-    return JsonResponse(events, safe=False)
+    """
+    Retrieve events for a specific customer or for the current user
+    """
+    customer_id = request.GET.get('customer_id')
+    employee = request.user.employee
+
+    if customer_id:
+        # Get events specific to this customer
+        events = Event.objects.filter(customer_id=customer_id)
+    else:
+        # Get events where user is creator or attendee
+        events = Event.objects.filter(
+            Q(created_by=employee) |
+            Q(attendees=employee)
+        ).distinct()
+
+    return JsonResponse([event.get_calendar_event_data() for event in events], safe=False)
+
 
 @login_required
 def available_slots(request):
@@ -1311,11 +1430,9 @@ class PaymentDetailView(LoginRequiredMixin, DetailView):
     context_object_name = 'payment'
 
 
-class PaymentCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
-    model = Payment
-    form_class = PaymentForm
+class PaymentCreateView(LoginRequiredMixin, UserPassesTestMixin, FormView):
     template_name = 'core/payment_form.html'
-    success_url = reverse_lazy('payment-list')
+    form_class = PaymentForm
 
     def test_func(self):
         """Only superusers can process payments"""
@@ -1323,47 +1440,57 @@ class PaymentCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
 
     def get_initial(self):
         """Pre-fill invoice if provided in URL"""
-        initial = super().get_initial()
+        initial = {}
         invoice_id = self.request.GET.get('invoice')
         if invoice_id:
             try:
                 invoice = Invoice.objects.get(pk=invoice_id)
                 initial['invoice'] = invoice
                 initial['customer'] = invoice.customer
-                initial['amount'] = invoice.amount_due  # ✅ Correct field for remaining balance
+                initial['amount'] = invoice.balance_due
             except Invoice.DoesNotExist:
                 pass
         return initial
 
     def form_valid(self, form):
-        payment = form.save(commit=False)
-        invoice = payment.invoice
+        # Use transaction.atomic to ensure consistency
+        with transaction.atomic():
+            # Get cleaned data
+            invoice = form.cleaned_data['invoice']
+            customer = form.cleaned_data['customer']
+            amount = form.cleaned_data['amount']
+            payment_method = form.cleaned_data.get('payment_method')
 
-        # ✅ Prevent overpayment
-        balance_due = invoice.amount_due  # ✅ Use correct field
-        if payment.amount > balance_due:
-            messages.error(self.request, f"Payment exceeds the outstanding balance of ${balance_due:.2f}!")
-            return self.form_invalid(form)
+            # Check balance before creating payment
+            balance_due = invoice.balance_due
+            if amount > balance_due:
+                messages.error(self.request, f"Payment exceeds the outstanding balance of ${balance_due:.2f}!")
+                return self.form_invalid(form)
 
-        # ✅ Assign a transaction ID
-        payment.transaction_id = f"TXN-{timezone.now().strftime('%Y%m%d%H%M%S')}"
-        payment.status = 'completed' if payment.amount > 0 else 'pending'
-        payment.save()
+            # Create payment
+            payment = Payment.objects.create(
+                customer=customer,
+                invoice=invoice,
+                amount=amount,
+                status='completed',
+                payment_method=payment_method
+            )
 
-        # ✅ Update invoice balance and status
-        invoice.update_balance()  # ✅ Correctly track payments
+            # Create transaction record
+            Transaction.objects.create(
+                customer=invoice.customer,
+                invoice=invoice,
+                payment=payment,
+                transaction_type='invoice_payment',
+                amount=payment.amount,
+                reference=payment.reference,
+                status='completed'
+            )
 
-        # ✅ Log Transaction
-        Transaction.objects.create(
-            customer=invoice.customer,
-            invoice=invoice,
-            transaction_type='invoice_payment',
-            amount=payment.amount,
-            reference=payment.transaction_id
-        )
+            messages.success(self.request, f'Payment of ${payment.amount:.2f} applied to Invoice {invoice.invoice_number}.')
 
-        messages.success(self.request, f'Payment of ${payment.amount:.2f} applied to Invoice {invoice.invoice_number}.')
-        return super().form_valid(form)
+            # Use reverse instead of reverse_lazy
+            return HttpResponseRedirect(reverse('payment-list'))
 
 
 
@@ -1570,40 +1697,47 @@ class PaymentCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
                 invoice = Invoice.objects.get(pk=invoice_id)
                 initial['invoice'] = invoice
                 initial['customer'] = invoice.customer
-                initial['amount'] = invoice.balance_due  # ✅ Correctly reference balance_due property
+                initial['amount'] = invoice.balance_due
             except Invoice.DoesNotExist:
                 pass
         return initial
 
     def form_valid(self, form):
-        payment = form.save(commit=False)
-        invoice = payment.invoice
+        # Use transaction.atomic to ensure consistency
+        with transaction.atomic():
+            # Manually process the payment
+            invoice = form.cleaned_data['invoice']
 
-        # ✅ Prevent overpayment
-        balance_due = invoice.balance_due  # Use the correct property
-        if payment.amount > balance_due:
-            messages.error(self.request, f"Payment exceeds the outstanding balance of ${balance_due:.2f}!")
-            return self.form_invalid(form)
+            # Check balance before creating payment
+            balance_due = invoice.balance_due
+            if form.cleaned_data['amount'] > balance_due:
+                messages.error(self.request, f"Payment exceeds the outstanding balance of ${balance_due:.2f}!")
+                return self.form_invalid(form)
 
-        # ✅ Assign a transaction ID
-        payment.transaction_id = f"TXN-{timezone.now().strftime('%Y%m%d%H%M%S')}"
-        payment.status = 'completed' if payment.amount > 0 else 'pending'
-        payment.save()
+            # Create payment
+            payment = Payment.objects.create(
+                customer=form.cleaned_data['customer'],
+                invoice=invoice,
+                amount=form.cleaned_data['amount'],
+                status='completed',
+                payment_method=form.cleaned_data.get('payment_method')
+            )
 
-        # ✅ Update invoice status
-        invoice.update_status()  # Correct method instead of `update_balance()`
+            # Create transaction record
+            Transaction.objects.create(
+                customer=invoice.customer,
+                invoice=invoice,
+                payment=payment,
+                transaction_type='invoice_payment',
+                amount=payment.amount,
+                reference=payment.reference,
+                status='completed'
+            )
 
-        # ✅ Log Transaction
-        Transaction.objects.create(
-            customer=invoice.customer,
-            invoice=invoice,
-            transaction_type='invoice_payment',
-            amount=payment.amount,
-            reference=payment.transaction_id
-        )
+            messages.success(self.request, f'Payment of ${payment.amount:.2f} applied to Invoice {invoice.invoice_number}.')
 
-        messages.success(self.request, f'Payment of ${payment.amount:.2f} applied to Invoice {invoice.invoice_number}.')
-        return super().form_valid(form)
+            return HttpResponseRedirect('/billing/payments/')
+
 
 
 
@@ -1686,10 +1820,29 @@ class ServiceSubscriptionCreateView(CreateView):
     success_url = reverse_lazy('subscription-list')
 
     def form_valid(self, form):
-        messages.success(self.request, 'Service subscription created successfully.')
-        response = super().form_valid(form)
-        self.object.generate_invoice()  # ✅ Generate invoice on subscription
-        return response
+        try:
+            # Save the form first
+            service_subscription = form.save()
+
+            # Generate invoice
+            invoice = service_subscription.generate_invoice()
+
+            messages.success(self.request,
+                f'Service subscription and invoice {invoice.invoice_number} created successfully.')
+
+            return super().form_valid(form)
+
+        except Exception as e:
+            # Detailed error logging
+            import traceback
+            print(f"Full error traceback:")
+            traceback.print_exc()
+
+            messages.error(self.request,
+                f'Error creating service subscription: {str(e)}')
+
+            # Return to the form with error
+            return self.form_invalid(form)
 
 class ServiceSubscriptionUpdateView(LoginRequiredMixin, UpdateView):
     model = ServiceSubscription
@@ -1775,3 +1928,356 @@ def generate_invoice_pdf(request, invoice_id):
     response["Content-Disposition"] = f'attachment; filename="invoice_{invoice.invoice_number}.pdf"'
 
     return response
+
+def upload_ics(request, customer_id):
+    customer = get_object_or_404(Customer, id=customer_id)
+
+    if request.method == 'POST':
+        form = ICSUploadForm(request.POST, request.FILES)
+        if form.is_valid():
+            uploaded_file = form.save(commit=False)
+            uploaded_file.customer = customer
+            uploaded_file.save()
+
+            file_path = uploaded_file.file.path
+
+            with open(file_path, 'rb') as f:
+                cal = Calendar.from_ical(f.read())
+
+            for component in cal.walk():
+                if component.name == "VEVENT":
+                    title = component.get('SUMMARY', 'No Title')
+                    description = component.get('DESCRIPTION', '')
+                    location = component.get('LOCATION', '')
+                    start_time = component.get('DTSTART').dt
+                    end_time = component.get('DTEND').dt
+
+                    if isinstance(start_time, datetime):
+                        start_time = make_aware(start_time, pytz.UTC)
+                    if isinstance(end_time, datetime):
+                        end_time = make_aware(end_time, pytz.UTC)
+
+                    Event.objects.create(
+                        customer=customer,
+                        title=title,
+                        description=description,
+                        location=location,
+                        start_time=start_time,
+                        end_time=end_time
+                    )
+
+            return redirect('customer-calendar', customer_id=customer.id)
+
+    else:
+        form = ICSUploadForm()
+
+    return render(request, 'core/upload_ics.html', {'form': form, 'customer': customer})
+
+def customer_calendar(request, customer_id):
+    customer = get_object_or_404(Customer, id=customer_id)
+    events = Event.objects.filter(customer=customer)
+    return render(request, 'core/customer_calendar.html', {'customer': customer, 'events': events})
+
+
+# @login_required
+# def customer_calendar_events(request, customer_id):
+#     customer = get_object_or_404(Customer, id=customer_id)
+#     events = []
+
+#     # Get customer tasks
+#     tasks = Task.objects.filter(customer=customer).select_related('assigned_to')
+#     for task in tasks:
+#         events.append({
+#             'id': f'task_{task.id}',
+#             'title': f'Task: {task.title}',
+#             'start': task.due_date.isoformat(),
+#             'end': task.due_date.isoformat(),
+#             'url': reverse('task-detail', args=[task.id]),
+#             'backgroundColor': '#ff9f89',
+#             'borderColor': '#ff9f89',
+#             'extendedProps': {
+#                 'icon': 'fa-tasks',
+#                 'assigned_to': task.assigned_to.get_full_name() if task.assigned_to else 'Unassigned'
+#             }
+#         })
+
+#     # Get customer meetings
+#     meetings = Meeting.objects.filter(customer=customer).prefetch_related('attendees')
+#     for meeting in meetings:
+#         events.append({
+#             'id': f'meeting_{meeting.id}',
+#             'title': f'Meeting: {meeting.title}',
+#             'start': meeting.start_time.isoformat(),
+#             'end': meeting.end_time.isoformat(),
+#             'url': reverse('meeting-detail', args=[meeting.id]),
+#             'backgroundColor': '#4e73df',
+#             'borderColor': '#4e73df',
+#             'extendedProps': {
+#                 'icon': 'fa-video',
+#                 'attendees': ', '.join([attendee.get_full_name() for attendee in meeting.attendees.all()])
+#             }
+#         })
+
+#     return JsonResponse(events, safe=False)
+
+
+@login_required
+def create_event(request, customer_id=None):
+    customer = get_object_or_404(Customer, id=customer_id) if customer_id else None
+
+    if request.method == 'POST':
+        form = EventForm(request.POST)
+        if form.is_valid():
+            event = form.save(commit=False)
+            event.created_by = request.user.employee
+            event.customer = customer
+            event.save()
+            form.save_m2m()  # Save many-to-many relationships
+
+            if customer:
+                return redirect('customer-detail', pk=customer.id)
+            return redirect('calendar')
+    else:
+        # Pre-fill start and end times if provided in URL
+        start = request.GET.get('start')
+        end = request.GET.get('end')
+        initial = {}
+        if start:
+            initial['start_time'] = start
+        if end:
+            initial['end_time'] = end
+
+        form = EventForm(initial=initial)
+
+    return render(request, "core/event_form.html", {
+        "form": form,
+        "customer": customer
+    })
+
+
+def edit_event(request, event_id):
+    event = get_object_or_404(Event, id=event_id)
+    if request.method == "POST":
+        form = EventForm(request.POST, instance=event)
+        if form.is_valid():
+            form.save()
+            return redirect('customer-calendar', customer_id=event.customer.id)
+    else:
+        form = EventForm(instance=event)
+    return render(request, 'core/event_form.html', {'form': form, 'customer': event.customer})
+
+def delete_event(request, event_id):
+    event = get_object_or_404(Event, id=event_id)
+    customer_id = event.customer.id
+    event.delete()
+    return redirect('customer-calendar', customer_id=customer_id)
+
+@csrf_exempt
+def update_event(request):
+    """Update event via AJAX (dragging/resizing in FullCalendar)."""
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        event = get_object_or_404(Event, id=data['id'])
+        event.start_time = make_aware(datetime.datetime.fromisoformat(data['start']))
+        event.end_time = make_aware(datetime.datetime.fromisoformat(data['end']))
+        event.save()
+        return JsonResponse({'status': 'success'})
+
+
+@login_required
+def user_calendar_events(request):
+    try:
+        # Log incoming parameters
+        start = request.GET.get('start')
+        end = request.GET.get('end')
+        print(f"Received start: {start}, end: {end}")
+
+        # Optional: Parse and filter by date range
+        start_time = parse(start) if start else None
+        end_time = parse(end) if end else None
+
+        employee = request.user.employee  # Get the employee instance
+        events = []
+
+        # Modify queries to use date range if provided
+        tasks_query = Task.objects.filter(assigned_to=employee).select_related('customer')
+        if start_time and end_time:
+            tasks_query = tasks_query.filter(due_date__range=[start_time, end_time])
+
+        for task in tasks_query:
+            if task.due_date:
+                events.append({
+                    'id': f'task_{task.id}',
+                    'title': f'Task: {task.title}',
+                    'start': task.due_date.astimezone(timezone.get_current_timezone()).isoformat(),
+                    'end': task.due_date.astimezone(timezone.get_current_timezone()).isoformat(),
+                    'url': reverse('task-detail', args=[task.id]),
+                    'backgroundColor': '#ff9f89',
+                    'borderColor': '#ff9f89',
+                    'extendedProps': {
+                        'icon': 'fa-tasks',
+                        'customer': task.customer.company_name if task.customer else None,
+                        'assigned_to': task.assigned_to.user.get_full_name()
+                    }
+                })
+
+        # Modify meetings query similarly
+        meetings_query = Meeting.objects.filter(
+            Q(organizer=employee) | Q(attendees=employee)
+        ).select_related('organizer', 'organizer__user').prefetch_related('customers')
+
+        if start_time and end_time:
+            meetings_query = meetings_query.filter(
+                Q(start_time__range=[start_time, end_time]) |
+                Q(end_time__range=[start_time, end_time])
+            )
+
+        for meeting in meetings_query:
+            if meeting.start_time:
+                customers = ', '.join([c.company_name for c in meeting.customers.all()])
+                events.append({
+                    'id': f'meeting_{meeting.id}',
+                    'title': f'Meeting: {meeting.title}',
+                    'start': meeting.start_time.astimezone(timezone.get_current_timezone()).isoformat(),
+                    'end': (meeting.end_time or meeting.start_time).astimezone(timezone.get_current_timezone()).isoformat(),
+                    'url': reverse('meeting-detail', args=[meeting.id]),
+                    'backgroundColor': '#4e73df',
+                    'borderColor': '#4e73df',
+                    'extendedProps': {
+                        'icon': 'fa-video',
+                        'customer': customers,
+                        'organizer': meeting.organizer.user.get_full_name(),
+                        'attendees': ', '.join([a.user.get_full_name() for a in meeting.attendees.all()])
+                    }
+                })
+
+        # Modify events query similarly
+        events_query = Event.objects.filter(
+            Q(created_by=employee) | Q(attendees=employee)
+        ).select_related('customer', 'created_by', 'created_by__user')
+
+        if start_time and end_time:
+            events_query = events_query.filter(
+                Q(start_time__range=[start_time, end_time]) |
+                Q(end_time__range=[start_time, end_time])
+            )
+
+        for event in events_query:
+            events.append({
+                'id': f'event_{event.id}',
+                'title': f'Event: {event.title}',
+                'start': event.start_time.astimezone(timezone.get_current_timezone()).isoformat(),
+                'end': event.end_time.astimezone(timezone.get_current_timezone()).isoformat(),
+                'backgroundColor': event.color,
+                'borderColor': event.color,
+                'extendedProps': {
+                    'icon': 'fa-calendar',
+                    'type': event.event_type,
+                    'customer': event.customer.company_name if event.customer else None,
+                    'created_by': event.created_by.user.get_full_name()
+                }
+            })
+
+        return JsonResponse(events, safe=False)
+
+    except Exception as e:
+        print(f"Error in user_calendar_events: {str(e)}")
+        import traceback
+        print(traceback.format_exc())
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+def customer_calendar_events(request, customer_id):
+    try:
+        customer = get_object_or_404(Customer, id=customer_id)
+        events = []
+
+        # Get tasks associated with this customer
+        tasks = Task.objects.filter(customer=customer).select_related('assigned_to', 'assigned_to__user')
+        for task in tasks:
+            if task.due_date:
+                try:
+                    events.append({
+                        'id': f'task_{task.id}',
+                        'title': task.title,
+                        'start': task.due_date.isoformat(),
+                        'end': task.due_date.isoformat(),
+                        'url': reverse('task-detail', args=[task.id]),
+                        'backgroundColor': '#ff9f89',
+                        'borderColor': '#ff9f89',
+                        'extendedProps': {
+                            'icon': 'fa-tasks',
+                            'assigned_to': task.assigned_to.user.get_full_name() if task.assigned_to else 'Unassigned'
+                        }
+                    })
+                except Exception as task_error:
+                    print(f"Error processing task {task.id}: {task_error}")
+
+        # Get meetings for this customer
+        meetings = Meeting.objects.filter(customers=customer).prefetch_related('attendees', 'attendees__user')
+        for meeting in meetings:
+            if meeting.start_time:
+                try:
+                    # Add explicit null checks and default times if needed
+                    start_time = meeting.start_time.isoformat() if meeting.start_time else None
+                    end_time = meeting.end_time.isoformat() if meeting.end_time else start_time
+
+                    if start_time:
+                        events.append({
+                            'id': f'meeting_{meeting.id}',
+                            'title': meeting.title,
+                            'start': start_time,
+                            'end': end_time,
+                            'url': reverse('meeting-detail', args=[meeting.id]),
+                            'backgroundColor': '#4e73df',
+                            'borderColor': '#4e73df',
+                            'extendedProps': {
+                                'icon': 'fa-video',
+                                'attendees': ', '.join([attendee.user.get_full_name() for attendee in meeting.attendees.all()])
+                            }
+                        })
+                except Exception as meeting_error:
+                    print(f"Error processing meeting {meeting.id}: {meeting_error}")
+
+        # Add customer events
+        customer_events = Event.objects.filter(customer=customer).select_related('created_by', 'created_by__user')
+        for event in customer_events:
+            try:
+                # Add explicit null checks and default times if needed
+                start_time = event.start_time.isoformat() if event.start_time else None
+                end_time = event.end_time.isoformat() if event.end_time else start_time
+
+                if start_time:
+                    events.append({
+                        'id': f'event_{event.id}',
+                        'title': event.title,
+                        'start': start_time,
+                        'end': end_time,
+                        'backgroundColor': event.color,
+                        'borderColor': event.color,
+                        'extendedProps': {
+                            'icon': 'fa-calendar',
+                            'type': event.event_type,
+                            'created_by': event.created_by.user.get_full_name() if event.created_by else 'Unknown'
+                        }
+                    })
+            except Exception as event_error:
+                print(f"Error processing event {event.id}: {event_error}")
+
+        print(f"Returning {len(events)} total events")
+        return JsonResponse(events, safe=False)
+
+    except Exception as e:
+        print(f"Error in customer_calendar_events: {str(e)}")
+        print(traceback.format_exc())
+        return JsonResponse({'error': str(e)}, status=500)
+        print(json.dumps(events, indent=2))
+
+
+@login_required
+def user_calendar_view(request):
+    """
+    Render the user's calendar page
+    """
+    return render(request, 'core/calendar.html')

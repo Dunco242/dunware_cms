@@ -66,12 +66,14 @@ class Command(BaseCommand):
         )
 
         for meeting in meetings:
+            local_start_time = localtime(meeting.start_time)  # Convert to local timezone
+            local_end_time = localtime(meeting.end_time)
             subject = f"Meeting Starting Soon: {meeting.title}"
             base_message = (
                 f"Your meeting starts in 5 minutes:\n\n"
                 f"Title: {meeting.title}\n"
-                f"Start Time: {meeting.start_time}\n"
-                f"End Time: {meeting.end_time}\n"
+                f"Start Time: {local_start_time.strftime('%Y-%m-%d %I:%M %p %Z')}\n"  # Format as human-readable
+                f"End Time: {local_end_time.strftime('%Y-%m-%d %I:%M %p %Z')}\n"
                 f"Type: {meeting.get_meeting_type_display()}\n"
                 f"Description: {meeting.description}\n"
             )
