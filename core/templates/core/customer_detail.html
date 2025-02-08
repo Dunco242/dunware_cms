@@ -292,7 +292,8 @@
                                                 <td>${{ payment.amount|floatformat:2 }}</td>
                                                 <td>{{ payment.get_payment_method_display }}</td>
                                                 <td>
-                                                    <span class="badge bg-{{ payment.status }}">
+                                                    <span class="badge {% if payment.status == 'completed' %}bg-success{% elif payment.status == 'pending' %}bg-warning text-dark{% else %}bg-{{ payment.status }}{% endif %}">
+
                                                         {{ payment.get_status_display }}
                                                     </span>
                                                 </td>

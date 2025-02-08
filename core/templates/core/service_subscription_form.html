@@ -29,20 +29,20 @@
                         {{ form.billing_cycle }}
                     </div>
 
-                    <!-- Hourly Rate and Hours (Initially Hidden) -->
-                    <div class="mb-3 hourly-fields d-none">
+                    <!-- Hourly Rate and Hours -->
+                    <div class="mb-3 hourly-fields" style="display: none;">
                         <label for="id_hourly_rate" class="form-label">Hourly Rate ($)</label>
                         {{ form.hourly_rate }}
                         <div class="form-text">Rate charged per hour</div>
                     </div>
 
-                    <div class="mb-3 hourly-fields d-none">
+                    <div class="mb-3 hourly-fields" style="display: none;">
                         <label for="id_hours" class="form-label">Number of Hours</label>
                         {{ form.hours }}
                         <div class="form-text">Total number of hours to bill</div>
                     </div>
 
-                    <!-- Regular Price (Hidden for Hourly) -->
+                    <!-- Regular Price -->
                     <div class="mb-3 non-hourly-fields">
                         <label for="id_price" class="form-label">Price</label>
                         {{ form.price }}
@@ -90,66 +90,65 @@
 
 {% block extra_js %}
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        console.log("✅ JavaScript Loaded!");
+document.addEventListener('DOMContentLoaded', function() {
+    console.log("✅ JavaScript Loaded!");
 
-        const billingCycleSelect = document.getElementById('billing_cycle');
-        const hourlyFields = document.querySelectorAll('.hourly-fields');
-        const nonHourlyFields = document.querySelectorAll('.non-hourly-fields');
-        const hourlyRateInput = document.getElementById('id_hourly_rate');
-        const hoursInput = document.getElementById('id_hours');
-        const priceInput = document.getElementById('id_price');
+    const billingCycleSelect = document.getElementById('billing_cycle');
+    const hourlyFields = document.querySelectorAll('.hourly-fields');
+    const nonHourlyFields = document.querySelectorAll('.non-hourly-fields');
+    const hourlyRateInput = document.getElementById('id_hourly_rate');
+    const hoursInput = document.getElementById('id_hours');
+    const priceInput = document.getElementById('id_price');
 
-        if (!billingCycleSelect) {
-            console.error("❌ ERROR: 'billing_cycle' NOT FOUND in the document.");
-            return;
-        }
+    if (!billingCycleSelect) {
+        console.error("❌ ERROR: 'billing_cycle' NOT FOUND in the document.");
+        return;
+    }
 
-        function toggleFields() {
-            const isHourly = billingCycleSelect.value === 'hourly';
-            console.log("🔄 Billing Cycle Selected:", billingCycleSelect.value);
+    function toggleFields() {
+        const isHourly = billingCycleSelect.value === 'hourly';
+        console.log("🔄 Billing Cycle Selected:", billingCycleSelect.value);
 
-            // ✅ Remove Bootstrap's 'd-none' class before setting display
-            hourlyFields.forEach(field => {
-                field.classList.remove('d-none'); // Remove Bootstrap's 'd-none' first
-                field.style.display = isHourly ? 'block' : 'none';
-            });
+        hourlyFields.forEach(field => {
+            field.style.display = isHourly ? 'block' : 'none';
+        });
 
-            // ✅ Hide non-hourly fields properly
-            nonHourlyFields.forEach(field => {
-                field.style.display = isHourly ? 'none' : 'block';
-            });
+        nonHourlyFields.forEach(field => {
+            field.style.display = isHourly ? 'none' : 'block';
+        });
 
-            if (hourlyRateInput && hoursInput && priceInput) {
-                hourlyRateInput.required = isHourly;
-                hoursInput.required = isHourly;
-                priceInput.required = !isHourly;
+        if (hourlyRateInput && hoursInput && priceInput) {
+            hourlyRateInput.required = isHourly;
+            hoursInput.required = isHourly;
+            priceInput.required = !isHourly;
 
-                if (isHourly) {
-                    priceInput.value = '';  // Reset price when switching to hourly
-                } else {
-                    hourlyRateInput.value = '';
-                    hoursInput.value = '';
+            if (isHourly) {
+                priceInput.value = '';  // Reset price for hourly
+            } else {
+                // Keep entered values for monthly billing
+                if (!priceInput.value) {
+                    priceInput.value = '0.00';
                 }
             }
         }
+    }
 
-        function updateTotal() {
-            if (billingCycleSelect.value === 'hourly') {
-                const rate = parseFloat(hourlyRateInput.value) || 0;
-                const hours = parseFloat(hoursInput.value) || 0;
-                const total = rate * hours;
-                priceInput.value = total.toFixed(2);
-            }
+    function updateTotal() {
+        if (billingCycleSelect.value === 'hourly') {
+            const rate = parseFloat(hourlyRateInput.value) || 0;
+            const hours = parseFloat(hoursInput.value) || 0;
+            const total = rate * hours;
+            priceInput.value = total.toFixed(2);
+            console.log(`🛠️ Updated Total Price: $${priceInput.value}`);
         }
+    }
 
-        billingCycleSelect.addEventListener('change', toggleFields);
-        hourlyRateInput.addEventListener('input', updateTotal);
-        hoursInput.addEventListener('input', updateTotal);
+    billingCycleSelect.addEventListener('change', toggleFields);
+    hourlyRateInput.addEventListener('input', updateTotal);
+    hoursInput.addEventListener('input', updateTotal);
 
-        toggleFields(); // ✅ Ensure fields are set correctly on page load
-    });
+    // ✅ Ensure fields are set correctly on page load
+    toggleFields();
+});
 </script>
-
-
 {% endblock %}
