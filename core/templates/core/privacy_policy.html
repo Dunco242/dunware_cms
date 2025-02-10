@@ -1,0 +1,45 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="bg-white rounded-lg shadow-lg p-6">
+        <!-- Policy Version -->
+        <div class="mb-6 text-sm text-gray-600">
+            Version: {{ policy_version }} | Last Updated: {{ last_updated }}
+        </div>
+
+        <!-- Policy Content -->
+        <div class="prose max-w-none">
+            {{ policy_content|safe }}
+        </div>
+
+        <!-- Acceptance Form -->
+        {% if not user.is_anonymous and not already_accepted %}
+        <div class="mt-8 p-4 bg-gray-50 rounded-lg">
+            <form method="post" action="{% url 'accept_privacy_policy' %}">
+                {% csrf_token %}
+                <input type="hidden" name="policy_version" value="{{ policy_version }}">
+                <div class="flex items-start mb-4">
+                    <input type="checkbox" id="accept_policy" name="accept_policy" required
+                           class="mt-1 h-4 w-4 text-blue-600">
+                    <label for="accept_policy" class="ml-2 text-sm text-gray-700">
+                        I have read and agree to the Privacy Policy
+                    </label>
+                </div>
+                <button type="submit"
+                        class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+                    Accept Policy
+                </button>
+            </form>
+        </div>
+        {% elif already_accepted %}
+        <div class="mt-8 p-4 bg-green-50 rounded-lg">
+            <p class="text-green-700">
+                You accepted this policy on {{ acceptance_date }}
+            </p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

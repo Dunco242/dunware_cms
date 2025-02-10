@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container">
+    <h2>IP Access Statistics</h2>
+
+    <div class="card mb-4">
+        <div class="card-header">
+            <h3>Top 10 IP Addresses</h3>
+        </div>
+        <div class="card-body">
+            <table class="table">
+                <tr>
+                    <th>IP Address</th>
+                    <th>Access Count</th>
+                </tr>
+                {% for ip in top_ips %}
+                <tr>
+                    <td>{{ ip.ip_address }}</td>
+                    <td>{{ ip.count }}</td>
+                </tr>
+                {% endfor %}
+            </table>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header">
+            <h3>Recent Accesses</h3>
+        </div>
+        <div class="card-body">
+            <table class="table">
+                <tr>
+                    <th>Time</th>
+                    <th>IP</th>
+                    <th>User</th>
+                    <th>Path</th>
+                    <th>Method</th>
+                </tr>
+                {% for access in recent_accesses %}
+                <tr>
+                    <td>{{ access.access_time }}</td>
+                    <td>{{ access.ip_address }}</td>
+                    <td>{{ access.user|default:"-" }}</td>
+                    <td>{{ access.path }}</td>
+                    <td>{{ access.method }}</td>
+                </tr>
+                {% endfor %}
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

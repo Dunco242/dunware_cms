@@ -16,9 +16,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
 
 
 # Application definition
@@ -57,6 +57,9 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'allauth.account.middleware.AccountMiddleware',
+    'core.middleware.IPTrackingMiddleware',
+    'core.middleware.PrivacyPolicyMiddleware',
+
 ]
 
 ROOT_URLCONF = 'dunware_crm.urls'
@@ -144,6 +147,11 @@ CRISPY_ALLOWED_TEMPLATE_PACKS = 'tailwind'
 CRISPY_TEMPLATE_PACK = 'tailwind'
 
 
+ACCOUNT_FORMS = {
+    'login': 'core.forms.CustomLoginForm',  # If you have a custom form
+}
+
+
 # Authentication settings
 LOGIN_URL = '/account/login/'
 LOGIN_REDIRECT_URL = '/'
@@ -194,3 +202,20 @@ Q_CLUSTER = {
 
 WEASYPRINT_TEMP_DIR = os.path.join(tempfile.gettempdir(), "weasyprint")
 os.makedirs(WEASYPRINT_TEMP_DIR, exist_ok=True)
+
+
+PRIVACY_POLICY = {
+    'CURRENT_VERSION': '1.0.0',
+    'LAST_UPDATED': '2025-02-08',
+    'EXEMPT_PATHS': [
+        '/privacy-policy/',
+        '/accept-privacy-policy/',
+        '/logout/',
+        '/admin/',
+        '/static/',
+        '/media/',
+    ],
+}
+
+
+PRIVACY_POLICY_PATH = os.path.join(BASE_DIR, 'legal_docs', 'privacy_policy.md')

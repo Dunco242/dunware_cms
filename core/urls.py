@@ -2,7 +2,7 @@
 
 from django.urls import path
 from . import views
-from .views import ServiceSubscriptionListView, ServiceSubscriptionCreateView, PaidInvoicesListView, generate_invoice_pdf
+from .views import ServiceSubscriptionListView, ServiceSubscriptionCreateView, PaidInvoicesListView, generate_invoice_pdf, IPStatisticsView
 
 urlpatterns = [
     # Authentication URLs
@@ -124,6 +124,11 @@ urlpatterns = [
     path('export/leads/', views.export_leads, name='export-leads'),
     path('export/tasks/', views.export_tasks, name='export-tasks'),
     path('export/meetings/', views.export_meetings, name='export-meetings'),
+
+    #Privacy and Statistics Urls
+    path('privacy-policy/', views.privacy_policy_view, name='privacy_policy'),
+    path('accept-privacy-policy/', views.accept_privacy_policy, name='accept_privacy_policy'),
+    path('ip-statistics/', IPStatisticsView.as_view(), name='ip_statistics'),
 ]
 
 handler404 = 'core.views.custom_404'

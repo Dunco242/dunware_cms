@@ -16,13 +16,17 @@ from django.http import JsonResponse, HttpResponse, HttpResponseRedirect
 from django.urls import reverse_lazy, reverse
 from django.utils import timezone
 from django.utils.timezone import make_aware
-from django.db.models import Q, Sum
+from django.db.models import Q, Sum, Count, Max
+from django.db.models.functions import TruncDate
 from django.contrib import messages
+from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth import update_session_auth_hash
 from django.core.paginator import Paginator
 from django.template.loader import render_to_string
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required
+from django.utils.decorators import method_decorator
+from .utils import get_privacy_policy_content
 
 # Django Class-Based Views
 from django.views.generic import (
@@ -75,7 +79,9 @@ from .models import (
     Transaction,
     ServiceSubscription,
     UploadedICSFile,  # If this is a model
-    Event
+    Event,
+    IPAccess,
+    PrivacyPolicyAcceptance
 )
 
 
@@ -1430,13 +1436,9 @@ class PaymentDetailView(LoginRequiredMixin, DetailView):
     context_object_name = 'payment'
 
 
-class PaymentCreateView(LoginRequiredMixin, UserPassesTestMixin, FormView):
+class PaymentCreateView(LoginRequiredMixin, FormView):
     template_name = 'core/payment_form.html'
     form_class = PaymentForm
-
-    def test_func(self):
-        """Only superusers can process payments"""
-        return self.request.user.is_superuser
 
     def get_initial(self):
         """Pre-fill invoice if provided in URL"""
@@ -1678,15 +1680,12 @@ class PaymentDetailView(LoginRequiredMixin, DetailView):
     context_object_name = 'payment'
 
 
-class PaymentCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
+class PaymentCreateView(LoginRequiredMixin, CreateView):
     model = Payment
     form_class = PaymentForm
     template_name = 'core/payment_form.html'
     success_url = reverse_lazy('payment-list')
 
-    def test_func(self):
-        """Only superusers can process payments"""
-        return self.request.user.is_superuser
 
     def get_initial(self):
         """Pre-fill invoice if provided in URL"""
@@ -2281,3 +2280,98 @@ def user_calendar_view(request):
     Render the user's calendar page
     """
     return render(request, 'core/calendar.html')
+
+
+
+@method_decorator(staff_member_required, name='dispatch')
+class IPStatisticsView(TemplateView):
+    template_name = 'ip_statistics.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        # Get top IPs
+        context['top_ips'] = IPAccess.objects.values('ip_address')\
+            .annotate(count=Count('ip_address'))\
+            .order_by('-count')[:10]
+
+        # Get recent accesses
+        context['recent_accesses'] = IPAccess.objects.select_related('user')\
+            .order_by('-access_time')[:50]
+
+        # Get stats by path
+        context['path_stats'] = IPAccess.objects.values('path')\
+            .annotate(count=Count('path'))\
+            .order_by('-count')[:10]
+
+        return context
+
+
+def get_client_ip(request):
+    x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+    if x_forwarded_for:
+        ip = x_forwarded_for.split(',')[0].strip()
+    else:
+        ip = request.META.get('REMOTE_ADDR')
+    return ip
+
+def privacy_policy_view(request):
+    CURRENT_POLICY_VERSION = "1.0.0"  # Update this when policy changes
+
+    context = {
+        'policy_version': CURRENT_POLICY_VERSION,
+        'last_updated': "February 8, 2025",
+        'already_accepted': False,
+        'acceptance_date': None
+    }
+
+    if request.user.is_authenticated:
+        acceptance = PrivacyPolicyAcceptance.objects.filter(
+            user=request.user,
+            policy_version=CURRENT_POLICY_VERSION
+        ).first()
+
+        if acceptance:
+            context['already_accepted'] = True
+            context['acceptance_date'] = acceptance.accepted_at
+
+    return render(request, 'privacy_policy.html', context)
+
+@login_required
+def accept_privacy_policy(request):
+    if request.method == 'POST':
+        policy_version = request.POST.get('policy_version')
+
+        # Check if already accepted
+        if not PrivacyPolicyAcceptance.objects.filter(
+            user=request.user,
+            policy_version=policy_version
+        ).exists():
+            # Create acceptance record
+            PrivacyPolicyAcceptance.objects.create(
+                user=request.user,
+                policy_version=policy_version,
+                ip_address=get_client_ip(request),
+                user_agent=request.META.get('HTTP_USER_AGENT', '')
+            )
+
+            messages.success(request, 'Privacy Policy accepted successfully.')
+
+        # Redirect to the page they came from, or home
+        next_url = request.POST.get('next') or '/'
+        return redirect(next_url)
+
+    return redirect('privacy_policy')
+
+
+def privacy_policy_view(request):
+    context = {
+        'policy_version': '1.0.0',
+        'last_updated': timezone.now(),
+        'policy_content': get_privacy_policy_content(),
+        'already_accepted': PrivacyPolicyAcceptance.objects.filter(
+            user=request.user,
+            policy_version='1.0.0'
+        ).exists() if request.user.is_authenticated else False
+    }
+    return render(request, 'core/privacy_policy.html', context)
