@@ -1,70 +1,198 @@
 {% extends 'core/base.html' %}
-{% load humanize %}
+{% load static %}
 
 {% block title %}My Calendar{% endblock %}
 
 {% block extra_css %}
-<link href='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.css' rel='stylesheet' />
+<link href='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css' rel='stylesheet' />
+<style>
+   #calendar {
+       max-width: 100%;
+       height: 650px;
+   }
+   .fc-event {
+       cursor: pointer;
+       white-space: normal !important;
+       word-wrap: break-word !important;
+       line-height: 1.2 !important;
+       padding: 2px 4px !important;
+   }
+   .fc-event-time {
+       font-weight: bold;
+   }
+   .fc-daygrid-event-dot {
+       display: none;
+   }
+   .fc-event-title {
+       display: block;
+       overflow: visible !important;
+       white-space: normal !important;
+   }
+</style>
 {% endblock %}
 
 {% block content %}
 <div class="container-fluid">
-    <div class="card shadow mb-4">
-        <div class="card-header py-3 d-flex justify-content-between align-items-center">
-            <h6 class="m-0 font-weight-bold text-primary">My Calendar</h6>
-            <div class="btn-group">
-                <a href="{% url 'task-create' %}" class="btn btn-sm btn-outline-primary">
-                    <i class="fas fa-tasks"></i> New Task
-                </a>
-                <a href="{% url 'meeting-create' %}" class="btn btn-sm btn-outline-primary">
-                    <i class="fas fa-video"></i> New Meeting
-                </a>
-            </div>
-        </div>
-        <div class="card-body">
-            <div id="user-calendar"></div>
-        </div>
-    </div>
+   <div class="card shadow mb-4">
+       <div class="card-header py-3 d-flex justify-content-between align-items-center">
+           <h6 class="m-0 font-weight-bold text-primary">My Calendar</h6>
+           <div class="btn-group">
+               <a href="{% url 'task-create' %}" class="btn btn-sm btn-outline-primary">
+                   <i class="fas fa-tasks"></i> New Task
+               </a>
+               <a href="{% url 'meeting-create' %}" class="btn btn-sm btn-outline-primary">
+                   <i class="fas fa-video"></i> New Meeting
+               </a>
+               <a href="{% url 'event-create' %}" class="btn btn-sm btn-outline-primary">
+                   <i class="fas fa-calendar"></i> New Event
+               </a>
+               <a href="{% url 'schedule-rule-list' %}" class="btn btn-sm btn-outline-primary">
+                   <i class="fas fa-calendar-alt"></i> Scheduling Rules
+               </a>
+           </div>
+       </div>
+       <div class="card-body">
+           <div id="calendar"></div>
+       </div>
+   </div>
+</div>
+
+<!-- Event Details Modal -->
+<div class="modal fade" id="eventDetailsModal" tabindex="-1" role="dialog">
+   <div class="modal-dialog" role="document">
+       <div class="modal-content">
+           <div class="modal-header">
+               <h5 class="modal-title" id="eventModalTitle">Event Details</h5>
+               <button type="button" class="close" data-dismiss="modal">
+                   <span>&times;</span>
+               </button>
+           </div>
+           <div class="modal-body" id="eventModalBody">
+               <!-- Dynamic content will be inserted here -->
+           </div>
+           <div class="modal-footer">
+               <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+               <a href="#" id="eventEditLink" class="btn btn-primary">Edit</a>
+           </div>
+       </div>
+   </div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
-<script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.js'></script>
+<script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js'></script>
+<script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/locales-all.min.js'></script>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    var calendarEl = document.getElementById('user-calendar');
-    var calendar = new FullCalendar.Calendar(calendarEl, {
-        initialView: 'dayGridMonth',
-        height: 'auto',
-        headerToolbar: {
-            left: 'prev,next today',
-            center: 'title',
-            right: 'dayGridMonth,timeGridWeek,timeGridDay'
-        },
-        events: "{% url 'user-calendar-events' %}",
-        editable: true,
-        selectable: true,
-        select: function(info) {
-            // Show a modal to choose between creating a task or meeting
-            $('#event-type-modal').modal('show');
-        },
-        eventClick: function(info) {
-            window.location.href = info.event.url;
-        },
-        eventContent: function(arg) {
-            return {
-                html: `
-                    <div class="fc-content">
-                        <i class="fas ${arg.event.extendedProps.icon}"></i>
-                        <span>${arg.event.title}</span>
-                        ${arg.event.extendedProps.customer ?
-                          `<small class="d-block text-muted">📋 ${arg.event.extendedProps.customer}</small>` : ''}
-                    </div>
-                `
-            };
-        }
-    });
-    calendar.render();
+   var calendarEl = document.getElementById('calendar');
+   var calendar = new FullCalendar.Calendar(calendarEl, {
+       initialView: 'dayGridMonth',
+       height: 'auto',
+       headerToolbar: {
+           left: 'prev,next today',
+           center: 'title',
+           right: 'dayGridMonth,timeGridWeek,timeGridDay'
+       },
+       events: "{% url 'user-calendar-events' %}",
+       editable: true,
+       selectable: true,
+       selectMirror: true,
+       dayMaxEvents: true,
+
+       eventContent: function(arg) {
+           // Create a container for the event
+           let eventEl = document.createElement('div');
+           eventEl.classList.add('fc-event-custom');
+
+           // Helper function to determine text color
+           function getContrastYIQ(hexcolor) {
+               hexcolor = hexcolor.replace("#", "");
+               var r = parseInt(hexcolor.substr(0,2), 16);
+               var g = parseInt(hexcolor.substr(2,2), 16);
+               var b = parseInt(hexcolor.substr(4,2), 16);
+               var yiq = ((r*299)+(g*587)+(b*114))/1000;
+               return (yiq >= 128) ? 'black' : 'white';
+           }
+
+           // Get background color and determine contrast color
+           const bgColor = arg.event.backgroundColor || '#3788d8';
+           const textColor = getContrastYIQ(bgColor);
+
+           // Style the event element
+           eventEl.style.backgroundColor = bgColor;
+           eventEl.style.color = textColor;
+           eventEl.style.padding = '4px';
+           eventEl.style.borderRadius = '3px';
+           eventEl.style.display = 'block';
+           eventEl.style.width = '100%';
+           eventEl.style.wordWrap = 'break-word';
+           eventEl.style.whiteSpace = 'normal';
+
+           // Create title span
+           let titleSpan = document.createElement('span');
+           titleSpan.textContent = arg.event.title;
+           titleSpan.style.display = 'block';
+           titleSpan.style.fontWeight = 'bold';
+
+           eventEl.appendChild(titleSpan);
+
+           // Add customer info if available
+           if (arg.event.extendedProps.customer) {
+               let customerSpan = document.createElement('small');
+               customerSpan.textContent = `📋 ${arg.event.extendedProps.customer}`;
+               customerSpan.style.display = 'block';
+               customerSpan.style.opacity = '0.8';
+
+               eventEl.appendChild(customerSpan);
+           }
+
+           return { domNodes: [eventEl] };
+       },
+
+       // Handle Event Drag/Drop
+       eventDrop: function(info) {
+           var event = info.event;
+           $.ajax({
+               url: '{% url "api-schedule-meeting" %}',
+               method: 'POST',
+               headers: {
+                   'X-CSRFToken': getCookie('csrftoken')
+               },
+               data: JSON.stringify({
+                   id: event.id.split('_')[1],
+                   start: event.start.toISOString(),
+                   end: event.end ? event.end.toISOString() : event.start.toISOString()
+               }),
+               contentType: 'application/json',
+               success: function(response) {
+                   toastr.success('Event updated successfully');
+               },
+               error: function() {
+                   toastr.error('Failed to update event');
+                   info.revert(); // revert if update fails
+               }
+           });
+       }
+   });
+
+   calendar.render();
+
+   // CSRF Token Retrieval Function
+   function getCookie(name) {
+       let cookieValue = null;
+       if (document.cookie && document.cookie !== '') {
+           const cookies = document.cookie.split(';');
+           for (let i = 0; i < cookies.length; i++) {
+               const cookie = cookies[i].trim();
+               if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                   cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                   break;
+               }
+           }
+       }
+       return cookieValue;
+   }
 });
 </script>
 {% endblock %}

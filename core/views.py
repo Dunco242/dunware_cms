@@ -1,138 +1,55 @@
 # core/views.py
-
-# Python Standard Library
-import os
-import csv
-import tempfile
-from io import BytesIO
-from datetime import datetime, timedelta
-from decimal import Decimal
-
-# Django Core
-from django.db import transaction
-from django.conf import settings
-from django.shortcuts import render, redirect, get_object_or_404
-from django.http import JsonResponse, HttpResponse, HttpResponseRedirect
-from django.urls import reverse_lazy, reverse
-from django.utils import timezone
-from django.utils.timezone import make_aware
-from django.db.models import Q, Sum, Count, Max
-from django.db.models.functions import TruncDate
-from django.contrib import messages
-from django.contrib.admin.views.decorators import staff_member_required
-from django.contrib.auth import update_session_auth_hash
-from django.core.paginator import Paginator
-from django.template.loader import render_to_string
-from django.views.decorators.csrf import csrf_exempt
-from django.contrib.auth.decorators import login_required
-from django.utils.decorators import method_decorator
-from .utils import get_privacy_policy_content
-
-# Django Class-Based Views
-from django.views.generic import (
-    ListView, DetailView, CreateView, UpdateView, DeleteView, TemplateView
-)
-from django.views.generic.edit import FormView
-from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
-
-# Third-Party Libraries
-import pytz
-from dateutil.parser import parse
-from weasyprint import HTML
-from zoomus import ZoomClient
-from icalendar import Calendar
-from googleapiclient.discovery import build
-
-# Forms
-from django.contrib.auth.forms import PasswordChangeForm
-from .forms import (
-    UserRegistrationForm,
-    EmployeeForm,
-    CustomerForm,
-    LeadForm,
-    ServiceForm,
-    NoteForm,
-    TaskForm,
-    MeetingForm,
-    MeetingSearchForm,
-    TaskSearchForm,
-    InvoiceForm,
-    PaymentForm,
-    SubscriptionForm,
-    ServiceSubscriptionForm,
-    UploadedICSFile,  # If this is a form
-    EventForm
-)
-
-# Models
-from .models import (
-    Employee,
-    Customer,
-    Lead,
-    Service,
-    Note,
-    Task,
-    Meeting,
-    Invoice,
-    Payment,
-    Subscription,
-    Transaction,
-    ServiceSubscription,
-    UploadedICSFile,  # If this is a model
-    Event,
-    IPAccess,
-    PrivacyPolicyAcceptance
-)
+from .imports import *
 
 
 
-class DashboardView(LoginRequiredMixin, TemplateView):
+class DashboardView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
     template_name = 'core/dashboard.html'
     login_url = '/accounts/login/'
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-
-        # Check if user is authenticated
-        if not self.request.user.is_authenticated:
-            return context
-
-        try:
-            employee = self.request.user.employee
-        except AttributeError:
-            messages.warning(self.request, 'No employee profile found. Please contact an administrator.')
-            return context
-
-        # Get today's date
         today = timezone.now().date()
 
-        context.update({
-            'total_customers': Customer.objects.filter(assigned_to=employee).count(),
-            'total_leads': Lead.objects.filter(assigned_to=employee).count(),
-            'upcoming_tasks': Task.objects.filter(
-                assigned_to=employee,
-                status__in=['pending', 'in_progress'],
-                due_date__gte=today
-            ).order_by('due_date')[:5],
-            'upcoming_meetings': Meeting.objects.filter(
-                Q(organizer=employee) | Q(attendees=employee),
-                start_time__gte=timezone.now()
-            ).order_by('start_time')[:5],
-            'recent_notes': Note.objects.filter(
-                created_by=employee
-            ).order_by('-created_at')[:5],
-            'overdue_tasks': Task.objects.filter(
-                assigned_to=employee,
-                status__in=['pending', 'in_progress'],
-                due_date__lt=today
-            ).count(),
-        })
-        return context
+        try:
+            context.update({
+                'total_customers': Customer.objects.filter(
+                    assigned_to=self.employee
+                ).count(),
+                'total_leads': Lead.objects.filter(
+                    assigned_to=self.employee
+                ).count(),
+                'upcoming_tasks': Task.objects.filter(
+                    assigned_to=self.employee,
+                    status__in=['pending', 'in_progress'],
+                    due_date__gte=today
+                ).order_by('due_date')[:5],
+                'upcoming_meetings': Meeting.objects.filter(
+                    Q(organizer=self.employee) | Q(attendees=self.employee),
+                    start_time__gte=timezone.now()
+                ).order_by('start_time')[:5],
+                'recent_notes': Note.objects.filter(
+                    created_by=self.employee
+                ).order_by('-created_at')[:5],
+                'overdue_tasks': Task.objects.filter(
+                    assigned_to=self.employee,
+                    status__in=['pending', 'in_progress'],
+                    due_date__lt=today
+                ).count(),
+            })
+        except Exception as e:
+            logger.error(f"Error getting dashboard data: {str(e)}")
+            messages.error(self.request, 'Error loading dashboard data.')
+            context.update({
+                'total_customers': 0,
+                'total_leads': 0,
+                'upcoming_tasks': [],
+                'upcoming_meetings': [],
+                'recent_notes': [],
+                'overdue_tasks': 0,
+            })
 
-    def dispatch(self, request, *args, **kwargs):
-        if not request.user.is_authenticated:
-            return redirect(self.login_url)
-        return super().dispatch(request, *args, **kwargs)
+        return context
 
 # Employee Views
 class EmployeeListView(LoginRequiredMixin, ListView):
@@ -295,17 +212,14 @@ class CustomerDetailView(LoginRequiredMixin, DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         customer = self.get_object()
+
+        # Get customer-specific events, tasks, and meetings
         context.update({
-            'invoices': customer.invoices.all().order_by('-created_at'),
-            'notes': Note.objects.filter(customer=customer).order_by('-created_at'),
-            'tasks': Task.objects.filter(customer=customer).order_by('-created_at'),
-            'meetings': Meeting.objects.filter(customers=customer).order_by('-start_time'),
-            'payments': Payment.objects.filter(customer=customer).order_by('-transaction_date'),  # Add this line
-            'total_paid': Payment.objects.filter(
-                customer=customer,
-                status='completed'
-            ).aggregate(total=Sum('amount'))['total'] or 0,
+            'events': Event.objects.filter(customer=customer).order_by('-start_time')[:5],
+            'tasks': Task.objects.filter(customer=customer).order_by('-created_at')[:5],
+            'meetings': Meeting.objects.filter(customers=customer).order_by('-start_time')[:5],
         })
+
         return context
 
 class CustomerCreateView(LoginRequiredMixin, CreateView):
@@ -641,6 +555,8 @@ class TaskDetailView(LoginRequiredMixin, DetailView):
     template_name = 'core/task_detail.html'
     context_object_name = 'task'
 
+logger = logging.getLogger(__name__)
+
 class TaskCreateView(LoginRequiredMixin, CreateView):
     model = Task
     form_class = TaskForm
@@ -648,17 +564,54 @@ class TaskCreateView(LoginRequiredMixin, CreateView):
     success_url = reverse_lazy('task-list')
 
     def form_valid(self, form):
-        user = self.request.user
+        try:
+            employee = self.request.user.employee
+        except AttributeError:
+            messages.error(self.request, "You must have an employee profile to create tasks.")
+            return self.form_invalid(form)
 
-        # ✅ Check if the user has an Employee profile
-        if hasattr(user, 'employee'):
-            form.instance.created_by = user.employee
-        else:
-            messages.error(self.request, "Error: You do not have an associated employee profile.")
-            return self.form_invalid(form)  # Prevent submission
+        # Get task details
+        due_date = form.cleaned_data.get('due_date')
 
-        messages.success(self.request, 'Task created successfully.')
-        return super().form_valid(form)
+        try:
+            scheduling_service = SchedulingService(self.request.user)
+        except ValueError as service_error:
+            messages.error(self.request, str(service_error))
+            return self.form_invalid(form)
+
+        # Check a small duration (30 minutes) for task slot
+        end_time = due_date + timedelta(minutes=30)
+        duration = 30
+
+        # Check availability based on scheduling rules
+        if not scheduling_service.check_availability(due_date, end_time, duration):
+            # Try to find next available slot
+            next_start, next_end = scheduling_service.get_next_available_slot(
+                due_date,
+                duration
+            )
+
+            if next_start and next_end:
+                messages.error(self.request,
+                    f"The selected time is not available according to your scheduling rules. "
+                    f"Next available slot is {next_start.strftime('%Y-%m-%d %H:%M')} "
+                    f"to {next_end.strftime('%Y-%m-%d %H:%M')}"
+                )
+            else:
+                messages.error(self.request, "No available time slots found based on your scheduling rules.")
+
+            return self.form_invalid(form)
+
+        # Set the created_by and save
+        form.instance.created_by = employee
+
+        try:
+            messages.success(self.request, 'Task created successfully.')
+            return super().form_valid(form)
+        except Exception as e:
+            logger.error(f"Unexpected error in task creation: {str(e)}")
+            messages.error(self.request, f'An unexpected error occurred: {str(e)}')
+            return self.form_invalid(form)
 
 class TaskUpdateView(LoginRequiredMixin, UpdateView):
     model = Task
@@ -699,7 +652,7 @@ class MeetingListView(LoginRequiredMixin, ListView):
     paginate_by = 10
 
     def get_queryset(self):
-        employee = self.request.user.employee
+        employee = self.request.user.employee_profile
         queryset = Meeting.objects.filter(
             Q(organizer=employee) |
             Q(attendees=employee)
@@ -745,29 +698,196 @@ class MeetingDetailView(LoginRequiredMixin, DetailView):
         )
         return context
 
+
+logger = logging.getLogger(__name__)
+
 class MeetingCreateView(LoginRequiredMixin, CreateView):
+   model = Meeting
+   form_class = MeetingForm
+   template_name = 'core/meeting_form.html'
+   success_url = reverse_lazy('meeting-list')
+
+   def get_initial(self):
+       """Set initial values for the form"""
+       initial = super().get_initial()
+       try:
+           employee = Employee.objects.get(user=self.request.user)
+           initial['organizer'] = employee
+           current_time = timezone.now()
+           initial['start_time'] = current_time.replace(
+               minute=(current_time.minute // 15) * 15,
+               second=0,
+               microsecond=0
+           )
+           initial['end_time'] = initial['start_time'] + timezone.timedelta(hours=1)
+       except Employee.DoesNotExist:
+           logger.error(f"Employee profile not found for user {self.request.user.id}")
+       except Exception as e:
+           logger.error(f"Error setting initial meeting values: {str(e)}")
+       return initial
+
+   def get_form_kwargs(self):
+       kwargs = super().get_form_kwargs()
+       if 'initial' not in kwargs:
+           kwargs['initial'] = {}
+       try:
+           kwargs['initial']['organizer'] = self.request.user.employee_profile
+       except Employee.DoesNotExist:
+           logger.error(f"Employee profile not found for user {self.request.user.id}")
+       return kwargs
+
+   def form_valid(self, form):
+       try:
+           employee = Employee.objects.get(user=self.request.user)
+
+           with transaction.atomic():
+               form.instance.organizer = employee
+
+               scheduling_service = SchedulingService(self.request.user)
+               scheduling_service.employee = employee
+
+               duration = (form.cleaned_data['end_time'] -
+                         form.cleaned_data['start_time']).total_seconds() / 60
+
+               is_available = scheduling_service.check_availability(
+                   form.cleaned_data['start_time'],
+                   form.cleaned_data['end_time'],
+                   duration
+               )
+
+               if not is_available:
+                   form.add_error(None, "Selected time slot is not available")
+                   return self.form_invalid(form)
+
+               response = super().form_valid(form)
+
+               if form.instance.meeting_type == 'zoom':
+                   try:
+                       form.instance.create_zoom_meeting()
+                   except Exception as e:
+                       logger.error(f"Failed to create Zoom meeting: {str(e)}")
+                       messages.warning(
+                           self.request,
+                           "Meeting scheduled, but Zoom meeting creation failed. "
+                           "Please set up the Zoom meeting manually."
+                       )
+
+               messages.success(
+                   self.request,
+                   f"Meeting '{form.instance.title}' scheduled successfully"
+               )
+               return response
+
+       except Employee.DoesNotExist:
+           form.add_error(None, "Employee profile not found")
+           return self.form_invalid(form)
+       except Exception as e:
+           logger.error(f"Error creating meeting: {str(e)}")
+           form.add_error(None, "An error occurred while scheduling the meeting")
+           return self.form_invalid(form)
+
+   def get_success_url(self):
+       if 'create_another' in self.request.POST:
+           return reverse_lazy('meeting-create')
+       return self.success_url
+
+
+class MeetingUpdateView(LoginRequiredMixin, UpdateView):
     model = Meeting
     form_class = MeetingForm
     template_name = 'core/meeting_form.html'
     success_url = reverse_lazy('meeting-list')
 
     def form_valid(self, form):
-        form.instance.organizer = self.request.user.employee
-        response = super().form_valid(form)
+        # Ensure user has an employee profile
+        try:
+            employee = self.request.user.employee
+        except AttributeError:
+            messages.error(self.request, "You must have an employee profile to update meetings.")
+            return self.form_invalid(form)
 
-        if form.instance.meeting_type == 'zoom':
-            # Create Zoom meeting
-            try:
-                zoom_meeting = create_zoom_meeting(form.instance)
-                form.instance.zoom_meeting_id = zoom_meeting['id']
-                form.instance.zoom_join_url = zoom_meeting['join_url']
-                form.instance.save()
-            except Exception as e:
-                messages.error(self.request, f'Error creating Zoom meeting: {str(e)}')
+        # Get start and end times from the form
+        start_time = form.cleaned_data.get('start_time')
+        end_time = form.cleaned_data.get('end_time')
+
+        # Create scheduling service for the current user
+        scheduling_service = SchedulingService(self.request.user)
+
+        # Calculate meeting duration in minutes
+        duration = int((end_time - start_time).total_seconds() / 60)
+
+        # Check availability based on scheduling rules
+        # Exclude the current meeting from availability check
+        if not scheduling_service.check_availability(start_time, end_time, duration, exclude_meeting_id=self.object.id):
+            # If not available, find the next available slot
+            next_start, next_end = scheduling_service.get_next_available_slot(
+                start_time,
+                duration
+            )
+
+            if next_start and next_end:
+                messages.error(self.request,
+                    f"The selected time is not available. "
+                    f"Next available slot is {next_start.strftime('%Y-%m-%d %H:%M')} "
+                    f"to {next_end.strftime('%Y-%m-%d %H:%M')}"
+                )
+                return self.form_invalid(form)
+            else:
+                messages.error(self.request, "No available time slots found.")
                 return self.form_invalid(form)
 
-        messages.success(self.request, 'Meeting created successfully.')
+        # Store the previous meeting type
+        previous_type = self.get_object().meeting_type
+
+        # Save the meeting
+        response = super().form_valid(form)
+
+        # Handle Zoom meeting creation/update
+        if form.instance.meeting_type == 'zoom':
+            try:
+                if previous_type != 'zoom':
+                    # Create new Zoom meeting
+                    zoom_meeting = create_zoom_meeting(form.instance)
+                    form.instance.zoom_meeting_id = zoom_meeting['id']
+                    form.instance.zoom_join_url = zoom_meeting['join_url']
+                else:
+                    # Update existing Zoom meeting
+                    update_zoom_meeting(form.instance)
+
+                form.instance.save()
+            except Exception as e:
+                logger.error(f"Zoom meeting error: {str(e)}")
+                messages.error(self.request, f'Error with Zoom meeting: {str(e)}')
+                return self.form_invalid(form)
+
+        messages.success(self.request, 'Meeting updated successfully.')
         return response
+
+class MeetingDeleteView(LoginRequiredMixin, DeleteView):
+    model = Meeting
+    template_name = 'core/meeting_confirm_delete.html'
+    success_url = reverse_lazy('meeting-list')
+
+    def delete(self, request, *args, **kwargs):
+        meeting = self.get_object()
+
+        # Ensure the user has permission to delete
+        if meeting.organizer.user != request.user:
+            messages.error(request, 'You do not have permission to delete this meeting.')
+            return redirect('meeting-detail', pk=meeting.pk)
+
+        # Handle Zoom meeting deletion
+        if meeting.meeting_type == 'zoom' and meeting.zoom_meeting_id:
+            try:
+                delete_zoom_meeting(meeting.zoom_meeting_id)
+            except Exception as e:
+                logger.error(f"Zoom meeting deletion error: {str(e)}")
+                messages.error(request, f'Error deleting Zoom meeting: {str(e)}')
+                return redirect('meeting-detail', pk=meeting.pk)
+
+        messages.success(request, 'Meeting deleted successfully.')
+        return super().delete(request, *args, **kwargs)
+
 
 class MeetingUpdateView(LoginRequiredMixin, UpdateView):
     model = Meeting
@@ -819,49 +939,64 @@ class MeetingDeleteView(LoginRequiredMixin, DeleteView):
         return super().delete(request, *args, **kwargs)
 
 
-class CalendarView(LoginRequiredMixin, TemplateView):
+class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
     template_name = 'core/calendar.html'
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         today = timezone.now().date()
-        employee = getattr(self.request.user, 'employee', None)
 
-        if not employee:
-            messages.warning(self.request, 'No employee profile found. Please contact an administrator.')
-            return context
+        try:
+            # Get events where user is creator or attendee
+            events = Event.objects.filter(
+                Q(created_by=self.employee) |
+                Q(attendees=self.employee)
+            ).distinct().order_by('start_time')
 
-        # Get events where user is creator or attendee
-        events = Event.objects.filter(
-            Q(created_by=employee) |  # Events created by the user
-            Q(attendees=employee)     # Events where user is an attendee
-        ).distinct().order_by('start_time')
+            # Get tasks assigned to or created by the user
+            tasks = Task.objects.filter(
+                Q(assigned_to=self.employee) |
+                Q(created_by=self.employee)
+            ).filter(
+                status__in=['pending', 'in_progress'],
+                due_date__gte=today
+            ).order_by('due_date')
 
-        # Get tasks assigned to or created by the user
-        tasks = Task.objects.filter(
-            Q(assigned_to=employee) |
-            Q(created_by=employee)
-        ).filter(
-            status__in=['pending', 'in_progress'],
-            due_date__gte=today
-        ).order_by('due_date')
+            # Get meetings where user is an organizer or attendee
+            meetings = Meeting.objects.filter(
+                Q(organizer=self.employee) |
+                Q(attendees=self.employee)
+            ).filter(
+                start_time__gte=today
+            ).order_by('start_time')
 
-        # Get meetings where user is an organizer or attendee
-        meetings = Meeting.objects.filter(
-            Q(organizer=employee) |
-            Q(attendees=employee)
-        ).filter(
-            start_time__gte=today
-        ).order_by('start_time')
+            context.update({
+                'events': events,
+                'tasks': tasks,
+                'meetings': meetings,
+                'today': today,
+                'is_personal_calendar': True,
+            })
+        except Exception as e:
+            logger.error(f"Error getting calendar data: {str(e)}")
+            messages.error(self.request, 'Error loading calendar data.')
+            context.update({
+                'events': [],
+                'tasks': [],
+                'meetings': [],
+                'today': today,
+                'is_personal_calendar': True,
+            })
 
-        context.update({
-            'events': events,
-            'tasks': tasks,
-            'meetings': meetings,
-            'today': today,
-            'is_personal_calendar': True,  # Add this flag to distinguish personal calendar
-        })
         return context
+
+    def get(self, request, *args, **kwargs):
+        try:
+            return super().get(request, *args, **kwargs)
+        except Exception as e:
+            logger.error(f"Error in calendar view: {str(e)}")
+            messages.error(request, 'Error displaying calendar.')
+            return redirect('dashboard')
 
 @login_required
 def calendar_events(request):
@@ -1104,37 +1239,32 @@ def update_task_status(request):
 
 @login_required
 def check_meeting_availability(request):
-    """Check if a time slot is available for a meeting"""
     start_time = request.GET.get('start_time')
     end_time = request.GET.get('end_time')
-    meeting_id = request.GET.get('meeting_id')  # For excluding current meeting when updating
 
     try:
         start_time = datetime.strptime(start_time, '%Y-%m-%dT%H:%M')
         end_time = datetime.strptime(end_time, '%Y-%m-%dT%H:%M')
-    except (ValueError, TypeError):
-        return JsonResponse({'error': 'Invalid date format'}, status=400)
 
-    # Check for conflicting meetings
-    conflicts = Meeting.objects.filter(
-        Q(organizer=request.user.employee) | Q(attendees=request.user.employee),
-        Q(start_time__lt=end_time, end_time__gt=start_time)
-    )
+        # Create scheduling service
+        scheduling_service = SchedulingService(request.user)
 
-    if meeting_id:
-        conflicts = conflicts.exclude(id=meeting_id)
+        # Check against schedule rules
+        duration = int((end_time - start_time).total_seconds() / 60)
+        is_available = scheduling_service.check_availability(start_time, end_time, duration)
 
-    if conflicts.exists():
-        return JsonResponse({
-            'available': False,
-            'conflicts': [{
-                'title': m.title,
-                'start': m.start_time.strftime('%Y-%m-%dT%H:%M'),
-                'end': m.end_time.strftime('%Y-%m-%dT%H:%M')
-            } for m in conflicts]
-        })
+        if not is_available:
+            next_start, next_end = scheduling_service.get_next_available_slot(start_time, duration)
+            return JsonResponse({
+                'available': False,
+                'reason': f"Time slot conflicts with schedule rules. Next available: {next_start.strftime('%Y-%m-%d %H:%M')}"
+            })
 
-    return JsonResponse({'available': True})
+        return JsonResponse({'available': True})
+
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
+
 
 @login_required
 def schedule_meeting(request):
@@ -2020,170 +2150,104 @@ def customer_calendar(request, customer_id):
 #     return JsonResponse(events, safe=False)
 
 
-@login_required
-def create_event(request, customer_id=None):
-    customer = get_object_or_404(Customer, id=customer_id) if customer_id else None
 
-    if request.method == 'POST':
-        form = EventForm(request.POST)
-        if form.is_valid():
-            event = form.save(commit=False)
-            event.created_by = request.user.employee
-            event.customer = customer
-            event.save()
-            form.save_m2m()  # Save many-to-many relationships
-
-            if customer:
-                return redirect('customer-detail', pk=customer.id)
-            return redirect('calendar')
-    else:
-        # Pre-fill start and end times if provided in URL
-        start = request.GET.get('start')
-        end = request.GET.get('end')
-        initial = {}
-        if start:
-            initial['start_time'] = start
-        if end:
-            initial['end_time'] = end
-
-        form = EventForm(initial=initial)
-
-    return render(request, "core/event_form.html", {
-        "form": form,
-        "customer": customer
-    })
-
-
-def edit_event(request, event_id):
-    event = get_object_or_404(Event, id=event_id)
-    if request.method == "POST":
-        form = EventForm(request.POST, instance=event)
-        if form.is_valid():
-            form.save()
-            return redirect('customer-calendar', customer_id=event.customer.id)
-    else:
-        form = EventForm(instance=event)
-    return render(request, 'core/event_form.html', {'form': form, 'customer': event.customer})
-
-def delete_event(request, event_id):
-    event = get_object_or_404(Event, id=event_id)
-    customer_id = event.customer.id
-    event.delete()
-    return redirect('customer-calendar', customer_id=customer_id)
-
-@csrf_exempt
-def update_event(request):
-    """Update event via AJAX (dragging/resizing in FullCalendar)."""
-    if request.method == 'POST':
-        data = json.loads(request.body)
-        event = get_object_or_404(Event, id=data['id'])
-        event.start_time = make_aware(datetime.datetime.fromisoformat(data['start']))
-        event.end_time = make_aware(datetime.datetime.fromisoformat(data['end']))
-        event.save()
-        return JsonResponse({'status': 'success'})
 
 
 @login_required
 def user_calendar_events(request):
     try:
-        # Log incoming parameters
-        start = request.GET.get('start')
-        end = request.GET.get('end')
-        print(f"Received start: {start}, end: {end}")
+        # Logging for debugging
+        logger.info(f"Calendar events request received for user: {request.user.username}")
 
-        # Optional: Parse and filter by date range
-        start_time = parse(start) if start else None
-        end_time = parse(end) if end else None
+        # Robust employee profile retrieval
+        try:
+            employee = request.user.employee_profile
+        except AttributeError:
+            try:
+                employee = request.user.employee
+            except AttributeError:
+                logger.error(f"No employee profile found for user {request.user.username}")
+                return JsonResponse({
+                    'error': 'No employee profile associated with this user',
+                    'user': request.user.username
+                }, status=400)
 
-        employee = request.user.employee  # Get the employee instance
-        events = []
+        # Safely parse date range
+        start_str = request.GET.get('start')
+        end_str = request.GET.get('end')
 
-        # Modify queries to use date range if provided
-        tasks_query = Task.objects.filter(assigned_to=employee).select_related('customer')
-        if start_time and end_time:
-            tasks_query = tasks_query.filter(due_date__range=[start_time, end_time])
+        try:
+            start_time = datetime.fromisoformat(start_str.replace('Z', '+00:00')) if start_str else None
+            end_time = datetime.fromisoformat(end_str.replace('Z', '+00:00')) if end_str else None
+        except (ValueError, AttributeError) as date_error:
+            logger.warning(f"Date parsing error: {date_error}")
+            start_time = end_time = None
 
-        for task in tasks_query:
-            if task.due_date:
-                events.append({
-                    'id': f'task_{task.id}',
-                    'title': f'Task: {task.title}',
-                    'start': task.due_date.astimezone(timezone.get_current_timezone()).isoformat(),
-                    'end': task.due_date.astimezone(timezone.get_current_timezone()).isoformat(),
-                    'url': reverse('task-detail', args=[task.id]),
-                    'backgroundColor': '#ff9f89',
-                    'borderColor': '#ff9f89',
-                    'extendedProps': {
-                        'icon': 'fa-tasks',
-                        'customer': task.customer.company_name if task.customer else None,
-                        'assigned_to': task.assigned_to.user.get_full_name()
-                    }
-                })
-
-        # Modify meetings query similarly
-        meetings_query = Meeting.objects.filter(
-            Q(organizer=employee) | Q(attendees=employee)
-        ).select_related('organizer', 'organizer__user').prefetch_related('customers')
-
-        if start_time and end_time:
-            meetings_query = meetings_query.filter(
-                Q(start_time__range=[start_time, end_time]) |
-                Q(end_time__range=[start_time, end_time])
-            )
-
-        for meeting in meetings_query:
-            if meeting.start_time:
-                customers = ', '.join([c.company_name for c in meeting.customers.all()])
-                events.append({
-                    'id': f'meeting_{meeting.id}',
-                    'title': f'Meeting: {meeting.title}',
-                    'start': meeting.start_time.astimezone(timezone.get_current_timezone()).isoformat(),
-                    'end': (meeting.end_time or meeting.start_time).astimezone(timezone.get_current_timezone()).isoformat(),
-                    'url': reverse('meeting-detail', args=[meeting.id]),
-                    'backgroundColor': '#4e73df',
-                    'borderColor': '#4e73df',
-                    'extendedProps': {
-                        'icon': 'fa-video',
-                        'customer': customers,
-                        'organizer': meeting.organizer.user.get_full_name(),
-                        'attendees': ', '.join([a.user.get_full_name() for a in meeting.attendees.all()])
-                    }
-                })
-
-        # Modify events query similarly
+        # Comprehensive events query
         events_query = Event.objects.filter(
-            Q(created_by=employee) | Q(attendees=employee)
-        ).select_related('customer', 'created_by', 'created_by__user')
+            Q(created_by=employee) |  # Events created by the employee
+            Q(attendees=employee)     # Events where employee is an attendee
+        ).distinct()
 
+        # Apply date range filtering if dates are provided
         if start_time and end_time:
             events_query = events_query.filter(
-                Q(start_time__range=[start_time, end_time]) |
-                Q(end_time__range=[start_time, end_time])
+                Q(start_time__gte=start_time) &
+                Q(start_time__lte=end_time)
             )
 
+        # Prepare events for FullCalendar with full details
+        calendar_events = []
         for event in events_query:
-            events.append({
+            # Determine event color with fallback
+            event_color = event.color if event.color else '#3788d8'
+
+            # Determine text color based on background brightness
+            def get_text_color(hex_color):
+                hex_color = hex_color.lstrip('#')
+                rgb = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+                brightness = (rgb[0] * 299 + rgb[1] * 587 + rgb[2] * 114) / 1000
+                return 'black' if brightness > 125 else 'white'
+
+            text_color = get_text_color(event_color)
+
+            calendar_events.append({
                 'id': f'event_{event.id}',
-                'title': f'Event: {event.title}',
-                'start': event.start_time.astimezone(timezone.get_current_timezone()).isoformat(),
-                'end': event.end_time.astimezone(timezone.get_current_timezone()).isoformat(),
-                'backgroundColor': event.color,
-                'borderColor': event.color,
+                'title': event.title,
+                'start': event.start_time.isoformat(),
+                'end': event.end_time.isoformat(),
+                'allDay': False,
+                'url': reverse('event-detail', args=[event.id]),
+                'backgroundColor': event_color,
+                'borderColor': event_color,
+                'textColor': text_color,
                 'extendedProps': {
-                    'icon': 'fa-calendar',
                     'type': event.event_type,
+                    'icon': 'fa-calendar',
                     'customer': event.customer.company_name if event.customer else None,
-                    'created_by': event.created_by.user.get_full_name()
+                    'description': event.description or '',
+                    'location': event.location or '',
+                    'attendees': [
+                        {
+                            'name': attendee.user.get_full_name(),
+                            'email': attendee.user.email
+                        } for attendee in event.attendees.all()
+                    ]
                 }
             })
 
-        return JsonResponse(events, safe=False)
+        # Log and return events
+        logger.info(f"Returning {len(calendar_events)} total events")
+        return JsonResponse(calendar_events, safe=False)
 
     except Exception as e:
-        print(f"Error in user_calendar_events: {str(e)}")
-        import traceback
-        print(traceback.format_exc())
-        return JsonResponse({'error': str(e)}, status=500)
+        # Comprehensive error logging
+        logger.error(f"Calendar events retrieval error: {e}", exc_info=True)
+        return JsonResponse({
+            'error': 'An unexpected error occurred while retrieving calendar events',
+            'details': str(e)
+        }, status=500)
+
 
 
 @login_required
@@ -2306,7 +2370,6 @@ class IPStatisticsView(TemplateView):
 
         return context
 
-
 def get_client_ip(request):
     x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
     if x_forwarded_for:
@@ -2375,3 +2438,379 @@ def privacy_policy_view(request):
         ).exists() if request.user.is_authenticated else False
     }
     return render(request, 'core/privacy_policy.html', context)
+
+
+class ScheduleRuleListView(LoginRequiredMixin, ListView):
+    model = ScheduleRule
+    template_name = 'core/schedule_rule_list.html'
+    context_object_name = 'rules'
+
+    def get_queryset(self):
+        return ScheduleRule.objects.filter(user=self.request.user)
+
+class ScheduleRuleCreateView(LoginRequiredMixin, CreateView):
+    model = ScheduleRule
+    form_class = ScheduleRuleForm
+    template_name = 'core/schedule_rule_form.html'
+    success_url = reverse_lazy('schedule-rule-list')
+
+
+    def get_initial(self):
+        """Set initial values for the form"""
+        initial = super().get_initial()
+        try:
+            # Set default business hours
+            initial['start_time'] = timezone.datetime.strptime('09:00', '%H:%M').time()
+            initial['end_time'] = timezone.datetime.strptime('17:00', '%H:%M').time()
+            initial['min_booking_duration'] = 30
+            initial['max_booking_duration'] = 240
+            initial['buffer_before'] = 15
+            initial['buffer_after'] = 15
+        except Exception as e:
+            logger.error(f"Error setting initial schedule rule values: {str(e)}")
+        return initial
+
+    def get_context_data(self, **kwargs):
+        """Add additional context for the template"""
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Create New Schedule Rule'
+        context['submit_text'] = 'Create Rule'
+
+        # Add any existing rules for reference
+        try:
+            context['existing_rules'] = ScheduleRule.objects.filter(
+                user=self.request.user,
+                is_active=True
+            )
+        except Exception as e:
+            logger.error(f"Error fetching existing rules: {str(e)}")
+            context['existing_rules'] = []
+
+        return context
+
+    def form_valid(self, form):
+        """Process the form if valid"""
+        try:
+            with transaction.atomic():
+                # Set the user
+                form.instance.user = self.request.user
+
+                # Validate time constraints
+                if form.cleaned_data['start_time'] >= form.cleaned_data['end_time']:
+                    form.add_error(None, "End time must be after start time")
+                    return self.form_invalid(form)
+
+                # Validate booking durations
+                min_duration = form.cleaned_data['min_booking_duration']
+                max_duration = form.cleaned_data['max_booking_duration']
+                if min_duration >= max_duration:
+                    form.add_error(
+                        None,
+                        "Maximum booking duration must be greater than minimum duration"
+                    )
+                    return self.form_invalid(form)
+
+                # Validate buffer times
+                total_buffer = (form.cleaned_data['buffer_before'] +
+                              form.cleaned_data['buffer_after'])
+                available_minutes = (
+                    timezone.datetime.combine(
+                        timezone.now(),
+                        form.cleaned_data['end_time']
+                    ) -
+                    timezone.datetime.combine(
+                        timezone.now(),
+                        form.cleaned_data['start_time']
+                    )
+                ).seconds / 60
+
+                if total_buffer + min_duration > available_minutes:
+                    form.add_error(
+                        None,
+                        "Buffer times plus minimum booking duration exceed available time"
+                    )
+                    return self.form_invalid(form)
+
+                # Check for conflicting rules
+                if self._has_conflicting_rules(form.cleaned_data):
+                    form.add_error(
+                        None,
+                        "This rule conflicts with an existing active rule"
+                    )
+                    return self.form_invalid(form)
+
+                # Save the rule
+                response = super().form_valid(form)
+                messages.success(
+                    self.request,
+                    f"Schedule rule '{form.instance.name}' created successfully"
+                )
+                return response
+
+        except ValidationError as e:
+            form.add_error(None, str(e))
+            return self.form_invalid(form)
+        except Exception as e:
+            logger.error(f"Error creating schedule rule: {str(e)}")
+            form.add_error(None, "An error occurred while creating the schedule rule")
+            return self.form_invalid(form)
+
+    def _has_conflicting_rules(self, cleaned_data):
+        """Check for conflicting schedule rules"""
+        existing_rules = ScheduleRule.objects.filter(
+            user=self.request.user,
+            is_active=True,
+            recurrence_type=cleaned_data['recurrence_type']
+        )
+
+        if cleaned_data['recurrence_type'] == 'weekly':
+            existing_rules = existing_rules.filter(
+                day_of_week=cleaned_data['day_of_week']
+            )
+        elif cleaned_data['recurrence_type'] == 'monthly':
+            existing_rules = existing_rules.filter(
+                day_of_month=cleaned_data['day_of_month']
+            )
+        elif cleaned_data['recurrence_type'] == 'yearly':
+            existing_rules = existing_rules.filter(
+                month=cleaned_data['month'],
+                day_of_month=cleaned_data['day_of_month']
+            )
+
+        for rule in existing_rules:
+            if (rule.start_time < cleaned_data['end_time'] and
+                rule.end_time > cleaned_data['start_time']):
+                return True
+        return False
+
+    def form_invalid(self, form):
+        """Handle invalid form submission"""
+        messages.error(
+            self.request,
+            "Please correct the errors below"
+        )
+        return super().form_invalid(form)
+
+    def get_success_url(self):
+        """Get URL to redirect to after successful creation"""
+        if 'create_another' in self.request.POST:
+            return reverse_lazy('schedule-rule-create')
+        return self.success_url
+
+class ScheduleRuleUpdateView(LoginRequiredMixin, UpdateView):
+    model = ScheduleRule
+    form_class = ScheduleRuleForm
+    template_name = 'core/schedule_rule_form.html'
+    success_url = reverse_lazy('schedule-rule-list')
+
+    def get_queryset(self):
+        # Ensure users can only edit their own rules
+        return ScheduleRule.objects.filter(user=self.request.user)
+
+class ScheduleRuleDeleteView(LoginRequiredMixin, DeleteView):
+    model = ScheduleRule
+    template_name = 'core/schedule_rule_confirm_delete.html'
+    success_url = reverse_lazy('schedule-rule-list')
+
+    def get_queryset(self):
+        # Ensure users can only delete their own rules
+        return ScheduleRule.objects.filter(user=self.request.user)
+
+
+@login_required
+def event_detail(request, pk):
+    event = get_object_or_404(Event, pk=pk)
+    if not (request.user.employee_profile == event.created_by or request.user.employee_profile in event.attendees.all()):
+        messages.error(request, "You don't have permission to view this event.")
+        return redirect('calendar')
+    return render(request, 'core/event_detail.html', {'event': event})
+
+# Event Views
+class EventListView(LoginRequiredMixin, ListView):
+    model = Event
+    template_name = 'core/event_list.html'
+    context_object_name = 'events'
+    paginate_by = 10
+
+    def get_queryset(self):
+        employee = self.request.user.employee_profile
+        return Event.objects.filter(
+            Q(created_by=employee) | Q(attendees=employee)
+        ).order_by('-start_time')
+
+class EventDetailView(LoginRequiredMixin, DetailView):
+    model = Event
+    template_name = 'core/event_detail.html'
+    context_object_name = 'event'
+
+    def get_queryset(self):
+        employee = self.request.user.employee_profile
+        return Event.objects.filter(
+            Q(created_by=employee) | Q(attendees=employee)
+        )
+
+class EventCreateView(LoginRequiredMixin, CreateView):
+    model = Event
+    form_class = EventForm
+    template_name = 'core/event_form.html'
+    success_url = reverse_lazy('event-list')
+
+    def get_initial(self):
+        initial = super().get_initial()
+        initial['created_by'] = self.request.user.employee_profile
+
+        # Pre-fill dates if provided in URL
+        start = self.request.GET.get('start')
+        end = self.request.GET.get('end')
+
+        if start:
+            initial['start_time'] = parse(start)
+        if end:
+            initial['end_time'] = parse(end)
+
+        return initial
+
+    def form_valid(self, form):
+        form.instance.created_by = self.request.user.employee_profile
+        messages.success(self.request, 'Event created successfully.')
+        return super().form_valid(form)
+
+class EventUpdateView(LoginRequiredMixin, UpdateView):
+    model = Event
+    form_class = EventForm
+    template_name = 'core/event_form.html'
+    success_url = reverse_lazy('event-list')
+
+    def get_queryset(self):
+        employee = self.request.user.employee_profile
+        return Event.objects.filter(
+            Q(created_by=employee) | Q(attendees=employee)
+        )
+
+    def form_valid(self, form):
+        messages.success(self.request, 'Event updated successfully.')
+        return super().form_valid(form)
+
+class EventDeleteView(LoginRequiredMixin, DeleteView):
+    model = Event
+    template_name = 'core/event_confirm_delete.html'
+    success_url = reverse_lazy('event-list')
+
+    def get_queryset(self):
+        employee = self.request.user.employee_profile
+        return Event.objects.filter(
+            Q(created_by=employee) | Q(attendees=employee)
+        )
+
+    def delete(self, request, *args, **kwargs):
+        messages.success(request, 'Event deleted successfully.')
+        return super().delete(request, *args, **kwargs)
+
+# Customer Event Views
+class CustomerEventListView(LoginRequiredMixin, ListView):
+    model = Event
+    template_name = 'core/customer_event_list.html'
+    context_object_name = 'events'
+    paginate_by = 10
+
+    def get_queryset(self):
+        customer_id = self.kwargs.get('customer_id')
+        return Event.objects.filter(customer_id=customer_id).order_by('-start_time')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['customer'] = get_object_or_404(Customer, id=self.kwargs.get('customer_id'))
+        return context
+
+class CustomerEventCreateView(LoginRequiredMixin, CreateView):
+    model = Event
+    form_class = EventForm
+    template_name = 'core/event_form.html'
+
+    def get_initial(self):
+        initial = super().get_initial()
+        customer = get_object_or_404(Customer, id=self.kwargs.get('customer_id'))
+        initial['customer'] = customer
+
+        # Pre-fill dates if provided in URL
+        start = self.request.GET.get('start')
+        end = self.request.GET.get('end')
+
+        try:
+            if start:
+                initial['start_time'] = parse(start)
+            if end:
+                initial['end_time'] = parse(end)
+        except Exception as e:
+            logger.error(f"Date parsing error: {e}")
+
+        return initial
+
+    def form_valid(self, form):
+        form.instance.created_by = self.request.user.employee_profile
+        form.instance.customer = get_object_or_404(Customer, id=self.kwargs.get('customer_id'))
+        messages.success(self.request, 'Customer event created successfully.')
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse('customer-calendar', kwargs={'customer_id': self.kwargs.get('customer_id')})
+
+# Additional views to support existing functionality
+
+@login_required
+def customer_calendar_view(request, customer_id):
+    """
+    Render the customer's calendar page
+    """
+    customer = get_object_or_404(Customer, id=customer_id)
+    return render(request, 'core/customer_calendar.html', {'customer': customer})
+
+@login_required
+def customer_calendar_events(request, customer_id):
+    """
+    Retrieve events specific to this customer
+    """
+    customer = get_object_or_404(Customer, id=customer_id)
+
+    # Retrieve events specific to this customer
+    events = Event.objects.filter(customer=customer)
+
+    event_data = []
+    for event in events:
+        # Determine event color with fallback
+        event_color = event.color if event.color else '#3788d8'
+
+        # Determine text color based on background brightness
+        def get_text_color(hex_color):
+            hex_color = hex_color.lstrip('#')
+            rgb = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+            brightness = (rgb[0] * 299 + rgb[1] * 587 + rgb[2] * 114) / 1000
+            return 'black' if brightness > 125 else 'white'
+
+        text_color = get_text_color(event_color)
+
+        event_data.append({
+            'id': f'event_{event.id}',
+            'title': event.title,
+            'start': event.start_time.isoformat(),
+            'end': event.end_time.isoformat(),
+            'allDay': False,
+            'url': reverse('event-detail', args=[event.id]),
+            'backgroundColor': event_color,
+            'borderColor': event_color,
+            'textColor': text_color,
+            'extendedProps': {
+                'type': event.event_type,
+                'customer': customer.company_name,
+                'description': event.description or '',
+                'location': event.location or '',
+                'attendees': [
+                    {
+                        'name': attendee.user.get_full_name(),
+                        'email': attendee.user.email
+                    } for attendee in event.attendees.all()
+                ]
+            }
+        })
+
+    return JsonResponse(event_data, safe=False)

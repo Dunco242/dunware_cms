@@ -2,7 +2,7 @@ from django.contrib import admin
 from .models import (
     Employee, Customer, Lead, Service,
     Note, Task, Meeting, Invoice, Payment,
-    Subscription, Transaction, ServiceSubscription, IPAccess, PrivacyPolicyAcceptance, LegalDocument
+    Subscription, Transaction, ServiceSubscription, IPAccess, PrivacyPolicyAcceptance, LegalDocument, ScheduleRule, ScheduleException
 )
 
 @admin.register(Employee)
@@ -114,3 +114,14 @@ class LegalDocumentAdmin(admin.ModelAdmin):
         if not change:
             obj.is_current = True
         super().save_model(request, obj, form, change)
+
+
+@admin.register(ScheduleRule)
+class ScheduleRuleAdmin(admin.ModelAdmin):
+    list_display = ('name', 'user', 'recurrence_type', 'start_time', 'end_time', 'is_active')
+    list_filter = ('user', 'recurrence_type', 'is_active')
+
+@admin.register(ScheduleException)
+class ScheduleExceptionAdmin(admin.ModelAdmin):
+    list_display = ('user', 'date', 'is_available', 'reason')
+    list_filter = ('user', 'date', 'is_available')

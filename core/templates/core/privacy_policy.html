@@ -1,45 +1,59 @@
-{% extends 'core/base.html' %}
-{% load static %}
+{% extends "core/base.html" %}
 
 {% block content %}
-<div class="container mx-auto px-4 py-8">
-    <div class="bg-white rounded-lg shadow-lg p-6">
-        <!-- Policy Version -->
-        <div class="mb-6 text-sm text-gray-600">
-            Version: {{ policy_version }} | Last Updated: {{ last_updated }}
-        </div>
+<div class="container mt-4">
+    <h2>Privacy Policy</h2>
 
-        <!-- Policy Content -->
-        <div class="prose max-w-none">
-            {{ policy_content|safe }}
+    {% if messages %}
+    <div class="messages">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}">
+            {{ message }}
         </div>
+        {% endfor %}
+    </div>
+    {% endif %}
 
-        <!-- Acceptance Form -->
-        {% if not user.is_anonymous and not already_accepted %}
-        <div class="mt-8 p-4 bg-gray-50 rounded-lg">
-            <form method="post" action="{% url 'accept_privacy_policy' %}">
-                {% csrf_token %}
-                <input type="hidden" name="policy_version" value="{{ policy_version }}">
-                <div class="flex items-start mb-4">
-                    <input type="checkbox" id="accept_policy" name="accept_policy" required
-                           class="mt-1 h-4 w-4 text-blue-600">
-                    <label for="accept_policy" class="ml-2 text-sm text-gray-700">
-                        I have read and agree to the Privacy Policy
-                    </label>
+    <div class="card">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="card-title mb-0">Version {{ policy_version }}</h5>
+                <small class="text-muted">Last Updated: {{ last_updated|date:"F j, Y" }}</small>
+            </div>
+
+            {% if already_accepted %}
+                <div class="alert alert-info">
+                    You have already accepted this version of the privacy policy on
+                    {{ acceptance_date|date:"F j, Y" }}.
+                    <a href="{% url 'dashboard' %}" class="btn btn-primary ml-3">
+                        Continue to Dashboard
+                    </a>
                 </div>
-                <button type="submit"
-                        class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
-                    Accept Policy
-                </button>
-            </form>
+            {% endif %}
+
+            <div class="policy-content mb-4">
+                {{ policy_content|safe }}
+            </div>
+
+            {% if not already_accepted %}
+                <form method="post" action="{% url 'accept_privacy_policy' %}" class="mt-4">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{{ next_url }}">
+                    <div class="form-group">
+                        <div class="custom-control custom-checkbox">
+                            <input type="checkbox" class="custom-control-input"
+                                   id="accept" name="accept" required>
+                            <label class="custom-control-label" for="accept">
+                                I have read and accept the privacy policy
+                            </label>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        Accept Privacy Policy
+                    </button>
+                </form>
+            {% endif %}
         </div>
-        {% elif already_accepted %}
-        <div class="mt-8 p-4 bg-green-50 rounded-lg">
-            <p class="text-green-700">
-                You accepted this policy on {{ acceptance_date }}
-            </p>
-        </div>
-        {% endif %}
     </div>
 </div>
 {% endblock %}

@@ -1,45 +1,51 @@
-# middleware.py
 from django.contrib import messages
 from django.shortcuts import redirect
 from django.utils import timezone
-from .models import IPAccess, PrivacyPolicyAcceptance
+from django.core.cache import cache
+from django.conf import settings
+from .models import IPAccess, PrivacyPolicyAcceptance, LegalDocument
+import logging
+from functools import lru_cache
+
+logger = logging.getLogger(__name__)
 
 class IPTrackingMiddleware:
     def __init__(self, get_response):
         self.get_response = get_response
+        self.excluded_paths = ['/static/', '/media/', '/favicon.ico']
+
+    def should_track(self, path):
+        return not any(path.startswith(excluded) for excluded in self.excluded_paths)
+
+    def get_client_ip(self, request):
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            return x_forwarded_for.split(',')[0].strip()
+        return request.META.get('REMOTE_ADDR')
 
     def __call__(self, request):
-        # Execute the view and get the response
         response = self.get_response(request)
 
-        # Now we can safely access request.user after auth middleware has run
-        try:
-            # Get IP address
-            x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
-            if x_forwarded_for:
-                ip = x_forwarded_for.split(',')[0].strip()
-            else:
-                ip = request.META.get('REMOTE_ADDR')
-
-            # Create access record
-            IPAccess.objects.create(
-                ip_address=ip,
-                user=request.user if hasattr(request, 'user') and request.user.is_authenticated else None,
-                path=request.path,
-                user_agent=request.META.get('HTTP_USER_AGENT', ''),
-                method=request.method,
-                is_ajax=request.headers.get('x-requested-with') == 'XMLHttpRequest',
-                is_secure=request.is_secure(),
-            )
-        except Exception as e:
-            # Log the error but don't break the request
-            # Consider using proper logging instead of print
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.error(f"Error in IPTrackingMiddleware: {str(e)}")
+        if self.should_track(request.path):
+            try:
+                # Rate limiting - max 100 records per IP per hour
+                ip = self.get_client_ip(request)
+                cache_key = f'ip_tracking_{ip}'
+                if not cache.get(cache_key):
+                    IPAccess.objects.create(
+                        ip_address=ip,
+                        user=request.user if hasattr(request, 'user') and request.user.is_authenticated else None,
+                        path=request.path[:255],  # Ensure path length doesn't exceed field max length
+                        user_agent=request.META.get('HTTP_USER_AGENT', '')[:1000],  # Limit user agent length
+                        method=request.method[:10],
+                        is_ajax=request.headers.get('x-requested-with') == 'XMLHttpRequest',
+                        is_secure=request.is_secure(),
+                    )
+                    cache.set(cache_key, True, 3600)  # Cache for 1 hour
+            except Exception as e:
+                logger.error(f"Error in IPTrackingMiddleware: {str(e)}", exc_info=True)
 
         return response
-
 
 class PrivacyPolicyMiddleware:
     def __init__(self, get_response):

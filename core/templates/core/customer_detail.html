@@ -318,7 +318,7 @@
                                 <a href="{% url 'meeting-create' %}?customer={{ customer.pk }}" class="btn btn-sm btn-outline-primary">
                                     <i class="fas fa-video"></i> New Meeting
                                 </a>
-                                <a href="{% url 'create-event' customer.pk %}" class="btn btn-sm btn-outline-primary">
+                                <a href="{% url 'customer-event-create' customer.pk %}" class="btn btn-sm btn-outline-primary">
                                     <i class="fas fa-calendar-plus"></i> New Event
                                 </a>
                             </div>
@@ -335,59 +335,68 @@
 {% block extra_js %}
 <script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.js'></script>
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    var calendarEl = document.getElementById('customer-calendar');
-    var calendar = new FullCalendar.Calendar(calendarEl, {
-        initialView: 'dayGridMonth',
-        height: 'auto',
-        headerToolbar: {
-            left: 'prev,next today',
-            center: 'title',
-            right: 'dayGridMonth,timeGridWeek,timeGridDay'
-        },
-        events: "{% url 'customer-events' customer.id %}",
-        editable: true,
-        selectable: true,
-        select: function(info) {
-            var createTask = confirm('Create a task for this customer? (Cancel for meeting/event)');
+    document.addEventListener('DOMContentLoaded', function() {
+        var calendarEl = document.getElementById('customer-calendar');
+        var calendar = new FullCalendar.Calendar(calendarEl, {
+            initialView: 'dayGridMonth',
+            height: 'auto',
+            headerToolbar: {
+                left: 'prev,next today',
+                center: 'title',
+                right: 'dayGridMonth,timeGridWeek,timeGridDay'
+            },
+            events: "{% url 'customer-event-list' customer.id %}",
+            editable: true,
+            selectable: true,
+            eventConstraint: {
+                start: '09:00', // Business hours start
+                end: '17:00'    // Business hours end
+            },
+            businessHours: {
+                daysOfWeek: [1, 2, 3, 4, 5], // Monday-Friday
+                startTime: '09:00',
+                endTime: '17:00'
+            },
+            select: function(info) {
+                var createTask = confirm('Create a task for this customer? (Cancel for meeting/event)');
 
-            if (createTask) {
-                window.location.href = "{% url 'task-create' %}?customer={{ customer.pk }}&due_date=" + info.startStr;
-            } else {
-                var createMeeting = confirm('Create a meeting? (Cancel for event)');
-                if (createMeeting) {
-                    window.location.href = "{% url 'meeting-create' %}?customer={{ customer.pk }}&start_time=" + info.startStr;
+                if (createTask) {
+                    window.location.href = "{% url 'task-create' %}?customer={{ customer.pk }}&due_date=" + info.startStr;
                 } else {
-                    window.location.href = "{% url 'create-event' customer.pk %}?start=" + info.startStr + "&end=" + info.endStr;
+                    var createMeeting = confirm('Create a meeting? (Cancel for event)');
+                    if (createMeeting) {
+                        window.location.href = "{% url 'meeting-create' %}?customer={{ customer.pk }}&start_time=" + info.startStr;
+                    } else {
+                        window.location.href = "{% url 'customer-event-create' customer.pk %}?start=" + info.startStr + "&end=" + info.endStr;
+                    }
                 }
-            }
 
-            calendar.unselect();
-        },
-        eventClick: function(info) {
-            if (info.event.url) {
-                window.location.href = info.event.url;
+                calendar.unselect();
+            },
+            eventClick: function(info) {
+                if (info.event.url) {
+                    window.location.href = info.event.url;
+                }
+            },
+            eventContent: function(arg) {
+                return {
+                    html: `
+                        <div class="fc-content">
+                            <i class="fas ${arg.event.extendedProps.icon}"></i>
+                            <span>${arg.event.title}</span>
+                            ${arg.event.extendedProps.assigned_to ?
+                              `<small class="d-block text-muted">👤 ${arg.event.extendedProps.assigned_to}</small>` : ''}
+                        </div>
+                    `
+                };
             }
-        },
-        eventContent: function(arg) {
-            return {
-                html: `
-                    <div class="fc-content">
-                        <i class="fas ${arg.event.extendedProps.icon}"></i>
-                        <span>${arg.event.title}</span>
-                        ${arg.event.extendedProps.assigned_to ?
-                          `<small class="d-block text-muted">👤 ${arg.event.extendedProps.assigned_to}</small>` : ''}
-                    </div>
-                `
-            };
-        }
+        });
+        calendar.render();
+
+        // Add periodic refresh
+        setInterval(function() {
+            calendar.refetchEvents();
+        }, 60000); // Refresh every minute
     });
-    calendar.render();
-
-    // Add periodic refresh
-    setInterval(function() {
-        calendar.refetchEvents();
-    }, 60000); // Refresh every minute
-});
-</script>
+    </script>
 {% endblock %}

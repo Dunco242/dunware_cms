@@ -6,9 +6,13 @@ from django.contrib.auth.models import User
 from allauth.account.forms import LoginForm
 from django.core.exceptions import ValidationError
 from django.utils import timezone
+from datetime import timedelta
+from crispy_forms.helper import FormHelper
+from crispy_forms.layout import Layout, Row, Column, Submit
+from core.services.scheduling import SchedulingService
 from .models import (
     Employee, Customer, Lead, Service,
-    Note, Task, Meeting, Invoice, Payment, Subscription, Transaction, ServiceSubscription, Event, UploadedICSFile
+    Note, Task, Meeting, Invoice, Payment, Subscription, Transaction, ServiceSubscription, Event, UploadedICSFile, ScheduleRule
 )
 
 class UserRegistrationForm(UserCreationForm):
@@ -132,16 +136,42 @@ class TaskForm(forms.ModelForm):
             'description': forms.Textarea(attrs={'rows': 4}),
         }
 
+    def __init__(self, *args, **kwargs):
+        # Extract user from kwargs if passed
+        self.user = kwargs.pop('user', None)
+        super().__init__(*args, **kwargs)
+
     def clean(self):
         cleaned_data = super().clean()
         customer = cleaned_data.get('customer')
         lead = cleaned_data.get('lead')
+        due_date = cleaned_data.get('due_date')
+
+        # Validate customer and lead
         if customer and lead:
             raise ValidationError('A task cannot be associated with both a customer and a lead.')
-        due_date = cleaned_data.get('due_date')
-        if due_date and due_date < timezone.now():
-            raise ValidationError('Due date cannot be in the past.')
+
+        # Validate due date
+        if due_date:
+            # Check if due date is in the past
+            if due_date < timezone.now():
+                raise ValidationError('Due date cannot be in the past.')
+
+            # Check scheduling rules if user is available
+            if self.user:
+                try:
+                    scheduling_service = SchedulingService(self.user)
+
+                    # Check a 30-minute window for tasks
+                    end_time = due_date + timedelta(minutes=30)
+
+                    if not scheduling_service.check_availability(due_date, end_time, 30):
+                        raise ValidationError("The selected time conflicts with your scheduling rules.")
+                except Exception as e:
+                    raise ValidationError(f"Error checking scheduling availability: {str(e)}")
+
         return cleaned_data
+
 
 class MeetingForm(forms.ModelForm):
     start_time = forms.DateTimeField(
@@ -165,20 +195,42 @@ class MeetingForm(forms.ModelForm):
             'leads': forms.CheckboxSelectMultiple(),
         }
 
+    def __init__(self, *args, **kwargs):
+        # Extract user from kwargs if passed
+        self.user = kwargs.pop('user', None)
+        super().__init__(*args, **kwargs)
+
     def clean(self):
         cleaned_data = super().clean()
         start_time = cleaned_data.get('start_time')
         end_time = cleaned_data.get('end_time')
 
+        # Validate time
         if start_time and end_time:
+            # Check that end time is after start time
             if start_time >= end_time:
                 raise ValidationError('End time must be after start time.')
+
+            # Check that start time is not in the past
             if start_time < timezone.now():
                 raise ValidationError('Start time cannot be in the past.')
 
+            # Check scheduling rules if user is available
+            if self.user:
+                try:
+                    scheduling_service = SchedulingService(self.user)
+                    duration = int((end_time - start_time).total_seconds() / 60)
+
+                    if not scheduling_service.check_availability(start_time, end_time, duration):
+                        raise ValidationError("The selected time conflicts with your scheduling rules.")
+                except Exception as e:
+                    raise ValidationError(f"Error checking scheduling availability: {str(e)}")
+
+        # Additional Zoom meeting validation
         meeting_type = cleaned_data.get('meeting_type')
         if meeting_type == 'zoom':
             # Additional validation for Zoom meetings can be added here
+            # For example, check if Zoom credentials are available
             pass
 
         return cleaned_data
@@ -333,12 +385,90 @@ class ICSUploadForm(forms.ModelForm):
 class EventForm(forms.ModelForm):
     class Meta:
         model = Event
-        fields = ['customer', 'title', 'description', 'location', 'start_time', 'end_time', 'attendees']
+        fields = [
+            'title',
+            'description',
+            'start_time',
+            'end_time',
+            'event_type',
+            'location',
+            'customer',
+            'color',
+            'attendees',
+            'is_recurring',
+            'recurrence_type',
+            'recurrence_rule',
+            'recurrence_end'
+        ]
         widgets = {
-            'start_time': forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': 'form-control'}),
-            'end_time': forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': 'form-control'}),
+            'start_time': forms.DateTimeInput(attrs={'type': 'datetime-local'}),
+            'end_time': forms.DateTimeInput(attrs={'type': 'datetime-local'}),
+            'color': forms.TextInput(attrs={'type': 'color'}),
+            'description': forms.Textarea(attrs={'rows': 3}),
+            'recurrence_end': forms.DateTimeInput(attrs={'type': 'datetime-local'}),
+            'recurrence_rule': forms.TextInput(attrs={'placeholder': 'Optional iCal RRULE format'}),
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # Add crispy form helper
+        self.helper = FormHelper()
+        self.helper.layout = Layout(
+            Row(
+                Column('title', css_class='form-group col-md-6'),
+                Column('event_type', css_class='form-group col-md-6'),
+            ),
+            Row(
+                Column('start_time', css_class='form-group col-md-6'),
+                Column('end_time', css_class='form-group col-md-6'),
+            ),
+            Row(
+                Column('description', css_class='form-group col-md-12'),
+            ),
+            Row(
+                Column('location', css_class='form-group col-md-4'),
+                Column('customer', css_class='form-group col-md-4'),
+                Column('color', css_class='form-group col-md-4'),
+            ),
+            Row(
+                Column('attendees', css_class='form-group col-md-12'),
+            ),
+            Row(
+                Column('is_recurring', css_class='form-group col-md-4'),
+                Column('recurrence_type', css_class='form-group col-md-4'),
+                Column('recurrence_end', css_class='form-group col-md-4'),
+            ),
+            Row(
+                Column('recurrence_rule', css_class='form-group col-md-12'),
+            ),
+            Submit('submit', 'Save Event', css_class='btn btn-primary')
+        )
+
+    def clean(self):
+        """
+        Additional validation for recurring events
+        """
+        cleaned_data = super().clean()
+
+        is_recurring = cleaned_data.get('is_recurring')
+        recurrence_type = cleaned_data.get('recurrence_type')
+        recurrence_rule = cleaned_data.get('recurrence_rule')
+        recurrence_end = cleaned_data.get('recurrence_end')
+
+        # Validate recurring event requirements
+        if is_recurring:
+            if not recurrence_type:
+                self.add_error('recurrence_type', 'Recurrence type is required for recurring events')
+
+            # Optional: Add more specific validation based on recurrence type
+            if recurrence_type == 'custom' and not recurrence_rule:
+                self.add_error('recurrence_rule', 'Recurrence rule is required for custom recurrence')
+
+            if not recurrence_end:
+                self.add_error('recurrence_end', 'Recurrence end date is required')
+
+        return cleaned_data
 
 class CustomLoginForm(LoginForm):
     def __init__(self, *args, **kwargs):
@@ -353,3 +483,27 @@ class CustomLoginForm(LoginForm):
             'class': 'form-control form-control-lg',
             'placeholder': 'Password'
         })
+
+
+class ScheduleRuleForm(forms.ModelForm):
+    class Meta:
+        model = ScheduleRule
+        fields = [
+            'name',
+            'recurrence_type',
+            'start_time',
+            'end_time',
+            'day_of_week',
+            'day_of_month',
+            'month',
+            'max_bookings_per_day',
+            'min_booking_duration',
+            'max_booking_duration',
+            'buffer_before',
+            'buffer_after',
+            'is_active'
+        ]
+        widgets = {
+            'start_time': forms.TimeInput(attrs={'type': 'time'}),
+            'end_time': forms.TimeInput(attrs={'type': 'time'}),
+        }

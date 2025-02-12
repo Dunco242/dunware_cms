@@ -7,77 +7,443 @@ from django.utils import timezone
 from zoom_integration.models import ZoomMeeting
 from django.conf import settings
 from zoomus import ZoomClient
-from datetime import timedelta
+from datetime import datetime, time, timedelta, date
+from dateutil.relativedelta import relativedelta
 import uuid
 from django.utils.crypto import get_random_string
 from decimal import Decimal
 from django.utils.timezone import make_aware
+from dateutil.rrule import rrulestr
+from django.core.exceptions import ValidationError
+from django.core.validators import RegexValidator, EmailValidator, URLValidator,  MinLengthValidator
 import pytz
+from typing import Optional, List, Dict
 import random
 import logging
 
 logger = logging.getLogger(__name__)
 
 class Employee(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE)
-    employee_id = models.CharField(max_length=10, unique=True)
-    department = models.CharField(max_length=100, default="General")  # ✅ Default
-    position = models.CharField(max_length=100, default="Unassigned")  # ✅ Default
-    phone = models.CharField(max_length=15, blank=True)
+    # Carrier choices with proper documentation
+    CARRIER_CHOICES = [
+        ('att', 'AT&T'),
+        ('tmobile', 'T-Mobile'),
+        ('verizon', 'Verizon'),
+        ('sprint', 'Sprint'),
+        ('boost', 'Boost Mobile'),
+        ('cricket', 'Cricket'),
+        ('metro', 'Metro PCS'),
+        ('virgin', 'Virgin Mobile'),
+    ]
+
+    # User relationship with cascade protection
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name='employee_profile'
+    )
+
+    # Improved validators for employee_id
+    employee_id = models.CharField(
+        max_length=10,
+        unique=True,
+        validators=[
+            MinLengthValidator(4, 'Employee ID must be at least 4 characters'),
+            RegexValidator(
+                regex=r'^[A-Za-z0-9-]+$',
+                message='Employee ID can only contain letters, numbers, and hyphens'
+            )
+        ]
+    )
+
+    # Department with choices
+    DEPARTMENT_CHOICES = [
+        ('general', 'General'),
+        ('sales', 'Sales'),
+        ('support', 'Support'),
+        ('engineering', 'Engineering'),
+        ('marketing', 'Marketing'),
+        ('finance', 'Finance'),
+        ('hr', 'Human Resources'),
+    ]
+
+    department = models.CharField(
+        max_length=100,
+        choices=DEPARTMENT_CHOICES,
+        default='general'
+    )
+
+    # Position with choices
+    POSITION_CHOICES = [
+        ('unassigned', 'Unassigned'),
+        ('junior', 'Junior'),
+        ('senior', 'Senior'),
+        ('lead', 'Lead'),
+        ('manager', 'Manager'),
+        ('director', 'Director'),
+    ]
+
+    position = models.CharField(
+        max_length=100,
+        choices=POSITION_CHOICES,
+        default='unassigned'
+    )
+
+    # Phone number with validation
+    phone_regex = RegexValidator(
+        regex=r'^\+?1?\d{9,15}$',
+        message="Phone number must be entered in the format: '+999999999'. Up to 15 digits allowed."
+    )
+
+    phone = models.CharField(
+        validators=[phone_regex],
+        max_length=17,
+        blank=True,
+        help_text="Contact phone number"
+    )
+
     carrier = models.CharField(
         max_length=20,
-        choices=[
-            ('att', 'AT&T'),
-            ('tmobile', 'T-Mobile'),
-            ('verizon', 'Verizon'),
-            ('sprint', 'Sprint'),
-            ('boost', 'Boost Mobile'),
-            ('cricket', 'Cricket'),
-            ('metro', 'Metro PCS'),
-            ('virgin', 'Virgin Mobile'),
-        ],
-        blank=True
+        choices=CARRIER_CHOICES,
+        blank=True,
+        help_text="Mobile carrier for SMS notifications"
     )
-    hire_date = models.DateField(null=True, blank=True)  # ✅ Allow NULL to prevent errors
-    profile_picture = models.ImageField(upload_to='employee_photos/', null=True, blank=True)
-    is_active = models.BooleanField(default=True)
+
+    # Date fields with validation
+    hire_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Employee hire date"
+    )
+
+    termination_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Employee termination date"
+    )
+
+    # File handling with validation
+    def profile_picture_path(instance, filename):
+        # Generate path like 'employee_photos/YYYY/MM/employee_id_filename'
+        ext = filename.split('.')[-1]
+        new_filename = f"{instance.employee_id}_{timezone.now().strftime('%Y%m%d_%H%M%S')}.{ext}"
+        return f'employee_photos/{timezone.now().year}/{timezone.now().month}/{new_filename}'
+
+    profile_picture = models.ImageField(
+        upload_to=profile_picture_path,
+        null=True,
+        blank=True,
+        help_text="Employee profile picture"
+    )
+
+    # Status tracking
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Whether this employee is currently active"
+    )
+
+    # Metadata fields
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['employee_id']),
+            models.Index(fields=['department', 'position']),
+            models.Index(fields=['is_active', 'created_at']),
+        ]
+        permissions = [
+            ("can_view_employee_details", "Can view employee details"),
+            ("can_edit_employee_details", "Can edit employee details"),
+            ("can_terminate_employee", "Can terminate employee"),
+        ]
 
     def __str__(self):
         return f"{self.user.get_full_name()} - {self.employee_id}"
 
+    def clean(self):
+        """Validate employee data"""
+        # Validate dates
+        if self.hire_date and self.hire_date > timezone.now().date():
+            raise ValidationError({'hire_date': 'Hire date cannot be in the future'})
+
+        if self.termination_date:
+            if not self.hire_date:
+                raise ValidationError({
+                    'termination_date': 'Cannot set termination date without hire date'
+                })
+            if self.termination_date < self.hire_date:
+                raise ValidationError({
+                    'termination_date': 'Termination date cannot be before hire date'
+                })
+
+        # Validate phone and carrier consistency
+        if bool(self.phone) != bool(self.carrier):
+            raise ValidationError(
+                'Both phone number and carrier must be provided together'
+            )
+
+    def save(self, *args, **kwargs):
+        """Override save to handle status changes"""
+        self.full_clean()
+
+        # Handle termination
+        if self.termination_date and self.termination_date <= timezone.now().date():
+            self.is_active = False
+            # Deactivate user account
+            if self.user.is_active:
+                self.user.is_active = False
+                self.user.save()
+
+        super().save(*args, **kwargs)
+
     def get_absolute_url(self):
+        """Get URL for employee detail view"""
+        from django.urls import reverse
         return reverse('employee-detail', kwargs={'pk': self.pk})
 
+    def get_full_name(self):
+        """Get employee's full name"""
+        return self.user.get_full_name()
+
+    def get_email(self):
+        """Get employee's email"""
+        return self.user.email
+
+    @property
+    def employment_duration(self):
+        """Calculate employment duration"""
+        if not self.hire_date:
+            return None
+
+        end_date = self.termination_date or timezone.now().date()
+        return end_date - self.hire_date
+
+    def get_department_display(self):
+        """Get display value for department"""
+        return dict(self.DEPARTMENT_CHOICES).get(self.department, self.department)
+
+    def get_position_display(self):
+        """Get display value for position"""
+        return dict(self.POSITION_CHOICES).get(self.position, self.position)
+
 class Customer(models.Model):
+    """
+    Customer model with improved validation and relationship handling
+    """
+
     CUSTOMER_STATUS = [
         ('active', 'Active'),
         ('inactive', 'Inactive'),
-        ('pending', 'Pending')
+        ('pending', 'Pending'),
+        ('archived', 'Archived')
     ]
 
-    company_name = models.CharField(max_length=200)
-    contact_person = models.CharField(max_length=100)
-    email = models.EmailField()
-    phone = models.CharField(max_length=15)
-    address = models.TextField()
-    city = models.CharField(max_length=100)
-    state = models.CharField(max_length=100)
-    zip_code = models.CharField(max_length=10)
-    website = models.URLField(blank=True, null=True)
-    status = models.CharField(max_length=20, choices=CUSTOMER_STATUS, default='active')
-    assigned_to = models.ForeignKey(Employee, on_delete=models.SET_NULL, null=True, related_name='customers')
+    # Basic Information
+    company_name = models.CharField(
+        max_length=200,
+        validators=[
+            RegexValidator(
+                regex=r'^[\w\s\-\',.&]+$',
+                message='Company name can only contain letters, numbers, spaces, and basic punctuation'
+            )
+        ],
+        help_text="Official company name"
+    )
+
+    contact_person = models.CharField(
+        max_length=100,
+        validators=[
+            RegexValidator(
+                regex=r'^[\w\s\-\']+$',
+                message='Contact person name can only contain letters, spaces, and hyphens'
+            )
+        ],
+        help_text="Primary contact person's name"
+    )
+
+    # Contact Information
+    email = models.EmailField(
+        unique=True,
+        validators=[EmailValidator()],
+        help_text="Primary contact email"
+    )
+
+    phone_regex = RegexValidator(
+        regex=r'^\+?1?\d{9,15}$',
+        message="Phone number must be entered in the format: '+999999999'. Up to 15 digits allowed."
+    )
+    phone = models.CharField(
+        validators=[phone_regex],
+        max_length=17,
+        help_text="Primary contact phone number"
+    )
+
+    # Address Information
+    address = models.TextField(
+        help_text="Street address",
+        validators=[
+            RegexValidator(
+                regex=r'^[\w\s\-\',./\\#]+$',
+                message='Address can only contain letters, numbers, spaces, and basic punctuation'
+            )
+        ]
+    )
+
+    city = models.CharField(
+        max_length=100,
+        validators=[
+            RegexValidator(
+                regex=r'^[a-zA-Z\s\-]+$',
+                message='City name can only contain letters, spaces, and hyphens'
+            )
+        ]
+    )
+
+    state = models.CharField(
+        max_length=100,
+        validators=[
+            RegexValidator(
+                regex=r'^[a-zA-Z\s\-]+$',
+                message='State name can only contain letters, spaces, and hyphens'
+            )
+        ]
+    )
+
+    zip_code = models.CharField(
+        max_length=10,
+        validators=[
+            RegexValidator(
+                regex=r'^\d{5}(-\d{4})?$',
+                message='ZIP code must be in the format: 12345 or 12345-6789'
+            )
+        ]
+    )
+
+    # Online Presence
+    website = models.URLField(
+        blank=True,
+        null=True,
+        validators=[URLValidator(schemes=['http', 'https'])],
+        help_text="Company website URL"
+    )
+
+    # Status and Assignment
+    status = models.CharField(
+        max_length=20,
+        choices=CUSTOMER_STATUS,
+        default='active',
+        db_index=True
+    )
+
+    assigned_to = models.ForeignKey(
+        'Employee',
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='assigned_customers',
+        help_text="Employee responsible for this customer"
+    )
+
+    # Metadata
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    last_contact_date = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Date of last contact with customer"
+    )
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['company_name']),
+            models.Index(fields=['email']),
+            models.Index(fields=['status', 'assigned_to']),
+            models.Index(fields=['created_at']),
+        ]
+        permissions = [
+            ("can_view_customer_details", "Can view customer details"),
+            ("can_edit_customer", "Can edit customer information"),
+            ("can_assign_customer", "Can assign customer to employee"),
+        ]
 
     def __str__(self):
         return self.company_name
 
+    def clean(self):
+        """Validate customer data"""
+        # Ensure website starts with http:// or https://
+        if self.website and not (self.website.startswith('http://') or self.website.startswith('https://')):
+            self.website = 'https://' + self.website
+
+        # Validate status transitions
+        if self.pk:  # If this is an existing customer
+            old_instance = Customer.objects.get(pk=self.pk)
+            if old_instance.status == 'archived' and self.status != 'archived':
+                raise ValidationError("Cannot reactivate an archived customer")
+
+        # Validate assignment
+        if self.assigned_to and not self.assigned_to.is_active:
+            raise ValidationError({
+                'assigned_to': 'Cannot assign customer to inactive employee'
+            })
+
+    def save(self, *args, **kwargs):
+        """Override save for additional processing"""
+        self.full_clean()
+
+        # Update last_contact_date if status changes to active
+        if self.pk:
+            old_instance = Customer.objects.get(pk=self.pk)
+            if old_instance.status != 'active' and self.status == 'active':
+                self.last_contact_date = timezone.now()
+
+        super().save(*args, **kwargs)
+
     def get_absolute_url(self):
+        """Get URL for customer detail view"""
         return reverse('customer-detail', kwargs={'pk': self.pk})
 
+    def get_full_address(self):
+        """Get formatted full address"""
+        return f"{self.address}, {self.city}, {self.state} {self.zip_code}"
+
+    def get_open_tasks(self):
+        """Get all open tasks for this customer"""
+        return self.tasks.filter(status__in=['pending', 'in_progress'])
+
+    def get_upcoming_meetings(self):
+        """Get upcoming meetings for this customer"""
+        return self.meetings.filter(start_time__gt=timezone.now())
+
+    def get_active_subscriptions(self):
+        """Get active service subscriptions"""
+        return self.service_subscriptions.filter(status='active')
+
+    def update_last_contact(self):
+        """Update last contact date"""
+        self.last_contact_date = timezone.now()
+        self.save(update_fields=['last_contact_date', 'updated_at'])
+
+    @property
+    def is_active(self):
+        """Check if customer is active"""
+        return self.status == 'active'
+
+    @property
+    def days_since_last_contact(self):
+        """Calculate days since last contact"""
+        if not self.last_contact_date:
+            return None
+        return (timezone.now() - self.last_contact_date).days
+
+
 class Lead(models.Model):
+    """
+    Lead model with improved validation and status management
+    """
+
     LEAD_STATUS = [
         ('new', 'New'),
         ('contacted', 'Contacted'),
@@ -93,25 +459,259 @@ class Lead(models.Model):
         ('referral', 'Referral'),
         ('social', 'Social Media'),
         ('email', 'Email Campaign'),
+        ('trade_show', 'Trade Show'),
+        ('cold_call', 'Cold Call'),
         ('other', 'Other')
     ]
 
-    company_name = models.CharField(max_length=200)
-    contact_person = models.CharField(max_length=100)
-    email = models.EmailField()
-    phone = models.CharField(max_length=15)
-    source = models.CharField(max_length=20, choices=LEAD_SOURCE)
-    status = models.CharField(max_length=20, choices=LEAD_STATUS, default='new')
-    notes = models.TextField(blank=True)
-    assigned_to = models.ForeignKey(Employee, on_delete=models.SET_NULL, null=True, related_name='leads')
+    LEAD_PRIORITY = [
+        ('low', 'Low'),
+        ('medium', 'Medium'),
+        ('high', 'High')
+    ]
+
+    # Basic Information
+    company_name = models.CharField(
+        max_length=200,
+        validators=[
+            RegexValidator(
+                regex=r'^[\w\s\-\',.&]+$',
+                message='Company name can only contain letters, numbers, spaces, and basic punctuation'
+            )
+        ],
+        help_text="Company name"
+    )
+
+    contact_person = models.CharField(
+        max_length=100,
+        validators=[
+            RegexValidator(
+                regex=r'^[\w\s\-\']+$',
+                message='Contact person name can only contain letters, spaces, and hyphens'
+            )
+        ],
+        help_text="Primary contact person"
+    )
+
+    # Contact Information
+    email = models.EmailField(
+        validators=[EmailValidator()],
+        help_text="Primary contact email"
+    )
+
+    phone_regex = RegexValidator(
+        regex=r'^\+?1?\d{9,15}$',
+        message="Phone number must be entered in the format: '+999999999'. Up to 15 digits allowed."
+    )
+    phone = models.CharField(
+        validators=[phone_regex],
+        max_length=17,
+        help_text="Primary contact phone number"
+    )
+
+    # Lead Classification
+    source = models.CharField(
+        max_length=20,
+        choices=LEAD_SOURCE,
+        help_text="Where did this lead come from?"
+    )
+
+    status = models.CharField(
+        max_length=20,
+        choices=LEAD_STATUS,
+        default='new',
+        db_index=True,
+        help_text="Current status of the lead"
+    )
+
+    priority = models.CharField(
+        max_length=10,
+        choices=LEAD_PRIORITY,
+        default='medium',
+        help_text="Lead priority level"
+    )
+
+    # Additional Information
+    notes = models.TextField(
+        blank=True,
+        help_text="Additional notes about the lead"
+    )
+
+    estimated_value = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Estimated value of the lead"
+    )
+
+    # Relationships
+    assigned_to = models.ForeignKey(
+        'Employee',
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='assigned_leads',
+        help_text="Employee responsible for this lead"
+    )
+
+    converted_to_customer = models.ForeignKey(
+        'Customer',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='converted_from_lead',
+        help_text="Customer record if lead was converted"
+    )
+
+    # Tracking Fields
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    last_contacted = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When was the lead last contacted?"
+    )
+    conversion_date = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When was the lead converted to a customer?"
+    )
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['status', 'priority']),
+            models.Index(fields=['assigned_to', 'status']),
+            models.Index(fields=['email']),
+            models.Index(fields=['created_at']),
+        ]
+        permissions = [
+            ("can_convert_lead", "Can convert lead to customer"),
+            ("can_assign_lead", "Can assign lead to employee"),
+        ]
 
     def __str__(self):
-        return f"{self.company_name} - {self.status}"
+        return f"{self.company_name} - {self.get_status_display()}"
+
+    def clean(self):
+        """Validate lead data"""
+        # Validate status transitions
+        if self.pk:
+            old_instance = Lead.objects.get(pk=self.pk)
+
+            # Prevent status changes after conversion
+            if old_instance.status == 'converted' and self.status != 'converted':
+                raise ValidationError("Cannot change status of converted lead")
+
+            # Validate conversion
+            if self.status == 'converted' and not self.converted_to_customer:
+                raise ValidationError("Converted lead must have an associated customer")
+
+        # Validate assignment
+        if self.assigned_to and not self.assigned_to.is_active:
+            raise ValidationError({
+                'assigned_to': 'Cannot assign lead to inactive employee'
+            })
+
+        # Validate estimated value
+        if self.estimated_value and self.estimated_value < Decimal('0.00'):
+            raise ValidationError({
+                'estimated_value': 'Estimated value cannot be negative'
+            })
+
+    def save(self, *args, **kwargs):
+        """Override save for additional processing"""
+        self.full_clean()
+
+        # Handle status changes
+        if self.pk:
+            old_instance = Lead.objects.get(pk=self.pk)
+            if old_instance.status != self.status:
+                if self.status == 'converted':
+                    self.conversion_date = timezone.now()
+                self._handle_status_change(old_instance.status, self.status)
+
+        super().save(*args, **kwargs)
+
+    def _handle_status_change(self, old_status, new_status):
+        """Handle status change side effects"""
+        if new_status == 'contacted':
+            self.last_contacted = timezone.now()
+
+        # Log status change
+        logger.info(f"Lead {self.pk} status changed from {old_status} to {new_status}")
 
     def get_absolute_url(self):
+        """Get URL for lead detail view"""
         return reverse('lead-detail', kwargs={'pk': self.pk})
+
+    def convert_to_customer(self):
+        """Convert lead to customer"""
+        if self.status == 'converted':
+            raise ValidationError("Lead is already converted")
+
+        from .models import Customer
+        with transaction.atomic():
+            try:
+                # Create customer record
+                customer = Customer.objects.create(
+                    company_name=self.company_name,
+                    contact_person=self.contact_person,
+                    email=self.email,
+                    phone=self.phone,
+                    assigned_to=self.assigned_to,
+                    status='active'
+                )
+
+                # Update lead
+                self.status = 'converted'
+                self.converted_to_customer = customer
+                self.conversion_date = timezone.now()
+                self.save()
+
+                logger.info(f"Successfully converted lead {self.pk} to customer {customer.pk}")
+                return customer
+
+            except Exception as e:
+                logger.error(f"Failed to convert lead {self.pk}: {str(e)}")
+                raise ValidationError(f"Failed to convert lead: {str(e)}")
+
+    def update_last_contact(self):
+        """Update last contact timestamp"""
+        self.last_contacted = timezone.now()
+        self.save(update_fields=['last_contacted', 'updated_at'])
+
+    @property
+    def days_since_last_contact(self):
+        """Calculate days since last contact"""
+        if not self.last_contacted:
+            return None
+        return (timezone.now() - self.last_contacted).days
+
+    @property
+    def is_convertible(self):
+        """Check if lead can be converted"""
+        return self.status in ['qualified', 'negotiating'] and not self.converted_to_customer
+
+    @property
+    def is_stale(self):
+        """Check if lead is stale (no contact in 30 days)"""
+        if not self.last_contacted:
+            return True
+        return (timezone.now() - self.last_contacted).days > 30
+
+    def get_related_tasks(self):
+        """Get all related tasks"""
+        return self.tasks.all().order_by('-created_at')
+
+    def get_related_meetings(self):
+        """Get all related meetings"""
+        return self.meetings.all().order_by('-start_time')
+
+    def get_contact_history(self):
+        """Get all contact history (notes)"""
+        return self.lead_notes.all().order_by('-created_at')
+
 
 class Service(models.Model):
     name = models.CharField(max_length=200)
@@ -183,153 +783,310 @@ class Task(models.Model):
     def get_absolute_url(self):
         return reverse('task-detail', kwargs={'pk': self.pk})
 
+class MeetingManager(models.Manager):
+    def get_upcoming_meetings(self, user):
+        """Get upcoming meetings for a user"""
+        now = timezone.now()
+        return self.filter(
+            models.Q(organizer__user=user) | models.Q(attendees__user=user),
+            start_time__gt=now
+        ).distinct()
+
+    def get_ongoing_meetings(self, user):
+        """Get ongoing meetings for a user"""
+        now = timezone.now()
+        return self.filter(
+            models.Q(organizer__user=user) | models.Q(attendees__user=user),
+            start_time__lte=now,
+            end_time__gt=now
+        ).distinct()
+
 class Meeting(models.Model):
+    """
+    Meeting model with improved scheduling and integration handling
+    """
+
     MEETING_TYPES = [
         ('zoom', 'Zoom Meeting'),
         ('in_person', 'In Person'),
-        ('phone', 'Phone Call')
+        ('phone', 'Phone Call'),
+        ('teams', 'Microsoft Teams'),
+        ('other', 'Other')
     ]
 
-    title = models.CharField(max_length=200)
-    meeting_type = models.CharField(max_length=20, choices=MEETING_TYPES)
-    start_time = models.DateTimeField()
-    end_time = models.DateTimeField()
-    description = models.TextField()
-    zoom_meeting_id = models.CharField(max_length=200, blank=True, null=True)
-    zoom_meeting_password = models.CharField(max_length=20, blank=True, null=True)
-    zoom_join_url = models.URLField(blank=True, null=True)
-    organizer = models.ForeignKey('Employee', on_delete=models.CASCADE, related_name='organized_meetings')
-    attendees = models.ManyToManyField('Employee', related_name='meetings')
-    customers = models.ManyToManyField('Customer', blank=True, related_name='meetings')
-    leads = models.ManyToManyField('Lead', blank=True, related_name='meetings')
+    STATUS_CHOICES = [
+        ('scheduled', 'Scheduled'),
+        ('in_progress', 'In Progress'),
+        ('completed', 'Completed'),
+        ('cancelled', 'Cancelled'),
+        ('rescheduled', 'Rescheduled')
+    ]
+
+    PRIORITY_CHOICES = [
+        ('low', 'Low'),
+        ('medium', 'Medium'),
+        ('high', 'High')
+    ]
+
+    # Basic meeting information
+    title = models.CharField(
+        max_length=200,
+        help_text="Meeting title"
+    )
+
+    description = models.TextField(
+        blank=True,
+        help_text="Meeting description and agenda"
+    )
+
+    # Schedule information
+    start_time = models.DateTimeField(
+        help_text="Meeting start time"
+    )
+
+    end_time = models.DateTimeField(
+        help_text="Meeting end time"
+    )
+
+    # Meeting classification
+    meeting_type = models.CharField(
+        max_length=20,
+        choices=MEETING_TYPES,
+        help_text="Type of meeting"
+    )
+
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='scheduled'
+    )
+
+    priority = models.CharField(
+        max_length=10,
+        choices=PRIORITY_CHOICES,
+        default='medium'
+    )
+
+    # Location information
+    location = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text="Physical meeting location if applicable"
+    )
+
+    # Zoom specific fields
+    zoom_meeting_id = models.CharField(
+        max_length=200,
+        blank=True,
+        null=True
+    )
+
+    zoom_meeting_password = models.CharField(
+        max_length=20,
+        blank=True,
+        null=True
+    )
+
+    zoom_join_url = models.URLField(
+        blank=True,
+        null=True
+    )
+
+    # Participant information
+    organizer = models.ForeignKey(
+        'Employee',
+        on_delete=models.CASCADE,
+        related_name='organized_meetings'
+    )
+
+    attendees = models.ManyToManyField(
+        'Employee',
+        related_name='attending_meetings',
+        blank=True
+    )
+
+    customers = models.ManyToManyField(
+        'Customer',
+        related_name='customer_meetings',
+        blank=True
+    )
+
+    leads = models.ManyToManyField(
+        'Lead',
+        related_name='lead_meetings',
+        blank=True
+    )
+
+    # Tracking fields
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    reminder_sent = models.BooleanField(default=False)
+    notes = models.TextField(blank=True)
+
+    # Custom manager
+    objects = MeetingManager()
+
+    class Meta:
+        ordering = ['-start_time']
+        indexes = [
+            models.Index(fields=['start_time', 'end_time']),
+            models.Index(fields=['meeting_type', 'status']),
+            models.Index(fields=['organizer']),
+        ]
+        permissions = [
+            ("can_schedule_meetings", "Can schedule meetings"),
+            ("can_cancel_meetings", "Can cancel meetings"),
+        ]
 
     def __str__(self):
         return f"{self.title} - {self.start_time}"
 
-    def get_absolute_url(self):
-        return reverse('meeting-detail', kwargs={'pk': self.pk})
+    def clean(self):
+        """Validate meeting data"""
+        # Validate meeting times
+        if self.start_time and self.end_time:
+            if self.start_time >= self.end_time:
+                raise ValidationError("End time must be after start time")
 
-    def create_zoom_meeting(self):
-        """Create a Zoom meeting if meeting type is 'zoom'"""
-        if self.meeting_type != 'zoom':
-            return
+            if self.start_time < timezone.now() and not self.pk:
+                raise ValidationError("Cannot schedule meetings in the past")
 
-        client = ZoomClient(
-        api_key=settings.ZOOM_API_KEY,
-        api_secret=settings.ZOOM_API_SECRET,
+            # Maximum meeting duration validation
+            max_duration = timedelta(hours=8)
+            if (self.end_time - self.start_time) > max_duration:
+                raise ValidationError("Meeting duration cannot exceed 8 hours")
 
-    )
+        # Validate meeting type specific requirements
+        if self.meeting_type == 'zoom' and not settings.ZOOM_API_KEY:
+            raise ValidationError("Zoom API credentials not configured")
 
-        meeting_data = {
-            "topic": self.title,
-            "type": 2,  # Scheduled meeting
-            "start_time": self.start_time.isoformat(),
-            "duration": (self.end_time - self.start_time).seconds // 60,
-            "timezone": "UTC",
-            "agenda": self.description,
-            "settings": {
-                "host_video": True,
-                "participant_video": True,
-                "mute_upon_entry": True,
-            },
-        }
-
-        response = client.meeting.create(**meeting_data)
-
-        if response:
-            self.zoom_meeting_id = response.get('id')
-            self.zoom_meeting_password = response.get('password')
-            self.zoom_join_url = response.get('join_url')
-            self.save()
-
-    def update_zoom_meeting(self):
-        """Update Zoom meeting details if meeting type is 'zoom'"""
-        if self.meeting_type == 'zoom' and self.zoom_meeting_id:
-            client = ZoomClient(settings.ZOOM_API_KEY, settings.ZOOM_API_SECRET)
-            duration = int((self.end_time - self.start_time).total_seconds() / 60)
-
-            try:
-                client.meeting.update(
-                    meeting_id=self.zoom_meeting_id,
-                    topic=self.title,
-                    start_time=self.start_time.isoformat(),
-                    duration=duration
-                )
-                return True
-            except Exception as e:
-                print(f"Error updating Zoom meeting: {str(e)}")
-                return False
-
-    def delete_zoom_meeting(self):
-        """Delete associated Zoom meeting if it exists"""
-        if self.zoom_meeting_id:
-            client = ZoomClient(settings.ZOOM_API_KEY, settings.ZOOM_API_SECRET)
-            try:
-                client.meeting.delete(meeting_id=self.zoom_meeting_id)
-                return True
-            except Exception as e:
-                print(f"Error deleting Zoom meeting: {str(e)}")
-                return False
+        if self.meeting_type == 'in_person' and not self.location:
+            raise ValidationError("Location is required for in-person meetings")
 
     def save(self, *args, **kwargs):
-        """Override save to handle Zoom meeting creation/updates"""
-        is_new = self.pk is None
-        old_instance = None if is_new else Meeting.objects.get(pk=self.pk)
+        """Override save for additional processing"""
+        self.full_clean()
+
+        # Handle Zoom meeting creation/updates
+        if self.meeting_type == 'zoom':
+            self._handle_zoom_meeting()
+
+        # Update status based on time
+        self._update_status_based_on_time()
 
         super().save(*args, **kwargs)
 
-        if self.meeting_type == 'zoom':
-            if is_new:
-                self.create_zoom_meeting()
+    def _get_zoom_client(self) -> Optional[ZoomClient]:
+        """Get configured Zoom client"""
+        try:
+            return ZoomClient(
+                api_key=settings.ZOOM_API_KEY,
+                api_secret=settings.ZOOM_API_SECRET
+            )
+        except Exception as e:
+            logger.error(f"Failed to initialize Zoom client: {str(e)}")
+            return None
+
+    def _handle_zoom_meeting(self):
+        """Handle Zoom meeting creation and updates"""
+        client = self._get_zoom_client()
+        if not client:
+            return
+
+        try:
+            if not self.zoom_meeting_id:
+                self._create_zoom_meeting(client)
             else:
-                # Check if relevant fields have changed
-                fields_changed = (
-                    old_instance.title != self.title or
-                    old_instance.start_time != self.start_time or
-                    old_instance.end_time != self.end_time
-                )
-                if fields_changed:
-                    self.update_zoom_meeting()
+                self._update_zoom_meeting(client)
+        except Exception as e:
+            logger.error(f"Zoom API error: {str(e)}")
+            raise ValidationError(f"Failed to manage Zoom meeting: {str(e)}")
 
-    def delete(self, *args, **kwargs):
-        """Override delete to handle Zoom meeting deletion"""
-        if self.meeting_type == 'zoom':
-            self.delete_zoom_meeting()
-        super().delete(*args, **kwargs)
+    def _create_zoom_meeting(self, client: ZoomClient):
+        """Create a new Zoom meeting"""
+        try:
+            meeting_data = {
+                "topic": self.title,
+                "type": 2,  # Scheduled meeting
+                "start_time": self.start_time.isoformat(),
+                "duration": int((self.end_time - self.start_time).total_seconds() / 60),
+                "timezone": settings.TIME_ZONE,
+                "agenda": self.description,
+                "settings": {
+                    "host_video": True,
+                    "participant_video": True,
+                    "join_before_host": False,
+                    "mute_upon_entry": True,
+                    "waiting_room": True,
+                    "meeting_authentication": True
+                }
+            }
 
-    def get_duration(self):
-        """Get meeting duration in minutes"""
-        duration = self.end_time - self.start_time
-        return int(duration.total_seconds() / 60)
+            response = client.meeting.create(**meeting_data)
 
-    def is_ongoing(self):
-        """Check if meeting is currently ongoing"""
+            self.zoom_meeting_id = response.get('id')
+            self.zoom_meeting_password = response.get('password')
+            self.zoom_join_url = response.get('join_url')
+
+            logger.info(f"Created Zoom meeting: {self.zoom_meeting_id}")
+
+        except Exception as e:
+            logger.error(f"Failed to create Zoom meeting: {str(e)}")
+            raise
+
+    def _update_zoom_meeting(self, client: ZoomClient):
+        """Update existing Zoom meeting"""
+        try:
+            meeting_data = {
+                "topic": self.title,
+                "start_time": self.start_time.isoformat(),
+                "duration": int((self.end_time - self.start_time).total_seconds() / 60),
+                "agenda": self.description
+            }
+
+            client.meeting.update(meeting_id=self.zoom_meeting_id, **meeting_data)
+            logger.info(f"Updated Zoom meeting: {self.zoom_meeting_id}")
+
+        except Exception as e:
+            logger.error(f"Failed to update Zoom meeting: {str(e)}")
+            raise
+
+    def _update_status_based_on_time(self):
+        """Update meeting status based on current time"""
         now = timezone.now()
-        return self.start_time <= now <= self.end_time
 
-    def get_status(self):
-        """Get current meeting status"""
-        now = timezone.now()
-        if self.start_time > now:
-            return 'upcoming'
-        elif self.end_time < now:
-            return 'completed'
-        else:
-            return 'ongoing'
+        if self.status != 'cancelled':
+            if now < self.start_time:
+                self.status = 'scheduled'
+            elif self.start_time <= now <= self.end_time:
+                self.status = 'in_progress'
+            else:
+                self.status = 'completed'
 
-    def get_meeting_type_color(self):
-        """Get color class for meeting type"""
-        colors = {
-            'zoom': 'primary',
-            'in_person': 'success',
-            'phone': 'info'
-        }
-        return colors.get(self.meeting_type, 'secondary')
+    def cancel_meeting(self, reason: str = None):
+        """Cancel the meeting and clean up"""
+        with transaction.atomic():
+            if self.meeting_type == 'zoom' and self.zoom_meeting_id:
+                client = self._get_zoom_client()
+                if client:
+                    try:
+                        client.meeting.delete(meeting_id=self.zoom_meeting_id)
+                    except Exception as e:
+                        logger.error(f"Failed to delete Zoom meeting: {str(e)}")
 
-    def get_all_participants_emails(self):
-        """Get list of all participant emails"""
+            self.status = 'cancelled'
+            if reason:
+                self.notes += f"\nCancellation reason: {reason}"
+            self.save()
+
+    def get_absolute_url(self):
+        """Get URL for meeting detail view"""
+        from django.urls import reverse
+        return reverse('meeting-detail', kwargs={'pk': self.pk})
+
+    def get_attendee_emails(self) -> List[str]:
+        """Get list of all attendee emails"""
         emails = set()
 
         # Add employee emails
@@ -342,6 +1099,32 @@ class Meeting(models.Model):
         emails.update(self.leads.values_list('email', flat=True))
 
         return list(filter(None, emails))
+
+    def get_duration(self) -> int:
+        """Get meeting duration in minutes"""
+        return int((self.end_time - self.start_time).total_seconds() / 60)
+
+    @property
+    def is_upcoming(self) -> bool:
+        """Check if meeting is upcoming"""
+        return self.start_time > timezone.now()
+
+    @property
+    def is_ongoing(self) -> bool:
+        """Check if meeting is currently ongoing"""
+        now = timezone.now()
+        return self.start_time <= now <= self.end_time
+
+    @property
+    def is_past(self) -> bool:
+        """Check if meeting is in the past"""
+        return self.end_time < timezone.now()
+
+    @property
+    def can_be_cancelled(self) -> bool:
+        """Check if meeting can be cancelled"""
+        return self.status in ['scheduled', 'rescheduled'] and self.start_time > timezone.now()
+
 
 # core/models.py (Invoice model updates)
 
@@ -879,65 +1662,244 @@ class UploadedICSFile(models.Model):
         return f"ICS Upload by {self.uploaded_by.user.get_full_name()}"
 
 
+class EventManager(models.Manager):
+    def get_events_in_range(self, start_date, end_date, user=None):
+        """Get all events within a date range"""
+        queryset = self.get_queryset()
+        if user:
+            queryset = queryset.filter(
+                models.Q(created_by__user=user) |
+                models.Q(attendees__user=user)
+            ).distinct()
+
+        return queryset.filter(
+            models.Q(start_time__range=(start_date, end_date)) |
+            models.Q(end_time__range=(start_date, end_date))
+        )
+
+    def get_conflicting_events(self, start_time, end_time, exclude_id=None):
+        """Find conflicting events in the given time range"""
+        queryset = self.get_queryset()
+        if exclude_id:
+            queryset = queryset.exclude(id=exclude_id)
+
+        return queryset.filter(
+            models.Q(start_time__lt=end_time) &
+            models.Q(end_time__gt=start_time)
+        )
+
 class Event(models.Model):
+    """
+    Event model with improved calendar integration and recurrence handling
+    """
+
     EVENT_TYPES = [
         ('meeting', 'Meeting'),
         ('task', 'Task'),
         ('call', 'Phone Call'),
         ('reminder', 'Reminder'),
+        ('appointment', 'Appointment'),
         ('custom', 'Custom Event')
     ]
 
     STATUS_CHOICES = [
         ('scheduled', 'Scheduled'),
+        ('in_progress', 'In Progress'),
         ('completed', 'Completed'),
-        ('canceled', 'Canceled'),
+        ('cancelled', 'Cancelled'),
+        ('rescheduled', 'Rescheduled')
+    ]
+
+    RECURRENCE_CHOICES = [
+        ('none', 'None'),
+        ('daily', 'Daily'),
+        ('weekly', 'Weekly'),
+        ('monthly', 'Monthly'),
+        ('custom', 'Custom')
     ]
 
     # Basic event information
-    title = models.CharField(max_length=255)
-    description = models.TextField(blank=True, null=True)
-    location = models.CharField(max_length=255, blank=True, null=True)
-    start_time = models.DateTimeField()
-    end_time = models.DateTimeField()
+    title = models.CharField(
+        max_length=255,
+        help_text="Event title"
+    )
 
-    # Event ownership and participants
-    created_by = models.ForeignKey('Employee', on_delete=models.CASCADE, related_name='created_events')
-    attendees = models.ManyToManyField('Employee', related_name='attending_events', blank=True)
-    customer = models.ForeignKey('Customer', on_delete=models.CASCADE, null=True, blank=True, related_name="customer_events")
+    description = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Event description"
+    )
+
+    location = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text="Event location"
+    )
+
+    # Timing information
+    start_time = models.DateTimeField(
+        help_text="Event start time"
+    )
+
+    end_time = models.DateTimeField(
+        help_text="Event end time"
+    )
 
     # Event classification
-    event_type = models.CharField(max_length=20, choices=EVENT_TYPES, default='custom')
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='scheduled')
+    event_type = models.CharField(
+        max_length=20,
+        choices=EVENT_TYPES,
+        default='custom',
+        help_text="Type of event"
+    )
 
-    # Recurring event support
-    is_recurring = models.BooleanField(default=False)
-    recurrence_rule = models.CharField(max_length=255, blank=True, null=True, help_text="RRULE format for recurring events")
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='scheduled'
+    )
+
+    # Recurrence settings
+    is_recurring = models.BooleanField(
+        default=False,
+        help_text="Whether this event repeats"
+    )
+
+    recurrence_type = models.CharField(
+        max_length=20,
+        choices=RECURRENCE_CHOICES,
+        default='none'
+    )
+
+    recurrence_rule = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text="iCal RRULE format for recurring events"
+    )
+
+    recurrence_end = models.DateTimeField(
+        blank=True,
+        null=True,
+        help_text="When the recurrence ends"
+    )
+
+    # Participants
+    created_by = models.ForeignKey(
+        'Employee',
+        on_delete=models.CASCADE,
+        related_name='created_events'
+    )
+
+    attendees = models.ManyToManyField(
+        'Employee',
+        related_name='attending_events',
+        blank=True
+    )
+
+    customer = models.ForeignKey(
+        'Customer',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="customer_events"
+    )
 
     # UI customization
-    color = models.CharField(max_length=7, default="#3788d8")
+    color = models.CharField(
+        max_length=7,
+        default="#3788d8",
+        help_text="Event color in calendar"
+    )
 
-    # Timestamps
+    # Reminder settings
+    reminder_sent = models.BooleanField(
+        default=False
+    )
+
+    reminder_minutes = models.IntegerField(
+        default=15,
+        help_text="Minutes before event to send reminder"
+    )
+
+    # Tracking fields
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    # Custom manager
+    objects = EventManager()
 
     class Meta:
         ordering = ['start_time']
         indexes = [
             models.Index(fields=['start_time', 'end_time']),
-            models.Index(fields=['customer', 'status']),
-            models.Index(fields=['created_by', 'status']),
+            models.Index(fields=['event_type', 'status']),
+            models.Index(fields=['created_by', 'is_recurring']),
+        ]
+        permissions = [
+            ("can_manage_events", "Can manage events"),
+            ("can_view_all_events", "Can view all events"),
         ]
 
+    def __str__(self):
+        return f"{self.title} ({self.get_event_type_display()}) - {self.start_time.strftime('%Y-%m-%d %H:%M')}"
+
+    def clean(self):
+        """Validate event data"""
+        if self.start_time and self.end_time:
+            # Validate event times
+            if self.start_time >= self.end_time:
+                raise ValidationError("End time must be after start time")
+
+            # Check for conflicts
+            conflicts = self._get_conflicts()
+            if conflicts:
+                raise ValidationError(
+                    f"Event conflicts with existing events: {', '.join(str(e) for e in conflicts)}"
+                )
+
+        # Validate recurrence
+        if self.is_recurring and not self.recurrence_rule:
+            raise ValidationError("Recurrence rule is required for recurring events")
+
+        if self.is_recurring and self.recurrence_rule:
+            try:
+                rrulestr(self.recurrence_rule)
+            except ValueError as e:
+                raise ValidationError(f"Invalid recurrence rule: {str(e)}")
+
     def save(self, *args, **kwargs):
-        """Ensure end time is after start time."""
-        if self.end_time <= self.start_time:
-            raise ValueError("End time must be after start time")
+        """Override save for additional processing"""
+        self.full_clean()
+
+        # Update status based on time
+        self._update_status_based_on_time()
+
         super().save(*args, **kwargs)
 
-    def __str__(self):
-        owner = self.customer.company_name if self.customer else self.created_by.user.get_full_name()
-        return f"{self.title} ({self.get_event_type_display()}) - {owner} at {self.start_time.strftime('%Y-%m-%d %H:%M')}"
+    def _get_conflicts(self) -> List['Event']:
+        """Get conflicting events"""
+        return Event.objects.get_conflicting_events(
+            self.start_time,
+            self.end_time,
+            exclude_id=self.pk
+        )
+
+    def _update_status_based_on_time(self):
+        """Update event status based on current time"""
+        if self.status not in ['cancelled', 'rescheduled']:
+            now = timezone.now()
+            if now < self.start_time:
+                self.status = 'scheduled'
+            elif self.start_time <= now <= self.end_time:
+                self.status = 'in_progress'
+            else:
+                self.status = 'completed'
+
+    def get_absolute_url(self):
+        """Get URL for event detail view"""
+        return reverse('event-detail', kwargs={'pk': self.pk})
 
     def get_calendar_event_data(self):
         """Return event data formatted for FullCalendar"""
@@ -951,43 +1913,88 @@ class Event(models.Model):
             'eventType': self.event_type,
             'status': self.status,
             'color': self.color,
-            'url': f'/event/{self.id}/',  # URL for event details
+            'url': self.get_absolute_url(),
             'extendedProps': {
-                'createdBy': self.created_by.user.get_full_name(),
+                'createdBy': self.created_by.get_full_name(),
                 'customer': self.customer.company_name if self.customer else None,
-                'attendees': [att.user.get_full_name() for att in self.attendees.all()],
-                'isRecurring': self.is_recurring
+                'attendees': [att.get_full_name() for att in self.attendees.all()],
+                'isRecurring': self.is_recurring,
+                'recurrenceRule': self.recurrence_rule
             }
         }
 
-    def can_edit(self, user):
-        """Check if user can edit this event"""
-        if not hasattr(user, 'employee'):
-            return False
-        return (user.employee == self.created_by or
-                user.employee in self.attendees.all() or
-                user.is_superuser)
+    def cancel(self, reason: Optional[str] = None):
+        """Cancel the event"""
+        self.status = 'cancelled'
+        if reason:
+            self.description = f"{self.description}\n\nCancelled: {reason}"
+        self.save()
 
+    def reschedule(self, new_start_time, new_end_time):
+        """Reschedule the event"""
+        old_start = self.start_time
+        old_end = self.end_time
+
+        self.start_time = new_start_time
+        self.end_time = new_end_time
+        self.status = 'rescheduled'
+
+        try:
+            self.save()
+            logger.info(f"Event {self.pk} rescheduled from {old_start} to {new_start_time}")
+        except ValidationError as e:
+            self.start_time = old_start
+            self.end_time = old_end
+            raise ValidationError(f"Could not reschedule event: {str(e)}")
+
+    def get_recurrence_instances(self, start_date, end_date):
+        """Get all recurrence instances between dates"""
+        if not self.is_recurring or not self.recurrence_rule:
+            return []
+
+        try:
+            rule = rrulestr(self.recurrence_rule, dtstart=self.start_time)
+            instances = rule.between(start_date, end_date)
+            return [self._create_instance_data(dt) for dt in instances]
+        except Exception as e:
+            logger.error(f"Error calculating recurrence instances: {str(e)}")
+            return []
+
+    def _create_instance_data(self, start_datetime):
+        """Create event data for a recurrence instance"""
+        duration = self.end_time - self.start_time
+        return {
+            'title': self.title,
+            'start': start_datetime,
+            'end': start_datetime + duration,
+            'recurring_event_id': self.pk
+        }
+
+    @property
+    def duration_minutes(self):
+        """Get event duration in minutes"""
+        return int((self.end_time - self.start_time).total_seconds() / 60)
+
+    @property
     def is_upcoming(self):
         """Check if event is upcoming"""
         return self.start_time > timezone.now()
 
-    def is_past(self):
-        """Check if event is in the past"""
-        return self.end_time < timezone.now()
-
+    @property
     def is_ongoing(self):
         """Check if event is currently ongoing"""
         now = timezone.now()
         return self.start_time <= now <= self.end_time
 
-    def get_duration_minutes(self):
-        """Get event duration in minutes"""
-        return int((self.end_time - self.start_time).total_seconds() / 60)
+    @property
+    def is_past(self):
+        """Check if event is in the past"""
+        return self.end_time < timezone.now()
 
-    def get_attendee_emails(self):
-        """Get list of attendee email addresses"""
-        return [attendee.user.email for attendee in self.attendees.all() if attendee.user.email]
+    @property
+    def can_be_modified(self):
+        """Check if event can be modified"""
+        return self.status not in ['completed', 'cancelled'] and not self.is_past
 
 
 # IP Address Tracking Cookie Stuff:
@@ -1061,3 +2068,342 @@ class LegalDocument(models.Model):
             type='privacy_policy',
             is_current=True
         ).first()
+
+
+
+
+class ScheduleException(models.Model):
+    """
+    Allows marking specific dates as unavailable or having special rules
+    """
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='schedule_exceptions')
+    date = models.DateField()
+    is_available = models.BooleanField(default=False)
+    start_time = models.TimeField(null=True, blank=True)
+    end_time = models.TimeField(null=True, blank=True)
+    reason = models.TextField(null=True, blank=True)
+
+    def __str__(self):
+        return f"Exception for {self.user.username} on {self.date}"
+
+
+class ScheduleRuleManager(models.Manager):
+    def get_active_rules_for_user(self, user: User) -> models.QuerySet:
+        """Get all active scheduling rules for a user"""
+        return self.filter(user=user, is_active=True)
+
+    def get_rules_for_date(self, user: User, date) -> models.QuerySet:
+        """Get applicable rules for a specific date"""
+        weekday = date.strftime('%A').lower()
+        return self.filter(
+            user=user,
+            is_active=True,
+        ).filter(
+            models.Q(recurrence_type='daily') |
+            models.Q(recurrence_type='weekly', day_of_week=weekday) |
+            models.Q(recurrence_type='monthly', day_of_month=date.day) |
+            models.Q(recurrence_type='yearly', month=date.month, day_of_month=date.day)
+        )
+
+class ScheduleRuleManager(models.Manager):
+    def get_active_rules_for_user(self, user: User) -> models.QuerySet:
+        """Get all active scheduling rules for a user"""
+        return self.filter(user=user, is_active=True)
+
+    def get_rules_for_date(self, user: User, date) -> models.QuerySet:
+        """Get applicable rules for a specific date"""
+        weekday = date.strftime('%A').lower()
+        return self.filter(
+            user=user,
+            is_active=True,
+        ).filter(
+            models.Q(recurrence_type='daily') |
+            models.Q(recurrence_type='weekly', day_of_week=weekday) |
+            models.Q(recurrence_type='monthly', day_of_month=date.day) |
+            models.Q(recurrence_type='yearly', month=date.month, day_of_month=date.day)
+        )
+
+class ScheduleRule(models.Model):
+    """
+    Schedule Rule model for managing availability and booking rules
+    """
+
+    RECURRENCE_CHOICES = [
+        ('daily', 'Daily'),
+        ('weekly', 'Weekly'),
+        ('monthly', 'Monthly'),
+        ('yearly', 'Yearly')
+    ]
+
+    DAYS_OF_WEEK = [
+        ('monday', 'Monday'),
+        ('tuesday', 'Tuesday'),
+        ('wednesday', 'Wednesday'),
+        ('thursday', 'Thursday'),
+        ('friday', 'Friday'),
+        ('saturday', 'Saturday'),
+        ('sunday', 'Sunday')
+    ]
+
+    MONTHS = [
+        (1, 'January'), (2, 'February'), (3, 'March'),
+        (4, 'April'), (5, 'May'), (6, 'June'),
+        (7, 'July'), (8, 'August'), (9, 'September'),
+        (10, 'October'), (11, 'November'), (12, 'December')
+    ]
+
+    # Basic Information
+    name = models.CharField(
+        max_length=100,
+        help_text="Name of the scheduling rule"
+    )
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='schedule_rules'
+    )
+
+    # Recurrence Settings
+    recurrence_type = models.CharField(
+        max_length=10,
+        choices=RECURRENCE_CHOICES,
+        help_text="How often this rule repeats"
+    )
+
+    # Time Constraints
+    start_time = models.TimeField(
+        help_text="Daily start time for availability"
+    )
+
+    end_time = models.TimeField(
+        help_text="Daily end time for availability"
+    )
+
+    # Recurrence Pattern Details
+    day_of_week = models.CharField(
+        max_length=10,
+        choices=DAYS_OF_WEEK,
+        null=True,
+        blank=True,
+        help_text="Specific day for weekly recurrence"
+    )
+
+    day_of_month = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Day of month (1-31) for monthly/yearly recurrence"
+    )
+
+    month = models.IntegerField(
+        choices=MONTHS,
+        null=True,
+        blank=True,
+        help_text="Month for yearly recurrence"
+    )
+
+    # Booking Constraints
+    max_bookings_per_day = models.IntegerField(
+        default=5,
+        help_text="Maximum number of bookings allowed per day"
+    )
+
+    min_booking_duration = models.IntegerField(
+        default=30,
+        help_text="Minimum booking duration in minutes"
+    )
+
+    max_booking_duration = models.IntegerField(
+        default=240,
+        help_text="Maximum booking duration in minutes"
+    )
+
+    # Buffer Times
+    buffer_before = models.IntegerField(
+        default=15,
+        help_text="Required buffer time before bookings (minutes)"
+    )
+
+    buffer_after = models.IntegerField(
+        default=15,
+        help_text="Required buffer time after bookings (minutes)"
+    )
+
+    # Status
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Whether this rule is currently active"
+    )
+
+    # Tracking
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    # Custom manager
+    objects = ScheduleRuleManager()
+
+    class Meta:
+        ordering = ['recurrence_type', 'start_time']
+        indexes = [
+            models.Index(fields=['user', 'is_active']),
+            models.Index(fields=['recurrence_type', 'day_of_week']),
+            models.Index(fields=['start_time', 'end_time']),
+        ]
+        constraints = [
+            models.CheckConstraint(
+                check=models.Q(max_booking_duration__gt=models.F('min_booking_duration')),
+                name='max_duration_greater_than_min'
+            ),
+            models.CheckConstraint(
+                check=models.Q(day_of_month__gte=1) & models.Q(day_of_month__lte=31),
+                name='valid_day_of_month'
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.name} - {self.get_recurrence_type_display()}"
+
+    def clean(self):
+        """Validate schedule rule data"""
+        # Validate time constraints
+        if self.start_time and self.end_time and self.start_time >= self.end_time:
+            raise ValidationError("End time must be after start time")
+
+        # Validate duration constraints
+        if self.min_booking_duration >= self.max_booking_duration:
+            raise ValidationError("Maximum duration must be greater than minimum duration")
+
+        # Validate recurrence-specific fields
+        self._validate_recurrence_fields()
+
+        # Validate buffer times
+        total_buffer = self.buffer_before + self.buffer_after
+        available_minutes = (
+            datetime.combine(timezone.now(), self.end_time) -
+            datetime.combine(timezone.now(), self.start_time)
+        ).seconds / 60
+
+        if total_buffer + self.min_booking_duration > available_minutes:
+            raise ValidationError("Buffer times plus minimum booking duration exceed available time")
+
+    def _validate_recurrence_fields(self):
+        """Validate fields specific to recurrence type"""
+        if self.recurrence_type == 'weekly':
+            if not self.day_of_week:
+                raise ValidationError("Day of week is required for weekly recurrence")
+            if self.day_of_month or self.month:
+                raise ValidationError("Monthly/Yearly fields should not be set for weekly recurrence")
+
+        elif self.recurrence_type == 'monthly':
+            if not self.day_of_month:
+                raise ValidationError("Day of month is required for monthly recurrence")
+            if self.day_of_week or self.month:
+                raise ValidationError("Weekly/Yearly fields should not be set for monthly recurrence")
+
+        elif self.recurrence_type == 'yearly':
+            if not all([self.month, self.day_of_month]):
+                raise ValidationError("Month and day of month are required for yearly recurrence")
+            if self.day_of_week:
+                raise ValidationError("Weekly fields should not be set for yearly recurrence")
+
+        elif self.recurrence_type == 'daily':
+            if any([self.day_of_week, self.day_of_month, self.month]):
+                raise ValidationError("Recurrence fields should not be set for daily recurrence")
+
+    def check_availability(self, start_time, end_time) -> Dict[str, bool]:
+        """
+        Check if a time slot is available according to this rule
+        Returns a dict with availability status and reason if unavailable
+        """
+        if not self.is_active:
+            return {'available': False, 'reason': 'Rule is inactive'}
+
+        # Check if date matches recurrence pattern
+        if not self._date_matches_recurrence(start_time.date()):
+            return {'available': False, 'reason': 'Date does not match recurrence pattern'}
+
+        # Check time constraints
+        if not (self.start_time <= start_time.time() and end_time.time() <= self.end_time):
+            return {'available': False, 'reason': 'Time outside allowed hours'}
+
+        # Check duration constraints
+        duration = (end_time - start_time).total_seconds() / 60
+        if not (self.min_booking_duration <= duration <= self.max_booking_duration):
+            return {'available': False, 'reason': 'Duration outside allowed range'}
+
+        # Check booking count for the day
+        if not self._check_booking_count(start_time.date()):
+            return {'available': False, 'reason': 'Maximum bookings reached for this day'}
+
+        # Check buffer conflicts
+        if not self._check_buffer_times(start_time, end_time):
+            return {'available': False, 'reason': 'Conflicts with buffer time requirements'}
+
+        return {'available': True, 'reason': None}
+
+    def _date_matches_recurrence(self, date) -> bool:
+        """Check if a date matches the recurrence pattern"""
+        if self.recurrence_type == 'daily':
+            return True
+        elif self.recurrence_type == 'weekly':
+            return date.strftime('%A').lower() == self.day_of_week
+        elif self.recurrence_type == 'monthly':
+            return date.day == self.day_of_month
+        elif self.recurrence_type == 'yearly':
+            return date.month == self.month and date.day == self.day_of_month
+        return False
+
+    def _check_booking_count(self, date) -> bool:
+        """Check if more bookings are allowed for the day"""
+        from .models import Event
+        current_bookings = Event.objects.filter(
+            created_by__user=self.user,
+            start_time__date=date
+        ).count()
+        return current_bookings < self.max_bookings_per_day
+
+    def _check_buffer_times(self, start_time, end_time) -> bool:
+        """Check if the time slot respects buffer times"""
+        from .models import Event
+        buffer_start = start_time - timedelta(minutes=self.buffer_after)
+        buffer_end = end_time + timedelta(minutes=self.buffer_before)
+
+        conflicting_events = Event.objects.filter(
+            created_by__user=self.user,
+            end_time__gt=buffer_start,
+            start_time__lt=buffer_end
+        ).exists()
+
+        return not conflicting_events
+
+    def get_available_slots(self, date) -> List[Dict[str, time]]:
+        """Get all available time slots for a given date"""
+        if not self._date_matches_recurrence(date):
+            return []
+
+        slots = []
+        current_time = datetime.combine(date, self.start_time)
+        end_of_day = datetime.combine(date, self.end_time)
+
+        while current_time + timedelta(minutes=self.min_booking_duration) <= end_of_day:
+            slot_end = current_time + timedelta(minutes=self.min_booking_duration)
+            if self.check_availability(current_time, slot_end)['available']:
+                slots.append({
+                    'start': current_time.time(),
+                    'end': slot_end.time()
+                })
+            current_time += timedelta(minutes=15)  # 15-minute intervals
+
+        return slots
+
+    @property
+    def available_hours(self) -> float:
+        """Calculate total available hours per occurrence"""
+        start = datetime.combine(timezone.now(), self.start_time)
+        end = datetime.combine(timezone.now(), self.end_time)
+        return (end - start).total_seconds() / 3600
+
+    @property
+    def is_weekend_rule(self) -> bool:
+        """Check if rule applies to weekends"""
+        return self.day_of_week in ['saturday', 'sunday']

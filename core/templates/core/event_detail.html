@@ -1,0 +1,60 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Event Details{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex justify-content-between align-items-center">
+            <h6 class="m-0 font-weight-bold text-primary">Event Details</h6>
+            <div class="btn-group">
+                <a href="{% url 'event-update' event.pk %}" class="btn btn-warning btn-sm">
+                    <i class="fas fa-edit"></i> Edit
+                </a>
+                <a href="{% url 'event-delete' event.pk %}" class="btn btn-danger btn-sm">
+                    <i class="fas fa-trash"></i> Delete
+                </a>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h4>{{ event.title }}</h4>
+                    <hr>
+                    <p><strong>Description:</strong> {{ event.description|default:"No description" }}</p>
+                    <p><strong>Start Time:</strong> {{ event.start_time|date:"M d, Y H:i" }}</p>
+                    <p><strong>End Time:</strong> {{ event.end_time|date:"M d, Y H:i" }}</p>
+                    <p><strong>Event Type:</strong> {{ event.get_event_type_display }}</p>
+                    <p><strong>Location:</strong> {{ event.location|default:"No location specified" }}</p>
+                </div>
+                <div class="col-md-6">
+                    <h4>Additional Details</h4>
+                    <hr>
+                    <p><strong>Customer:</strong>
+                        {% if event.customer %}
+                            <a href="{% url 'customer-detail' event.customer.pk %}">
+                                {{ event.customer.company_name }}
+                            </a>
+                        {% else %}
+                            No associated customer
+                        {% endif %}
+                    </p>
+                    <p><strong>Created By:</strong> {{ event.created_by.user.get_full_name }}</p>
+                    <p><strong>Color:</strong>
+                        <span class="badge" style="background-color: {{ event.color }}; color: white;">
+                            {{ event.color }}
+                        </span>
+                    </p>
+                    <p><strong>Attendees:</strong>
+                        {% for attendee in event.attendees.all %}
+                            {{ attendee.user.get_full_name }}{% if not forloop.last %}, {% endif %}
+                        {% empty %}
+                            No attendees
+                        {% endfor %}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

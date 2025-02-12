@@ -1,0 +1,26 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Delete Event{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">Delete Event</h6>
+        </div>
+        <div class="card-body">
+            <form method="post">
+                {% csrf_token %}
+                <div class="alert alert-danger">
+                    <p>Are you sure you want to delete the event "{{ event.title }}"?</p>
+                    <p>This action cannot be undone.</p>
+                </div>
+                <div class="form-group">
+                    <button type="submit" class="btn btn-danger">Confirm Delete</button>
+                    <a href="{% url 'event-detail' event.pk %}" class="btn btn-secondary">Cancel</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,41 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+<div class="container">
+    <h1>My Scheduling Rules</h1>
+
+    <a href="{% url 'schedule-rule-create' %}" class="btn btn-primary mb-3">
+        Create New Rule
+    </a>
+
+    {% if rules %}
+        <div class="list-group">
+            {% for rule in rules %}
+                <div class="list-group-item">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5>{{ rule.name }}</h5>
+                            <p>
+                                {{ rule.recurrence_type|title }} Rule:
+                                {{ rule.start_time }} - {{ rule.end_time }}
+                            </p>
+                        </div>
+                        <div class="btn-group">
+                            <a href="{% url 'schedule-rule-update' rule.pk %}" class="btn btn-sm btn-warning">
+                                Edit
+                            </a>
+                            <a href="{% url 'schedule-rule-delete' rule.pk %}" class="btn btn-sm btn-danger">
+                                Delete
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="alert alert-info">
+            You have no scheduling rules. Create your first rule to customize your availability.
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
