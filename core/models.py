@@ -426,6 +426,9 @@ class Customer(models.Model):
         self.last_contact_date = timezone.now()
         self.save(update_fields=['last_contact_date', 'updated_at'])
 
+    def get_other_participant(self, user):
+        return self.participants.exclude(id=user.id).first()
+
     @property
     def is_active(self):
         """Check if customer is active"""
@@ -2407,3 +2410,78 @@ class ScheduleRule(models.Model):
     def is_weekend_rule(self) -> bool:
         """Check if rule applies to weekends"""
         return self.day_of_week in ['saturday', 'sunday']
+
+
+class ChatSession(models.Model):
+    participants = models.ManyToManyField(Employee, related_name='chat_sessions')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    is_active = models.BooleanField(default=True)
+    is_group_chat = models.BooleanField(default=False)
+    name = models.CharField(max_length=255, null=True, blank=True)
+
+    class Meta:
+        ordering = ['-updated_at']
+
+    def __str__(self):
+        return f"Chat Session {self.id} - {self.name or 'Direct Message'}"
+
+    def get_messages(self):
+        return self.messages.all().order_by('timestamp')
+
+    def get_last_message(self):
+        return self.messages.order_by('-timestamp').first()
+
+class ChatMessage(models.Model):
+    session = models.ForeignKey(ChatSession, related_name='messages', on_delete=models.CASCADE)
+    sender = models.ForeignKey(Employee, related_name='sent_messages', on_delete=models.CASCADE)
+    receiver = models.ForeignKey(Employee, related_name='received_messages', on_delete=models.CASCADE)  # Add this line
+    content = models.TextField()
+    timestamp = models.DateTimeField(auto_now_add=True)
+    is_read = models.BooleanField(default=False)
+    read_at = models.DateTimeField(null=True, blank=True)
+
+    # Message type for special messages (system notifications, alerts, etc.)
+    MESSAGE_TYPES = [
+        ('text', 'Text Message'),
+        ('system', 'System Notification'),
+        ('alert', 'Alert'),
+    ]
+    message_type = models.CharField(max_length=10, choices=MESSAGE_TYPES, default='text')
+
+    class Meta:
+        ordering = ['timestamp']
+        indexes = [
+            models.Index(fields=['session', 'timestamp']),
+            models.Index(fields=['sender', 'timestamp']),
+            models.Index(fields=['is_read', 'timestamp']),
+        ]
+
+    def __str__(self):
+        return f"Message from {self.sender} at {self.timestamp}"
+
+    def mark_as_read(self):
+        if not self.is_read:
+            self.is_read = True
+            self.read_at = timezone.now()
+            self.save()
+
+
+class ChatNotification(models.Model):
+    recipient = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='chat_notifications')
+    message = models.ForeignKey(ChatMessage, on_delete=models.CASCADE)
+    is_seen = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    seen_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['recipient', 'is_seen']),
+            models.Index(fields=['created_at']),
+        ]
+
+    def mark_as_seen(self):
+        self.is_seen = True
+        self.seen_at = timezone.now()
+        self.save()

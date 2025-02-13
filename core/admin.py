@@ -2,7 +2,8 @@ from django.contrib import admin
 from .models import (
     Employee, Customer, Lead, Service,
     Note, Task, Meeting, Invoice, Payment,
-    Subscription, Transaction, ServiceSubscription, IPAccess, PrivacyPolicyAcceptance, LegalDocument, ScheduleRule, ScheduleException
+    Subscription, Transaction, ServiceSubscription, IPAccess, PrivacyPolicyAcceptance, LegalDocument, ScheduleRule, ScheduleException,
+    ChatSession, ChatMessage, ChatNotification  # Add your new models here
 )
 
 @admin.register(Employee)
@@ -125,3 +126,52 @@ class ScheduleRuleAdmin(admin.ModelAdmin):
 class ScheduleExceptionAdmin(admin.ModelAdmin):
     list_display = ('user', 'date', 'is_available', 'reason')
     list_filter = ('user', 'date', 'is_available')
+
+
+@admin.register(ChatMessage)
+class ChatMessageAdmin(admin.ModelAdmin):
+    list_display = ('id', 'session', 'sender_name', 'receiver_name', 'content', 'timestamp', 'is_read')
+    list_filter = ('is_read', 'timestamp', 'session')
+    search_fields = ('content', 'sender__user__first_name', 'sender__user__last_name',
+                    'receiver__user__first_name', 'receiver__user__last_name')
+    readonly_fields = ('timestamp',)
+    date_hierarchy = 'timestamp'
+    ordering = ('-timestamp',)
+
+    def sender_name(self, obj):
+        return obj.sender.get_full_name()
+    sender_name.short_description = 'Sender'
+
+    def receiver_name(self, obj):
+        return obj.receiver.get_full_name()
+    receiver_name.short_description = 'Receiver'
+
+@admin.register(ChatSession)
+class ChatSessionAdmin(admin.ModelAdmin):
+    list_display = ('id', 'name', 'get_participants', 'is_group_chat', 'created_at', 'updated_at', 'is_active')
+    list_filter = ('is_group_chat', 'is_active', 'created_at')
+    search_fields = ('name', 'participants__user__first_name', 'participants__user__last_name')
+    readonly_fields = ('created_at', 'updated_at')
+    date_hierarchy = 'created_at'
+    ordering = ('-updated_at',)
+
+    def get_participants(self, obj):
+        return ", ".join([p.get_full_name() for p in obj.participants.all()])
+    get_participants.short_description = 'Participants'
+
+@admin.register(ChatNotification)
+class ChatNotificationAdmin(admin.ModelAdmin):
+    list_display = ('id', 'recipient_name', 'message_preview', 'is_seen', 'created_at', 'seen_at')
+    list_filter = ('is_seen', 'created_at')
+    search_fields = ('recipient__user__first_name', 'recipient__user__last_name', 'message__content')
+    readonly_fields = ('created_at', 'seen_at')
+    date_hierarchy = 'created_at'
+    ordering = ('-created_at',)
+
+    def recipient_name(self, obj):
+        return obj.recipient.get_full_name()
+    recipient_name.short_description = 'Recipient'
+
+    def message_preview(self, obj):
+        return obj.message.content[:50] + ('...' if len(obj.message.content) > 50 else '')
+    message_preview.short_description = 'Message'

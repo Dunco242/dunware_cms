@@ -1,5 +1,6 @@
 from django.urls import path
 from . import views
+from . import consumers
 from .views import (
     # Authentication Views
     register, profile, change_password,
@@ -52,6 +53,8 @@ from .views import (
     TaskListView, TaskCreateView, TaskDetailView,
     TaskUpdateView, TaskDeleteView, task_status_update,
 
+    #chat
+    employee_list_api,
     # Other Views
     IPStatisticsView
 )
@@ -183,6 +186,19 @@ urlpatterns = [
     path('ip-statistics/', IPStatisticsView.as_view(), name='ip_statistics'),
     path('privacy-policy/', views.privacy_policy_view, name='privacy_policy'),
     path('accept-privacy-policy/', views.accept_privacy_policy, name='accept_privacy_policy'),
+
+   # Chat UI Routes
+    path('chat/', views.chat_inbox, name='chat_inbox'),
+    path('chat/session/<int:session_id>/', views.chat_detail, name='chat_detail'),
+    path('chat/start/<str:employee_id>/', views.start_chat, name='start_chat'),
+
+    # Chat API Routes
+    path('chat/send/', views.send_message, name='send_message'),
+    path('chat/messages/<int:session_id>/', views.get_messages, name='get_messages'),
+    path('chat/unread/', views.get_unread_count, name='get_unread_count'),
+    path('chat/read/<int:session_id>/', views.mark_messages_read, name='mark_messages_read'),
+    path('chat/employee-list/', views.employee_list_api, name='employee-list-api'),
+
 ]
 
 # Error Handlers

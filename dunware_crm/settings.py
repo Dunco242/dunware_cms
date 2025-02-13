@@ -24,28 +24,37 @@ ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
 # Application definition
 
 INSTALLED_APPS = [
+
+    # Django Core Apps
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
+    'daphne',
     'django.contrib.staticfiles',
-    "django.contrib.humanize",
+    'django.contrib.humanize',
     'django.contrib.sites',
-    #Third Party Apps below #
-    'crispy_forms',
-    'crispy_tailwind',
-    'allauth',
-    'allauth.account',
-    'allauth.socialaccount',
+
+    # Channels and ASGI Apps
+    'channels',
+
+
+    # Third Party Apps (move crispy to the end of third-party)
     'schedule',
     'zoom_integration',
     'django_q',
+    'allauth',
+    'allauth.account',
+    'allauth.socialaccount',
 
-    #Local Apps #
+    # Styling Apps (moved to end of third-party)
+    'crispy_forms',
+    'crispy_tailwind',
+
+    # Local Apps
     'core',
     'dunware_crm',
-
 ]
 
 MIDDLEWARE = [
@@ -67,7 +76,7 @@ ROOT_URLCONF = 'dunware_crm.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [BASE_DIR / 'templates'],
+        'DIRS': [os.path.join(BASE_DIR, 'core', 'templates')],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -81,7 +90,19 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'dunware_crm.wsgi.application'
+# Channels Configuration
+ASGI_APPLICATION = 'yourproject.asgi.application'
 
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            "hosts": [('127.0.0.1', 6379)],
+            "capacity": 1500,  # Optional: default channel layer message capacity
+            "expiry": 10,      # Optional: message expiry in seconds
+        },
+    },
+}
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
@@ -145,6 +166,11 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 CRISPY_ALLOWED_TEMPLATE_PACKS = 'tailwind'
 CRISPY_TEMPLATE_PACK = 'tailwind'
+TAILWIND_EXCLUDE_PATTERNS = [
+    r'^/admin/.*',  # Exclude admin URLs
+]
+
+ADMIN_MEDIA_PREFIX = '/static/admin/'
 
 
 ACCOUNT_FORMS = {
@@ -196,7 +222,14 @@ Q_CLUSTER = {
     'retry': 120,
     'queue_limit': 50,
     'bulk': 10,
-    'orm': 'default'
+    'orm': 'default',
+    'compress': True,  # Added for better performance
+    'label': 'Django Q2',  # Added for better identification
+    'redis': {
+        'host': '127.0.0.1',
+        'port': 6379,
+        'db': 0,
+    }
 }
 
 
@@ -219,3 +252,20 @@ PRIVACY_POLICY = {
 
 
 PRIVACY_POLICY_PATH = os.path.join(BASE_DIR, 'legal_docs', 'privacy_policy.md')
+
+
+MESSAGE_STORAGE = 'django.contrib.messages.storage.session.SessionStorage'
+
+# Message tags
+from django.contrib.messages import constants as messages
+MESSAGE_TAGS = {
+    messages.DEBUG: 'alert-secondary',
+    messages.INFO: 'alert-info',
+    messages.SUCCESS: 'alert-success',
+    messages.WARNING: 'alert-warning',
+    messages.ERROR: 'alert-danger',
+}
+
+
+CSRF_HEADER_NAME = 'X-CSRFToken'
+CSRF_COOKIE_NAME = 'csrftoken'

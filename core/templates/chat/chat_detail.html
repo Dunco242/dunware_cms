@@ -1,0 +1,180 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<style>
+    .chat-container {
+        height: calc(100vh - 200px);
+        min-height: 500px;
+    }
+
+    .message-container {
+        height: calc(100% - 70px);
+        overflow-y: auto;
+    }
+
+    .message {
+        margin-bottom: 1rem;
+        max-width: 75%;
+    }
+
+    .message.sent {
+        margin-left: auto;
+    }
+
+    .message.received {
+        margin-right: auto;
+    }
+
+    .message-content {
+        padding: 0.75rem;
+        border-radius: 1rem;
+        word-wrap: break-word;
+    }
+
+    .sent .message-content {
+        background-color: #007bff;
+        color: white;
+        border-bottom-right-radius: 0.25rem;
+    }
+
+    .received .message-content {
+        background-color: #e9ecef;
+        color: black;
+        border-bottom-left-radius: 0.25rem;
+    }
+
+    .message-footer {
+        font-size: 0.75rem;
+        margin-top: 0.25rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .typing-indicator {
+        font-size: 0.875rem;
+        font-style: italic;
+        color: #6c757d;
+        margin-bottom: 0.5rem;
+        display: none;
+    }
+
+    #connectionStatus {
+        padding: 5px 10px;
+        border-radius: 4px;
+        font-size: 0.875rem;
+    }
+
+    #connectionStatus.connected {
+        background-color: #28a745;
+        color: white;
+    }
+
+    #connectionStatus.connecting {
+        background-color: #ffc107;
+        color: black;
+    }
+
+    #connectionStatus.disconnected {
+        background-color: #dc3545;
+        color: white;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    {% if messages %}
+    <div class="messages mb-3">
+        {% for message in messages %}
+        <div class="alert {{ message.tags }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="row">
+        <div class="col-12">
+            <!-- Chat Header -->
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2 class="mb-0">
+                    {% if session.is_group_chat %}
+                        {{ session.name }}
+                    {% else %}
+                        Chat with {{ other_participant.get_full_name }}
+                    {% endif %}
+                </h2>
+                <div id="connectionStatus" class="connecting">
+                    Connecting...
+                </div>
+            </div>
+
+            <!-- Chat Container -->
+            <div class="card chat-container">
+                <!-- Messages Container -->
+                <div id="messageContainer"
+                     class="message-container p-3"
+                     data-session-id="{{ session.id }}"
+                     data-employee-id="{{ request.user.employee_profile.employee_id }}">
+                    {% for message in chat_messages %}
+                    <div class="message {% if message.sender == request.user.employee_profile %}sent{% else %}received{% endif %} {% if message.is_read %}read{% endif %}">
+                        <div class="message-content">
+                            {{ message.content }}
+                        </div>
+                        <div class="message-footer">
+                            <span class="message-time">
+                                {{ message.timestamp|date:"g:i A" }}
+                            </span>
+                            {% if message.sender == request.user.employee_profile %}
+                            <span class="message-status">
+                                {% if message.is_read %}✓✓{% else %}✓{% endif %}
+                            </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <!-- Message Form -->
+<div class="card-footer bg-white">
+    <form id="messageForm" class="d-flex gap-2">
+        {% csrf_token %}
+        <input type="hidden" name="session_id" value="{{ session.id }}">
+        <input type="hidden" name="receiver_id" value="{{ other_participant.employee_id }}">
+        <div class="input-group">
+            <input type="text"
+                   name="content"
+                   class="form-control"
+                   placeholder="Type a message..."
+                   autocomplete="off"
+                   required>
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-paper-plane"></i>
+            </button>
+        </div>
+    </form>
+</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/chat.js' %}"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const sessionId = document.querySelector('#messageContainer').dataset.sessionId;
+        const employeeId = document.querySelector('#messageContainer').dataset.employeeId;
+
+        if (sessionId && employeeId) {
+            window.chatManager = new ChatManager(sessionId, employeeId);
+        } else {
+            console.error('Missing required data attributes for chat initialization');
+        }
+    });
+</script>
+{% endblock %}

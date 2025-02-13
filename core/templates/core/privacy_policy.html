@@ -36,22 +36,24 @@
             </div>
 
             {% if not already_accepted %}
-                <form method="post" action="{% url 'accept_privacy_policy' %}" class="mt-4">
-                    {% csrf_token %}
-                    <input type="hidden" name="next" value="{{ next_url }}">
-                    <div class="form-group">
-                        <div class="custom-control custom-checkbox">
-                            <input type="checkbox" class="custom-control-input"
-                                   id="accept" name="accept" required>
-                            <label class="custom-control-label" for="accept">
-                                I have read and accept the privacy policy
-                            </label>
-                        </div>
+            <form method="post" action="{% url 'accept_privacy_policy' %}" class="mt-4">
+                {% csrf_token %}
+                <input type="hidden" name="policy_version" value="{{ policy_version }}">
+                <input type="hidden" name="next" value="{{ next_url }}">
+                <div class="form-group">
+                    <div class="custom-control custom-checkbox">
+                        <input type="checkbox" class="custom-control-input"
+                               id="accept" name="accept" required>
+                        <label class="custom-control-label" for="accept">
+                            I have read and accept the privacy policy
+                        </label>
                     </div>
-                    <button type="submit" class="btn btn-primary">
-                        Accept Privacy Policy
-                    </button>
-                </form>
+                </div>
+                <button type="submit" class="btn btn-primary">
+                    Accept Privacy Policy
+                </button>
+            </form>
+
             {% endif %}
         </div>
     </div>

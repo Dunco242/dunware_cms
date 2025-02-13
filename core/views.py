@@ -2403,7 +2403,7 @@ def privacy_policy_view(request):
 @login_required
 def accept_privacy_policy(request):
     if request.method == 'POST':
-        policy_version = request.POST.get('policy_version')
+        policy_version = request.POST.get('policy_version', '1.0.0')  # Set a default version if missing
 
         # Check if already accepted
         if not PrivacyPolicyAcceptance.objects.filter(
@@ -2425,6 +2425,7 @@ def accept_privacy_policy(request):
         return redirect(next_url)
 
     return redirect('privacy_policy')
+
 
 
 def privacy_policy_view(request):
@@ -2814,3 +2815,333 @@ def customer_calendar_events(request, customer_id):
         })
 
     return JsonResponse(event_data, safe=False)
+
+
+
+@login_required
+def chat_inbox(request):
+    """
+    Display chat inbox with active sessions and available employees
+    """
+    current_user = request.user.employee_profile
+
+    # Get active chat sessions with unread count
+    chat_sessions = ChatSession.objects.filter(
+        participants=current_user
+    ).prefetch_related(
+        Prefetch(
+            'participants',
+            queryset=Employee.objects.select_related('user')
+        )
+    ).annotate(
+        unread_count=Count(
+            'messages',
+            filter=Q(
+                messages__receiver=current_user,
+                messages__is_read=False
+            )
+        ),
+        other_participant_name=Subquery(
+            Employee.objects.filter(
+                chat_sessions=OuterRef('pk')
+            ).exclude(
+                id=current_user.id
+            ).values('user__first_name')[:1]
+        )
+    ).order_by('-updated_at')
+
+    # Get available employees for new chats
+    available_employees = Employee.objects.exclude(
+        id=current_user.id
+    ).filter(
+        is_active=True
+    ).select_related('user').order_by(
+        'user__first_name',
+        'user__last_name'
+    )
+
+    return render(request, 'chat/chat_inbox.html', {
+        'chat_sessions': chat_sessions,
+        'available_employees': available_employees,
+    })
+
+@login_required
+def chat_detail(request, session_id):
+    """
+    Display chat detail view with messages
+    """
+    current_user = request.user.employee_profile
+
+    try:
+        # Get session and verify participant
+        session = get_object_or_404(
+            ChatSession.objects.prefetch_related(
+                Prefetch(
+                    'participants',
+                    queryset=Employee.objects.select_related('user')
+                )
+            ),
+            id=session_id,
+            participants=current_user
+        )
+
+        # Get other participant
+        other_participant = session.participants.exclude(
+            id=current_user.id
+        ).first()
+
+        if not other_participant and not session.is_group_chat:
+            messages.error(request, "Chat session not found or you don't have access.")
+            return redirect('chat_inbox')
+
+        # Get messages with related user info
+        chat_messages = ChatMessage.objects.filter(
+            session=session
+        ).select_related(
+            'sender__user',
+            'receiver__user'
+        ).order_by('timestamp')
+
+        # Mark messages as read
+        ChatMessage.objects.filter(
+            session=session,
+            receiver=current_user,
+            is_read=False
+        ).update(
+            is_read=True,
+            read_at=timezone.now()
+        )
+
+        return render(request, 'chat/chat_detail.html', {
+            'session': session,
+            'chat_messages': chat_messages,
+            'other_participant': other_participant,
+        })
+
+    except Exception as e:
+        logger.error(f"Error in chat detail: {str(e)}")
+        messages.error(request, "An error occurred while loading the chat.")
+        return redirect('chat_inbox')
+
+@login_required
+def start_chat(request, employee_id):
+    """
+    Start a new chat with an employee or open existing chat
+    """
+    try:
+        other_employee = get_object_or_404(Employee, employee_id=employee_id)
+        current_user = request.user.employee_profile
+
+        # Prevent self-chat
+        if other_employee == current_user:
+            messages.warning(request, "You cannot start a chat with yourself.")
+            return redirect('chat_inbox')
+
+        # Find existing session or create new one
+        session = ChatSession.objects.filter(
+            is_group_chat=False,
+            participants=current_user
+        ).filter(
+            participants=other_employee
+        ).first()
+
+        if not session:
+            session = ChatSession.objects.create(
+                is_group_chat=False,
+                name=f"Chat with {other_employee.get_full_name()}"
+            )
+            session.participants.add(current_user, other_employee)
+            session.save()
+
+        return redirect('chat_detail', session_id=session.id)
+
+    except Exception as e:
+        logger.error(f"Error starting chat: {str(e)}")
+        messages.error(request, "An error occurred while starting the chat.")
+        return redirect('chat_inbox')
+
+@login_required
+def send_message(request):
+    """
+    Handle sending messages
+    """
+    if request.method != "POST":
+        return JsonResponse({'error': 'Invalid request method'}, status=405)
+
+    try:
+        # Get data from request
+        if request.content_type == 'application/json':
+            data = json.loads(request.body)
+        else:
+            data = request.POST
+
+        content = data.get('content', '').strip()
+        receiver_id = data.get('receiver_id')
+        session_id = data.get('session_id')
+
+        # Validate data
+        if not content:
+            return JsonResponse({'error': 'Message content cannot be empty'}, status=400)
+
+        if not receiver_id:
+            return JsonResponse({'error': 'Receiver ID is required'}, status=400)
+
+        # Get sender and receiver
+        sender = request.user.employee_profile
+        try:
+            receiver = Employee.objects.get(employee_id=receiver_id)
+        except Employee.DoesNotExist:
+            return JsonResponse({'error': 'Receiver not found'}, status=404)
+
+        if sender == receiver:
+            return JsonResponse({'error': 'Cannot send message to yourself'}, status=400)
+
+        # Get or create session
+        try:
+            if session_id:
+                session = ChatSession.objects.get(
+                    id=session_id,
+                    participants=sender
+                )
+                if receiver not in session.participants.all():
+                    return JsonResponse({'error': 'Invalid receiver for this chat session'}, status=400)
+            else:
+                session = ChatSession.objects.create(is_group_chat=False)
+                session.participants.add(sender, receiver)
+        except ChatSession.DoesNotExist:
+            return JsonResponse({'error': 'Chat session not found'}, status=404)
+
+        # Create message
+        message = ChatMessage.objects.create(
+            session=session,
+            sender=sender,
+            receiver=receiver,
+            content=content,
+            timestamp=timezone.now()
+        )
+
+        # Update session timestamp
+        session.updated_at = timezone.now()
+        session.save()
+
+        return JsonResponse({
+            'status': 'success',
+            'message': {
+                'id': message.id,
+                'content': message.content,
+                'sender': {
+                    'id': sender.employee_id,
+                    'name': sender.get_full_name()
+                },
+                'receiver': {
+                    'id': receiver.employee_id,
+                    'name': receiver.get_full_name()
+                },
+                'timestamp': message.timestamp.isoformat(),
+                'is_read': message.is_read
+            }
+        }, status=201)
+
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON data'}, status=400)
+    except Exception as e:
+        logger.error(f"Error sending message: {str(e)}")
+        return JsonResponse({'error': 'Error sending message'}, status=500)
+
+@login_required
+def get_messages(request, session_id):
+    """
+    Get messages for a chat session
+    """
+    try:
+        session = get_object_or_404(
+            ChatSession,
+            id=session_id,
+            participants=request.user.employee_profile
+        )
+
+        last_message_id = request.GET.get('last_id')
+        limit = int(request.GET.get('limit', 50))
+
+        messages_query = ChatMessage.objects.filter(session=session)
+
+        if last_message_id:
+            messages_query = messages_query.filter(id__lt=last_message_id)
+
+        messages = messages_query.select_related(
+            'sender__user',
+            'receiver__user'
+        ).order_by('-timestamp')[:limit]
+
+        message_data = [{
+            'id': msg.id,
+            'content': msg.content,
+            'sender': {
+                'id': msg.sender.employee_id,
+                'name': msg.sender.get_full_name()
+            },
+            'timestamp': msg.timestamp.isoformat(),
+            'is_read': msg.is_read
+        } for msg in messages]
+
+        return JsonResponse({
+            'messages': message_data,
+            'has_more': messages.count() == limit
+        })
+
+    except Exception as e:
+        logger.error(f"Error fetching messages: {str(e)}")
+        return JsonResponse({'error': 'Error fetching messages'}, status=500)
+
+@login_required
+def get_unread_count(request):
+    """
+    Get count of unread messages
+    """
+    try:
+        unread_count = ChatMessage.objects.filter(
+            receiver=request.user.employee_profile,
+            is_read=False
+        ).count()
+
+        return JsonResponse({'unread_count': unread_count})
+    except Exception as e:
+        logger.error(f"Error getting unread count: {str(e)}")
+        return JsonResponse({'error': 'Error getting unread count'}, status=500)
+
+@login_required
+def mark_messages_read(request, session_id):
+    """
+    Mark all messages in a session as read
+    """
+    try:
+        session = get_object_or_404(
+            ChatSession,
+            id=session_id,
+            participants=request.user.employee_profile
+        )
+
+        updated_count = ChatMessage.objects.filter(
+            session=session,
+            receiver=request.user.employee_profile,
+            is_read=False
+        ).update(
+            is_read=True,
+            read_at=timezone.now()
+        )
+
+        return JsonResponse({
+            'status': 'success',
+            'messages_read': updated_count
+        })
+
+    except Exception as e:
+        logger.error(f"Error marking messages as read: {str(e)}")
+        return JsonResponse({'error': 'Error marking messages as read'}, status=500)
+
+
+@login_required
+def employee_list_api(request):
+    employees = Employee.objects.exclude(id=request.user.employee_profile.id)
+    data = [{'id': emp.id, 'name': emp.get_full_name()} for emp in employees]
+    return JsonResponse(data, safe=False)

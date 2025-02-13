@@ -2,13 +2,16 @@ from django_q.tasks import schedule, async_task
 from django.utils import timezone
 from django.conf import settings
 from datetime import timedelta
-from core.models import Task, Meeting
+from core.models import Task, Meeting, ChatMessage, ChatNotification, Employee
 from core.signals import EmailToSMS
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
 import logging
 from functools import wraps
 from django.core.cache import cache
 from typing import Optional, List, Dict, Any
 import json
+from django.core.mail import send_mail
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +80,7 @@ def process_task_reminders():
         tasks = Task.objects.filter(
             due_date__date=tomorrow,
             status__in=['pending', 'in_progress']
-        ).select_related('assigned_to__user')  # Optimize query
+        ).select_related('assigned_to__user')
 
         for task in tasks:
             if (task.assigned_to and
@@ -150,6 +153,66 @@ def process_meeting_reminders():
         logger.error(f"Error processing meeting reminders: {str(e)}", exc_info=True)
         raise
 
+# New Chat Notification Functions
+@retry_on_failure(max_retries=3)
+def notify_new_message(employee_id: int, message_id: int):
+    """Send notifications for new chat messages"""
+    try:
+        message = ChatMessage.objects.get(id=message_id)
+        employee = Employee.objects.get(id=employee_id)
+
+        # Create notification
+        notification = ChatNotification.objects.create(
+            recipient=employee,
+            message=message
+        )
+
+        # Send WebSocket notification
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            f'chat_notifications_{employee_id}',
+            {
+                'type': 'notification_message',
+                'message': {
+                    'id': notification.id,
+                    'message_id': message.id,
+                    'sender_name': message.sender.get_full_name(),
+                    'content': message.content,
+                    'timestamp': message.timestamp.isoformat()
+                }
+            }
+        )
+
+        # Send SMS if enabled for chat notifications
+        if (employee.phone and
+            employee.carrier and
+            notification_manager.should_send_notification('chat', f"{message.id}_{employee_id}")):
+
+            sms_message = f"New message from {message.sender.get_full_name()}: {message.content[:50]}..."
+            if send_sms_notification(employee.phone, employee.carrier, sms_message):
+                notification_manager.mark_notification_sent('chat', f"{message.id}_{employee_id}")
+
+    except Exception as e:
+        logger.error(f"Error in notify_new_message: {str(e)}", exc_info=True)
+        raise
+
+@log_execution_time
+def clean_old_chat_data():
+    """Clean up old chat notifications and messages"""
+    try:
+        thirty_days_ago = timezone.now() - timedelta(days=30)
+
+        # Delete old notifications
+        ChatNotification.objects.filter(
+            created_at__lt=thirty_days_ago,
+            is_seen=True
+        ).delete()
+
+        logger.info("Old chat data cleaned successfully")
+    except Exception as e:
+        logger.error(f"Error cleaning old chat data: {str(e)}", exc_info=True)
+        raise
+
 @log_execution_time
 def send_reminder_notifications():
     """Main function to process all reminders"""
@@ -162,12 +225,22 @@ def send_reminder_notifications():
         raise
 
 def schedule_reminders():
-    """Schedule reminder checks"""
+    """Schedule all periodic tasks"""
+    # Existing reminders
     schedule(
         'core.tasks.send_reminder_notifications',
-        schedule_type='I',  # Independent
+        schedule_type='I',
         minutes=5,
-        repeats=-1,  # Repeat indefinitely
+        repeats=-1,
         next_run=timezone.now(),
-        catch_up=False  # Don't run missed tasks
+        catch_up=False
+    )
+
+    # Chat data cleanup - run daily
+    schedule(
+        'core.tasks.clean_old_chat_data',
+        schedule_type='D',
+        repeats=-1,
+        next_run=timezone.now() + timedelta(days=1),
+        catch_up=False
     )

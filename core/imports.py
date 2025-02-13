@@ -21,7 +21,7 @@ from django.urls import reverse_lazy, reverse
 from django.utils import timezone
 from django.core.exceptions import ValidationError
 from django.utils.timezone import make_aware
-from django.db.models import Q, Sum, Count, Max
+from django.db.models import Q, Sum, Count, Max, Prefetch, Subquery, OuterRef, F
 from django.db.models.functions import TruncDate
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
@@ -90,5 +90,7 @@ from .models import (
     Event,
     IPAccess,
     PrivacyPolicyAcceptance,
-    ScheduleRule
+    ScheduleRule,
+    ChatMessage,
+    ChatSession
 )
