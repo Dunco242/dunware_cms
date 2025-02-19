@@ -1,0 +1,79 @@
+{% extends 'customer_projects/base_projects.html' %}
+
+{% block title %}Tasks | {{ block.super }}{% endblock %}
+
+{% block project_content %}
+<div class="container mt-4">
+    <div class="card shadow-sm">
+        <div class="card-header bg-white">
+            <div class="d-flex justify-content-between align-items-center">
+                <h1 class="h3 text-dark mb-0">Tasks</h1>
+                <a href="{% url 'customer_projects:task-create' phase.id %}"
+                   class="btn btn-primary">
+                    <i class="fas fa-plus me-2"></i> New Task
+                </a>
+            </div>
+        </div>
+
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="bg-light">
+                        <tr>
+                            <th class="px-3">Task</th>
+                            <th class="px-3">Assigned To</th>
+                            <th class="px-3">Status</th>
+                            <th class="px-3">Due Date</th>
+                            <th class="px-3 text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for task in tasks %}
+                        <tr>
+                            <td class="px-3">
+                                <a href="{% url 'customer_projects:task-detail' task.id %}"
+                                   class="text-decoration-none text-primary">
+                                    {{ task.title }}
+                                </a>
+                            </td>
+                            <td class="px-3">{{ task.assigned_to.get_full_name }}</td>
+                            <td class="px-3">
+                                <span class="badge rounded-pill
+                                    {% if task.status == 'done' %}bg-success
+                                    {% elif task.status == 'in_progress' %}bg-primary
+                                    {% elif task.status == 'blocked' %}bg-danger
+                                    {% elif task.status == 'in_review' %}bg-info
+                                    {% else %}bg-secondary{% endif %}">
+                                    {{ task.get_status_display }}
+                                </span>
+                            </td>
+                            <td class="px-3">{{ task.due_date|date:"M d, Y" }}</td>
+                            <td class="px-3 text-end">
+                                <div class="btn-group">
+                                    <a href="{% url 'customer_projects:task-update' task.id %}"
+                                       class="btn btn-sm btn-outline-primary"
+                                       title="Edit Task">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <a href="{% url 'customer_projects:task-delete' task.id %}"
+                                       class="btn btn-sm btn-outline-danger"
+                                       title="Delete Task">
+                                        <i class="fas fa-trash"></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" class="text-center text-muted p-4">
+                                No tasks found.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

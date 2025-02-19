@@ -1,0 +1,82 @@
+{% extends "customer_projects/base_projects.html" %}
+
+{% block title %}Add Project Risk | {{ block.super }}{% endblock %}
+
+{% block project_content %}
+<div class="container mt-4">
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <h1 class="h3 text-dark mb-4">
+                <i class="fas fa-exclamation-triangle"></i> Add Project Risk
+            </h1>
+
+            <form method="post" class="needs-validation" novalidate>
+                {% csrf_token %}
+
+                <div class="row g-3">
+                    <!-- Title -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Title</label>
+                        {{ form.title }}
+                    </div>
+
+                    <!-- Risk Level -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Risk Level</label>
+                        {{ form.risk_level }}
+                    </div>
+
+                    <!-- Probability -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Probability (%)</label>
+                        {{ form.probability }}
+                    </div>
+
+                    <!-- Impact -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Impact (%)</label>
+                        {{ form.impact }}
+                    </div>
+
+                    <!-- Description -->
+                    <div class="col-12">
+                        <label class="form-label fw-bold">Description</label>
+                        {{ form.description }}
+                    </div>
+
+                    <!-- Mitigation Plan -->
+                    <div class="col-12">
+                        <label class="form-label fw-bold">Mitigation Plan</label>
+                        {{ form.mitigation_plan }}
+                    </div>
+                </div>
+
+                <!-- Form Buttons -->
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-save"></i> Submit
+                    </button>
+                    <a href="{% url 'customer_projects:project-detail' project.pk %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-times"></i> Cancel
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Add form validation and styling -->
+<style>
+    .form-label {
+        font-weight: 600;
+    }
+
+    .card {
+        border-radius: 8px;
+    }
+
+    .btn {
+        min-width: 120px;
+    }
+</style>
+{% endblock %}

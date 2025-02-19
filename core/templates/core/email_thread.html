@@ -1,0 +1,43 @@
+{% extends "core/base.html" %}
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <!-- Sidebar -->
+        <div class="col-md-3">
+            {% include "core/email_sidebar.html" %}
+        </div>
+
+        <!-- Main Content -->
+        <div class="col-md-9">
+            <h2>Email Thread</h2>
+
+            {% if thread %}
+                <div class="card mb-3">
+                    <div class="card-header bg-light">
+                        <strong>{{ thread.subject }}</strong>
+                    </div>
+                    <div class="card-body">
+                        {% for email in emails %}
+                            <div class="border-bottom mb-3 pb-2">
+                                <p><strong>From:</strong> {{ email.from_email }}</p>
+                                <p><strong>To:</strong> {{ email.to_emails|join:", " }}</p>
+                                <p><strong>Date:</strong> {{ email.created_at|date:"M d, Y H:i" }}</p>
+                                <p>{{ email.body_text|linebreaks }}</p>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% else %}
+                <p class="text-muted">No messages found in this thread.</p>
+            {% endif %}
+
+            {% if thread %}
+    <a href="{% url 'reply_email' thread.message_id %}" class="btn btn-primary">Reply</a>
+{% else %}
+    <p>No thread available to reply to.</p>
+{% endif %}
+
+        </div>
+    </div>
+</div>
+{% endblock %}

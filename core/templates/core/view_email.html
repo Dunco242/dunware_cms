@@ -1,0 +1,33 @@
+{% extends "core/base.html" %}
+{% block content %}
+<div class="container mt-4">
+    <h2>Email Details</h2>
+    <div class="card">
+        <div class="card-header">
+            <strong>From:</strong> {{ email.from_email }} <br>
+            <strong>To:</strong> {{ email.to_emails }} <br>
+            <strong>Subject:</strong> {{ email.subject }} <br>
+            <strong>Received:</strong> {{ email.created_at|date:"M d, Y H:i" }}
+        </div>
+        <div class="card-body">
+            <p>{{ email.body|linebreaks }}</p>
+        </div>
+    </div>
+
+    {% if email.attachments.all %}
+        <h5 class="mt-3">Attachments:</h5>
+        <ul>
+            {% for attachment in email.attachments.all %}
+                <li>
+                    <a href="{{ attachment.file.url }}" download>
+                        {{ attachment.filename }} ({{ attachment.size|filesizeformat }})
+                    </a>
+                </li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+
+    <a href="{% url 'reply_email' email.message_id %}" class="btn btn-primary mt-3">Reply</a>
+    <a href="{% url 'email_inbox' %}" class="btn btn-secondary mt-3">Back to Inbox</a>
+</div>
+{% endblock %}

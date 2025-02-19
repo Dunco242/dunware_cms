@@ -1,0 +1,109 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+<div class="container-fluid mt-3">
+    <div class="row">
+        <!-- Project Sidebar -->
+        <h2 class="sidebar-header">Project Management Dashboard</h2>
+
+        <div class="col-md-3 project-sidebar">
+            <div class="list-group">
+                <!-- Project Home - Always visible -->
+                <a href="{% url 'customer_projects:project-list' %}" class="btn btn-primary btn-block mt-3">Project Home</a>
+
+                <!-- Projects List - Always visible -->
+                <a href="{% url 'customer_projects:project-list' %}"
+                   class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'project-list' %}active{% endif %}">
+                    <i class="fas fa-project-diagram mr-2"></i> Projects
+                </a>
+
+                {% if project and project.id %}
+                    <!-- Project-specific menu items -->
+                    {% if project.phases.exists %}
+                        {% with current_phase=project.phases.first %}
+                            <a href="{% url 'customer_projects:task-list' current_phase.id %}"
+                               class="btn btn-primary btn-block mt-3 {% if request.resolver_match.url_name == 'task-list' %}active{% endif %}">
+                                <i class="fas fa-tasks mr-2"></i> Tasks
+                            </a>
+                        {% endwith %}
+                    {% endif %}
+
+                    <!-- Team -->
+                    <a href="{% url 'customer_projects:team-list' project.id %}"
+                       class="btn btn-primary btn-block mt-3 {% if request.resolver_match.url_name == 'team-list' %}active{% endif %}">
+                        <i class="fas fa-users mr-2"></i> Team
+                    </a>
+
+                    <!-- Documents -->
+                    <a href="{% url 'customer_projects:document-list' project.id %}"
+                       class="btn btn-primary btn-block mt-3 {% if request.resolver_match.url_name == 'document-list' %}active{% endif %}">
+                        <i class="fas fa-file-alt mr-2"></i> Documents
+                    </a>
+
+                    <!-- Risks -->
+                    <a href="{% url 'customer_projects:risk-list' project.id %}"
+                       class="btn btn-primary btn-block mt-3 {% if request.resolver_match.url_name == 'risk-list' %}active{% endif %}">
+                        <i class="fas fa-exclamation-triangle mr-2"></i> Risks
+                    </a>
+
+                    <!-- Reports -->
+                    <a href="{% url 'customer_projects:report-list' project.id %}"
+                       class="btn btn-primary btn-block mt-3 {% if request.resolver_match.url_name == 'report-list' %}active{% endif %}">
+                        <i class="fas fa-chart-bar mr-2"></i> Reports
+                    </a>
+                {% else %}
+                    <!-- Message for new project creation -->
+                    <div class="list-group-item text-muted">
+                        <i class="fas fa-info-circle mr-2"></i> Additional options will be available after project creation
+                    </div>
+                {% endif %}
+            </div>
+
+            {% if request.resolver_match.url_name != 'project-create' %}
+                <a href="{% url 'customer_projects:project-create' %}" class="btn btn-primary btn-block mt-3">
+                    <i class="fas fa-plus"></i> New Project
+                </a>
+            {% endif %}
+        </div>
+
+        <!-- Main Content Area -->
+        <div class="col-md-9">
+            {% block project_content %}{% endblock %}
+        </div>
+    </div>
+</div>
+
+<style>
+    .project-sidebar {
+        min-height: 600px;
+        min-width: 200px;
+        max-height: 80vh;
+        overflow-y: auto;
+        background-color: #f8f9fa;
+        padding: 15px;
+        border-radius: 8px;
+        box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    .project-sidebar .list-group-item {
+        border: none;
+        font-weight: 500;
+        color: #333;
+        transition: background 0.3s ease-in-out;
+    }
+
+    .project-sidebar .list-group-item:hover {
+        background-color: #e2e6ea;
+    }
+
+    .project-sidebar .list-group-item.active {
+        background-color: #007bff !important;
+        color: #fff !important;
+        font-weight: bold;
+    }
+
+    .btn-block {
+        width: 100%;
+    }
+</style>
+{% endblock %}

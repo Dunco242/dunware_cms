@@ -85,114 +85,169 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-   var calendarEl = document.getElementById('calendar');
-   var calendar = new FullCalendar.Calendar(calendarEl, {
-       initialView: 'dayGridMonth',
-       height: 'auto',
-       headerToolbar: {
-           left: 'prev,next today',
-           center: 'title',
-           right: 'dayGridMonth,timeGridWeek,timeGridDay'
-       },
-       events: "{% url 'user-calendar-events' %}",
-       editable: true,
-       selectable: true,
-       selectMirror: true,
-       dayMaxEvents: true,
+    var calendarEl = document.getElementById('calendar');
+    var calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        height: 'auto',
+        headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,timeGridWeek,timeGridDay'
+        },
+        eventSources: [
+            {
+                url: "{% url 'user-calendar-events' %}",
+                method: 'GET',
+                failure: function() {
+                    alert('There was an error fetching calendar items!');
+                }
+            }
+        ],
+        editable: true,
+        selectable: true,
+        selectMirror: true,
+        dayMaxEvents: true,
 
-       eventContent: function(arg) {
-           // Create a container for the event
-           let eventEl = document.createElement('div');
-           eventEl.classList.add('fc-event-custom');
+        eventContent: function(arg) {
+            // Create a container for the event
+            let eventEl = document.createElement('div');
+            eventEl.classList.add('fc-event-custom');
 
-           // Helper function to determine text color
-           function getContrastYIQ(hexcolor) {
-               hexcolor = hexcolor.replace("#", "");
-               var r = parseInt(hexcolor.substr(0,2), 16);
-               var g = parseInt(hexcolor.substr(2,2), 16);
-               var b = parseInt(hexcolor.substr(4,2), 16);
-               var yiq = ((r*299)+(g*587)+(b*114))/1000;
-               return (yiq >= 128) ? 'black' : 'white';
-           }
+            // Helper function to determine text color
+            function getContrastYIQ(hexcolor) {
+                hexcolor = hexcolor.replace("#", "");
+                var r = parseInt(hexcolor.substr(0,2), 16);
+                var g = parseInt(hexcolor.substr(2,2), 16);
+                var b = parseInt(hexcolor.substr(4,2), 16);
+                var yiq = ((r*299)+(g*587)+(b*114))/1000;
+                return (yiq >= 128) ? 'black' : 'white';
+            }
 
-           // Get background color and determine contrast color
-           const bgColor = arg.event.backgroundColor || '#3788d8';
-           const textColor = getContrastYIQ(bgColor);
+            // Get background color and determine contrast color
+            const bgColor = arg.event.backgroundColor || '#3788d8';
+            const textColor = getContrastYIQ(bgColor);
 
-           // Style the event element
-           eventEl.style.backgroundColor = bgColor;
-           eventEl.style.color = textColor;
-           eventEl.style.padding = '4px';
-           eventEl.style.borderRadius = '3px';
-           eventEl.style.display = 'block';
-           eventEl.style.width = '100%';
-           eventEl.style.wordWrap = 'break-word';
-           eventEl.style.whiteSpace = 'normal';
+            // Style the event element
+            eventEl.style.backgroundColor = bgColor;
+            eventEl.style.color = textColor;
+            eventEl.style.padding = '4px';
+            eventEl.style.borderRadius = '3px';
+            eventEl.style.display = 'block';
+            eventEl.style.width = '100%';
+            eventEl.style.wordWrap = 'break-word';
+            eventEl.style.whiteSpace = 'normal';
 
-           // Create title span
-           let titleSpan = document.createElement('span');
-           titleSpan.textContent = arg.event.title;
-           titleSpan.style.display = 'block';
-           titleSpan.style.fontWeight = 'bold';
+            // Create title span
+            let titleSpan = document.createElement('span');
+            titleSpan.textContent = arg.event.title;
+            titleSpan.style.display = 'block';
+            titleSpan.style.fontWeight = 'bold';
 
-           eventEl.appendChild(titleSpan);
+            eventEl.appendChild(titleSpan);
 
-           // Add customer info if available
-           if (arg.event.extendedProps.customer) {
-               let customerSpan = document.createElement('small');
-               customerSpan.textContent = `📋 ${arg.event.extendedProps.customer}`;
-               customerSpan.style.display = 'block';
-               customerSpan.style.opacity = '0.8';
+            // Add customer info if available
+            if (arg.event.extendedProps.customer) {
+                let customerSpan = document.createElement('small');
+                customerSpan.textContent = `📋 ${arg.event.extendedProps.customer}`;
+                customerSpan.style.display = 'block';
+                customerSpan.style.opacity = '0.8';
+                eventEl.appendChild(customerSpan);
+            }
 
-               eventEl.appendChild(customerSpan);
-           }
+            // Add type-specific icons and information
+            if (arg.event.extendedProps.type) {
+                let typeSpan = document.createElement('small');
+                switch (arg.event.extendedProps.type) {
+                    case 'task':
+                        typeSpan.textContent = `📋 Task - ${arg.event.extendedProps.status}`;
+                        break;
+                    case 'meeting':
+                        typeSpan.textContent = `🤝 Meeting - ${arg.event.extendedProps.meeting_type || ''}`;
+                        break;
+                    case 'event':
+                        typeSpan.textContent = `📅 Event`;
+                        break;
+                }
+                typeSpan.style.display = 'block';
+                typeSpan.style.opacity = '0.8';
+                eventEl.appendChild(typeSpan);
+            }
 
-           return { domNodes: [eventEl] };
-       },
+            return { domNodes: [eventEl] };
+        },
 
-       // Handle Event Drag/Drop
-       eventDrop: function(info) {
-           var event = info.event;
-           $.ajax({
-               url: '{% url "api-schedule-meeting" %}',
-               method: 'POST',
-               headers: {
-                   'X-CSRFToken': getCookie('csrftoken')
-               },
-               data: JSON.stringify({
-                   id: event.id.split('_')[1],
-                   start: event.start.toISOString(),
-                   end: event.end ? event.end.toISOString() : event.start.toISOString()
-               }),
-               contentType: 'application/json',
-               success: function(response) {
-                   toastr.success('Event updated successfully');
-               },
-               error: function() {
-                   toastr.error('Failed to update event');
-                   info.revert(); // revert if update fails
-               }
-           });
-       }
-   });
+        // Handle Event Drag/Drop
+        eventDrop: function(info) {
+            var event = info.event;
+            var eventType = event.id.split('_')[0]; // Get the type (task, meeting, or event)
+            var eventId = event.id.split('_')[1];   // Get the actual ID
 
-   calendar.render();
+            // Determine the appropriate endpoint based on event type
+            var endpoint = '';
+            switch (eventType) {
+                case 'task':
+                    endpoint = '{% url "api-update-task" %}';
+                    break;
+                case 'meeting':
+                    endpoint = '{% url "api-schedule-meeting" %}';
+                    break;
+                case 'event':
+                    endpoint = '{% url "api-update-event" %}';
+                    break;
+                default:
+                    console.error('Unknown event type:', eventType);
+                    info.revert();
+                    return;
+            }
 
-   // CSRF Token Retrieval Function
-   function getCookie(name) {
-       let cookieValue = null;
-       if (document.cookie && document.cookie !== '') {
-           const cookies = document.cookie.split(';');
-           for (let i = 0; i < cookies.length; i++) {
-               const cookie = cookies[i].trim();
-               if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                   cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                   break;
-               }
-           }
-       }
-       return cookieValue;
-   }
+            $.ajax({
+                url: endpoint,
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                data: JSON.stringify({
+                    id: eventId,
+                    start: event.start.toISOString(),
+                    end: event.end ? event.end.toISOString() : event.start.toISOString()
+                }),
+                contentType: 'application/json',
+                success: function(response) {
+                    toastr.success('Item updated successfully');
+                },
+                error: function() {
+                    toastr.error('Failed to update item');
+                    info.revert(); // revert if update fails
+                }
+            });
+        },
+
+        // Add event click handler
+        eventClick: function(info) {
+            if (info.event.url) {
+                info.jsEvent.preventDefault(); // prevent the default action
+                window.location.href = info.event.url;
+            }
+        }
+    });
+
+    calendar.render();
+
+    // CSRF Token Retrieval Function
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
 });
 </script>
 {% endblock %}

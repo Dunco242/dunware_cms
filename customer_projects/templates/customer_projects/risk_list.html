@@ -1,0 +1,43 @@
+{% extends 'customer_projects/base_projects.html' %}
+
+{% block title %}Project Risks | {{ block.super }}{% endblock %}
+
+{% block project_content %}
+<div class="bg-white shadow rounded-lg">
+    <div class="px-6 py-4 border-b border-gray-200">
+        <h1 class="text-2xl font-semibold text-gray-900">Project Risks</h1>
+        <a href="{% url 'customer_projects:risk-create' project.id %}" class="btn btn-primary">
+            <i class="fas fa-exclamation-triangle mr-2"></i> Add Risk
+        </a>
+    </div>
+
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Title</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Risk Level</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Identified By</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {% for risk in risks %}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-6 py-4">{{ risk.title }}</td>
+                    <td class="px-6 py-4">{{ risk.get_risk_level_display }}</td>
+                    <td class="px-6 py-4">{{ risk.get_status_display }}</td>
+                    <td class="px-6 py-4">{{ risk.identified_by.get_full_name }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="4" class="px-6 py-4 text-center text-gray-500">
+                        No risks found.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

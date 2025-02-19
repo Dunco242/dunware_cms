@@ -1,0 +1,29 @@
+{% extends "core/base.html" %}
+{% block content %}
+<div class="container mt-4">
+    <h2>Reply to Email</h2>
+    <form method="POST" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="mb-3">
+            <label class="form-label">To:</label>
+            <input type="text" class="form-control" value="{{ original_email.from_email }}" readonly>
+        </div>
+        <div class="mb-3">
+            <label for="id_subject" class="form-label">Subject:</label>
+            {{ form.subject }}
+        </div>
+        <div class="mb-3">
+            <label for="id_body_text" class="form-label">Message:</label>
+            {{ form.body_text }}
+        </div>
+        <div class="mb-3">
+            <label for="id_attachments" class="form-label">Attachments:</label>
+            <input type="file" name="attachments" id="id_attachments" class="form-control" multiple>
+            <small class="text-muted">You can select multiple files.</small>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Send Reply</button>
+        <a href="{% url 'view_email' original_email.message_id %}" class="btn btn-secondary">Cancel</a>
+    </form>
+</div>
+{% endblock %}

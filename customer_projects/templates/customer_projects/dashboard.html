@@ -1,0 +1,192 @@
+{% extends 'customer_projects/base_projects.html' %}
+
+{% block title %}Dashboard | {{ block.super }}{% endblock %}
+
+{% block project_content %}
+<div class="container mt-4">
+    <div class="row">
+        <!-- Sidebar (Kept Only One) -->
+        <div class="col-md-3 project-sidebar">
+            <div class="list-group shadow-sm">
+                <a href="{% url 'customer_projects:dashboard' %}" class="list-group-item list-group-item-action active">
+                    <i class="fas fa-home me-2"></i> Dashboard
+                </a>
+                <a href="{% url 'customer_projects:project-list' %}" class="list-group-item list-group-item-action">
+                    <i class="fas fa-project-diagram me-2"></i> Projects
+                </a>
+                {% if project %}
+                    <a href="{% url 'customer_projects:team-list' project.id %}" class="list-group-item list-group-item-action">
+                        <i class="fas fa-users me-2"></i> Team
+                    </a>
+                    <a href="{% url 'customer_projects:document-list' project.id %}" class="list-group-item list-group-item-action">
+                        <i class="fas fa-file-alt me-2"></i> Documents
+                    </a>
+                    <a href="{% url 'customer_projects:risk-list' project.id %}" class="list-group-item list-group-item-action">
+                        <i class="fas fa-exclamation-triangle me-2"></i> Risks
+                    </a>
+                    <a href="{% url 'customer_projects:report-list' project.id %}" class="list-group-item list-group-item-action">
+                        <i class="fas fa-chart-bar me-2"></i> Reports
+                    </a>
+                {% endif %}
+            </div>
+            <a href="{% url 'customer_projects:project-create' %}" class="btn btn-primary w-100 mt-3">
+                <i class="fas fa-plus"></i> New Project
+            </a>
+        </div>
+
+        <!-- Main Content -->
+        <div class="col-md-9">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h2 class="mb-0">Project Dashboard</h2>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <!-- Dashboard Metrics -->
+                        <div class="col-md-4">
+                            <div class="card bg-primary text-white mb-3 shadow">
+                                <div class="card-body text-center">
+                                    <h5 class="card-title">Total Projects</h5>
+                                    <h2 class="display-6">{{ total_projects }}</h2>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card bg-success text-white mb-3 shadow">
+                                <div class="card-body text-center">
+                                    <h5 class="card-title">Active Projects</h5>
+                                    <h2 class="display-6">{{ projects_in_progress }}</h2>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card bg-danger text-white mb-3 shadow">
+                                <div class="card-body text-center">
+                                    <h5 class="card-title">Overdue Tasks</h5>
+                                    <h2 class="display-6">{{ overdue_tasks }}</h2>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent Projects -->
+                    <h3 class="mt-4">Recent Projects</h3>
+                    <table class="table table-striped table-hover mt-3">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Project</th>
+                                <th>Status</th>
+                                <th>Progress</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for project in recent_projects %}
+                            <tr>
+                                <td>
+                                    <a href="{% url 'customer_projects:project-detail' project.id %}" class="text-primary fw-bold">
+                                        {{ project.name }}
+                                    </a>
+                                </td>
+                                <td>
+                                    <span class="badge
+                                        {% if project.status == 'completed' %} bg-success
+                                        {% elif project.status == 'in_progress' %} bg-info
+                                        {% elif project.status == 'on_hold' %} bg-warning
+                                        {% else %} bg-secondary {% endif %}">
+                                        {{ project.get_status_display }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="progress" style="height: 20px;">
+                                        <div class="progress-bar bg-primary" role="progressbar"
+                                             style="width: {{ project.progress }}%;"
+                                             aria-valuenow="{{ project.progress }}"
+                                             aria-valuemin="0"
+                                             aria-valuemax="100">
+                                            {{ project.progress }}%
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="3" class="text-center">No projects found.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+
+                    <!-- Pagination -->
+                    {% if is_paginated %}
+                    <nav>
+                        <ul class="pagination justify-content-center">
+                            {% if page_obj.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page=1">&laquo; First</a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a>
+                                </li>
+                            {% endif %}
+                            <li class="page-item disabled">
+                                <span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+                            </li>
+                            {% if page_obj.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">Last &raquo;</a>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Sidebar Styles -->
+<style>
+    .project-sidebar {
+        min-height: 600px;
+        min-width: 220px;
+        max-height: 80vh;
+        overflow-y: auto;
+        background-color: #f8f9fa;
+        padding: 15px;
+        border-radius: 8px;
+        box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    .project-sidebar .list-group-item {
+        border: none;
+        font-weight: 500;
+        color: #333;
+        transition: background 0.3s ease-in-out;
+    }
+
+    .project-sidebar .list-group-item:hover {
+        background-color: #e2e6ea;
+    }
+
+    .project-sidebar .list-group-item.active {
+        background-color: #007bff !important;
+        color: #fff !important;
+        font-weight: bold;
+    }
+
+    .progress {
+        height: 20px;
+        font-weight: bold;
+        text-align: center;
+        line-height: 20px;
+    }
+
+    .progress-bar {
+        font-size: 14px;
+    }
+</style>
+{% endblock %}

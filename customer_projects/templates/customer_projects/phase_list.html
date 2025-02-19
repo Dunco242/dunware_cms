@@ -1,0 +1,55 @@
+{% extends "customer_projects/base_projects.html" %}
+
+{% block title %}Project Phases | {{ project.name }}{% endblock %}
+
+{% block project_content %}
+<div class="container mt-4">
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <h1 class="h3 text-dark">Project Phases - {{ project.name }}</h1>
+            <a href="{% url 'customer_projects:phase-create' project.id %}" class="btn btn-primary mb-3">
+                <i class="fas fa-plus"></i> Add Phase
+            </a>
+
+            <!-- Phase List -->
+            <table class="table table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th>Phase Name</th>
+                        <th>Start Date</th>
+                        <th>End Date</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for phase in phases %}
+                    <tr>
+                        <td>{{ phase.name }}</td>
+                        <td>{{ phase.start_date }}</td>
+                        <td>{{ phase.end_date }}</td>
+                        <td>
+                            <span class="badge {% if phase.is_completed %} bg-success {% else %} bg-secondary {% endif %}">
+                                {% if phase.is_completed %} Completed {% else %} Ongoing {% endif %}
+                            </span>
+                        </td>
+                        <td>
+                            <a href="{% url 'customer_projects:phase-update' phase.id %}" class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            <a href="{% url 'customer_projects:phase-delete' phase.id %}" class="btn btn-sm btn-outline-danger">
+                                <i class="fas fa-trash"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center">No phases available.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

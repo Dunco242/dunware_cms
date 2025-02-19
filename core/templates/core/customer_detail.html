@@ -76,6 +76,11 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link" data-bs-toggle="tab" href="#projects">
+                            <i class="fas fa-project-diagram"></i> Projects
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" data-bs-toggle="tab" href="#meetings">
                             <i class="fas fa-video"></i> Meetings
                         </a>
@@ -184,7 +189,52 @@
                             <p class="text-center text-muted">No meetings found</p>
                         {% endif %}
                     </div>
-
+                    <!-- Projects Section -->
+                    <div class="tab-pane fade" id="projects">
+                        <div class="d-flex justify-content-end mb-3">
+                            <a href="{% url 'customer_projects:project-create' %}?customer={{ customer.pk }}" class="btn btn-primary">
+                                <i class="fas fa-plus"></i> Add Project
+                            </a>
+                        </div>
+                        {% if customer.projects.exists %}
+                            <div class="list-group">
+                                {% for project in customer.projects.all %}
+                                    <div class="list-group-item">
+                                        <div class="d-flex w-100 justify-content-between align-items-center">
+                                            <div>
+                                                <h5 class="mb-1">
+                                                    <a href="{% url 'customer_projects:project-detail' project.pk %}" class="text-decoration-none">
+                                                        {{ project.name }}
+                                                    </a>
+                                                </h5>
+                                                <p class="mb-1 text-muted">{{ project.description|truncatechars:100 }}</p>
+                                                <small>
+                                                    Start: {{ project.start_date|date:"M d, Y" }} |
+                                                    Due: {{ project.target_end_date|date:"M d, Y" }}
+                                                </small>
+                                            </div>
+                                            <div class="text-end">
+                                                <span class="badge bg-{{ project.status }} mb-2 d-block">
+                                                    {{ project.get_status_display }}
+                                                </span>
+                                                <div class="progress" style="width: 100px;">
+                                                    <div class="progress-bar" role="progressbar"
+                                                         style="width: {{ project.progress }}%"
+                                                         aria-valuenow="{{ project.progress }}"
+                                                         aria-valuemin="0"
+                                                         aria-valuemax="100">
+                                                        {{ project.progress }}%
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <p class="text-center text-muted">No projects found</p>
+                        {% endif %}
+                    </div>
                     <!-- Subscriptions Section -->
                     <div class="tab-pane fade" id="subscriptions">
                         <div class="d-flex justify-content-end mb-3">

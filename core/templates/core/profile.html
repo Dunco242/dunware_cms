@@ -1,0 +1,169 @@
+{% extends "core/base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <!-- Profile Sidebar -->
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body text-center">
+                    {% if employee.profile_picture %}
+                        <img src="{{ employee.profile_picture.url }}" alt="Profile Picture"
+                             class="rounded-circle img-fluid mb-3" style="width: 150px; height: 150px; object-fit: cover;">
+                    {% else %}
+                        <div class="bg-secondary rounded-circle d-flex align-items-center justify-content-center mx-auto mb-3"
+                             style="width: 150px; height: 150px;">
+                            <i class="fas fa-user fa-4x text-white"></i>
+                        </div>
+                    {% endif %}
+                    <h5 class="card-title">{{ employee.get_full_name }}</h5>
+                    <p class="text-muted">{{ employee.employee_id }}</p>
+                    <div class="d-grid gap-2">
+                        <a href="{% url 'change-password' %}" class="btn btn-outline-primary">
+                            <i class="fas fa-key"></i> Change Password
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Stats -->
+            <div class="card mt-3">
+                <div class="card-body">
+                    <h6 class="card-title">Quick Stats</h6>
+                    <ul class="list-unstyled">
+                        <li><i class="fas fa-users"></i> Customers: {{ total_customers|default:"0" }}</li>
+                        <li><i class="fas fa-tasks"></i> Active Tasks: {{ active_tasks|default:"0" }}</li>
+                        <li><i class="fas fa-calendar"></i> Upcoming Meetings: {{ upcoming_meetings|default:"0" }}</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Profile Content -->
+        <div class="col-md-9">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Profile Information</h5>
+                    <button class="btn btn-primary" id="editProfileBtn">
+                        <i class="fas fa-edit"></i> Edit Profile
+                    </button>
+                </div>
+                <div class="card-body">
+                    <!-- Profile View -->
+                    <div id="profileView">
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <h6>Employee Information</h6>
+                                <dl class="row">
+                                    <dt class="col-sm-4">Department</dt>
+                                    <dd class="col-sm-8">{{ employee.get_department_display }}</dd>
+
+                                    <dt class="col-sm-4">Position</dt>
+                                    <dd class="col-sm-8">{{ employee.get_position_display }}</dd>
+
+                                    <dt class="col-sm-4">Status</dt>
+                                    <dd class="col-sm-8">
+                                        <span class="badge {% if employee.is_active %}bg-success{% else %}bg-danger{% endif %}">
+                                            {{ employee.is_active|yesno:"Active,Inactive" }}
+                                        </span>
+                                    </dd>
+                                </dl>
+                            </div>
+                            <div class="col-md-6">
+                                <h6>Contact Information</h6>
+                                <dl class="row">
+                                    <dt class="col-sm-4">Email</dt>
+                                    <dd class="col-sm-8">{{ employee.user.email }}</dd>
+
+                                    <dt class="col-sm-4">Phone</dt>
+                                    <dd class="col-sm-8">{{ employee.phone|default:"Not provided" }}</dd>
+
+                                    <dt class="col-sm-4">Carrier</dt>
+                                    <dd class="col-sm-8">{{ employee.get_carrier_display|default:"Not provided" }}</dd>
+                                </dl>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-12">
+                                <h6>Employment Details</h6>
+                                <dl class="row">
+                                    <dt class="col-sm-2">Hire Date</dt>
+                                    <dd class="col-sm-4">{{ employee.hire_date|date:"M d, Y"|default:"Not set" }}</dd>
+
+                                    <dt class="col-sm-2">Duration</dt>
+                                    <dd class="col-sm-4">{{ employee.employment_duration|default:"N/A" }}</dd>
+                                </dl>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Profile Edit Form -->
+                    <div id="profileForm" style="display: none;">
+                        <form method="post" enctype="multipart/form-data">
+                            {% csrf_token %}
+                            <div class="row">
+                                {{ form.as_p }}
+                            </div>
+                            <div class="mt-3">
+                                <button type="submit" class="btn btn-success">
+                                    <i class="fas fa-save"></i> Save Changes
+                                </button>
+                                <button type="button" class="btn btn-secondary" id="cancelEdit">
+                                    <i class="fas fa-times"></i> Cancel
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Activity -->
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h5 class="mb-0">Recent Activity</h5>
+                </div>
+                <div class="card-body">
+                    <div class="list-group">
+                        {% for activity in recent_activities %}
+                            <div class="list-group-item">
+                                <div class="d-flex w-100 justify-content-between">
+                                    <h6 class="mb-1">{{ activity.title }}</h6>
+                                    <small>{{ activity.timestamp|timesince }} ago</small>
+                                </div>
+                                <p class="mb-1">{{ activity.description }}</p>
+                            </div>
+                        {% empty %}
+                            <div class="text-center text-muted py-3">
+                                No recent activity
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const profileView = document.getElementById('profileView');
+        const profileForm = document.getElementById('profileForm');
+        const editProfileBtn = document.getElementById('editProfileBtn');
+        const cancelEditBtn = document.getElementById('cancelEdit');
+
+        editProfileBtn.addEventListener('click', function() {
+            profileView.style.display = 'none';
+            profileForm.style.display = 'block';
+            editProfileBtn.style.display = 'none';
+        });
+
+        cancelEditBtn.addEventListener('click', function() {
+            profileView.style.display = 'block';
+            profileForm.style.display = 'none';
+            editProfileBtn.style.display = 'block';
+        });
+    });
+</script>
+{% endblock %}

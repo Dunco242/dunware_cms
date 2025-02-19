@@ -1,0 +1,60 @@
+<!-- Email Sidebar -->
+<div class="col-md-3 email-sidebar">
+    <div class="list-group">
+        <a href="{% url 'email_inbox' %}" class="list-group-item list-group-item-action active">
+            Inbox
+        </a>
+        <a href="{% url 'email_sent' %}" class="list-group-item list-group-item-action">
+            Sent Mail
+        </a>
+        <a href="{% url 'email_deleted' %}" class="list-group-item list-group-item-action">
+            Deleted Mail
+        </a>
+        <a href="{% if latest_thread %}{% url 'email_thread' latest_thread.message_id %}{% else %}{% url 'compose_email' %}{% endif %}"
+                   class="list-group-item list-group-item-action">
+                    Email Threads
+                </a>
+
+        <a href="{% url 'email_account_list' %}" class="list-group-item list-group-item-action">
+            Manage Email Accounts
+        </a>
+    </div>
+    <a href="{% url 'compose_email' %}" class="btn btn-primary btn-block mt-3">
+        Compose Email
+    </a>
+</div>
+
+<!-- Inline CSS for Sidebar -->
+<style>
+    .email-sidebar {
+        min-height: 600px; /* Ensures the sidebar has a minimum height */
+        min-width: 200px;
+        max-height: 80vh; /* Prevents the sidebar from growing too tall */
+        overflow-y: auto; /* Allows scrolling if needed */
+        background-color: #f8f9fa; /* Light background for a clean look */
+        padding: 15px; /* Adds spacing inside */
+        border-radius: 8px; /* Makes the corners rounded */
+        box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1); /* Adds a subtle shadow */
+    }
+
+    .email-sidebar .list-group-item {
+        border: none; /* Remove default Bootstrap list item border */
+        font-weight: 500; /* Slightly bold text */
+        color: #333; /* Dark text for better visibility */
+        transition: background 0.3s ease-in-out; /* Smooth hover effect */
+    }
+
+    .email-sidebar .list-group-item:hover {
+        background-color: #e2e6ea; /* Light grey hover effect */
+    }
+
+    .email-sidebar .list-group-item.active {
+        background-color: #007bff !important; /* Blue color for active tab */
+        color: #fff !important; /* White text on active */
+        font-weight: bold;
+    }
+
+    .btn-block {
+        width: 100%; /* Ensures the button stretches full width */
+    }
+</style>

@@ -2,6 +2,8 @@ import json
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.utils import timezone
+from .models import ChatNotification, ChatMessage, ChatSession
+
 import logging
 
 logger = logging.getLogger(__name__)
@@ -126,3 +128,56 @@ class ChatConsumer(AsyncWebsocketConsumer):
             is_read=is_read,
             read_at=timezone.now() if is_read else None
         )
+
+
+class NotificationConsumer(AsyncWebsocketConsumer):
+    async def connect(self):
+        self.user = self.scope['user']
+        if not self.user.is_authenticated:
+            await self.close()
+            return
+
+        self.employee_id = self.scope['url_route']['kwargs']['employee_id']
+        self.notification_group_name = f'notifications_{self.employee_id}'
+
+        # Join notification group
+        await self.channel_layer.group_add(
+            self.notification_group_name,
+            self.channel_name
+        )
+
+        await self.accept()
+
+    async def disconnect(self, close_code):
+        # Leave notification group
+        await self.channel_layer.group_discard(
+            self.notification_group_name,
+            self.channel_name
+        )
+
+    async def receive(self, text_data):
+        try:
+            data = json.loads(text_data)
+            if data['type'] == 'read_notifications':
+                await self.mark_notifications_read()
+        except json.JSONDecodeError:
+            pass
+
+    async def notification_message(self, event):
+        """Handle incoming notification"""
+        message_data = event['message']
+
+        # Get additional message info if it's a chat message
+        if message_data['type'] == 'new_message':
+            message_data['formatted_message'] = await self.get_message_details(
+                message_data['session_id'],
+                message_data['message']['id']
+            )
+
+    @database_sync_to_async
+    def mark_notifications_read(self):
+        """Mark notifications as read"""
+        ChatNotification.objects.filter(
+            recipient_id=self.employee_id,
+            is_seen=False
+        ).update(is_seen=True)

@@ -1,0 +1,41 @@
+{% extends "customer_projects/base_projects.html" %}
+
+{% block title %}Documents | {{ block.super }}{% endblock %}
+
+{% block project_content %}
+<div class="container mt-4">
+    <h2>Documents for {{ project.name }}</h2>
+    <a href="{% url 'customer_projects:document-upload' project.id %}" class="btn btn-primary mb-3">
+        <i class="fas fa-upload"></i> Upload Document
+    </a>
+
+    <table class="table table-bordered">
+        <thead>
+            <tr>
+                <th>Title</th>
+                <th>Type</th>
+                <th>Uploaded By</th>
+                <th>Date</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for document in documents %}
+            <tr>
+                <td>{{ document.title }}</td>
+                <td>{{ document.get_document_type_display }}</td>
+                <td>{{ document.uploaded_by.get_full_name }}</td>
+                <td>{{ document.upload_date|date:"M d, Y H:i" }}</td>
+                <td>
+                    <a href="{{ document.file.url }}" class="btn btn-sm btn-success" download>Download</a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="5" class="text-center">No documents found.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

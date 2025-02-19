@@ -1,0 +1,63 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+<div class="container">
+    <h2>Compose Email</h2>
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        {{ form.non_field_errors }}
+
+        <div class="mb-3">
+            {{ form.to_emails.label_tag }}
+            {{ form.to_emails }}
+            {{ form.to_emails.errors }}
+            <small class="form-text text-muted">{{ form.to_emails.help_text }}</small>
+        </div>
+
+        <div class="mb-3">
+            {{ form.cc_emails.label_tag }}
+            {{ form.cc_emails }}
+            {{ form.cc_emails.errors }}
+            <small class="form-text text-muted">{{ form.cc_emails.help_text }}</small>
+        </div>
+
+        <div class="mb-3">
+            {{ form.bcc_emails.label_tag }}
+            {{ form.bcc_emails }}
+            {{ form.bcc_emails.errors }}
+            <small class="form-text text-muted">{{ form.bcc_emails.help_text }}</small>
+        </div>
+
+        <div class="mb-3">
+            {{ form.subject.label_tag }}
+            {{ form.subject }}
+            {{ form.subject.errors }}
+        </div>
+
+        <div class="mb-3">
+            {{ form.body_text.label_tag }}
+            {{ form.body_text }}
+            {{ form.body_text.errors }}
+        </div>
+
+        <div class="mb-3">
+            <label for="attachments">Attachments</label>
+            <input type="file" name="attachments" id="attachments" multiple class="form-control">
+        </div>
+
+        <div class="mb-3">
+            {{ form.schedule_send.label_tag }}
+            {{ form.schedule_send }}
+            {{ form.schedule_send.errors }}
+        </div>
+
+        <div class="mb-3">
+            {{ form.scheduled_time.label_tag }}
+            {{ form.scheduled_time }}
+            {{ form.scheduled_time.errors }}
+        </div>
+
+        <button type="submit" class="btn btn-primary">Send Email</button>
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,52 @@
+{% extends "core/base.html" %}
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <!-- Sidebar -->
+        <div class="col-md-3">
+            {% include "core/email_sidebar.html" %}
+        </div>
+
+        <!-- Main Content -->
+        <div class="col-md-9">
+            <h2>Email Details</h2>
+
+            <div class="card">
+                <div class="card-header">
+                    <strong>{{ email.subject }}</strong>
+                </div>
+                <div class="card-body">
+                    <p><strong>From:</strong> {{ email.from_email }}</p>
+                    <p><strong>To:</strong> {{ email.to_emails|join:", " }}</p>
+                    <p><strong>Date:</strong> {{ email.created_at|date:"M d, Y H:i" }}</p>
+                    <p><strong>Status:</strong>
+                        {% if email.is_read %}
+                            <span class="badge bg-success">Read</span>
+                        {% else %}
+                            <span class="badge bg-warning">Unread</span>
+                        {% endif %}
+                    </p>
+                    <hr>
+                    <p>{{ email.body_text|linebreaks }}</p>
+
+                    <!-- Attachments -->
+                    {% if email.attachments.all %}
+                        <h5>Attachments:</h5>
+                        <ul>
+                            {% for attachment in email.attachments.all %}
+                                <li>
+                                    <a href="{{ attachment.file.url }}" target="_blank">{{ attachment.filename }}</a>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    {% endif %}
+
+                    <hr>
+                    <a href="{% url 'reply_email' email.message_id %}" class="btn btn-primary">Reply</a>
+                    <a href="{% url 'email_inbox' %}" class="btn btn-secondary">Back to Inbox</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

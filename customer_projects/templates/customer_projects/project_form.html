@@ -1,0 +1,192 @@
+{% extends "customer_projects/base_projects.html" %}
+
+{% block title %}Edit Project | {{ project.name }}{% endblock %}
+
+{% block project_content %}
+<div class="container mt-4">
+    <!-- Project Edit Form -->
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <h1 class="h3 text-dark">Edit Project - {{ project.name }}</h1>
+            <hr>
+
+            <form method="post">
+                {% csrf_token %}
+                <div class="row g-3">
+                    <!-- Project Name -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Project Name</label>
+                        {{ form.name }}
+                        {% if form.name.errors %}
+                            <div class="text-danger small">{{ form.name.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Customer -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Customer</label>
+                        {{ form.customer }}
+                        {% if form.customer.errors %}
+                            <div class="text-danger small">{{ form.customer.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Project Manager -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Project Manager</label>
+                        {{ form.project_manager }}
+                        {% if form.project_manager.errors %}
+                            <div class="text-danger small">{{ form.project_manager.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Status -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Status</label>
+                        {{ form.status }}
+                        {% if form.status.errors %}
+                            <div class="text-danger small">{{ form.status.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Priority -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Priority</label>
+                        {{ form.priority }}
+                        {% if form.priority.errors %}
+                            <div class="text-danger small">{{ form.priority.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Start Date -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Start Date</label>
+                        {{ form.start_date }}
+                        {% if form.start_date.errors %}
+                            <div class="text-danger small">{{ form.start_date.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Target End Date -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Target End Date</label>
+                        {{ form.target_end_date }}
+                        {% if form.target_end_date.errors %}
+                            <div class="text-danger small">{{ form.target_end_date.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Budget -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Budget</label>
+                        {{ form.budget }}
+                        {% if form.budget.errors %}
+                            <div class="text-danger small">{{ form.budget.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Description -->
+                    <div class="col-12">
+                        <label class="form-label fw-bold">Description</label>
+                        {{ form.description }}
+                        {% if form.description.errors %}
+                            <div class="text-danger small">{{ form.description.errors }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Form Buttons -->
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-save"></i> Save Project
+                    </button>
+                    <a href="{% url 'customer_projects:project-list' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-times"></i> Cancel
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {% if project and project.id %}
+        <!-- Phases Section -->
+        <div class="card shadow-sm mt-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Project Phases</h5>
+            </div>
+            <div class="card-body">
+                <a href="{% url 'customer_projects:phase-create' project.id %}" class="btn btn-sm btn-primary mb-3">
+                    <i class="fas fa-plus"></i> Add Phase
+                </a>
+                <ul class="list-group">
+                    {% for phase in project.phases.all %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="fw-bold">{{ phase.name }}</span>
+                            <small class="text-muted ms-2">{{ phase.start_date|date:"M d, Y" }} to {{ phase.end_date|date:"M d, Y" }}</small>
+                            <div class="progress mt-2" style="height: 5px; width: 200px;">
+                                <div class="progress-bar" role="progressbar" style="width: {{ phase.progress }}%"
+                                     aria-valuenow="{{ phase.progress }}" aria-valuemin="0" aria-valuemax="100"></div>
+                            </div>
+                        </div>
+                        <div class="btn-group">
+                            <a href="{% url 'customer_projects:phase-update' phase.id %}" class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            <a href="{% url 'customer_projects:phase-delete' phase.id %}" class="btn btn-sm btn-outline-danger">
+                                <i class="fas fa-trash"></i>
+                            </a>
+                        </div>
+                    </li>
+                    {% empty %}
+                    <li class="list-group-item text-center text-muted">No phases added yet.</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+
+        <!-- Tasks Section -->
+        <div class="card shadow-sm mt-4">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="mb-0">Project Tasks</h5>
+            </div>
+            <div class="card-body">
+                {% for phase in project.phases.all %}
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="mb-0">{{ phase.name }}</h6>
+                        <a href="{% url 'customer_projects:task-create' phase.id %}" class="btn btn-sm btn-success">
+                            <i class="fas fa-plus"></i> Add Task
+                        </a>
+                    </div>
+                    <ul class="list-group">
+                        {% for task in phase.tasks.all %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <span class="fw-bold">{{ task.title }}</span>
+                                <span class="badge bg-{{ task.status|yesno:'success,secondary' }} ms-2">
+                                    {{ task.get_status_display }}
+                                </span>
+                            </div>
+                            <div class="btn-group">
+                                <a href="{% url 'customer_projects:task-update' task.id %}" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <a href="{% url 'customer_projects:task-delete' task.id %}" class="btn btn-sm btn-outline-danger">
+                                    <i class="fas fa-trash"></i>
+                                </a>
+                            </div>
+                        </li>
+                        {% empty %}
+                        <li class="list-group-item text-center text-muted">No tasks for this phase.</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% empty %}
+                <div class="text-center text-muted">Add phases to create tasks.</div>
+                {% endfor %}
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

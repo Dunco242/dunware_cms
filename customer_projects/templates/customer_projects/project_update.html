@@ -1,0 +1,212 @@
+{% extends 'customer_projects/base_projects.html' %}
+{% load static %}
+
+{% block title %}Edit Project | {{ block.super }}{% endblock %}
+
+{% block project_content %}
+<div class="container mt-4">
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <h1 class="h3 text-dark">Edit Project</h1>
+            <hr>
+
+            <!-- Form Starts Here -->
+            <form method="post" class="mt-3">
+                {% csrf_token %}
+
+                <div class="row g-3">
+                    <!-- Project Name -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Project Name</label>
+                        {{ form.name }}
+                    </div>
+
+                    <!-- Customer -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Customer</label>
+                        {{ form.customer }}
+                    </div>
+
+                    <!-- Project Manager -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Project Manager</label>
+                        {{ form.project_manager }}
+                    </div>
+
+                    <!-- Status -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Status</label>
+                        {{ form.status }}
+                    </div>
+
+                    <!-- Priority -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Priority</label>
+                        {{ form.priority }}
+                    </div>
+
+                    <!-- Start Date -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Start Date</label>
+                        {{ form.start_date }}
+                    </div>
+
+                    <!-- Target End Date -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Target End Date</label>
+                        {{ form.target_end_date }}
+                    </div>
+
+                    <!-- Budget -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Budget</label>
+                        {{ form.budget }}
+                    </div>
+
+                    <!-- Description -->
+                    <div class="col-12">
+                        <label class="form-label fw-bold">Description</label>
+                        {{ form.description }}
+                    </div>
+                </div>
+
+                <!-- Form Buttons -->
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-success"><i class="fas fa-save"></i> Save Project</button>
+                    <a href="{% url 'customer_projects:project-list' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-times"></i> Cancel
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Phases Section -->
+    <div class="card shadow-sm mt-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Project Phases</h5>
+        </div>
+        <div class="card-body">
+            <ul class="list-group">
+                {% for phase in project.phases.all %}
+                <li class="list-group-item">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span>{{ phase.name }}</span>
+                        <div>
+                            <span class="badge bg-info">{{ phase.status }}</span>
+                            <a href="{% url 'customer_projects:phase-update' project.id phase.id %}" class="btn btn-sm btn-outline-primary">Edit</a>
+                            <a href="{% url 'customer_projects:phase-delete' project.id phase.id %}" class="btn btn-sm btn-outline-danger">Delete</a>
+                        </div>
+                    </div>
+                    <div class="progress mt-2" style="height: 8px;">
+                        <div id="phase-{{ phase.id }}-progress" class="progress-bar bg-success" role="progressbar"
+                             style="width: {{ phase.progress }}%;" aria-valuenow="{{ phase.progress }}"
+                             aria-valuemin="0" aria-valuemax="100">
+                        </div>
+                    </div>
+                    <small id="phase-{{ phase.id }}-progress-text" class="text-muted">{{ phase.progress }}%</small>
+
+                    <!-- Task Section -->
+                    <ul id="phase-{{ phase.id }}-tasks" class="list-group mt-2">
+                        {% for task in phase.tasks.all %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            {{ task.name }}
+                            <span class="badge bg-warning">{{ task.status }}</span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </li>
+                {% empty %}
+                <li class="list-group-item text-muted">No Phases Available</li>
+                {% endfor %}
+            </ul>
+
+            <!-- Add Phase -->
+            <div class="mt-3">
+                <a href="{% url 'customer_projects:phase-create' project.id %}" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> Add Phase
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Task Section -->
+    <div class="card shadow-sm mt-4">
+        <div class="card-header bg-secondary text-white">
+            <h5 class="mb-0">Add Task</h5>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">Select Phase</label>
+                    <select id="phase-select" class="form-select">
+                        <option value="">-- Select Phase --</option>
+                        {% for phase in project.phases.all %}
+                        <option value="{{ phase.id }}">{{ phase.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">Task Name</label>
+                    <input type="text" id="task-name" class="form-control">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">Status</label>
+                    <select id="task-status" class="form-select">
+                        <option value="todo">To Do</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="completed">Completed</option>
+                    </select>
+                </div>
+            </div>
+            <div class="mt-3">
+                <button id="add-task-btn" class="btn btn-success"><i class="fas fa-plus"></i> Add Task</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- JavaScript to Handle Dynamic Task Addition -->
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    document.getElementById("add-task-btn").addEventListener("click", function () {
+        let phaseId = document.getElementById("phase-select").value;
+        let taskName = document.getElementById("task-name").value;
+        let taskStatus = document.getElementById("task-status").value;
+
+        if (!taskName || !phaseId) {
+            alert("Please enter a task name and select a phase.");
+            return;
+        }
+
+        fetch(`/customer-projects/phases/${phaseId}/tasks/create/`, {
+            method: "POST",
+            headers: {
+                "X-CSRFToken": "{{ csrf_token }}",
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ name: taskName, status: taskStatus })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                updateTaskList(phaseId, data.task);
+                updateProgressBar(phaseId);
+            } else {
+                alert("Failed to add task.");
+            }
+        });
+    });
+
+    function updateProgressBar(phaseId) {
+        fetch(`/customer-projects/phases/${phaseId}/progress/`)
+            .then(response => response.json())
+            .then(data => {
+                document.querySelector(`#phase-${phaseId}-progress`).style.width = `${data.progress}%`;
+                document.querySelector(`#phase-${phaseId}-progress-text`).innerText = `${data.progress}%`;
+            });
+    }
+});
+</script>
+
+{% endblock %}

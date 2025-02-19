@@ -3,8 +3,9 @@ from .models import (
     Employee, Customer, Lead, Service,
     Note, Task, Meeting, Invoice, Payment,
     Subscription, Transaction, ServiceSubscription, IPAccess, PrivacyPolicyAcceptance, LegalDocument, ScheduleRule, ScheduleException,
-    ChatSession, ChatMessage, ChatNotification  # Add your new models here
+    ChatSession, ChatMessage, ChatNotification, EmailMessage, EmailFolder, EmailAttachment, EmailTemplate, EmailFolderMessage, EmailAccount
 )
+from django.contrib import admin
 
 @admin.register(Employee)
 class EmployeeAdmin(admin.ModelAdmin):
@@ -175,3 +176,63 @@ class ChatNotificationAdmin(admin.ModelAdmin):
     def message_preview(self, obj):
         return obj.message.content[:50] + ('...' if len(obj.message.content) > 50 else '')
     message_preview.short_description = 'Message'
+
+@admin.register(EmailMessage)
+class EmailMessageAdmin(admin.ModelAdmin):
+    list_display = ('subject', 'from_email', 'account', 'message_type', 'status', 'created_at', 'is_read')
+    list_filter = ('message_type', 'status', 'is_read', 'created_at')
+    search_fields = ('subject', 'from_email', 'to_emails', 'cc_emails', 'bcc_emails')
+    ordering = ('-created_at',)
+    readonly_fields = ('created_at', 'updated_at', 'sent_at', 'read_at')
+    fieldsets = (
+        ('Message Details', {
+            'fields': ('account', 'from_email', 'to_emails', 'cc_emails', 'bcc_emails', 'subject', 'body', 'message_type', 'status')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at', 'sent_at', 'read_at'),
+        }),
+    )
+
+@admin.register(EmailFolder)
+class EmailFolderAdmin(admin.ModelAdmin):
+    list_display = ('name', 'account', 'system_type')
+    list_filter = ('system_type', 'account')
+    search_fields = ('name',)
+    ordering = ('account', 'name')
+
+@admin.register(EmailAttachment)
+class EmailAttachmentAdmin(admin.ModelAdmin):
+    list_display = ('filename', 'email', 'size', 'content_type')
+    search_fields = ('filename',)
+    ordering = ('-id',)  # Using 'id' as a fallback ordering field
+
+@admin.register(EmailTemplate)
+class EmailTemplateAdmin(admin.ModelAdmin):
+    list_display = ('name', 'subject', 'created_by', 'is_shared', 'created_at')
+    list_filter = ('is_shared', 'created_by')
+    search_fields = ('name', 'subject', 'body')
+
+@admin.register(EmailFolderMessage)
+class EmailFolderMessageAdmin(admin.ModelAdmin):
+    list_display = ('folder', 'message')
+    list_filter = ('folder',)
+    search_fields = ('folder__name', 'message__subject')
+
+
+@admin.register(EmailAccount)
+class EmailAccountAdmin(admin.ModelAdmin):
+    list_display = ('email_address', 'employee', 'smtp_server', 'smtp_port', 'imap_server', 'imap_port', 'is_active', 'last_sync')
+    search_fields = ('email_address', 'employee__user__username', 'employee__user__email')
+    list_filter = ('is_active', 'last_sync')
+    ordering = ('email_address',)
+    fieldsets = (
+        ("Account Details", {
+            'fields': ('employee', 'email_address', 'username', 'password')
+        }),
+        ("Server Configuration", {
+            'fields': ('smtp_server', 'smtp_port', 'imap_server', 'imap_port', 'requires_auth', 'uses_tls')
+        }),
+        ("Status", {
+            'fields': ('is_active', 'last_sync')
+        }),
+    )

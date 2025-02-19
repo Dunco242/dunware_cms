@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     'allauth',
     'allauth.account',
     'allauth.socialaccount',
+    'django_extensions',
 
     # Styling Apps (moved to end of third-party)
     'crispy_forms',
@@ -54,6 +55,7 @@ INSTALLED_APPS = [
 
     # Local Apps
     'core',
+    'customer_projects',
     'dunware_crm',
 ]
 
@@ -91,7 +93,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'dunware_crm.wsgi.application'
 # Channels Configuration
-ASGI_APPLICATION = 'yourproject.asgi.application'
+ASGI_APPLICATION = 'dunware_crm.asgi.application'
 
 CHANNEL_LAYERS = {
     'default': {
@@ -269,3 +271,7 @@ MESSAGE_TAGS = {
 
 CSRF_HEADER_NAME = 'X-CSRFToken'
 CSRF_COOKIE_NAME = 'csrftoken'
+
+# settings.py
+MAX_UPLOAD_SIZE = 10485760  # 10MB
+CONTENT_TYPES = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']

@@ -1,0 +1,45 @@
+{% extends "core/base.html" %}
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <!-- Sidebar -->
+        <div class="col-md-3">
+            {% include "core/email_sidebar.html" %}
+        </div>
+
+        <!-- Main Content -->
+        <div class="col-md-9">
+            <h2>Deleted Emails</h2>
+
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>From</th>
+                        <th>Subject</th>
+                        <th>Date</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for email in emails %}
+                        <tr>
+                            <td>{{ email.from_email }}</td>
+                            <td>
+                                <a href="{% url 'view_email' email.message_id %}">{{ email.subject }}</a>
+                            </td>
+                            <td>{{ email.created_at|date:"M d, Y H:i" }}</td>
+                            <td>
+                                <a href="{% url 'restore_email' email.message_id %}" class="btn btn-success btn-sm">Restore</a>
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="4" class="text-center">No deleted emails.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -5,6 +5,15 @@ import csv
 import logging
 import tempfile
 import json
+import email
+import uuid
+import imaplib
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.base import MIMEBase
+from email import encoders
+from core.utils import send_email_message
+from email.mime.multipart import MIMEMultipart
 from io import BytesIO
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -12,6 +21,7 @@ from core.mixins import EmployeeRequiredMixin
 
 
 # Django Core
+from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from core.services.scheduling import SchedulingService
 from django.conf import settings
@@ -69,7 +79,9 @@ from .forms import (
     ServiceSubscriptionForm,
     ICSUploadForm,  # If this is a form
     EventForm,
-    ScheduleRuleForm
+    ScheduleRuleForm,
+    EmailComposeForm,
+    EmailAccountForm
 )
 
 # Models
@@ -92,5 +104,13 @@ from .models import (
     PrivacyPolicyAcceptance,
     ScheduleRule,
     ChatMessage,
-    ChatSession
+    ChatSession,
+    EmailAccount,
+    EmailMessage,
+    EmailTemplate,
+    EmailAttachment,
+    EmailFolder,
+    EmailFolderMessage,
+    EmailTracker,
+    EmailProvider
 )

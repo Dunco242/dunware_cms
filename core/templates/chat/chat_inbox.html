@@ -65,7 +65,7 @@
                 <div class="list-group list-group-flush chat-list">
                     {% for session in chat_sessions %}
                         <a href="{% url 'chat_detail' session.id %}"
-                           class="list-group-item list-group-item-action chat-preview">
+                           class="list-group-item list-group-item-action chat-preview" data-session-id=""{{ session.id}}>
                             <div class="d-flex w-100 justify-content-between align-items-center">
                                 <div>
                                     <h6 class="mb-1">
@@ -85,7 +85,7 @@
                                 </div>
                                 <div class="d-flex flex-column align-items-end">
                                     {% if session.last_message %}
-                                        <small class="text-muted">
+                                        <small class="text-muted timestamp" data-time="{{ session.last_message.timestamp|date:'c' }}">
                                             {{ session.last_message.timestamp|timesince }} ago
                                         </small>
                                     {% endif %}
@@ -107,4 +107,102 @@
         </div>
     </div>
 </div>
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // WebSocket connection for notifications
+    const notificationSocket = new WebSocket(
+        'ws://' + window.location.host + '/ws/notifications/' +
+        '{{ request.user.employee_profile.id }}/'
+    );
+
+    notificationSocket.onmessage = function(e) {
+        const data = JSON.parse(e.data);
+
+        if (data.type === 'new_message') {
+            updateChatPreview(data.session_id, data.message);
+            updateUnreadCount(data.session_id);
+        }
+    };
+
+    // Function to update chat preview
+    function updateChatPreview(sessionId, message) {
+        const chatPreview = document.querySelector(`[data-session-id="${sessionId}"]`);
+        if (chatPreview) {
+            // Update last message preview
+            const messagePreview = chatPreview.querySelector('.text-muted');
+            if (messagePreview) {
+                messagePreview.textContent = message.content.substring(0, 50) +
+                    (message.content.length > 50 ? '...' : '');
+            }
+
+            // Update timestamp
+            const timestamp = chatPreview.querySelector('.timestamp');
+            if (timestamp) {
+                timestamp.textContent = 'Just now';
+            }
+
+            // Move chat to top of list
+            const chatList = chatPreview.parentElement;
+            chatList.insertBefore(chatPreview, chatList.firstChild);
+        } else {
+            // If chat preview doesn't exist, refresh the list
+            loadChatList();
+        }
+    }
+
+    // Function to update unread count
+    function updateUnreadCount(sessionId) {
+        const chatPreview = document.querySelector(`[data-session-id="${sessionId}"]`);
+        if (chatPreview) {
+            let badge = chatPreview.querySelector('.unread-badge');
+            if (!badge) {
+                // Create new badge if it doesn't exist
+                badge = document.createElement('span');
+                badge.className = 'badge bg-primary unread-badge mt-1';
+                chatPreview.querySelector('.d-flex.flex-column').appendChild(badge);
+            }
+            const currentCount = parseInt(badge.textContent || '0');
+            badge.textContent = currentCount + 1;
+        }
+    }
+
+    // Function to load chat list via AJAX
+    function loadChatList() {
+        fetch('/chat/api/sessions/')
+            .then(response => response.json())
+            .then(data => {
+                const chatList = document.querySelector('.chat-list');
+                // Update chat list HTML
+                if (chatList) {
+                    chatList.innerHTML = data.html;
+                }
+            });
+    }
+
+    // Periodically update timestamps
+    setInterval(() => {
+        document.querySelectorAll('.timestamp').forEach(timestamp => {
+            const time = timestamp.getAttribute('data-time');
+            if (time) {
+                timestamp.textContent = getTimeAgo(time);
+            }
+        });
+    }, 60000); // Update every minute
+
+    // Helper function to format time ago
+    function getTimeAgo(timestamp) {
+        const now = new Date();
+        const time = new Date(timestamp);
+        const diff = Math.floor((now - time) / 1000); // diff in seconds
+
+        if (diff < 60) return 'Just now';
+        if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+        if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+        return `${Math.floor(diff / 86400)}d ago`;
+    }
+});
+</script>
+{% endblock %}
 {% endblock %}

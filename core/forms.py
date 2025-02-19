@@ -4,16 +4,162 @@ from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
 from allauth.account.forms import LoginForm
+from django.core.validators import EmailValidator
 from django.core.exceptions import ValidationError
 from django.utils import timezone
+from django.utils.timezone import now
 from datetime import timedelta
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import Layout, Row, Column, Submit
 from core.services.scheduling import SchedulingService
 from .models import (
     Employee, Customer, Lead, Service,
-    Note, Task, Meeting, Invoice, Payment, Subscription, Transaction, ServiceSubscription, Event, UploadedICSFile, ScheduleRule
+    Note, Task, Meeting, Invoice, Payment, Subscription, Transaction, ServiceSubscription, Event, UploadedICSFile, ScheduleRule,
+    EmailMessage, EmailAttachment, EmailAccount, EmailProvider
 )
+
+class MultipleFileInput(forms.FileInput):
+    """Custom widget that supports multiple file upload"""
+    def __init__(self, attrs=None):
+        default_attrs = {'multiple': 'multiple'}
+        if attrs:
+            default_attrs.update(attrs)
+        super().__init__(default_attrs)
+
+class MultipleFileField(forms.FileField):
+    """Custom field that uses MultipleFileInput"""
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault("widget", MultipleFileInput())
+        super().__init__(*args, **kwargs)
+
+    def clean(self, data, initial=None):
+        single_file_clean = super().clean
+        if isinstance(data, (list, tuple)):
+            result = [single_file_clean(d, initial) for d in data]
+        else:
+            result = single_file_clean(data, initial)
+        return result
+
+class EmailAccountForm(forms.ModelForm):
+    """Form for managing email accounts"""
+    class Meta:
+        model = EmailAccount
+        fields = ['email_address', 'password']
+        widgets = {
+            'password': forms.PasswordInput(),
+        }
+
+    def clean_email_address(self):
+        email = self.cleaned_data['email_address']
+        provider = EmailProvider.get_provider_for_email(email)
+        if not provider:
+            raise forms.ValidationError(
+                "This email provider is not supported. Please use a supported email provider "
+                "(Gmail, Outlook, or Yahoo) or manually configure your email settings."
+            )
+        return email
+
+    def save(self, commit=True):
+        account = super().save(commit=False)
+        provider = EmailProvider.get_provider_for_email(account.email_address)
+        if provider:
+            account.provider = provider
+        if commit:
+            account.save()
+        return account
+
+class EmailComposeForm(forms.ModelForm):
+    """Form for composing emails without direct attachments handling in the form"""
+    to_emails = forms.CharField(
+        widget=forms.TextInput(attrs={'class': 'form-control'}),
+        help_text="Separate multiple email addresses with commas"
+    )
+    cc_emails = forms.CharField(
+        required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control'}),
+        help_text="Separate multiple email addresses with commas"
+    )
+    bcc_emails = forms.CharField(
+        required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control'}),
+        help_text="Separate multiple email addresses with commas"
+    )
+
+    schedule_send = forms.BooleanField(
+        required=False,
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        help_text="Schedule this email to be sent later"
+    )
+
+    scheduled_time = forms.DateTimeField(
+        required=False,
+        widget=forms.DateTimeInput(attrs={
+            'class': 'form-control',
+            'type': 'datetime-local'
+        })
+    )
+
+    class Meta:
+        model = EmailMessage
+        fields = ['subject', 'body_text', 'body_html']
+        widgets = {
+            'subject': forms.TextInput(attrs={'class': 'form-control'}),
+            'body_text': forms.Textarea(attrs={'class': 'form-control', 'rows': 10}),
+            'body_html': forms.Textarea(attrs={'class': 'form-control', 'rows': 10})
+        }
+
+    def clean_to_emails(self):
+        emails = [e.strip() for e in self.cleaned_data['to_emails'].split(',')]
+        validator = EmailValidator()
+        for email in emails:
+            try:
+                validator(email)
+            except ValidationError:
+                raise forms.ValidationError(f"Invalid email address: {email}")
+        return emails
+
+    def clean_cc_emails(self):
+        if not self.cleaned_data['cc_emails']:
+            return []
+        emails = [e.strip() for e in self.cleaned_data['cc_emails'].split(',')]
+        validator = EmailValidator()
+        for email in emails:
+            try:
+                validator(email)
+            except ValidationError:
+                raise forms.ValidationError(f"Invalid email address: {email}")
+        return emails
+
+    def clean_bcc_emails(self):
+        if not self.cleaned_data['bcc_emails']:
+            return []
+        emails = [e.strip() for e in self.cleaned_data['bcc_emails'].split(',')]
+        validator = EmailValidator()
+        for email in emails:
+            try:
+                validator(email)
+            except ValidationError:
+                raise forms.ValidationError(f"Invalid email address: {email}")
+        return emails
+
+    def clean(self):
+        cleaned_data = super().clean()
+        schedule_send = cleaned_data.get('schedule_send')
+        scheduled_time = cleaned_data.get('scheduled_time')
+
+        if schedule_send and not scheduled_time:
+            raise forms.ValidationError(
+                "Please specify a scheduled time for the email"
+            )
+
+        if scheduled_time and scheduled_time < timezone.now():
+            raise forms.ValidationError(
+                "Scheduled time cannot be in the past"
+            )
+
+        return cleaned_data
+
+
 
 class UserRegistrationForm(UserCreationForm):
     email = forms.EmailField(required=True)
@@ -50,11 +196,22 @@ class EmployeeForm(forms.ModelForm):
         return phone
 
 class CustomerForm(forms.ModelForm):
+    def clean_phone(self):
+        phone = self.cleaned_data.get('phone')
+        if phone:
+            # Remove any non-digit characters first
+            digits = ''.join(filter(str.isdigit, phone))
+            if len(digits) == 10:  # Ensure we have exactly 10 digits
+                # Format to (XXX)XXX-XXXX
+                return f'({digits[:3]}){digits[3:6]}-{digits[6:]}'
+        return phone
+
     class Meta:
         model = Customer
         fields = ('company_name', 'contact_person', 'email', 'phone',
                  'address', 'city', 'state', 'zip_code', 'website',
                  'status', 'assigned_to')
+
         widgets = {
             'address': forms.Textarea(attrs={'rows': 3}),
         }
@@ -507,3 +664,153 @@ class ScheduleRuleForm(forms.ModelForm):
             'start_time': forms.TimeInput(attrs={'type': 'time'}),
             'end_time': forms.TimeInput(attrs={'type': 'time'}),
         }
+
+
+class EmailAccountForm(forms.ModelForm):
+    class Meta:
+        model = EmailAccount
+        fields = ['email_address', 'password']
+        widgets = {
+            'password': forms.PasswordInput(),
+        }
+
+    def clean_email_address(self):
+        email = self.cleaned_data['email_address']
+        provider = EmailProvider.get_provider_for_email(email)
+        if not provider:
+            raise forms.ValidationError(
+                "This email provider is not supported. Please use a supported email provider "
+                "(Gmail, Outlook, or Yahoo) or manually configure your email settings."
+            )
+        return email
+
+    def save(self, commit=True):
+        account = super().save(commit=False)
+        provider = EmailProvider.get_provider_for_email(account.email_address)
+        if provider:
+            account.provider = provider
+        if commit:
+            account.save()
+        return account
+
+# Delete any existing definitions of EmailComposeForm and add these classes:
+
+class MultipleFileInput(forms.FileInput):
+    """Custom widget that supports multiple file upload"""
+    def __init__(self, attrs=None):
+        default_attrs = {'multiple': 'multiple'}
+        if attrs:
+            default_attrs.update(attrs)
+        super().__init__(default_attrs)
+
+
+class MultipleFileField(forms.FileField):
+    """Custom field that uses MultipleFileInput"""
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault("widget", MultipleFileInput())
+        super().__init__(*args, **kwargs)
+
+    def clean(self, data, initial=None):
+        single_file_clean = super().clean
+        if isinstance(data, (list, tuple)):
+            result = [single_file_clean(d, initial) for d in data]
+        else:
+            result = single_file_clean(data, initial)
+        return result
+
+
+class EmailComposeForm(forms.ModelForm):
+    """Form for composing emails with multiple attachments"""
+    to_emails = forms.CharField(
+        widget=forms.TextInput(attrs={'class': 'form-control'}),
+        help_text="Separate multiple email addresses with commas"
+    )
+    cc_emails = forms.CharField(
+        required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control'}),
+        help_text="Separate multiple email addresses with commas"
+    )
+    bcc_emails = forms.CharField(
+        required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control'}),
+        help_text="Separate multiple email addresses with commas"
+    )
+    # Remove the attachments field from here as we'll handle it in the view
+    schedule_send = forms.BooleanField(
+        required=False,
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        help_text="Schedule this email to be sent later"
+    )
+    scheduled_time = forms.DateTimeField(
+        required=False,
+        widget=forms.DateTimeInput(attrs={
+            'class': 'form-control',
+            'type': 'datetime-local'
+        })
+    )
+
+    class Meta:
+        model = EmailMessage
+        fields = ['subject', 'body_text', 'body_html']
+        widgets = {
+            'subject': forms.TextInput(attrs={'class': 'form-control'}),
+            'body_text': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 10
+            }),
+            'body_html': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 10
+            })
+        }
+
+    def clean_to_emails(self):
+        emails = [e.strip() for e in self.cleaned_data['to_emails'].split(',')]
+        validator = EmailValidator()
+        for email in emails:
+            try:
+                validator(email)
+            except ValidationError:
+                raise forms.ValidationError(f"Invalid email address: {email}")
+        return emails
+
+    def clean_cc_emails(self):
+        if not self.cleaned_data['cc_emails']:
+            return []
+        emails = [e.strip() for e in self.cleaned_data['cc_emails'].split(',')]
+        validator = EmailValidator()
+        for email in emails:
+            try:
+                validator(email)
+            except ValidationError:
+                raise forms.ValidationError(f"Invalid email address: {email}")
+        return emails
+
+    def clean_bcc_emails(self):
+        if not self.cleaned_data['bcc_emails']:
+            return []
+        emails = [e.strip() for e in self.cleaned_data['bcc_emails'].split(',')]
+        validator = EmailValidator()
+        for email in emails:
+            try:
+                validator(email)
+            except ValidationError:
+                raise forms.ValidationError(f"Invalid email address: {email}")
+        return emails
+
+    def clean(self):
+        cleaned_data = super().clean()
+        schedule_send = cleaned_data.get('schedule_send')
+        scheduled_time = cleaned_data.get('scheduled_time')
+
+        if schedule_send and not scheduled_time:
+            raise forms.ValidationError(
+                "Please specify a scheduled time for the email"
+            )
+
+        if scheduled_time and scheduled_time < timezone.now():
+            raise forms.ValidationError(
+                "Scheduled time cannot be in the past"
+            )
+
+        return cleaned_data

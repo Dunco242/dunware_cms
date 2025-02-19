@@ -1,0 +1,74 @@
+{% extends "core/base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <!-- Sidebar -->
+        <div class="col-md-3">
+            <div class="list-group">
+                <a href="{% url 'email_inbox' %}" class="list-group-item list-group-item-action">
+                    Inbox
+                </a>
+                <a href="{% url 'email_sent' %}" class="list-group-item list-group-item-action">
+                    Sent Mail
+                </a>
+                <a href="{% url 'email_deleted' %}" class="list-group-item list-group-item-action">
+                    Deleted Mail
+                </a>
+                <a href="{% if latest_thread %}{% url 'email_thread' latest_thread.message_id %}{% else %}{% url 'compose_email' %}{% endif %}"
+                   class="list-group-item list-group-item-action">
+                    Email Threads
+                </a>
+                <a href="{% url 'email_account_list' %}" class="list-group-item list-group-item-action active">
+                    Manage Email Accounts
+                </a>
+            </div>
+            <a href="{% url 'compose_email' %}" class="btn btn-primary btn-block mt-3">
+                Compose Email
+            </a>
+        </div>
+
+        <!-- Main Content -->
+        <div class="col-md-9">
+            <div class="card">
+                <div class="card-header">
+                    {% if form.instance.pk %}
+                        Update Email Account
+                    {% else %}
+                        Add New Email Account
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+
+                        <div class="mb-3">
+                            <label for="email_address" class="form-label">Email Address</label>
+                            {{ form.email_address }}
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="password" class="form-label">Password</label>
+                            {{ form.password }}
+                        </div>
+
+                        <div class="mb-3 form-check">
+                            {{ form.is_active }}
+                            <label class="form-check-label" for="is_active">Activate Account</label>
+                        </div>
+
+                        <button type="submit" class="btn btn-success">
+                            {% if form.instance.pk %}
+                                Update Account
+                            {% else %}
+                                Add Account
+                            {% endif %}
+                        </button>
+                        <a href="{% url 'email_account_list' %}" class="btn btn-secondary">Cancel</a>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

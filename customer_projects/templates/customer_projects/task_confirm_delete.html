@@ -1,0 +1,25 @@
+{% extends 'customer_projects/base_projects.html' %}
+
+{% block title %}Delete Task | {{ block.super }}{% endblock %}
+
+{% block project_content %}
+<div class="container mt-4">
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <h1 class="h3 text-dark mb-4">Delete Task</h1>
+
+            <p>Are you sure you want to delete the task "{{ object.title }}"?</p>
+
+            <form method="post">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-danger">
+                    <i class="fas fa-trash"></i> Confirm Delete
+                </button>
+                <a href="{% url 'customer_projects:task-list' object.phase.id %}" class="btn btn-outline-secondary">
+                    <i class="fas fa-times"></i> Cancel
+                </a>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

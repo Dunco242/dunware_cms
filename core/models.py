@@ -91,7 +91,7 @@ class Employee(models.Model):
 
     # Phone number with validation
     phone_regex = RegexValidator(
-        regex=r'^\+?1?\d{9,15}$',
+        regex=r'^\(\d{3}\)\d{3}-\d{4}$',
         message="Phone number must be entered in the format: '+999999999'. Up to 15 digits allowed."
     )
 
@@ -228,6 +228,18 @@ class Employee(models.Model):
         """Get display value for position"""
         return dict(self.POSITION_CHOICES).get(self.position, self.position)
 
+    def save(self, *args, **kwargs):
+        """
+        Ensure each employee has an associated email account upon creation.
+        """
+        is_new = self.pk is None
+        super().save(*args, **kwargs)
+
+        if is_new:
+            with transaction.atomic():
+                EmailAccount.objects.create(employee=self, email_address=self.user.email)
+
+
 class Customer(models.Model):
     """
     Customer model with improved validation and relationship handling
@@ -271,7 +283,7 @@ class Customer(models.Model):
     )
 
     phone_regex = RegexValidator(
-        regex=r'^\+?1?\d{9,15}$',
+        regex=r'^\(\d{3}\)\d{3}-\d{4}$',
         message="Phone number must be entered in the format: '+999999999'. Up to 15 digits allowed."
     )
     phone = models.CharField(
@@ -503,7 +515,7 @@ class Lead(models.Model):
     )
 
     phone_regex = RegexValidator(
-        regex=r'^\+?1?\d{9,15}$',
+        regex=r'^\(\d{3}\)\d{3}-\d{4}$',
         message="Phone number must be entered in the format: '+999999999'. Up to 15 digits allowed."
     )
     phone = models.CharField(
@@ -2485,3 +2497,235 @@ class ChatNotification(models.Model):
         self.is_seen = True
         self.seen_at = timezone.now()
         self.save()
+
+
+class EmailProvider(models.Model):
+    name = models.CharField(max_length=100)
+    smtp_server = models.CharField(max_length=255)
+    smtp_port = models.IntegerField()
+    imap_server = models.CharField(max_length=255)
+    imap_port = models.IntegerField()
+    requires_auth = models.BooleanField(default=True)
+    uses_tls = models.BooleanField(default=True)
+    domain = models.CharField(max_length=100)  # e.g., "@gmail.com"
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        ordering = ['name']
+
+    @classmethod
+    def get_provider_for_email(cls, email):
+        """Get the provider based on email domain"""
+        domain = f"@{email.split('@')[1]}" if '@' in email else None
+        return cls.objects.filter(domain=domain).first()
+
+# Default providers to be added via migrations
+DEFAULT_EMAIL_PROVIDERS = [
+    {
+        'name': 'Gmail',
+        'smtp_server': 'smtp.gmail.com',
+        'smtp_port': 587,
+        'imap_server': 'imap.gmail.com',
+        'imap_port': 993,
+        'domain': '@gmail.com'
+    },
+    {
+        'name': 'Outlook/Hotmail',
+        'smtp_server': 'smtp.office365.com',
+        'smtp_port': 587,
+        'imap_server': 'outlook.office365.com',
+        'imap_port': 993,
+        'domain': '@outlook.com'
+    },
+    {
+        'name': 'Yahoo',
+        'smtp_server': 'smtp.mail.yahoo.com',
+        'smtp_port': 587,
+        'imap_server': 'imap.mail.yahoo.com',
+        'imap_port': 993,
+        'domain': '@yahoo.com'
+    }
+]
+
+
+# Update EmailAccount model
+class EmailAccount(models.Model):
+    """Email account configuration for employees"""
+    employee = models.OneToOneField(Employee, on_delete=models.CASCADE, related_name='email_account')
+    email_address = models.EmailField(unique=True, validators=[EmailValidator()])
+    provider = models.ForeignKey(EmailProvider, on_delete=models.SET_NULL, null=True, blank=True)
+    smtp_server = models.CharField(max_length=255, blank=True)
+    smtp_port = models.IntegerField(null=True, blank=True)
+    imap_server = models.CharField(max_length=255, blank=True)
+    imap_port = models.IntegerField(null=True, blank=True)
+    requires_auth = models.BooleanField(default=True)
+    uses_tls = models.BooleanField(default=True)
+    username = models.CharField(max_length=255, blank=True)
+    password = models.CharField(max_length=255)
+    is_active = models.BooleanField(default=True)
+    last_sync = models.DateTimeField(null=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        # Auto-populate provider details if a provider is selected
+        if self.provider and not self.smtp_server:
+            self.smtp_server = self.provider.smtp_server
+            self.smtp_port = self.provider.smtp_port
+            self.imap_server = self.provider.imap_server
+            self.imap_port = self.provider.imap_port
+            self.requires_auth = self.provider.requires_auth
+            self.uses_tls = self.provider.uses_tls
+            self.username = self.email_address
+
+        super().save(*args, **kwargs)
+
+
+class EmailTemplate(models.Model):
+    """Reusable email templates"""
+
+    name = models.CharField(max_length=100)
+    subject = models.CharField(max_length=255)
+    body = models.TextField()
+    created_by = models.ForeignKey(Employee, on_delete=models.CASCADE)
+    is_shared = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return self.name
+
+class EmailMessage(models.Model):
+    """Store all sent and received emails"""
+
+    MESSAGE_TYPE_CHOICES = [
+        ('incoming', 'Incoming'),
+        ('outgoing', 'Outgoing'),
+        ('draft', 'Draft')
+    ]
+
+    STATUS_CHOICES = [
+        ('sent', 'Sent'),
+        ('delivered', 'Delivered'),
+        ('failed', 'Failed'),
+        ('draft', 'Draft'),
+        ('scheduled', 'Scheduled')
+    ]
+
+    message_id = models.UUIDField(default=uuid.uuid4, editable=False)
+    account = models.ForeignKey(EmailAccount, on_delete=models.CASCADE)
+    message_type = models.CharField(max_length=10, choices=MESSAGE_TYPE_CHOICES)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='draft')
+
+    from_email = models.EmailField()
+    to_emails = models.JSONField()  # Store multiple recipients as JSON
+    cc_emails = models.JSONField(blank=True, null=True)
+    bcc_emails = models.JSONField(blank=True, null=True)
+
+    subject = models.CharField(max_length=255)
+    body_text = models.TextField()
+    body_html = models.TextField(blank=True, null=True)
+
+    # Relationships to CRM entities
+    related_customer = models.ForeignKey(Customer, null=True, blank=True, on_delete=models.SET_NULL)
+    related_lead = models.ForeignKey(Lead, null=True, blank=True, on_delete=models.SET_NULL)
+
+    # Email threading
+    thread_id = models.CharField(max_length=255, blank=True, null=True)
+    in_reply_to = models.ForeignKey('self', null=True, blank=True, on_delete=models.SET_NULL)
+
+    # Tracking
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    scheduled_time = models.DateTimeField(null=True, blank=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+    read_at = models.DateTimeField(null=True, blank=True)
+
+    # Flags
+    is_read = models.BooleanField(default=False)
+    is_starred = models.BooleanField(default=False)
+    is_spam = models.BooleanField(default=False)
+    is_archived = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['message_type', 'status']),
+            models.Index(fields=['account', 'created_at']),
+            models.Index(fields=['thread_id']),
+        ]
+
+    def __str__(self):
+        return f"{self.subject} - {self.created_at}"
+
+class EmailAttachment(models.Model):
+    """Store email attachments"""
+
+    email = models.ForeignKey(EmailMessage, on_delete=models.CASCADE, related_name='attachments')
+    file = models.FileField(upload_to='email_attachments/%Y/%m/')
+    filename = models.CharField(max_length=255)
+    content_type = models.CharField(max_length=100)
+    size = models.IntegerField()  # Size in bytes
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.filename
+
+class EmailFolder(models.Model):
+    """Custom email folders/labels"""
+
+    SYSTEM_FOLDERS = [
+        ('inbox', 'Inbox'),
+        ('sent', 'Sent'),
+        ('drafts', 'Drafts'),
+        ('spam', 'Spam'),
+        ('trash', 'Trash'),
+        ('archived', 'Archived')
+    ]
+
+    account = models.ForeignKey(EmailAccount, on_delete=models.CASCADE)
+    name = models.CharField(max_length=100)
+    is_system = models.BooleanField(default=False)
+    system_type = models.CharField(max_length=20, choices=SYSTEM_FOLDERS, null=True, blank=True)
+    parent = models.ForeignKey('self', null=True, blank=True, on_delete=models.CASCADE)
+
+    class Meta:
+        unique_together = ['account', 'name', 'parent']
+
+    def __str__(self):
+        return self.name
+
+class EmailFolderMessage(models.Model):
+    """Many-to-many relationship between messages and folders"""
+
+    folder = models.ForeignKey(EmailFolder, on_delete=models.CASCADE)
+    message = models.ForeignKey(EmailMessage, on_delete=models.CASCADE)
+    added_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ['folder', 'message']
+
+class EmailTracker(models.Model):
+    """Track email opens and link clicks"""
+
+    email = models.ForeignKey(EmailMessage, on_delete=models.CASCADE)
+    tracker_id = models.UUIDField(default=uuid.uuid4, editable=False)
+    recipient_email = models.EmailField()
+
+    opened_at = models.DateTimeField(null=True, blank=True)
+    opened_count = models.IntegerField(default=0)
+
+    first_opened_ip = models.GenericIPAddressField(null=True, blank=True)
+    last_opened_ip = models.GenericIPAddressField(null=True, blank=True)
+
+    user_agent = models.TextField(blank=True, null=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Tracker for {self.email.subject} - {self.recipient_email}"

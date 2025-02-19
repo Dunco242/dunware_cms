@@ -1,0 +1,144 @@
+{% extends 'customer_projects/base_projects.html' %}
+{% load static %}
+
+{% block title %}Analytics | {{ block.super }}{% endblock %}
+
+{% block project_content %}
+<div class="card">
+    <div class="card-header">
+        <h1 class="card-title h3 mb-0">Project Analytics</h1>
+    </div>
+    <div class="card-body">
+        <!-- Metrics Summary -->
+        <div class="row g-4 mb-4">
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title text-muted mb-2">Completion Rate</h5>
+                        <h2 class="mb-0">{{ completion_rate|default:0 }}%</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title text-muted mb-2">Average Duration</h5>
+                        <h2 class="mb-0">{{ avg_duration|default:0 }} days</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title text-muted mb-2">Active Projects</h5>
+                        <h2 class="mb-0">{{ active_projects|default:0 }}</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title text-muted mb-2">Total Budget</h5>
+                        <h2 class="mb-0">${{ total_budget|default:0|floatformat:2 }}</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Project Status Distribution</h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="statusChart" height="300"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Monthly Progress</h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="progressChart" height="300"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Status Distribution Chart
+    const statusCtx = document.getElementById('statusChart').getContext('2d');
+    new Chart(statusCtx, {
+        type: 'doughnut',
+        data: {
+            labels: JSON.parse('{{ status_labels|escapejs }}'),
+            datasets: [{
+                data: JSON.parse('{{ status_data|escapejs }}'),
+                backgroundColor: [
+                    '#4e73df',
+                    '#1cc88a',
+                    '#36b9cc',
+                    '#f6c23e',
+                    '#e74a3b'
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+
+    // Monthly Progress Chart
+    const progressCtx = document.getElementById('progressChart').getContext('2d');
+    new Chart(progressCtx, {
+        type: 'line',
+        data: {
+            labels: JSON.parse('{{ progress_labels|escapejs }}'),
+            datasets: [{
+                label: 'Completion Rate',
+                data: JSON.parse('{{ progress_data|escapejs }}'),
+                borderColor: '#4e73df',
+                tension: 0.1,
+                fill: false
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 100,
+                    ticks: {
+                        callback: function(value) {
+                            return value + '%';
+                        }
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

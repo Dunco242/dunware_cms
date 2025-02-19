@@ -1,0 +1,43 @@
+{% extends "core/base.html" %}
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <!-- Sidebar -->
+        <div class="col-md-3">
+            {% include "core/email_sidebar.html" %}
+        </div>
+
+        <!-- Main Content -->
+        <div class="col-md-9">
+            <h2>Sent Emails</h2>
+
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>To</th>
+                        <th>Subject</th>
+                        <th>Date Sent</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for email in emails %}
+                        <tr>
+                            <td>{{ email.to_emails|join:", " }}</td>
+                            <td>
+                                <a href="{% url 'view_email' email.message_id %}">{{ email.subject }}</a>
+                            </td>
+                            <td>{{ email.sent_at|date:"M d, Y H:i" }}</td>
+                            <td><span class="badge bg-success">Sent</span></td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="4" class="text-center">No sent emails.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

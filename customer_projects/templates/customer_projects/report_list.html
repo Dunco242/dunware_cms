@@ -1,0 +1,42 @@
+{% extends 'customer_projects/base_projects.html' %}
+
+{% block title %}Project Reports | {{ block.super }}{% endblock %}
+
+{% block project_content %}
+<div class="bg-white shadow rounded-lg">
+    <div class="px-6 py-4 border-b border-gray-200">
+        <h1 class="text-2xl font-semibold text-gray-900">Project Reports</h1>
+    </div>
+
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Report Name</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date Generated</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {% for report in reports %}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-6 py-4">{{ report.title }}</td>
+                    <td class="px-6 py-4">{{ report.generated_at|date:"M d, Y H:i" }}</td>
+                    <td class="px-6 py-4 text-right text-sm font-medium">
+                        <a href="{{ report.file.url }}" class="text-indigo-600 hover:text-indigo-900">
+                            <i class="fas fa-download"></i> Download
+                        </a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="3" class="px-6 py-4 text-center text-gray-500">
+                        No reports found.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

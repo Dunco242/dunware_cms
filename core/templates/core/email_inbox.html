@@ -1,0 +1,86 @@
+{% extends "core/base.html" %}
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <!-- Sidebar -->
+        <div class="col-md-3">
+            <div class="list-group">
+                <a href="{% url 'email_inbox' %}" class="list-group-item list-group-item-action active">
+                    Inbox
+                </a>
+                <a href="{% url 'email_sent' %}" class="list-group-item list-group-item-action">
+                    Sent Mail
+                </a>
+                <a href="{% url 'email_deleted' %}" class="list-group-item list-group-item-action">
+                    Deleted Mail
+                </a>
+                <a href="{% if latest_thread %}{% url 'email_thread' latest_thread.message_id %}{% else %}{% url 'compose_email' %}{% endif %}"
+                   class="list-group-item list-group-item-action">
+                    Email Threads
+                </a>
+
+                <a href="{% url 'email_account_list' %}" class="list-group-item list-group-item-action">
+                    Manage Email Accounts
+                </a>
+            </div>
+            <a href="{% url 'compose_email' %}" class="btn btn-primary btn-block mt-3">
+                Compose Email
+            </a>
+        </div>
+
+        <!-- Main Content -->
+        <div class="col-md-9">
+            <h2>Email Inbox</h2>
+
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>From</th>
+                        <th>Subject</th>
+                        <th>Date</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for email in emails %}
+                        <tr class="{% if not email.is_read %}font-weight-bold{% endif %}">
+                            <td>{{ email.from_email }}</td>
+                            <td>
+                                <a href="{% url 'view_email' email.message_id %}">
+                                    {{ email.subject }}
+                                </a>
+                            </td>
+                            <td>{{ email.created_at|date:"M d, Y H:i" }}</td>
+                            <td>
+                                {% if email.is_read %}
+                                    <span class="badge bg-success">Read</span>
+                                {% else %}
+                                    <span class="badge bg-warning">Unread</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="4" class="text-center">No emails found.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
+            {% if is_paginated %}
+                <div class="pagination">
+                    {% if page_obj.has_previous %}
+                        <a href="?page=1">&laquo; First</a>
+                        <a href="?page={{ page_obj.previous_page_number }}">Previous</a>
+                    {% endif %}
+                    <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+                    {% if page_obj.has_next %}
+                        <a href="?page={{ page_obj.next_page_number }}">Next</a>
+                        <a href="?page={{ page_obj.paginator.num_pages }}">Last &raquo;</a>
+                    {% endif %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

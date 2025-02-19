@@ -1,0 +1,149 @@
+{% extends 'customer_projects/base_projects.html' %}
+
+{% block extra_css %}
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+{% endblock %}
+
+{% block title %}Add Task | {{ block.super }}{% endblock %}
+
+{% block project_content %}
+<div class="container mt-4">
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <h1 class="h3 text-dark">Add Task to Phase: {{ phase.name }}</h1>
+            <hr>
+
+            <!-- Form Starts Here -->
+            <form method="post">
+                {% csrf_token %}
+
+                {% if messages %}
+                <div class="messages mb-3">
+                    {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }}">
+                        {{ message }}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <div class="row g-3">
+                    <!-- Title -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Task Title</label>
+                        {{ form.title }}
+                        {% if form.title.errors %}
+                            <div class="text-danger small">{{ form.title.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Status -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Status</label>
+                        {{ form.status }}
+                        {% if form.status.errors %}
+                            <div class="text-danger small">{{ form.status.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Priority -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Priority</label>
+                        {{ form.priority }}
+                        {% if form.priority.errors %}
+                            <div class="text-danger small">{{ form.priority.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Assigned To -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Assigned To</label>
+                        {{ form.assigned_to }}
+                        {% if form.assigned_to.errors %}
+                            <div class="text-danger small">{{ form.assigned_to.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Start Date -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Start Date</label>
+                        {{ form.start_date }}
+                        {% if form.start_date.errors %}
+                            <div class="text-danger small">{{ form.start_date.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Due Date -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Due Date</label>
+                        {{ form.due_date }}
+                        {% if form.due_date.errors %}
+                            <div class="text-danger small">{{ form.due_date.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Estimated Hours -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Estimated Hours</label>
+                        {{ form.estimated_hours }}
+                        {% if form.estimated_hours.errors %}
+                            <div class="text-danger small">{{ form.estimated_hours.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Dependencies -->
+                    <div class="col-md-12">
+                        <label class="form-label fw-bold">Dependencies</label>
+                        <select name="dependencies" class="form-control select2" multiple id="id_dependencies" data-placeholder="Select Dependencies">
+                            {% for task in form.fields.dependencies.queryset %}
+                                <option value="{{ task.id }}">{{ task.title }}</option>
+                            {% endfor %}
+                        </select>
+                        {% if form.dependencies.errors %}
+                            <div class="text-danger small">{{ form.dependencies.errors }}</div>
+                        {% endif %}
+                        <small class="text-muted">Hold Ctrl/Cmd to select multiple tasks or use the search box</small>
+                    </div>
+
+                    <!-- Description -->
+                    <div class="col-12">
+                        <label class="form-label fw-bold">Description</label>
+                        {{ form.description }}
+                        {% if form.description.errors %}
+                            <div class="text-danger small">{{ form.description.errors }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+                    <div class="col-md-12">
+                        <label class="form-label fw-bold">Status</label>
+                        {{ form.status }}
+                    </div>
+                <!-- Form Buttons -->
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-save"></i> Save Task
+                    </button>
+                    <a href="{% url 'customer_projects:task-list' phase.id %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-times"></i> Cancel
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+$(document).ready(function() {
+    $('.select2').select2({
+        width: '100%',
+        placeholder: "Select Dependencies",
+        allowClear: true,
+        theme: "classic"
+    });
+});
+</script>
+{% endblock %}

@@ -56,7 +56,21 @@ from .views import (
     #chat
     employee_list_api,
     # Other Views
-    IPStatisticsView
+    IPStatisticsView,
+
+    # Email
+    EmailInboxView, compose_email,
+    view_email,
+    reply_email,
+    email_account_create,
+    email_account_update,
+    email_account_delete,
+    email_account_list,
+    activate_email_account,
+    compose_email,
+    SentMailView,
+    DeletedMailView,
+    EmailThreadView
 )
 
 urlpatterns = [
@@ -198,8 +212,33 @@ urlpatterns = [
     path('chat/unread/', views.get_unread_count, name='get_unread_count'),
     path('chat/read/<int:session_id>/', views.mark_messages_read, name='mark_messages_read'),
     path('chat/employee-list/', views.employee_list_api, name='employee-list-api'),
+    path('ws/notifications/<int:employee_id>/', views.notifications_ws, name='notifications-ws'),
 
+    path('api/calendar/events/', views.user_calendar_events, name='user-calendar-events'),
+    path('api/task/update/', views.update_task_status, name='api-update-task'),
+    path('api/meeting/schedule/', views.schedule_meeting, name='api-schedule-meeting'),
+    path('api/event/update/', views.update_event, name='api-update-event'),
+    path('api/calendar/debug-items/', views.debug_calendar_items, name='debug-calendar-items'),
+
+    # Email URLs
+    path('inbox/', EmailInboxView.as_view(), name='email_inbox'),
+    path('sent/', SentMailView.as_view(), name='email_sent'),
+    path('deleted/', DeletedMailView.as_view(), name='email_deleted'),
+    path('thread/<str:message_id>/', EmailThreadView.as_view(), name='email_thread'),
+
+    path('compose/', compose_email, name='compose_email'),
+    path('view/<str:message_id>/', view_email, name='view_email'),
+    path('reply/<str:message_id>/', reply_email, name='reply_email'),
+
+    path('email-accounts/', email_account_list, name='email_account_list'),
+    path('email-accounts/create/', email_account_create, name='email_account_create'),
+    path('email-accounts/<int:pk>/update/', email_account_update, name='email_account_update'),
+    path('email-accounts/<int:pk>/delete/', email_account_delete, name='email_account_delete'),
+
+    path('email/activate/', activate_email_account, name='activate_email_account'),
 ]
+
+
 
 # Error Handlers
 handler404 = 'core.views.custom_404'
