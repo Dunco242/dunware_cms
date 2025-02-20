@@ -7,6 +7,7 @@ import tempfile
 import json
 import email
 import uuid
+import traceback
 import imaplib
 import smtplib
 from email.mime.text import MIMEText
@@ -20,9 +21,12 @@ from decimal import Decimal
 from core.mixins import EmployeeRequiredMixin
 
 
+
 # Django Core
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
+from django.contrib.contenttypes.models import ContentType
+
 from core.services.scheduling import SchedulingService
 from django.conf import settings
 from django.shortcuts import render, redirect, get_object_or_404
@@ -113,4 +117,11 @@ from .models import (
     EmailFolderMessage,
     EmailTracker,
     EmailProvider
+)
+
+from customer_projects.models import (
+    Project,
+    ProjectPhase,
+    ProjectTask,
+    ProjectComment,
 )

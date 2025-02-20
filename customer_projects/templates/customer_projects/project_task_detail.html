@@ -1,0 +1,120 @@
+{% extends 'customer_projects/base_projects.html' %}
+{% block title %}{{ task.title }} - Task Detail{% endblock %}
+
+{% block project_content %}
+<div class="container mt-4">
+    <div class="card shadow-sm">
+        <div class="card-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <h1 class="h3 mb-0">{{ task.title }}</h1>
+                {% if can_edit %}
+                <div class="btn-group">
+                    <a href="{% url 'customer_projects:task-update' task.id %}" class="btn btn-primary">
+                        <i class="fas fa-edit"></i> Edit Task
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+            <div class="text-muted">
+                Project: <a href="{% url 'customer_projects:project-detail' project.id %}">{{ project.name }}</a> |
+                Phase: {{ phase.name }}
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h5 class="text-muted">Status</h5>
+                    <p><span class="badge bg-{{ task.status|lower }}">{{ task.get_status_display }}</span></p>
+
+                    <h5 class="text-muted">Priority</h5>
+                    <p>{{ task.get_priority_display }}</p>
+
+                    <h5 class="text-muted">Assigned To</h5>
+                    <p>{{ task.assigned_to.get_full_name }}</p>
+                </div>
+
+                <div class="col-md-6">
+                    <h5 class="text-muted">Start Date</h5>
+                    <p>{{ task.start_date }}</p>
+
+                    <h5 class="text-muted">Due Date</h5>
+                    <p>{{ task.due_date }}</p>
+
+                    <h5 class="text-muted">Estimated Hours</h5>
+                    <p>{{ task.estimated_hours|default:"Not specified" }}</p>
+                </div>
+
+                <div class="col-12">
+                    <h5 class="text-muted">Description</h5>
+                    <p>{{ task.description|linebreaks }}</p>
+                </div>
+
+                {% if task.dependencies.exists %}
+                <div class="col-12">
+                    <h5 class="text-muted">Dependencies</h5>
+                    <ul class="list-group">
+                        {% for dependency in task.dependencies.all %}
+                        <li class="list-group-item">
+                            <a href="{% url 'customer_projects:task-detail' dependency.phase.id dependency.pk %}">
+                                {{ dependency.title }}
+                            </a>
+                            <span class="badge bg-{{ dependency.status|lower }} float-end">
+                                {{ dependency.get_status_display }}
+                            </span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+
+                <div class="col-12 mt-3">
+                    <h5 class="text-muted">Time Entries</h5>
+                    {% if time_entries %}
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Employee</th>
+                                    <th>Date</th>
+                                    <th>Hours</th>
+                                    <th>Description</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for entry in time_entries %}
+                                <tr>
+                                    <td>{{ entry.employee.get_full_name }}</td>
+                                    <td>{{ entry.date }}</td>
+                                    <td>{{ entry.hours }}</td>
+                                    <td>{{ entry.description }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    {% else %}
+                        <p>No time entries recorded.</p>
+                    {% endif %}
+                </div>
+
+                <div class="col-12 mt-3">
+                    <h5 class="text-muted">Comments</h5>
+                    {% if comments %}
+                        {% for comment in comments %}
+                            <div class="card mb-2">
+                                <div class="card-body">
+                                    <h6 class="card-subtitle mb-2 text-muted">
+                                        {{ comment.author.get_full_name }} -
+                                        {{ comment.created_at|date:"F d, Y H:i" }}
+                                    </h6>
+                                    <p class="card-text">{{ comment.text }}</p>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <p>No comments yet.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

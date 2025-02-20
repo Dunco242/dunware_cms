@@ -21,6 +21,7 @@ from django.core.exceptions import (
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.utils.decorators import method_decorator
 from django.views.decorators.http import require_http_methods
+from django.views.decorators.csrf import csrf_exempt
 from django.template.loader import render_to_string
 from django.contrib.contenttypes.models import ContentType
 
@@ -33,6 +34,12 @@ from .models import (
     Project, ProjectTeamMember, ProjectPhase, ProjectTask,
     ProjectDocument, ProjectRisk, TimeEntry, ProjectComment, ProjectReport
 )
+
+from core.models import Task
+from django.utils.text import slugify
+from django.db.utils import IntegrityError
+from django.contrib import messages
+from .models import Project
 
 # Local Forms
 from .forms import (
@@ -158,6 +165,14 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         # Get project phases with tasks
         phases = ProjectPhase.objects.filter(project=project).prefetch_related('tasks')
 
+        # Modify tasks context to include phase information
+        tasks = []
+        for phase in phases:
+            phase_tasks = phase.tasks.all()
+            for task in phase_tasks:
+                task.phase_id = phase.id  # Add phase_id to each task
+                tasks.append(task)
+
         # Calculate project metrics
         task_metrics = ProjectTask.objects.filter(phase__project=project).aggregate(
             total_tasks=Count('id'),
@@ -183,6 +198,7 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
 
         context.update({
             'phases': phases,
+            'tasks': tasks,  # Add tasks to context with phase_id
             'team_members': project.team_members.all(),
             'documents': project.documents.all().order_by('-upload_date')[:5],
             'risks': project.risks.all().order_by('-risk_level')[:5],
@@ -262,10 +278,6 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
             logger.error(f"Error adding comment: {str(e)}")
             return JsonResponse({'error': str(e)}, status=500)
 
-from django.utils.text import slugify
-from django.db.utils import IntegrityError
-from django.contrib import messages
-from .models import Project
 
 class ProjectCreateView(LoginRequiredMixin, CreateView):
     model = Project
@@ -595,27 +607,56 @@ class TaskCreateView(LoginRequiredMixin, CreateView):
 
 
 class TaskUpdateView(LoginRequiredMixin, UpdateView):
-    model = ProjectTask
-    form_class = ProjectTaskForm
+    model = None
     template_name = 'customer_projects/task_form.html'
+    form_class = ProjectTaskForm
 
     def dispatch(self, request, *args, **kwargs):
-        self.object = self.get_object()
-        self.project = self.object.phase.project
+        # Determine the model dynamically
+        pk = self.kwargs.get('pk')
+        try:
+            self.object = ProjectTask.objects.get(pk=pk)
+            self.model = ProjectTask
+            self.project = self.object.phase.project
+        except ProjectTask.DoesNotExist:
+            self.object = Task.objects.get(pk=pk)
+            self.model = Task
+            self.project = None
+
         return super().dispatch(request, *args, **kwargs)
+
+    def get_queryset(self):
+        employee = self.request.user.employee_profile
+        if self.model == ProjectTask:
+            return ProjectTask.objects.filter(
+                Q(phase__project__project_manager=employee) |
+                Q(phase__project__team_members=employee)
+            )
+        else:
+            return Task.objects.filter(
+                Q(assigned_to=employee) |
+                Q(created_by=employee)
+            )
+
+    def get_form_class(self):
+        if self.model == ProjectTask:
+            return ProjectTaskForm
+        else:
+            return TaskForm  # You'll need to import/create this form for generic tasks
 
     def get_form(self, form_class=None):
         form_class = self.get_form_class()
         form = form_class(**self.get_form_kwargs())
 
-        employees = Employee.objects.filter(is_active=True)
-        existing_tasks = ProjectTask.objects.filter(
-            phase__project=self.project
-        ).exclude(id=self.object.id)
+        if self.model == ProjectTask:
+            employees = Employee.objects.filter(is_active=True)
+            existing_tasks = ProjectTask.objects.filter(
+                phase__project=self.project
+            ).exclude(id=self.object.id)
 
-        form.fields['assigned_to'].queryset = employees
-        form.fields['assigned_to'].empty_label = "Select Employee"
-        form.fields['dependencies'].queryset = existing_tasks
+            form.fields['assigned_to'].queryset = employees
+            form.fields['assigned_to'].empty_label = "Select Employee"
+            form.fields['dependencies'].queryset = existing_tasks
 
         return form
 
@@ -624,13 +665,10 @@ class TaskUpdateView(LoginRequiredMixin, UpdateView):
             old_status = self.object.status
             response = super().form_valid(form)
 
-            # If task status has changed
-            if old_status != form.instance.status:
-                # Update phase progress
+            # If task is a project task and status changed
+            if self.model == ProjectTask and old_status != form.instance.status:
                 phase = self.object.phase
-                self.object.phase.calculate_progress(phase)
-
-                # Update project progress
+                self.calculate_phase_progress(phase)
                 self.calculate_project_progress(phase.project)
 
             messages.success(self.request, f"Task '{form.instance.title}' updated successfully.")
@@ -649,7 +687,6 @@ class TaskUpdateView(LoginRequiredMixin, UpdateView):
                 completed_tasks = phase_tasks.filter(status='done').count()
                 progress = int((completed_tasks / total_tasks) * 100)
 
-                # Update phase progress
                 phase.progress = progress
                 phase.save(update_fields=['progress'])
 
@@ -666,11 +703,9 @@ class TaskUpdateView(LoginRequiredMixin, UpdateView):
             if not phases.exists():
                 return 0
 
-            # Calculate average progress across all phases
             total_progress = sum(phase.progress for phase in phases)
             project_progress = int(total_progress / phases.count())
 
-            # Update project progress
             project.progress = project_progress
             project.save(update_fields=['progress'])
 
@@ -681,75 +716,114 @@ class TaskUpdateView(LoginRequiredMixin, UpdateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context.update({
-            'project': self.project,
-            'phase': self.object.phase
-        })
+        if self.model == ProjectTask:
+            context.update({
+                'project': self.project,
+                'phase': self.object.phase
+            })
         return context
 
     def get_success_url(self):
-        return reverse('customer_projects:task-list', kwargs={'phase_id': self.object.phase.id})
+        if self.model == ProjectTask:
+            return reverse('customer_projects:task-detail', kwargs={'pk': self.object.pk})
+        else:
+            return reverse('task-detail', kwargs={'pk': self.object.pk})
+
 
 class TaskDetailView(LoginRequiredMixin, DetailView):
     """
-    Detailed view of a project task
+    Detailed view for both generic and project-specific tasks
     """
-    model = ProjectTask
     template_name = 'customer_projects/task_detail.html'
     context_object_name = 'task'
 
     def get_queryset(self):
-        return ProjectTask.objects.filter(
-            Q(phase__project__project_manager=self.request.user.employee_profile) |
-            Q(phase__project__team_members=self.request.user.employee_profile)
+        """
+        Check and retrieve task from both Task and ProjectTask models
+        """
+        employee = self.request.user.employee_profile
+
+        # Try ProjectTask first
+        project_task_queryset = ProjectTask.objects.filter(
+            Q(phase__project__project_manager=employee) |
+            Q(phase__project__team_members=employee) |
+            Q(assigned_to=employee)
+        ).select_related(
+            'phase',
+            'phase__project',
+            'assigned_to',
+            'assigned_to__user'
         )
 
+        # Try generic Task
+        generic_task_queryset = Task.objects.filter(
+            Q(assigned_to=employee) |
+            Q(created_by=employee)
+        ).select_related(
+            'assigned_to',
+            'assigned_to__user'
+        )
+
+        return project_task_queryset | generic_task_queryset
+
+    def get_object(self, queryset=None):
+        """
+        Override get_object to try both Task and ProjectTask models
+        """
+        pk = self.kwargs.get('pk')
+
+        try:
+            # First, try to get a ProjectTask
+            return ProjectTask.objects.get(pk=pk)
+        except ProjectTask.DoesNotExist:
+            try:
+                # If not a ProjectTask, try a generic Task
+                return Task.objects.get(pk=pk)
+            except Task.DoesNotExist:
+                raise Http404("No task found matching the query")
+
     def get_context_data(self, **kwargs):
+        """
+        Add additional context based on task type
+        """
         context = super().get_context_data(**kwargs)
         task = self.get_object()
 
-        # Get time entries for this task
-        time_entries = TimeEntry.objects.filter(task=task).order_by('-date')
-        total_hours = time_entries.aggregate(total=Sum('hours'))['total'] or 0
+        if isinstance(task, ProjectTask):
+            # Project task specific context
+            context.update({
+                'project': task.phase.project,
+                'phase': task.phase,
+                'time_entries': TimeEntry.objects.filter(task=task),
+                'comments': ProjectComment.objects.filter(
+                    content_type__model='projecttask',
+                    object_id=task.id
+                ).select_related('author', 'author__user')
+            })
+        elif isinstance(task, Task):
+            # Generic task context
+            context.update({
+                'is_generic_task': True
+            })
 
-        # Get task dependencies
-        dependencies = task.dependencies.all()
-        dependent_tasks = task.dependent_tasks.all()
+        # Check edit permissions
+        employee = self.request.user.employee_profile
+        context['can_edit'] = (
+            (isinstance(task, ProjectTask) and
+             (task.phase.project.project_manager == employee or
+              employee in task.phase.project.team_members.all())) or
+            (isinstance(task, Task) and
+             (task.assigned_to == employee or task.created_by == employee))
+        )
 
-        context.update({
-            'time_entries': time_entries,
-            'total_hours': total_hours,
-            'dependencies': dependencies,
-            'dependent_tasks': dependent_tasks,
-            'comments': ProjectComment.objects.filter(
-                content_type__model='projecttask',
-                object_id=task.id
-            ).order_by('-created_at'),
-            'can_edit': self.request.user.employee_profile in [
-                task.phase.project.project_manager,
-                task.assigned_to
-            ]
-        })
+        # Determine update URL
+        if isinstance(task, ProjectTask):
+            context['update_url'] = reverse('customer_projects:task-update', kwargs={'pk': task.pk})
+        else:
+            context['update_url'] = reverse('task-update', kwargs={'pk': task.pk})
+
         return context
 
-    def post(self, request, *args, **kwargs):
-        """Handle status updates via POST"""
-        task = self.get_object()
-
-        if 'new_status' in request.POST:
-            try:
-                new_status = request.POST['new_status']
-                if new_status in dict(ProjectTask.STATUS_CHOICES):
-                    task.status = new_status
-                    task.save()
-                    messages.success(request, f"Task status updated to {task.get_status_display()}")
-                else:
-                    messages.error(request, "Invalid status value")
-            except Exception as e:
-                logger.error(f"Error updating task status: {str(e)}")
-                messages.error(request, "Error updating task status")
-
-        return redirect('customer_projects:task-detail', pk=task.pk)
 
 class TimeEntryCreateView(LoginRequiredMixin, CreateView):
     """
@@ -2057,26 +2131,29 @@ class TaskDeleteView(LoginRequiredMixin, DeleteView):
 
 
 @login_required
+@require_http_methods(["POST"])
 def update_phase_status(request, pk):
-    if request.method != 'POST':
-        return JsonResponse({'success': False, 'error': 'Method not allowed'}, status=405)
-
     try:
         phase = get_object_or_404(ProjectPhase, pk=pk)
 
-        # Verify permissions
-        if request.user.employee_profile != phase.project.project_manager:
-            return JsonResponse({'success': False, 'error': 'Permission denied'}, status=403)
-
         new_status = request.POST.get('status')
+
+        if not new_status:
+            return JsonResponse({
+                'success': False,
+                'error': 'Status is required'
+            }, status=400)
+
         if new_status not in dict(ProjectPhase.STATUS_CHOICES):
-            return JsonResponse({'success': False, 'error': 'Invalid status'}, status=400)
+            return JsonResponse({
+                'success': False,
+                'error': f'Invalid status. Choices are: {", ".join(dict(ProjectPhase.STATUS_CHOICES).keys())}'
+            }, status=400)
 
         old_status = phase.status
         phase.status = new_status
         phase.save()
 
-        # Calculate new progress
         progress = phase.calculate_progress()
 
         return JsonResponse({
@@ -2086,4 +2163,148 @@ def update_phase_status(request, pk):
         })
 
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+class ProjectTaskDetailView(LoginRequiredMixin, DetailView):
+    model = ProjectTask
+    template_name = 'customer_projects/project_task_detail.html'
+    context_object_name = 'task'
+
+    def get_queryset(self):
+        # Restrict access to tasks based on user permissions
+        return ProjectTask.objects.filter(
+            Q(phase__project__project_manager=self.request.user.employee_profile) |
+            Q(phase__project__team_members=self.request.user.employee_profile) |
+            Q(assigned_to=self.request.user.employee_profile)
+        ).select_related(
+            'phase',
+            'phase__project',
+            'assigned_to'
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        task = self.get_object()
+
+        context.update({
+            'project': task.phase.project,
+            'phase': task.phase,
+            'time_entries': TimeEntry.objects.filter(task=task),
+            'comments': ProjectComment.objects.filter(
+                content_type__model='projecttask',
+                object_id=task.id
+            ).select_related('author', 'author__user')
+        })
+        return context
+
+class ProjectTaskListView(LoginRequiredMixin, ListView):
+    """
+    List view for tasks specific to a project phase
+    """
+    model = ProjectTask
+    template_name = 'customer_projects/project_task_list.html'
+    context_object_name = 'tasks'
+    paginate_by = 10
+
+    def get_queryset(self):
+        """
+        Filter tasks based on the specific project phase
+        Restrict access to tasks user has permission to view
+        """
+        project_id = self.kwargs.get('project_id')
+        phase_id = self.kwargs.get('phase_id')
+
+        queryset = ProjectTask.objects.filter(
+            phase_id=phase_id,
+            phase__project_id=project_id
+        )
+
+        # Filter tasks the user can access
+        employee = self.request.user.employee_profile
+        queryset = queryset.filter(
+            Q(phase__project__project_manager=employee) |
+            Q(phase__project__team_members=employee) |
+            Q(assigned_to=employee)
+        ).distinct()
+
+        # Optional search and filtering
+        search_query = self.request.GET.get('search')
+        status = self.request.GET.get('status')
+        priority = self.request.GET.get('priority')
+
+        if search_query:
+            queryset = queryset.filter(
+                Q(title__icontains=search_query) |
+                Q(description__icontains=search_query)
+            )
+
+        if status:
+            queryset = queryset.filter(status=status)
+
+        if priority:
+            queryset = queryset.filter(priority=priority)
+
+        return queryset.select_related(
+            'phase',
+            'phase__project',
+            'assigned_to',
+            'assigned_to__user'
+        ).order_by('due_date')
+
+    def get_context_data(self, **kwargs):
+        """
+        Add additional context for the template
+        """
+        context = super().get_context_data(**kwargs)
+
+        # Get project and phase details
+        project_id = self.kwargs.get('project_id')
+        phase_id = self.kwargs.get('phase_id')
+
+        context['project'] = get_object_or_404(Project, id=project_id)
+        context['phase'] = get_object_or_404(ProjectPhase, id=phase_id)
+
+        # Add status and priority choices for filtering
+        context['status_choices'] = ProjectTask.STATUS_CHOICES
+        context['priority_choices'] = ProjectTask.PRIORITY_CHOICES
+
+        # Calculate summary statistics
+        tasks = context['tasks']
+        context['summary'] = {
+            'total_tasks': tasks.count(),
+            'completed_tasks': tasks.filter(status='completed').count(),
+            'in_progress_tasks': tasks.filter(status='in_progress').count(),
+            'pending_tasks': tasks.filter(status='pending').count(),
+        }
+
+        # Check if user has permission to create tasks in this phase
+        employee = self.request.user.employee_profile
+        context['can_create_task'] = (
+            context['project'].project_manager == employee or
+            employee in context['project'].team_members.all()
+        )
+
+        return context
+
+    def dispatch(self, request, *args, **kwargs):
+        """
+        Additional permission checks before rendering the view
+        """
+        project_id = kwargs.get('project_id')
+        phase_id = kwargs.get('phase_id')
+
+        project = get_object_or_404(Project, id=project_id)
+        phase = get_object_or_404(ProjectPhase, id=phase_id, project=project)
+
+        # Check if user has access to this project
+        employee = request.user.employee_profile
+        if (project.project_manager != employee and
+            employee not in project.team_members.all()):
+            messages.error(request, "You do not have permission to view tasks for this project.")
+            return redirect('customer_projects:project-list')
+
+        return super().dispatch(request, *args, **kwargs)

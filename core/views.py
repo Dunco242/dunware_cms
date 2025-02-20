@@ -553,11 +553,108 @@ class TaskListView(LoginRequiredMixin, ListView):
         return context
 
 class TaskDetailView(LoginRequiredMixin, DetailView):
-    model = Task
-    template_name = 'core/task_detail.html'
+    """
+    Detailed view of a project task
+    """
+    model = ProjectTask
+    template_name = 'customer_projects/task_detail.html'
     context_object_name = 'task'
 
-logger = logging.getLogger(__name__)
+    def get_queryset(self):
+        return ProjectTask.objects.filter(
+            Q(phase__project__project_manager=self.request.user.employee_profile) |
+            Q(phase__project__team_members=self.request.user.employee_profile) |
+            Q(assigned_to=self.request.user.employee_profile)  # Added this condition
+        ).select_related(  # Added select_related for better performance
+            'phase',
+            'phase__project',
+            'phase__project__project_manager',
+            'phase__project__customer',
+            'assigned_to',
+            'assigned_to__user'
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        task = self.get_object()
+
+        # Get time entries with optimized query
+        time_entries = TimeEntry.objects.filter(
+            task=task
+        ).select_related(
+            'employee',
+            'employee__user'
+        ).order_by('-date')
+
+        total_hours = time_entries.aggregate(total=Sum('hours'))['total'] or 0
+
+        # Get task dependencies with optimized queries
+        dependencies = task.dependencies.select_related(
+            'phase',
+            'phase__project',
+            'assigned_to'
+        ).all()
+
+        dependent_tasks = task.dependent_tasks.select_related(
+            'phase',
+            'phase__project',
+            'assigned_to'
+        ).all()
+
+        # Add project and phase to context
+        context.update({
+            'time_entries': time_entries,
+            'total_hours': total_hours,
+            'dependencies': dependencies,
+            'dependent_tasks': dependent_tasks,
+            'project': task.phase.project,  # Add project to context
+            'phase': task.phase,  # Add phase to context
+            'comments': ProjectComment.objects.filter(
+                content_type__model='projecttask',
+                object_id=task.id
+            ).select_related(  # Added select_related for comments
+                'author',
+                'author__user'
+            ).order_by('-created_at'),
+            'can_edit': self.request.user.employee_profile in [
+                task.phase.project.project_manager,
+                task.assigned_to
+            ]
+        })
+        return context
+
+    def post(self, request, *args, **kwargs):
+        """Handle status updates via POST"""
+        task = self.get_object()
+
+        if 'new_status' in request.POST:
+            try:
+                new_status = request.POST['new_status']
+                if new_status in dict(ProjectTask.STATUS_CHOICES):
+                    old_status = task.status
+                    task.status = new_status
+                    task.save()
+
+                    # Update phase progress when task status changes
+                    task.phase.calculate_progress()
+
+                    # Create a comment for the status change
+                    ProjectComment.objects.create(
+                        content_type=ContentType.objects.get_for_model(ProjectTask),
+                        object_id=task.id,
+                        author=request.user.employee_profile,
+                        text=f"Status changed from {old_status} to {new_status}"
+                    )
+
+                    messages.success(request, f"Task status updated to {task.get_status_display()}")
+                else:
+                    messages.error(request, "Invalid status value")
+            except Exception as e:
+                logger.error(f"Error updating task status: {str(e)}")
+                messages.error(request, "Error updating task status")
+
+        return redirect('customer_projects:task-detail', phase_id=task.phase.id, pk=task.pk)
+
 
 class TaskCreateView(LoginRequiredMixin, CreateView):
     model = Task
@@ -614,6 +711,7 @@ class TaskCreateView(LoginRequiredMixin, CreateView):
             logger.error(f"Unexpected error in task creation: {str(e)}")
             messages.error(self.request, f'An unexpected error occurred: {str(e)}')
             return self.form_invalid(form)
+
 
 class TaskUpdateView(LoginRequiredMixin, UpdateView):
     model = Task
@@ -949,43 +1047,77 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
         today = timezone.now().date()
 
         try:
-            # Get events where user is creator or attendee
-            events = Event.objects.filter(
-                Q(created_by=self.employee) |
-                Q(attendees=self.employee)
-            ).distinct().order_by('start_time')
+            # Get managed projects and team memberships
+            projects = Project.objects.filter(
+                Q(project_manager=self.employee) |
+                Q(team_members=self.employee)
+            ).distinct().select_related('customer', 'project_manager')
 
-            # Get tasks assigned to or created by the user
+            # Get project phases
+            phases = ProjectPhase.objects.filter(
+                project__in=projects,
+                end_date__gte=today
+            ).select_related('project', 'project__customer')
+
+            # Get project tasks
+            project_tasks = ProjectTask.objects.filter(
+                Q(assigned_to=self.employee) |
+                Q(phase__project__project_manager=self.employee)
+            ).filter(
+                status__in=['todo', 'in_progress', 'in_review'],
+                due_date__gte=today
+            ).select_related(
+                'phase',
+                'phase__project',
+                'phase__project__customer',
+                'assigned_to'
+            )
+
+            # Get regular tasks
             tasks = Task.objects.filter(
                 Q(assigned_to=self.employee) |
                 Q(created_by=self.employee)
             ).filter(
                 status__in=['pending', 'in_progress'],
                 due_date__gte=today
-            ).order_by('due_date')
+            ).select_related('customer', 'assigned_to')
 
-            # Get meetings where user is an organizer or attendee
+            # Get meetings
             meetings = Meeting.objects.filter(
                 Q(organizer=self.employee) |
                 Q(attendees=self.employee)
             ).filter(
                 start_time__gte=today
-            ).order_by('start_time')
+            ).select_related('customer').prefetch_related('attendees')
+
+            # Get events
+            events = Event.objects.filter(
+                Q(created_by=self.employee) |
+                Q(attendees=self.employee)
+            ).distinct().select_related('customer', 'created_by')
 
             context.update({
                 'events': events,
                 'tasks': tasks,
                 'meetings': meetings,
+                'projects': projects,
+                'phases': phases,
+                'project_tasks': project_tasks,
                 'today': today,
                 'is_personal_calendar': True,
             })
+
         except Exception as e:
             logger.error(f"Error getting calendar data: {str(e)}")
+            logger.error(traceback.format_exc())
             messages.error(self.request, 'Error loading calendar data.')
             context.update({
                 'events': [],
                 'tasks': [],
                 'meetings': [],
+                'projects': [],
+                'phases': [],
+                'project_tasks': [],
                 'today': today,
                 'is_personal_calendar': True,
             })
@@ -997,8 +1129,11 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
             return super().get(request, *args, **kwargs)
         except Exception as e:
             logger.error(f"Error in calendar view: {str(e)}")
+            logger.error(traceback.format_exc())
             messages.error(request, 'Error displaying calendar.')
             return redirect('dashboard')
+
+        return context
 
 @login_required
 def calendar_events(request):
@@ -1062,15 +1197,21 @@ def calendar_events(request):
                 events_list.append({
                     'id': f'task_{task.id}',
                     'title': f'Task: {task.title}',
-                    'start': task.due_date.isoformat(),
-                    'allDay': True,
-                    'className': f'task-priority-{task.priority}',
-                    'type': 'task',
-                    'url': f'/tasks/{task.id}/',
+                    'start': task.start_date.isoformat(),
+                    'end': task.due_date.isoformat(),
+                    'backgroundColor': '#f6c23e',
+                    'borderColor': '#f6c23e',
+                    'textColor': '#000000',
+                    'url': reverse('customer_projects:task-detail', kwargs={
+                        'phase_id': task.phase.id,
+                        'pk': task.id
+                    }),
                     'extendedProps': {
-                        'description': task.description,
+                        'type': 'task',
                         'status': task.get_status_display(),
-                        'priority': task.get_priority_display()
+                        'project': task.phase.project.name,
+                        'customer': task.phase.project.customer.company_name,
+                        'phase': task.phase.name
                     }
                 })
 
@@ -2104,10 +2245,37 @@ def upload_ics(request, customer_id):
 
     return render(request, 'core/upload_ics.html', {'form': form, 'customer': customer})
 
+
+@login_required
 def customer_calendar(request, customer_id):
-    customer = get_object_or_404(Customer, id=customer_id)
-    events = Event.objects.filter(customer=customer)
-    return render(request, 'core/customer_calendar.html', {'customer': customer, 'events': events})
+    try:
+        customer = get_object_or_404(Customer, id=customer_id)
+
+        # Get all related data
+        events = Event.objects.filter(customer=customer)
+        projects = Project.objects.filter(customer=customer)
+        phases = ProjectPhase.objects.filter(project__customer=customer)
+        project_tasks = ProjectTask.objects.filter(phase__project__customer=customer)
+        meetings = Meeting.objects.filter(customers=customer)
+        tasks = Task.objects.filter(customer=customer)
+
+        context = {
+            'customer': customer,
+            'events': events,
+            'projects': projects,
+            'phases': phases,
+            'project_tasks': project_tasks,
+            'meetings': meetings,
+            'tasks': tasks,
+            'today': timezone.now().date()
+        }
+
+        return render(request, 'core/customer_calendar.html', context)
+
+    except Exception as e:
+        logger.error(f"Error displaying customer calendar: {str(e)}")
+        messages.error(request, "Error loading calendar data.")
+        return redirect('customer-detail', pk=customer_id)
 
 
 # @login_required
@@ -2157,97 +2325,134 @@ def customer_calendar(request, customer_id):
 
 @login_required
 def user_calendar_events(request):
-    """
-    Unified calendar events endpoint that combines tasks, meetings, and events
-    """
     try:
         employee = request.user.employee_profile
-        events_data = []
+        events_list = []
 
-        # Get Tasks
-        tasks = Task.objects.filter(
-            Q(assigned_to=employee) | Q(created_by=employee)
-        ).select_related('customer')
+        # Add projects
+        projects = Project.objects.filter(
+            Q(project_manager=employee) |
+            Q(team_members=employee)
+        ).distinct().select_related('customer')
+
+        for project in projects:
+            events_list.append({
+                'id': f'project_{project.id}',
+                'title': f'Project: {project.name}',
+                'start': project.start_date.isoformat(),
+                'end': project.target_end_date.isoformat(),
+                'backgroundColor': '#4e73df',
+                'borderColor': '#4e73df',
+                'textColor': '#ffffff',
+                'url': reverse('customer_projects:project-detail', args=[project.id]),
+                'extendedProps': {
+                    'type': 'project',
+                    'status': project.get_status_display(),
+                    'customer': project.customer.company_name,
+                    'progress': f"{project.progress}%"
+                }
+            })
+
+        # Add phases
+        phases = ProjectPhase.objects.filter(
+            project__in=projects
+        ).select_related('project', 'project__customer')
+
+        for phase in phases:
+            events_list.append({
+                'id': f'phase_{phase.id}',
+                'title': f'Phase: {phase.name}',
+                'start': phase.start_date.isoformat(),
+                'end': phase.end_date.isoformat(),
+                'backgroundColor': '#1cc88a',
+                'borderColor': '#1cc88a',
+                'textColor': '#ffffff',
+                'url': reverse('customer_projects:phase-update', args=[phase.id]),
+                'extendedProps': {
+                    'type': 'phase',
+                    'status': phase.get_status_display(),
+                    'project': phase.project.name,
+                    'customer': phase.project.customer.company_name,
+                    'progress': f"{phase.progress}%"
+                }
+            })
+
+        # Add tasks
+        tasks = ProjectTask.objects.filter(
+            Q(assigned_to=employee) |
+            Q(phase__project__project_manager=employee)
+        ).select_related('phase', 'phase__project', 'phase__project__customer')
 
         for task in tasks:
-            if task.due_date:
-                start_time = datetime.combine(task.due_date, datetime.min.time())
-                end_time = datetime.combine(task.due_date, datetime.max.time())
+            events_list.append({
+                'id': f'task_{task.id}',
+                'title': f'Task: {task.title}',
+                'start': task.start_date.isoformat(),
+                'end': task.due_date.isoformat(),
+                'backgroundColor': '#f6c23e',
+                'borderColor': '#f6c23e',
+                'textColor': '#000000',
+                'url': reverse('customer_projects:task-detail', args=[task.id]),
+                'extendedProps': {
+                    'type': 'task',
+                    'status': task.get_status_display(),
+                    'project': task.phase.project.name,
+                    'customer': task.phase.project.customer.company_name,
+                    'phase': task.phase.name
+                }
+            })
 
-                events_data.append({
-                    'id': f'task_{task.id}',
-                    'title': f'Task: {task.title}',
-                    'start': start_time.isoformat(),
-                    'end': end_time.isoformat(),
-                    'backgroundColor': '#ff9f89',
-                    'borderColor': '#ff9f89',
-                    'textColor': '#ffffff',
-                    'url': reverse('task-detail', args=[task.id]),
-                    'extendedProps': {
-                        'type': 'task',
-                        'priority': task.priority,
-                        'status': task.status,
-                        'customer': task.customer.company_name if task.customer else None
-                    }
-                })
-
-        # Get Meetings
+        # Add meetings - Fixed select_related
         meetings = Meeting.objects.filter(
-            Q(organizer=employee) | Q(attendees=employee)
-        ).distinct().select_related('organizer')
+            Q(organizer=employee) |
+            Q(attendees=employee)
+        ).select_related('organizer').prefetch_related('customers')
 
         for meeting in meetings:
-            if meeting.start_time and meeting.end_time:
-                events_data.append({
-                    'id': f'meeting_{meeting.id}',
-                    'title': f'Meeting: {meeting.title}',
-                    'start': meeting.start_time.isoformat(),
-                    'end': meeting.end_time.isoformat(),
-                    'backgroundColor': '#4e73df',
-                    'borderColor': '#4e73df',
-                    'textColor': '#ffffff',
-                    'url': reverse('meeting-detail', args=[meeting.id]),
-                    'extendedProps': {
-                        'type': 'meeting',
-                        'meeting_type': meeting.meeting_type,
-                        'status': meeting.status,
-                        'location': meeting.location or ''
-                    }
-                })
+            events_list.append({
+                'id': f'meeting_{meeting.id}',
+                'title': f'Meeting: {meeting.title}',
+                'start': meeting.start_time.isoformat(),
+                'end': meeting.end_time.isoformat(),
+                'backgroundColor': '#e74a3b',
+                'borderColor': '#e74a3b',
+                'textColor': '#ffffff',
+                'url': reverse('meeting-detail', args=[meeting.id]),
+                'extendedProps': {
+                    'type': 'meeting',
+                    'status': meeting.status,
+                    'customer': meeting.customers.first().company_name if meeting.customers.exists() else None,
+                }
+            })
 
-        # Get Events
+        # Add events
         events = Event.objects.filter(
-            Q(created_by=employee) | Q(attendees=employee)
-        ).select_related('customer', 'created_by')
+            Q(created_by=employee) |
+            Q(attendees=employee)
+        ).select_related('created_by', 'customer')
 
         for event in events:
-            events_data.append({
+            events_list.append({
                 'id': f'event_{event.id}',
                 'title': event.title,
                 'start': event.start_time.isoformat(),
                 'end': event.end_time.isoformat(),
-                'backgroundColor': event.color or '#3788d8',
-                'borderColor': event.color or '#3788d8',
+                'backgroundColor': '#858796',
+                'borderColor': '#858796',
                 'textColor': '#ffffff',
                 'url': reverse('event-detail', args=[event.id]),
                 'extendedProps': {
                     'type': 'event',
-                    'customer': event.customer.company_name if event.customer else None,
-                    'description': event.description,
-                    'location': event.location
+                    'customer': event.customer.company_name if event.customer else None
                 }
             })
 
-        return JsonResponse(events_data, safe=False)
+        return JsonResponse(events_list, safe=False)
 
     except Exception as e:
-        logger.error(f"Calendar events error: {str(e)}", exc_info=True)
-        return JsonResponse({
-            'error': 'Error retrieving calendar events',
-            'details': str(e)
-        }, status=500)
-
-
+        logger.error(f"Error getting calendar events: {str(e)}")
+        logger.error(traceback.format_exc())
+        return JsonResponse({'error': str(e)}, status=500)
 
 @login_required
 def customer_calendar_events(request, customer_id):
@@ -2255,86 +2460,145 @@ def customer_calendar_events(request, customer_id):
         customer = get_object_or_404(Customer, id=customer_id)
         events = []
 
-        # Get tasks associated with this customer
+        # Get projects for this customer
+        projects = Project.objects.filter(customer=customer).select_related('project_manager', 'project_manager__user')
+        for project in projects:
+            events.append({
+                'id': f'project_{project.id}',
+                'title': f'Project: {project.name}',
+                'start': project.start_date.isoformat(),
+                'end': project.target_end_date.isoformat(),
+                'url': reverse('customer_projects:project-detail', args=[project.id]),
+                'backgroundColor': '#4e73df',
+                'borderColor': '#4e73df',
+                'textColor': '#ffffff',
+                'extendedProps': {
+                    'type': 'project',
+                    'icon': 'fa-project-diagram',
+                    'status': project.get_status_display(),
+                    'progress': f"{project.progress}%",
+                    'manager': project.project_manager.user.get_full_name() if project.project_manager else 'Unassigned'
+                }
+            })
+
+        # Get phases for all customer projects
+        phases = ProjectPhase.objects.filter(project__customer=customer).select_related('project')
+        for phase in phases:
+            events.append({
+                'id': f'phase_{phase.id}',
+                'title': f'Phase: {phase.name}',
+                'start': phase.start_date.isoformat(),
+                'end': phase.end_date.isoformat(),
+                'url': reverse('customer_projects:phase-update', args=[phase.id]),
+                'backgroundColor': '#1cc88a',
+                'borderColor': '#1cc88a',
+                'textColor': '#ffffff',
+                'extendedProps': {
+                    'type': 'phase',
+                    'icon': 'fa-tasks',
+                    'project': phase.project.name,
+                    'status': phase.get_status_display(),
+                    'progress': f"{phase.progress}%"
+                }
+            })
+
+        # Get project tasks
+        project_tasks = ProjectTask.objects.filter(
+            phase__project__customer=customer
+        ).select_related('assigned_to', 'assigned_to__user', 'phase', 'phase__project')
+
+        for task in project_tasks:
+            events.append({
+                'id': f'project_task_{task.id}',
+                'title': f'Task: {task.title}',
+                'start': task.start_date.isoformat(),
+                'end': task.due_date.isoformat(),
+                'url': reverse('customer_projects:task-detail', args=[task.id]),
+                'backgroundColor': '#f6c23e',
+                'borderColor': '#f6c23e',
+                'textColor': '#000000',
+                'extendedProps': {
+                    'type': 'project_task',
+                    'icon': 'fa-tasks',
+                    'status': task.get_status_display(),
+                    'project': task.phase.project.name,
+                    'phase': task.phase.name,
+                    'assigned_to': task.assigned_to.user.get_full_name() if task.assigned_to else 'Unassigned'
+                }
+            })
+
+        # Get regular tasks
         tasks = Task.objects.filter(customer=customer).select_related('assigned_to', 'assigned_to__user')
         for task in tasks:
             if task.due_date:
-                try:
-                    events.append({
-                        'id': f'task_{task.id}',
-                        'title': task.title,
-                        'start': task.due_date.isoformat(),
-                        'end': task.due_date.isoformat(),
-                        'url': reverse('task-detail', args=[task.id]),
-                        'backgroundColor': '#ff9f89',
-                        'borderColor': '#ff9f89',
-                        'extendedProps': {
-                            'icon': 'fa-tasks',
-                            'assigned_to': task.assigned_to.user.get_full_name() if task.assigned_to else 'Unassigned'
-                        }
-                    })
-                except Exception as task_error:
-                    print(f"Error processing task {task.id}: {task_error}")
+                events.append({
+                    'id': f'task_{task.id}',
+                    'title': f'Regular Task: {task.title}',
+                    'start': task.due_date.isoformat(),
+                    'end': task.due_date.isoformat(),
+                    'url': reverse('task-detail', args=[task.id]),
+                    'backgroundColor': '#36b9cc',
+                    'borderColor': '#36b9cc',
+                    'textColor': '#ffffff',
+                    'extendedProps': {
+                        'type': 'task',
+                        'icon': 'fa-tasks',
+                        'status': task.get_status_display(),
+                        'assigned_to': task.assigned_to.user.get_full_name() if task.assigned_to else 'Unassigned'
+                    }
+                })
 
-        # Get meetings for this customer
+        # Get meetings
         meetings = Meeting.objects.filter(customers=customer).prefetch_related('attendees', 'attendees__user')
         for meeting in meetings:
             if meeting.start_time:
-                try:
-                    # Add explicit null checks and default times if needed
-                    start_time = meeting.start_time.isoformat() if meeting.start_time else None
-                    end_time = meeting.end_time.isoformat() if meeting.end_time else start_time
-
-                    if start_time:
-                        events.append({
-                            'id': f'meeting_{meeting.id}',
-                            'title': meeting.title,
-                            'start': start_time,
-                            'end': end_time,
-                            'url': reverse('meeting-detail', args=[meeting.id]),
-                            'backgroundColor': '#4e73df',
-                            'borderColor': '#4e73df',
-                            'extendedProps': {
-                                'icon': 'fa-video',
-                                'attendees': ', '.join([attendee.user.get_full_name() for attendee in meeting.attendees.all()])
-                            }
-                        })
-                except Exception as meeting_error:
-                    print(f"Error processing meeting {meeting.id}: {meeting_error}")
+                start_time = meeting.start_time.isoformat()
+                end_time = meeting.end_time.isoformat() if meeting.end_time else start_time
+                events.append({
+                    'id': f'meeting_{meeting.id}',
+                    'title': f'Meeting: {meeting.title}',
+                    'start': start_time,
+                    'end': end_time,
+                    'url': reverse('meeting-detail', args=[meeting.id]),
+                    'backgroundColor': '#e74a3b',
+                    'borderColor': '#e74a3b',
+                    'textColor': '#ffffff',
+                    'extendedProps': {
+                        'type': 'meeting',
+                        'icon': 'fa-video',
+                        'meeting_type': meeting.get_meeting_type_display(),
+                        'attendees': ', '.join([attendee.user.get_full_name() for attendee in meeting.attendees.all()])
+                    }
+                })
 
         # Add customer events
         customer_events = Event.objects.filter(customer=customer).select_related('created_by', 'created_by__user')
         for event in customer_events:
-            try:
-                # Add explicit null checks and default times if needed
-                start_time = event.start_time.isoformat() if event.start_time else None
+            if event.start_time:
+                start_time = event.start_time.isoformat()
                 end_time = event.end_time.isoformat() if event.end_time else start_time
+                events.append({
+                    'id': f'event_{event.id}',
+                    'title': f'Event: {event.title}',
+                    'start': start_time,
+                    'end': end_time,
+                    'backgroundColor': '#858796',
+                    'borderColor': '#858796',
+                    'textColor': '#ffffff',
+                    'extendedProps': {
+                        'type': 'event',
+                        'icon': 'fa-calendar',
+                        'event_type': event.event_type,
+                        'created_by': event.created_by.user.get_full_name() if event.created_by else 'Unknown'
+                    }
+                })
 
-                if start_time:
-                    events.append({
-                        'id': f'event_{event.id}',
-                        'title': event.title,
-                        'start': start_time,
-                        'end': end_time,
-                        'backgroundColor': event.color,
-                        'borderColor': event.color,
-                        'extendedProps': {
-                            'icon': 'fa-calendar',
-                            'type': event.event_type,
-                            'created_by': event.created_by.user.get_full_name() if event.created_by else 'Unknown'
-                        }
-                    })
-            except Exception as event_error:
-                print(f"Error processing event {event.id}: {event_error}")
-
-        print(f"Returning {len(events)} total events")
         return JsonResponse(events, safe=False)
 
     except Exception as e:
-        print(f"Error in customer_calendar_events: {str(e)}")
-        print(traceback.format_exc())
+        logger.error(f"Error in customer_calendar_events: {str(e)}")
+        logger.error(traceback.format_exc())
         return JsonResponse({'error': str(e)}, status=500)
-        print(json.dumps(events, indent=2))
 
 
 @login_required

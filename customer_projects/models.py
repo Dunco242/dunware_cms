@@ -8,6 +8,15 @@ from core.models import Customer, Employee
 import uuid
 from django.urls import reverse
 from slugify import slugify
+from django.apps import apps
+
+
+def get_customer_model():
+    return apps.get_model('core', 'Customer')
+
+def get_employee_model():
+    return apps.get_model('core', 'Employee')
+
 
 class Project(models.Model):
     """
@@ -32,7 +41,7 @@ class Project(models.Model):
     # Basic Information
     name = models.CharField(max_length=200, unique=True)
     description = models.TextField()
-    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='projects')
+    customer = models.ForeignKey('core.Customer', on_delete=models.CASCADE, related_name='projects')
 
     # Project Details
     project_code = models.CharField(max_length=20, unique=True, editable=False)
@@ -45,8 +54,8 @@ class Project(models.Model):
     actual_end_date = models.DateField(null=True, blank=True)
 
     # Management
-    project_manager = models.ForeignKey(Employee, on_delete=models.SET_NULL, null=True, related_name='managed_projects')
-    team_members = models.ManyToManyField(Employee, through='ProjectTeamMember', related_name='project_assignments')
+    project_manager = models.ForeignKey('core.Employee', on_delete=models.SET_NULL, null=True, related_name='managed_projects')
+    team_members = models.ManyToManyField('core.Employee', through='ProjectTeamMember', related_name='project_assignments')
 
     # Budget & Financials
     budget = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
@@ -126,7 +135,7 @@ class ProjectTeamMember(models.Model):
     ]
 
     project = models.ForeignKey(Project, on_delete=models.CASCADE)
-    employee = models.ForeignKey(Employee, on_delete=models.CASCADE)
+    employee = models.ForeignKey('core.Employee', on_delete=models.CASCADE)
     role = models.CharField(max_length=20, choices=ROLE_CHOICES)
     allocation_percentage = models.IntegerField(default=100, validators=[MinValueValidator(0), MaxValueValidator(100)])
 
@@ -214,7 +223,7 @@ class ProjectTask(models.Model):
     description = models.TextField(blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='todo')
     priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='medium')
-    assigned_to = models.ForeignKey(Employee, on_delete=models.SET_NULL, null=True, related_name='project_tasks')
+    assigned_to = models.ForeignKey('core.Employee', on_delete=models.SET_NULL, null=True, related_name='project_tasks')
     start_date = models.DateField()
     due_date = models.DateField()
     estimated_hours = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)

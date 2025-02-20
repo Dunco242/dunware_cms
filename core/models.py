@@ -2,6 +2,7 @@
 
 from django.db import models, transaction
 from django.contrib.auth.models import User
+from .mixins import ProjectDatesMixin
 from django.urls import reverse
 from django.utils import timezone
 from zoom_integration.models import ZoomMeeting
@@ -24,7 +25,8 @@ import logging
 logger = logging.getLogger(__name__)
 
 class Employee(models.Model):
-    # Carrier choices with proper documentation
+    """Employee model with enhanced validations and relationships"""
+
     CARRIER_CHOICES = [
         ('att', 'AT&T'),
         ('tmobile', 'T-Mobile'),
@@ -36,14 +38,12 @@ class Employee(models.Model):
         ('virgin', 'Virgin Mobile'),
     ]
 
-    # User relationship with cascade protection
     user = models.OneToOneField(
         User,
         on_delete=models.CASCADE,
         related_name='employee_profile'
     )
 
-    # Improved validators for employee_id
     employee_id = models.CharField(
         max_length=10,
         unique=True,
@@ -56,7 +56,6 @@ class Employee(models.Model):
         ]
     )
 
-    # Department with choices
     DEPARTMENT_CHOICES = [
         ('general', 'General'),
         ('sales', 'Sales'),
@@ -73,7 +72,6 @@ class Employee(models.Model):
         default='general'
     )
 
-    # Position with choices
     POSITION_CHOICES = [
         ('unassigned', 'Unassigned'),
         ('junior', 'Junior'),
@@ -89,10 +87,9 @@ class Employee(models.Model):
         default='unassigned'
     )
 
-    # Phone number with validation
     phone_regex = RegexValidator(
         regex=r'^\(\d{3}\)\d{3}-\d{4}$',
-        message="Phone number must be entered in the format: '+999999999'. Up to 15 digits allowed."
+        message="Phone number must be entered in the format: '(999)999-9999'"
     )
 
     phone = models.CharField(
@@ -109,7 +106,6 @@ class Employee(models.Model):
         help_text="Mobile carrier for SMS notifications"
     )
 
-    # Date fields with validation
     hire_date = models.DateField(
         null=True,
         blank=True,
@@ -122,9 +118,7 @@ class Employee(models.Model):
         help_text="Employee termination date"
     )
 
-    # File handling with validation
     def profile_picture_path(instance, filename):
-        # Generate path like 'employee_photos/YYYY/MM/employee_id_filename'
         ext = filename.split('.')[-1]
         new_filename = f"{instance.employee_id}_{timezone.now().strftime('%Y%m%d_%H%M%S')}.{ext}"
         return f'employee_photos/{timezone.now().year}/{timezone.now().month}/{new_filename}'
@@ -136,13 +130,11 @@ class Employee(models.Model):
         help_text="Employee profile picture"
     )
 
-    # Status tracking
     is_active = models.BooleanField(
         default=True,
         help_text="Whether this employee is currently active"
     )
 
-    # Metadata fields
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -164,7 +156,6 @@ class Employee(models.Model):
 
     def clean(self):
         """Validate employee data"""
-        # Validate dates
         if self.hire_date and self.hire_date > timezone.now().date():
             raise ValidationError({'hire_date': 'Hire date cannot be in the future'})
 
@@ -178,73 +169,13 @@ class Employee(models.Model):
                     'termination_date': 'Termination date cannot be before hire date'
                 })
 
-        # Validate phone and carrier consistency
         if bool(self.phone) != bool(self.carrier):
-            raise ValidationError(
-                'Both phone number and carrier must be provided together'
-            )
+            raise ValidationError('Both phone number and carrier must be provided together')
 
-    def save(self, *args, **kwargs):
-        """Override save to handle status changes"""
-        self.full_clean()
-
-        # Handle termination
-        if self.termination_date and self.termination_date <= timezone.now().date():
-            self.is_active = False
-            # Deactivate user account
-            if self.user.is_active:
-                self.user.is_active = False
-                self.user.save()
-
-        super().save(*args, **kwargs)
-
-    def get_absolute_url(self):
-        """Get URL for employee detail view"""
-        from django.urls import reverse
-        return reverse('employee-detail', kwargs={'pk': self.pk})
-
-    def get_full_name(self):
-        """Get employee's full name"""
-        return self.user.get_full_name()
-
-    def get_email(self):
-        """Get employee's email"""
-        return self.user.email
-
-    @property
-    def employment_duration(self):
-        """Calculate employment duration"""
-        if not self.hire_date:
-            return None
-
-        end_date = self.termination_date or timezone.now().date()
-        return end_date - self.hire_date
-
-    def get_department_display(self):
-        """Get display value for department"""
-        return dict(self.DEPARTMENT_CHOICES).get(self.department, self.department)
-
-    def get_position_display(self):
-        """Get display value for position"""
-        return dict(self.POSITION_CHOICES).get(self.position, self.position)
-
-    def save(self, *args, **kwargs):
-        """
-        Ensure each employee has an associated email account upon creation.
-        """
-        is_new = self.pk is None
-        super().save(*args, **kwargs)
-
-        if is_new:
-            with transaction.atomic():
-                EmailAccount.objects.create(employee=self, email_address=self.user.email)
-
-
-class Customer(models.Model):
+class Customer(ProjectDatesMixin, models.Model):
     """
     Customer model with improved validation and relationship handling
     """
-
     CUSTOMER_STATUS = [
         ('active', 'Active'),
         ('inactive', 'Inactive'),
@@ -284,8 +215,9 @@ class Customer(models.Model):
 
     phone_regex = RegexValidator(
         regex=r'^\(\d{3}\)\d{3}-\d{4}$',
-        message="Phone number must be entered in the format: '+999999999'. Up to 15 digits allowed."
+        message="Phone number must be entered in the format: '(999)999-9999'"
     )
+
     phone = models.CharField(
         validators=[phone_regex],
         max_length=17,
@@ -374,84 +306,17 @@ class Customer(models.Model):
             models.Index(fields=['status', 'assigned_to']),
             models.Index(fields=['created_at']),
         ]
-        permissions = [
-            ("can_view_customer_details", "Can view customer details"),
-            ("can_edit_customer", "Can edit customer information"),
-            ("can_assign_customer", "Can assign customer to employee"),
-        ]
 
     def __str__(self):
         return self.company_name
 
-    def clean(self):
-        """Validate customer data"""
-        # Ensure website starts with http:// or https://
-        if self.website and not (self.website.startswith('http://') or self.website.startswith('https://')):
-            self.website = 'https://' + self.website
-
-        # Validate status transitions
-        if self.pk:  # If this is an existing customer
-            old_instance = Customer.objects.get(pk=self.pk)
-            if old_instance.status == 'archived' and self.status != 'archived':
-                raise ValidationError("Cannot reactivate an archived customer")
-
-        # Validate assignment
-        if self.assigned_to and not self.assigned_to.is_active:
-            raise ValidationError({
-                'assigned_to': 'Cannot assign customer to inactive employee'
-            })
-
-    def save(self, *args, **kwargs):
-        """Override save for additional processing"""
-        self.full_clean()
-
-        # Update last_contact_date if status changes to active
-        if self.pk:
-            old_instance = Customer.objects.get(pk=self.pk)
-            if old_instance.status != 'active' and self.status == 'active':
-                self.last_contact_date = timezone.now()
-
-        super().save(*args, **kwargs)
-
     def get_absolute_url(self):
-        """Get URL for customer detail view"""
         return reverse('customer-detail', kwargs={'pk': self.pk})
 
     def get_full_address(self):
         """Get formatted full address"""
         return f"{self.address}, {self.city}, {self.state} {self.zip_code}"
 
-    def get_open_tasks(self):
-        """Get all open tasks for this customer"""
-        return self.tasks.filter(status__in=['pending', 'in_progress'])
-
-    def get_upcoming_meetings(self):
-        """Get upcoming meetings for this customer"""
-        return self.meetings.filter(start_time__gt=timezone.now())
-
-    def get_active_subscriptions(self):
-        """Get active service subscriptions"""
-        return self.service_subscriptions.filter(status='active')
-
-    def update_last_contact(self):
-        """Update last contact date"""
-        self.last_contact_date = timezone.now()
-        self.save(update_fields=['last_contact_date', 'updated_at'])
-
-    def get_other_participant(self, user):
-        return self.participants.exclude(id=user.id).first()
-
-    @property
-    def is_active(self):
-        """Check if customer is active"""
-        return self.status == 'active'
-
-    @property
-    def days_since_last_contact(self):
-        """Calculate days since last contact"""
-        if not self.last_contact_date:
-            return None
-        return (timezone.now() - self.last_contact_date).days
 
 
 class Lead(models.Model):

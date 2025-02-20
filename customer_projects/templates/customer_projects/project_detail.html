@@ -42,6 +42,55 @@
                 </div>
             </div>
 
+            <div class="row mt-4">
+                <div class="col-md-6 mb-3">
+                    <div class="card">
+                        <div class="card-header bg-light">
+                            <h2 class="h5 mb-0">Task Metrics</h2>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-4">
+                                    <strong>Total Tasks</strong>
+                                    <p class="h4">{{ task_metrics.total_tasks|default:0 }}</p>
+                                </div>
+                                <div class="col-4">
+                                    <strong>Completed</strong>
+                                    <p class="h4">{{ task_metrics.completed_tasks|default:0 }}</p>
+                                </div>
+                                <div class="col-4">
+                                    <strong>Overdue</strong>
+                                    <p class="h4">{{ task_metrics.overdue_tasks|default:0 }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <div class="card">
+                        <div class="card-header bg-light">
+                            <h2 class="h5 mb-0">Time Metrics</h2>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-4">
+                                    <strong>Total Hours</strong>
+                                    <p class="h4">{{ time_metrics.total_hours|floatformat:1|default:0 }}</p>
+                                </div>
+                                <div class="col-4">
+                                    <strong>Billable</strong>
+                                    <p class="h4">{{ time_metrics.billable_hours|floatformat:1|default:0 }}</p>
+                                </div>
+                                <div class="col-4">
+                                    <strong>Non-Billable</strong>
+                                    <p class="h4">{{ time_metrics.non_billable_hours|floatformat:1|default:0 }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="card mt-4">
                 <div class="card-header bg-light">
                     <h2 class="h5 mb-0">Project Phases</h2>
@@ -87,7 +136,7 @@
                                                class="btn btn-sm btn-outline-primary">
                                                 <i class="fas fa-edit"></i>
                                             </a>
-                                            <a href="{% url 'customer_projects:task-list' phase.id %}"
+                                            <a href="{% url 'customer_projects:phase-task-list' phase_id=phase.id %}"
                                                class="btn btn-sm btn-outline-secondary">
                                                 <i class="fas fa-tasks"></i>
                                             </a>
@@ -110,6 +159,61 @@
                            class="btn btn-success">
                             <i class="fas fa-plus me-2"></i>Add New Phase
                         </a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mt-4">
+                <div class="card-header bg-light">
+                    <h2 class="h5 mb-0">Project Tasks</h2>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Task</th>
+                                    <th>Phase</th>
+                                    <th>Status</th>
+                                    <th>Assigned To</th>
+                                    <th>Due Date</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for task in tasks %}
+                                <tr>
+                                    <td>
+                                        <a href="{% url 'customer_projects:task-detail' pk=task.pk %}">
+                                            {{ task.title }}
+                                        </a>
+                                    </td>
+                                    <td>{{ task.phase.name }}</td>
+                                    <td>
+                                        <span class="badge bg-{{ task.status|lower }}">
+                                            {{ task.get_status_display }}
+                                        </span>
+                                    </td>
+                                    <td>{{ task.assigned_to.get_full_name }}</td>
+                                    <td>{{ task.due_date|date:"M d, Y" }}</td>
+                                    <td>
+                                        <div class="btn-group">
+                                            <a href="{% url 'customer_projects:task-detail' pk=task.pk %}"
+                                               class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted">
+                                        No tasks found for this project.
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>

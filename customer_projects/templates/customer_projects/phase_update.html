@@ -21,7 +21,7 @@
             </div>
             <hr>
 
-            <form method="post">
+            <form method="post" id="phaseForm">
                 {% csrf_token %}
 
                 {% if form.non_field_errors %}
@@ -39,6 +39,18 @@
                         {% if form.name.errors %}
                         <div class="text-danger small">
                             {% for error in form.name.errors %}
+                                {{ error }}
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Status</label>
+                        {{ form.status }}
+                        {% if form.status.errors %}
+                        <div class="text-danger small">
+                            {% for error in form.status.errors %}
                                 {{ error }}
                             {% endfor %}
                         </div>
@@ -93,71 +105,101 @@
             </form>
         </div>
     </div>
+
+    <!-- Progress Information -->
+    <div class="card shadow-sm mt-4">
+        <div class="card-body">
+            <h5 class="card-title">Progress</h5>
+            <div class="progress">
+                <div class="progress-bar" role="progressbar"
+                     style="width: {{ form.instance.progress }}%"
+                     aria-valuenow="{{ form.instance.progress }}"
+                     aria-valuemin="0"
+                     aria-valuemax="100">
+                    {{ form.instance.progress }}%
+                </div>
+            </div>
+            <small class="progress-text text-muted mt-2">Current Progress: {{ form.instance.progress }}%</small>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    const statusSelect = document.getElementById('id_status');
-    const progressBar = document.querySelector('.progress-bar');
-    const progressText = document.querySelector('.progress-text');
-    const spinner = document.getElementById('statusUpdateSpinner');
+    document.addEventListener('DOMContentLoaded', function() {
+        const statusSelect = document.getElementById('id_status');
+        const progressBar = document.querySelector('.progress-bar');
+        const progressText = document.querySelector('.progress-text');
+        const spinner = document.getElementById('statusUpdateSpinner');
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
 
-    if (statusSelect) {
-        statusSelect.addEventListener('change', function() {
-            const phaseId = window.location.pathname.split('/')[2]; // Adjust based on your URL structure
-            const newStatus = this.value;
+        if (statusSelect) {
+            statusSelect.dataset.previousValue = statusSelect.value;
 
-            spinner.classList.remove('d-none');
+            statusSelect.addEventListener('change', function() {
+                const pathParts = window.location.pathname.split('/');
+                const phaseId = pathParts[pathParts.indexOf('phases') + 1];
+                const newStatus = this.value;
 
-            fetch(`/customer-projects/phases/${phaseId}/update-status/`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-                },
-                body: JSON.stringify({
-                    status: newStatus
+                spinner.classList.remove('d-none');
+
+                fetch(`/customer-projects/api/phases/${phaseId}/update-status/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken,
+                    },
+                    credentials: 'same-origin',
+                    body: new URLSearchParams({
+                        'status': newStatus
+                    })
                 })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    // Update progress if provided
-                    if (data.progress !== undefined) {
-                        if (progressBar) progressBar.style.width = `${data.progress}%`;
-                        if (progressText) progressText.textContent = `${data.progress}%`;
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
                     }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success) {
+                        if (progressBar) {
+                            progressBar.style.width = `${data.progress}%`;
+                            progressBar.setAttribute('aria-valuenow', data.progress);
+                            progressBar.textContent = `${data.progress}%`;
+                        }
+                        if (progressText) {
+                            progressText.textContent = `Current Progress: ${data.progress}%`;
+                        }
 
-                    // Show success message
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Status Updated',
+                            toast: true,
+                            position: 'top-end',
+                            showConfirmButton: false,
+                            timer: 3000
+                        });
+
+                        this.dataset.previousValue = newStatus;
+                    } else {
+                        throw new Error(data.error || 'Failed to update status');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    this.value = this.dataset.previousValue;
+
                     Swal.fire({
-                        icon: 'success',
-                        title: 'Status Updated',
-                        toast: true,
-                        position: 'top-end',
-                        showConfirmButton: false,
-                        timer: 3000
+                        icon: 'error',
+                        title: 'Error',
+                        text: error.message
                     });
-                } else {
-                    throw new Error(data.error || 'Failed to update status');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Error',
-                    text: error.message
+                })
+                .finally(() => {
+                    spinner.classList.add('d-none');
                 });
-                this.value = this.dataset.previousValue;
-            })
-            .finally(() => {
-                spinner.classList.add('d-none');
             });
-
-            this.dataset.previousValue = newStatus;
-        });
-    }
-});</script>
+        }
+    });
+    </script>
 {% endblock %}

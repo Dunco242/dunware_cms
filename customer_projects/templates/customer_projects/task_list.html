@@ -8,8 +8,7 @@
         <div class="card-header bg-white">
             <div class="d-flex justify-content-between align-items-center">
                 <h1 class="h3 text-dark mb-0">Tasks</h1>
-                <a href="{% url 'customer_projects:task-create' phase.id %}"
-                   class="btn btn-primary">
+                <a href="{% url 'customer_projects:task-create' phase_id=phase.id %}" class="btn btn-primary">
                     <i class="fas fa-plus me-2"></i> New Task
                 </a>
             </div>

@@ -2,7 +2,8 @@ from django.urls import path
 from . import views
 from .views import (
     RiskCreateView, TeamListView, RiskListView, DocumentFormView,
-    PhaseListView, PhaseCreateView, PhaseUpdateView, PhaseDeleteView
+    PhaseListView, PhaseCreateView, PhaseUpdateView, PhaseDeleteView,
+    ProjectTaskDetailView  # Add this import
 )
 
 app_name = 'customer_projects'
@@ -35,23 +36,32 @@ urlpatterns = [
     path('phases/<int:pk>/delete/', PhaseDeleteView.as_view(), name='phase-delete'),
 
     # Task Management
-    path('phases/<int:phase_id>/tasks/', views.TaskListView.as_view(), name='task-list'),
-    path('phases/<int:phase_id>/tasks/create/', views.TaskCreateView.as_view(), name='task-create'),
+    # Generic task URLs
+    path('tasks/', views.TaskListView.as_view(), name='task-list'),
     path('tasks/<int:pk>/', views.TaskDetailView.as_view(), name='task-detail'),
-    path('tasks/<int:pk>/update/', views.TaskUpdateView.as_view(), name='task-update'),  # Added
-    path('tasks/<int:pk>/delete/', views.TaskDeleteView.as_view(), name='task-delete'),  # Added
+
+    # Project-specific task URLs
+    path('projects/<int:project_id>/phases/<int:phase_id>/tasks/', views.ProjectTaskListView.as_view(), name='project-task-list'),
+    path('projects/<int:project_id>/phases/<int:phase_id>/tasks/<int:pk>/', ProjectTaskDetailView.as_view(), name='project-task-detail'),
+
+    # Existing task management paths
+    path('phases/<int:phase_id>/tasks/', views.TaskListView.as_view(), name='phase-task-list'),
+    path('phases/<int:phase_id>/tasks/create/', views.TaskCreateView.as_view(), name='task-create'),
+    path('phases/<int:phase_id>/tasks/<int:pk>/', views.TaskDetailView.as_view(), name='phase-task-detail'),
+    path('tasks/<int:pk>/update/', views.TaskUpdateView.as_view(), name='task-update'),
+    path('tasks/<int:pk>/delete/', views.TaskDeleteView.as_view(), name='task-delete'),
     path('tasks/update-status/', views.update_task_status, name='task-status-update'),
 
     # Time Tracking
     path('tasks/<int:task_id>/time-entry/', views.time_entry_create, name='time-entry-create'),
-    path('time-entries/<int:pk>/update/', views.TimeEntryUpdateView.as_view(), name='time-entry-update'),  # Added
+    path('time-entries/<int:pk>/update/', views.TimeEntryUpdateView.as_view(), name='time-entry-update'),
 
     # Document Management
     path('projects/<int:project_id>/documents/', views.DocumentListView.as_view(), name='document-list'),
     path('projects/<int:project_id>/documents/upload/', views.DocumentUploadView.as_view(), name='document-upload'),
     path('projects/<int:project_id>/documents/bulk-upload/', views.bulk_document_upload, name='bulk-document-upload'),
     path('projects/<int:project_id>/documents/upload/', DocumentFormView.as_view(), name='document-form'),
-    path('documents/<int:document_id>/download/', views.document_download, name='document-download'),  # Added
+    path('documents/<int:document_id>/download/', views.document_download, name='document-download'),
 
     # Risk Management
     path('projects/<int:project_id>/risks/', views.RiskListView.as_view(), name='risk-list'),
@@ -65,10 +75,11 @@ urlpatterns = [
 
     # Comments
     path('projects/<int:project_id>/comment/', views.add_comment, name='add-comment'),
-    path('comments/create/', views.ProjectCommentCreateView.as_view(), name='comment-create'),  # Added
+    path('comments/create/', views.ProjectCommentCreateView.as_view(), name='comment-create'),
 
     # API Endpoints
     path('api/tasks/update-status/', views.update_task_status, name='api-task-status-update'),
     path('api/projects/progress/', views.project_progress_update, name='api-project-progress-update'),
     path('api/phases/<int:pk>/update-status/', views.update_phase_status, name='phase-status-update'),
+
 ]
