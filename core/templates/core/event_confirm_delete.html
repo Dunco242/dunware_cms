@@ -1,0 +1,17 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Delete Event{% endblock %}
+
+{% block content %}
+<div class="card shadow">
+    <div class="card-header bg-danger text-white">Delete Event</div>
+    <div class="card-body">
+        <p>Are you sure you want to delete <strong>{{ event.title }}</strong>?</p>
+        <form method="post">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger">Delete</button>
+            <a href="{% url 'event-list' %}" class="btn btn-secondary">Cancel</a>
+        </form>
+    </div>
+</div>
+{% endblock %}

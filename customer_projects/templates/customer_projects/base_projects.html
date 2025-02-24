@@ -20,12 +20,10 @@
                 {% if project and project.id %}
                     <!-- Project-specific menu items -->
                     {% if project.phases.exists %}
-                        {% with current_phase=project.phases.first %}
-                            <a href="{{ update_url }}"
-                               class="btn btn-primary btn-block mt-3 {% if request.resolver_match.url_name == 'task-list' %}active{% endif %}">
-                                <i class="fas fa-tasks mr-2"></i> Tasks
-                            </a>
-                        {% endwith %}
+                    <a href="{% url 'customer_projects:project-task-list' project.id project.phases.first.id %}"
+                    class="btn btn-primary btn-block mt-3 {% if request.resolver_match.url_name == 'project-task-list' %}active{% endif %}">
+                        <i class="fas fa-tasks mr-2"></i> Tasks
+                    </a>
                     {% endif %}
 
                     <!-- Team -->

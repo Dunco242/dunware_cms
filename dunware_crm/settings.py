@@ -55,7 +55,7 @@ INSTALLED_APPS = [
 
     # Local Apps
     'core',
-    'customer_projects',
+    'customer_projects.apps.CustomerProjectsConfig',
     'dunware_crm',
 ]
 
@@ -154,13 +154,26 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Static files settings
 STATIC_URL = '/static/'
-STATICFILES_DIRS = [BASE_DIR / 'staticfiles']
-STATIC_ROOT = BASE_DIR / 'static'
 
-MEDIA_URL = 'media/'
-MEDIA_ROOT = BASE_DIR / 'media'
+# Corrected: STATICFILES_DIRS should NOT include STATIC_ROOT
+STATICFILES_DIRS = [
+    os.path.join(BASE_DIR, 'static'),  # This is only for development
+]
 
+# Change STATIC_ROOT to avoid overlap
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')  # Now it's a separate directory
+
+# Media files settings
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# Ensure DEBUG only modifies STATICFILES_DIRS but does not redefine it
+if DEBUG:
+    STATICFILES_DIRS += [os.path.join(BASE_DIR, 'assets')]
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
@@ -183,7 +196,8 @@ ACCOUNT_FORMS = {
 # Authentication settings
 LOGIN_URL = '/account/login/'
 LOGIN_REDIRECT_URL = '/'
-LOGOUT_REDIRECT_URL = '/account/login'
+ACCOUNT_LOGOUT_REDIRECT_URL = '/account/login'
+
 
 # Django AllAuth settings
 AUTHENTICATION_BACKENDS = [

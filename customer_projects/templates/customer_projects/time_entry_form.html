@@ -1,0 +1,111 @@
+{% extends 'customer_projects/base_projects.html' %}
+
+{% block project_content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="card-title mb-0">
+                        {% if form.instance.pk %}
+                            Edit Time Entry
+                        {% else %}
+                            Add Time Entry
+                        {% endif %}
+                        - {{ task.title }}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" novalidate>
+                        {% csrf_token %}
+
+                        {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {{ form.non_field_errors }}
+                        </div>
+                        {% endif %}
+
+                        <div class="mb-3">
+                            <label for="{{ form.date.id_for_label }}" class="form-label">Date</label>
+                            <input type="date" name="{{ form.date.name }}"
+                                   class="form-control {% if form.date.errors %}is-invalid{% endif %}"
+                                   id="{{ form.date.id_for_label }}"
+                                   value="{{ form.date.value|default:'' }}">
+                            {% if form.date.errors %}
+                            <div class="invalid-feedback">
+                                {{ form.date.errors }}
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.hours.id_for_label }}" class="form-label">Hours</label>
+                            <input type="number" name="{{ form.hours.name }}"
+                                   class="form-control {% if form.hours.errors %}is-invalid{% endif %}"
+                                   id="{{ form.hours.id_for_label }}"
+                                   value="{{ form.hours.value|default:'' }}"
+                                   step="0.25" min="0.25">
+                            {% if form.hours.errors %}
+                            <div class="invalid-feedback">
+                                {{ form.hours.errors }}
+                            </div>
+                            {% endif %}
+                            <small class="form-text text-muted">Enter time in hours (e.g., 1.5 for 1 hour 30 minutes)</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input type="checkbox" name="{{ form.is_billable.name }}"
+                                       class="form-check-input {% if form.is_billable.errors %}is-invalid{% endif %}"
+                                       id="{{ form.is_billable.id_for_label }}"
+                                       {% if form.is_billable.value %}checked{% endif %}>
+                                <label class="form-check-label" for="{{ form.is_billable.id_for_label }}">
+                                    Billable
+                                </label>
+                            </div>
+                            {% if form.is_billable.errors %}
+                            <div class="invalid-feedback">
+                                {{ form.is_billable.errors }}
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.description.id_for_label }}" class="form-label">Description</label>
+                            <textarea name="{{ form.description.name }}"
+                                      class="form-control {% if form.description.errors %}is-invalid{% endif %}"
+                                      id="{{ form.description.id_for_label }}"
+                                      rows="3">{{ form.description.value|default:'' }}</textarea>
+                            {% if form.description.errors %}
+                            <div class="invalid-feedback">
+                                {{ form.description.errors }}
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="d-flex justify-content-between">
+                            {% if task %}
+    <a href="{% url 'customer_projects:task-detail' task.id %}" class="btn btn-secondary">
+        <i class="fas fa-arrow-left"></i> Back to Task
+    </a>
+{% else %}
+    <a href="{% url 'customer_projects:project-list' %}" class="btn btn-secondary">
+        <i class="fas fa-arrow-left"></i> Back to Projects
+    </a>
+{% endif %}
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i>
+                                {% if form.instance.pk %}
+                                    Update Time Entry
+                                {% else %}
+                                    Save Time Entry
+                                {% endif %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

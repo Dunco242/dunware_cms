@@ -28,12 +28,12 @@ class Employee(models.Model):
     """Employee model with enhanced validations and relationships"""
 
     CARRIER_CHOICES = [
-        ('att', 'AT&T'),
-        ('tmobile', 'T-Mobile'),
-        ('verizon', 'Verizon'),
-        ('sprint', 'Sprint'),
-        ('boost', 'Boost Mobile'),
-        ('cricket', 'Cricket'),
+        ('rogers', 'Rogers'),
+        ('bell', 'Bell Canada'),
+        ('public', 'Public Mobile'),
+        ('telus', 'Telus'),
+        ('btc', 'Batelco'),
+        ('aliv', 'Aliv - Bahamas'),
         ('metro', 'Metro PCS'),
         ('virgin', 'Virgin Mobile'),
     ]
@@ -124,7 +124,7 @@ class Employee(models.Model):
         return f'employee_photos/{timezone.now().year}/{timezone.now().month}/{new_filename}'
 
     profile_picture = models.ImageField(
-        upload_to=profile_picture_path,
+        upload_to='employee_photos/',
         null=True,
         blank=True,
         help_text="Employee profile picture"

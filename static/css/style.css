@@ -173,3 +173,19 @@ select {
     font-size: 0.95rem;
     border-radius: 4px;
 }
+
+.chat-session {
+    transition: all 0.2s ease;
+}
+
+.chat-session:hover {
+    background-color: #f8f9fa;
+}
+
+.unread-badge {
+    background-color: #007bff;
+    color: white;
+    padding: 0.25em 0.6em;
+    border-radius: 50%;
+    font-size: 0.75rem;
+}

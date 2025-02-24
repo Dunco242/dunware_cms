@@ -17,6 +17,7 @@ from core.utils import send_email_message
 from email.mime.multipart import MIMEMultipart
 from io import BytesIO
 from datetime import datetime, timedelta
+from django.utils.timezone import now
 from decimal import Decimal
 from core.mixins import EmployeeRequiredMixin
 

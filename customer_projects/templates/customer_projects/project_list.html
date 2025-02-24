@@ -11,6 +11,58 @@
         </a>
     </div>
 
+    <!-- Time Metrics Summary -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-3">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <i class="fas fa-clock fa-2x text-primary"></i>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h6 class="mb-0">Total Hours</h6>
+                            <h4 class="mb-0">{{ metrics.total_hours|default:0|floatformat:1 }}</h4>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <i class="fas fa-dollar-sign fa-2x text-success"></i>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h6 class="mb-0">Billable Hours</h6>
+                            <h4 class="mb-0">{{ metrics.total_billable|default:0|floatformat:1 }}</h4>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <i class="fas fa-stopwatch fa-2x text-warning"></i>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h6 class="mb-0">Non-Billable Hours</h6>
+                            <h4 class="mb-0">{{ metrics.total_non_billable|default:0|floatformat:1 }}</h4>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <i class="fas fa-percentage fa-2x text-info"></i>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h6 class="mb-0">Average Progress</h6>
+                            <h4 class="mb-0">{{ metrics.avg_progress|default:0|floatformat }}%</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Filters -->
     <div class="card shadow-sm mb-4">
         <div class="card-body">
@@ -60,6 +112,7 @@
                         <th>Customer</th>
                         <th>Status</th>
                         <th>Progress</th>
+                        <th>Hours</th>
                         <th>Due Date</th>
                         <th>Actions</th>
                     </tr>
@@ -88,6 +141,13 @@
                             </div>
                             <small class="text-muted">{{ project.progress }}%</small>
                         </td>
+                        <td>
+                            <div class="d-flex flex-column">
+                                <small class="text-muted">Total: {{ project.total_hours|floatformat:1 }}</small>
+                                <small class="text-success">Billable: {{ project.billable_hours|floatformat:1 }}</small>
+                                <small class="text-warning">Non-Billable: {{ project.non_billable_hours|floatformat:1 }}</small>
+                            </div>
+                        </td>
                         <td>{{ project.target_end_date|date:"M d, Y" }}</td>
                         <td>
                             <div class="btn-group">
@@ -102,7 +162,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="6" class="text-center text-muted">
+                        <td colspan="7" class="text-center text-muted">
                             No projects found.
                             <a href="{% url 'customer_projects:project-create' %}" class="text-primary">Create one</a>
                         </td>
@@ -112,5 +172,8 @@
             </table>
         </div>
     </div>
+
+    <!-- Pagination -->
+    {% include 'customer_projects/includes/pagination.html' %}
 </div>
 {% endblock %}

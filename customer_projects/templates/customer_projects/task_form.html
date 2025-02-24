@@ -123,9 +123,15 @@
                     <button type="submit" class="btn btn-success">
                         <i class="fas fa-save"></i> Save Task
                     </button>
-                    <a href="{% url 'customer_projects:task-list' phase.id %}" class="btn btn-outline-secondary">
-                        <i class="fas fa-times"></i> Cancel
-                    </a>
+                    {% if phase %}
+                        <a href="{% url 'customer_projects:project-task-list' phase.project.id phase.id %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-times"></i> Cancel
+                        </a>
+                    {% else %}
+                        <a href="{% url 'customer_projects:project-task-list' project.id task.phase.id %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-times"></i> Cancel
+                        </a>
+                    {% endif %}
                 </div>
             </form>
         </div>

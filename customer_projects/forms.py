@@ -13,22 +13,79 @@ from .models import (
 )
 
 class ProjectForm(forms.ModelForm):
-    """
-    Form for creating and editing projects
-    """
+    """Form for creating and editing projects"""
+    name = forms.CharField(
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Enter project name'
+        })
+    )
+
+    description = forms.CharField(
+        widget=forms.Textarea(attrs={
+            'class': 'form-control',
+            'rows': 4,
+            'placeholder': 'Enter project description'
+        })
+    )
+
+    customer = forms.ModelChoiceField(
+        queryset=Customer.objects.all(),
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+
+    project_manager = forms.ModelChoiceField(
+        queryset=Employee.objects.filter(is_active=True),
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+
+    status = forms.ChoiceField(
+        choices=Project.STATUS_CHOICES,
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+
+    priority = forms.ChoiceField(
+        choices=Project.PRIORITY_CHOICES,
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+
     start_date = forms.DateField(
-        widget=forms.DateInput(attrs={'type': 'date'}),
+        widget=forms.DateInput(attrs={
+            'type': 'date',
+            'class': 'form-control'
+        }),
         help_text="Project start date"
     )
+
     target_end_date = forms.DateField(
-        widget=forms.DateInput(attrs={'type': 'date'}),
+        widget=forms.DateInput(attrs={
+            'type': 'date',
+            'class': 'form-control'
+        }),
         help_text="Expected completion date"
     )
+
     budget = forms.DecimalField(
         max_digits=12,
         decimal_places=2,
         required=False,
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'step': '0.01',
+            'min': '0'
+        }),
         help_text="Project budget (optional)"
+    )
+
+    hourly_rate = forms.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        required=False,
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'step': '0.01',
+            'min': '0'
+        })
     )
 
     class Meta:
@@ -38,9 +95,6 @@ class ProjectForm(forms.ModelForm):
             'status', 'priority', 'start_date', 'target_end_date',
             'budget', 'hourly_rate'
         ]
-        widgets = {
-            'description': forms.Textarea(attrs={'rows': 4}),
-        }
 
     def __init__(self, *args, **kwargs):
         user = kwargs.pop('user', None)
@@ -64,28 +118,35 @@ class ProjectForm(forms.ModelForm):
             if target_end_date < start_date:
                 raise ValidationError("End date cannot be before start date")
 
-            if start_date < timezone.now().date():
-                raise ValidationError("Start date cannot be in the past")
-
-        return cleaned_data
-
 class ProjectTeamMemberForm(forms.ModelForm):
-    """
-    Form for managing project team members
-    """
+    """Form for managing project team members"""
+    employee = forms.ModelChoiceField(
+        queryset=Employee.objects.filter(is_active=True),
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+
+    role = forms.ChoiceField(
+        choices=ProjectTeamMember.ROLE_CHOICES,
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+
+    allocation_percentage = forms.IntegerField(
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'min': '0',
+            'max': '100'
+        })
+    )
+
     class Meta:
         model = ProjectTeamMember
         fields = ['employee', 'role', 'allocation_percentage']
-        widgets = {
-            'allocation_percentage': forms.NumberInput(attrs={'min': '0', 'max': '100'})
-        }
 
     def __init__(self, *args, **kwargs):
         project = kwargs.pop('project', None)
         super().__init__(*args, **kwargs)
 
         if project:
-            # Exclude existing team members from employee choices
             existing_members = project.team_members.all()
             self.fields['employee'].queryset = Employee.objects.filter(
                 is_active=True
@@ -98,46 +159,52 @@ class ProjectTeamMemberForm(forms.ModelForm):
         return allocation
 
 class ProjectPhaseForm(forms.ModelForm):
-    """
-    Form for project phases/milestones
-    """
+    """Form for project phases/milestones"""
+    name = forms.CharField(
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Enter phase name'
+        })
+    )
+
+    description = forms.CharField(
+        widget=forms.Textarea(attrs={
+            'class': 'form-control',
+            'rows': 3,
+            'placeholder': 'Enter phase description'
+        })
+    )
+
     status = forms.ChoiceField(
         choices=ProjectPhase.STATUS_CHOICES,
         widget=forms.Select(attrs={
-            'class': 'form-select',
-            'id': 'id_status',
-            'data-previous': ''  # For tracking status changes
+            'class': 'form-control',
+            'data-previous': ''
+        })
+    )
+
+    start_date = forms.DateField(
+        widget=forms.DateInput(attrs={
+            'type': 'date',
+            'class': 'form-control'
+        })
+    )
+
+    end_date = forms.DateField(
+        widget=forms.DateInput(attrs={
+            'type': 'date',
+            'class': 'form-control'
         })
     )
 
     class Meta:
         model = ProjectPhase
         fields = ['name', 'description', 'start_date', 'end_date', 'status']
-        widgets = {
-            'name': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'Enter phase name'
-            }),
-            'start_date': forms.DateInput(attrs={
-                'type': 'date',
-                'class': 'form-control'
-            }),
-            'end_date': forms.DateInput(attrs={
-                'type': 'date',
-                'class': 'form-control'
-            }),
-            'description': forms.Textarea(attrs={
-                'rows': 3,
-                'class': 'form-control',
-                'placeholder': 'Enter phase description'
-            })
-        }
 
     def __init__(self, *args, **kwargs):
         self.project = kwargs.pop('project', None)
         super().__init__(*args, **kwargs)
 
-        # If instance exists, set previous status
         if self.instance and self.instance.pk:
             self.fields['status'].widget.attrs['data-previous'] = self.instance.status
 
@@ -157,7 +224,73 @@ class ProjectPhaseForm(forms.ModelForm):
                     raise ValidationError("Phase cannot end after project end date")
 
         return cleaned_data
+
 class ProjectTaskForm(forms.ModelForm):
+    """Form for project tasks"""
+    title = forms.CharField(
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Enter task title'
+        })
+    )
+
+    description = forms.CharField(
+        widget=forms.Textarea(attrs={
+            'class': 'form-control',
+            'rows': 3,
+            'placeholder': 'Enter task description'
+        })
+    )
+
+    status = forms.ChoiceField(
+        choices=ProjectTask.STATUS_CHOICES,
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+
+    priority = forms.ChoiceField(
+        choices=ProjectTask.PRIORITY_CHOICES,
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+
+    assigned_to = forms.ModelChoiceField(
+        queryset=Employee.objects.filter(is_active=True),
+        widget=forms.Select(attrs={
+            'class': 'form-control',
+            'placeholder': 'Select team member'
+        })
+    )
+
+    start_date = forms.DateField(
+        widget=forms.DateInput(attrs={
+            'class': 'form-control',
+            'type': 'date'
+        })
+    )
+
+    due_date = forms.DateField(
+        widget=forms.DateInput(attrs={
+            'class': 'form-control',
+            'type': 'date'
+        })
+    )
+
+    estimated_hours = forms.DecimalField(
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'step': '0.5',
+            'min': '0'
+        })
+    )
+
+    dependencies = forms.ModelMultipleChoiceField(
+        queryset=ProjectTask.objects.all(),
+        required=False,
+        widget=forms.SelectMultiple(attrs={
+            'class': 'form-control select2',
+            'data-placeholder': 'Select Dependencies'
+        })
+    )
+
     class Meta:
         model = ProjectTask
         fields = [
@@ -165,106 +298,48 @@ class ProjectTaskForm(forms.ModelForm):
             'assigned_to', 'start_date', 'due_date', 'estimated_hours',
             'dependencies'
         ]
-        widgets = {
-            'title': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'Enter task title'
-            }),
-            'description': forms.Textarea(attrs={
-                'class': 'form-control',
-                'rows': 3,
-                'placeholder': 'Enter task description'
-            }),
-            'status': forms.Select(attrs={'class': 'form-control'}),
-            'priority': forms.Select(attrs={'class': 'form-control'}),
-            'assigned_to': forms.Select(attrs={
-                'class': 'form-control',
-                'placeholder': 'Select team member'
-            }),
-            'start_date': forms.DateInput(attrs={
-                'class': 'form-control',
-                'type': 'date'
-            }),
-            'due_date': forms.DateInput(attrs={
-                'class': 'form-control',
-                'type': 'date'
-            }),
-            'estimated_hours': forms.NumberInput(attrs={
-                'class': 'form-control',
-                'step': '0.5',
-                'min': '0'
-            }),
-            'dependencies': forms.SelectMultiple(attrs={
-                'class': 'form-control',
-                'style': 'height: 100px;'  # Make multiple select box taller
-            })
-        }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['assigned_to'].empty_label = "Select Employee"
         self.fields['dependencies'].help_text = "Hold Ctrl/Cmd to select multiple tasks"
-class ProjectDocumentForm(forms.ModelForm):
-    """
-    Form for project documents
-    """
-    class Meta:
-        model = ProjectDocument
-        fields = ['title', 'document_type', 'file', 'version', 'description']
-        widgets = {
-            'description': forms.Textarea(attrs={'rows': 2}),
-        }
 
-    def clean_file(self):
-        file = self.cleaned_data.get('file')
-        if file:
-            # Validate file size (max 50MB)
-            if file.size > 52428800:
-                raise ValidationError("File size cannot exceed 50MB")
+class TimeEntryForm(forms.ModelForm):
+    """Form for time entries"""
+    date = forms.DateField(
+        widget=forms.DateInput(attrs={
+            'class': 'form-control',
+            'type': 'date'
+        })
+    )
 
-            # Validate file extension
-            allowed_extensions = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.txt']
-            ext = file.name.lower()[-4:]
-            if ext not in allowed_extensions:
-                raise ValidationError(f"File type not supported. Allowed types: {', '.join(allowed_extensions)}")
+    hours = forms.DecimalField(
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'step': '0.25',
+            'min': '0.25',
+            'max': '24'
+        })
+    )
 
-        return file
+    description = forms.CharField(
+        widget=forms.Textarea(attrs={
+            'class': 'form-control',
+            'rows': 2,
+            'placeholder': 'Describe the work done'
+        })
+    )
 
-class ProjectRiskForm(forms.ModelForm):
-    project = forms.ModelChoiceField(
-        queryset=Project.objects.none(),
-        empty_label="Select a Project",
-        widget=forms.Select(attrs={'class': 'form-select'})
+    is_billable = forms.BooleanField(
+        required=False,
+        widget=forms.CheckboxInput(attrs={
+            'class': 'form-check-input'
+        })
     )
 
     class Meta:
-        model = ProjectRisk
-        fields = [
-            'project', 'title', 'description', 'risk_level',
-            'probability', 'impact', 'status', 'mitigation_plan'
-        ]
-
-    def __init__(self, *args, **kwargs):
-        user = kwargs.pop('user', None)
-        super().__init__(*args, **kwargs)
-        if user:
-            self.fields['project'].queryset = Project.objects.filter(
-                Q(project_manager=user.employee_profile) |
-                Q(team_members=user.employee_profile)
-            ).distinct()
-
-class TimeEntryForm(forms.ModelForm):
-    """
-    Form for time entries
-    """
-    class Meta:
         model = TimeEntry
         fields = ['date', 'hours', 'description', 'is_billable']
-        widgets = {
-            'date': forms.DateInput(attrs={'type': 'date'}),
-            'hours': forms.NumberInput(attrs={'step': '0.25', 'min': '0.25'}),
-            'description': forms.Textarea(attrs={'rows': 2})
-        }
 
     def __init__(self, *args, **kwargs):
         self.task = kwargs.pop('task', None)
@@ -293,16 +368,142 @@ class TimeEntryForm(forms.ModelForm):
                 raise ValidationError("Maximum time entry is 24 hours per day")
         return hours
 
+class ProjectDocumentForm(forms.ModelForm):
+    """Form for project documents"""
+    title = forms.CharField(
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Enter document title'
+        })
+    )
+
+    document_type = forms.ChoiceField(
+        choices=ProjectDocument.DOCUMENT_TYPES,
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+
+    file = forms.FileField(
+        widget=forms.FileInput(attrs={'class': 'form-control'})
+    )
+
+    version = forms.CharField(
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'e.g., 1.0'
+        })
+    )
+
+    description = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={
+            'class': 'form-control',
+            'rows': 2,
+            'placeholder': 'Enter document description'
+        })
+    )
+
+    class Meta:
+        model = ProjectDocument
+        fields = ['title', 'document_type', 'file', 'version', 'description']
+
+    def clean_file(self):
+        file = self.cleaned_data.get('file')
+        if file:
+            if file.size > 52428800:  # 50MB
+                raise ValidationError("File size cannot exceed 50MB")
+
+            allowed_extensions = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.txt']
+            ext = file.name.lower()[-4:]
+            if ext not in allowed_extensions:
+                raise ValidationError(f"File type not supported. Allowed types: {', '.join(allowed_extensions)}")
+
+        return file
+
+class ProjectRiskForm(forms.ModelForm):
+    """Form for project risks"""
+    title = forms.CharField(
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Enter risk title'
+        })
+    )
+
+    description = forms.CharField(
+        widget=forms.Textarea(attrs={
+            'class': 'form-control',
+            'rows': 3,
+            'placeholder': 'Describe the risk'
+        })
+    )
+
+    risk_level = forms.ChoiceField(
+        choices=ProjectRisk.RISK_LEVELS,
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+
+    probability = forms.IntegerField(
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'min': '0',
+            'max': '100'
+        })
+    )
+
+    impact = forms.IntegerField(
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'min': '0',
+            'max': '100'
+        })
+    )
+
+    status = forms.ChoiceField(
+        choices=ProjectRisk.RISK_STATUS,
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+
+    mitigation_plan = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={
+            'class': 'form-control',
+            'rows': 3,
+            'placeholder': 'Describe how to mitigate this risk'
+        })
+    )
+
+    class Meta:
+        model = ProjectRisk
+        fields = [
+            'project', 'title', 'description', 'risk_level',
+            'probability', 'impact', 'status', 'mitigation_plan'
+        ]
+
+    def __init__(self, *args, **kwargs):
+        user = kwargs.pop('user', None)
+        super().__init__(*args, **kwargs)
+        if user:
+            self.fields['project'] = forms.ModelChoiceField(
+                queryset=Project.objects.filter(
+                    Q(project_manager=user.employee_profile) |
+                    Q(team_members=user.employee_profile)
+                ).distinct(),
+                empty_label="Select a Project",
+                widget=forms.Select(attrs={'class': 'form-control'})
+            )
+
 class ProjectCommentForm(forms.ModelForm):
-    """
-    Form for project comments
-    """
+    """Form for project comments"""
+    text = forms.CharField(
+        widget=forms.Textarea(attrs={
+            'class': 'form-control',
+            'rows': 3,
+            'placeholder': 'Enter your comment here...'
+        })
+    )
+
     class Meta:
         model = ProjectComment
         fields = ['text']
-        widgets = {
-            'text': forms.Textarea(attrs={'rows': 3, 'placeholder': 'Enter your comment here...'})
-        }
 
     def clean_text(self):
         text = self.cleaned_data.get('text')
@@ -311,36 +512,49 @@ class ProjectCommentForm(forms.ModelForm):
                 raise ValidationError("Comment must contain at least 2 characters")
         return text
 
-
 class ProjectReportForm(forms.ModelForm):
-    project = forms.ModelChoiceField(
-        queryset=Project.objects.none(),
-        empty_label="Select a Project",
-        widget=forms.Select(attrs={'class': 'form-select'})
+    """Form for project reports"""
+    title = forms.CharField(
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Enter report title'
+        })
+    )
+
+    content = forms.CharField(
+        widget=forms.Textarea(attrs={
+            'class': 'form-control',
+            'rows': 4,
+            'placeholder': 'Enter report content here...'
+        })
+    )
+
+    report_type = forms.ChoiceField(
+        choices=ProjectReport.REPORT_TYPES,
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+
+    attachments = forms.FileField(
+        required=False,
+        widget=forms.FileInput(attrs={'class': 'form-control'})
     )
 
     class Meta:
         model = ProjectReport
         fields = ['project', 'title', 'content', 'report_type', 'attachments']
-        widgets = {
-            'title': forms.TextInput(attrs={'class': 'form-control'}),
-            'content': forms.Textarea(attrs={
-                'rows': 4,
-                'class': 'form-control',
-                'placeholder': 'Enter report content here...'
-            }),
-            'report_type': forms.Select(attrs={'class': 'form-select'}),
-            'attachments': forms.FileInput(attrs={'class': 'form-control'})
-        }
 
     def __init__(self, *args, **kwargs):
         user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
         if user:
-            self.fields['project'].queryset = Project.objects.filter(
-                Q(project_manager=user.employee_profile) |
-                Q(team_members=user.employee_profile)
-            ).distinct()
+            self.fields['project'] = forms.ModelChoiceField(
+                queryset=Project.objects.filter(
+                    Q(project_manager=user.employee_profile) |
+                    Q(team_members=user.employee_profile)
+                ).distinct(),
+                empty_label="Select a Project",
+                widget=forms.Select(attrs={'class': 'form-control'})
+            )
 
     def clean_attachments(self):
         attachments = self.cleaned_data.get('attachments')
@@ -355,16 +569,24 @@ class ProjectReportForm(forms.ModelForm):
                 )
         return attachments
 
-# forms.py
 class BulkDocumentUploadForm(forms.Form):
+    """Form for bulk document uploads"""
     document_type = forms.ChoiceField(
         choices=ProjectDocument.DOCUMENT_TYPES,
-        widget=forms.Select(attrs={'class': 'form-select'})
+        widget=forms.Select(attrs={
+            'class': 'form-select'
+        })
     )
+
     description = forms.CharField(
         required=False,
         widget=forms.Textarea(attrs={
             'rows': 3,
-            'class': 'form-control'
+            'class': 'form-control',
+            'placeholder': 'Enter a common description for all uploaded files'
         })
     )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # The actual file handling will be done in the view using request.FILES

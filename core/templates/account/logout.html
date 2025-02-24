@@ -1,0 +1,41 @@
+{% extends "core/base.html" %}
+
+{% block title %}Logging Out...{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-xl-6 col-lg-8 col-md-9">
+            <div class="card shadow-lg my-5">
+                <div class="card-body p-5 text-center">
+                    <h1 class="h4 text-danger mb-4">Logging Out...</h1>
+                    <p class="text-muted">You are being logged out. If nothing happens, click below.</p>
+
+                    <!-- Logout Form -->
+                    <form method="post" action="{% url 'account_logout' %}" id="logout-form">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-danger btn-lg w-100">
+                            Confirm Logout
+                        </button>
+                    </form>
+
+                    <hr class="my-4">
+
+                    <div class="text-center">
+                        <a href="{% url 'account_login' %}" class="small text-primary">
+                            Log In Again
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Auto-submit the logout form -->
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        document.getElementById("logout-form").submit();
+    });
+</script>
+{% endblock %}

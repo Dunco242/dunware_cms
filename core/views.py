@@ -145,6 +145,7 @@ def register(request):
 @login_required
 def profile(request):
     employee = get_object_or_404(Employee, user=request.user)
+
     if request.method == 'POST':
         form = EmployeeForm(request.POST, request.FILES, instance=employee)
         if form.is_valid():
@@ -154,12 +155,23 @@ def profile(request):
     else:
         form = EmployeeForm(instance=employee)
 
+    # Calculate Quick Stats
+    total_customers = Customer.objects.filter(assigned_to=employee).count()
+    active_tasks = Task.objects.filter(assigned_to=employee, status='in_progress').count()
+    upcoming_meetings = Meeting.objects.filter(
+        Q(organizer=employee) | Q(attendees=employee),
+        start_time__gte=now()
+    ).count()
+
     context = {
         'form': form,
-        'employee': employee
+        'employee': employee,
+        'total_customers': total_customers,
+        'active_tasks': active_tasks,
+        'upcoming_meetings': upcoming_meetings
     }
-    return render(request, 'core/profile.html', context)
 
+    return render(request, 'core/profile.html', context)
 @login_required
 def change_password(request):
     if request.method == 'POST':
