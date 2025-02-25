@@ -1,9 +1,11 @@
 from django.db import models
 from django.conf import settings
 from django.utils import timezone
+from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
+from django.db.models import Sum, F, Q, Case, When, DecimalField, Value
 from core.models import Customer, Employee
 import uuid
 from django.urls import reverse
@@ -143,7 +145,9 @@ class ProjectTeamMember(models.Model):
         unique_together = ['project', 'employee']
 
     def __str__(self):
-        return f"{self.employee.get_full_name()} - {self.get_role_display()}"
+        user = getattr(self.employee, 'user', None)
+        full_name = user.get_full_name() if user else "Unassigned"
+        return f"{full_name()} - {self.get_role_display()}"
 
 class ProjectPhase(models.Model):
     STATUS_CHOICES = [
@@ -153,7 +157,7 @@ class ProjectPhase(models.Model):
         ('on_hold', 'On Hold')
     ]
 
-    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='phases')
+    project = models.ForeignKey('Project', on_delete=models.CASCADE, related_name='phases')
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True)
     start_date = models.DateField()
@@ -162,7 +166,6 @@ class ProjectPhase(models.Model):
     progress = models.IntegerField(default=0, validators=[MinValueValidator(0), MaxValueValidator(100)])
     is_completed = models.BooleanField(default=False)
 
-    # Add the calculate_progress method here
     def calculate_progress(self):
         """Calculate and update phase progress based on task status"""
         try:
@@ -170,34 +173,70 @@ class ProjectPhase(models.Model):
             total_tasks = phase_tasks.count()
 
             if total_tasks == 0:
-                # If no tasks, base progress on phase status
                 progress = 100 if self.status == 'completed' else 0
             else:
-                # Calculate based on task status
                 completed_tasks = phase_tasks.filter(status='done').count()
                 in_progress_tasks = phase_tasks.filter(status='in_progress').count()
                 in_review_tasks = phase_tasks.filter(status='in_review').count()
 
-                # Weight different statuses
                 progress = (
                     (completed_tasks * 100) +
                     (in_review_tasks * 75) +
                     (in_progress_tasks * 50)
                 ) / total_tasks
 
-            # Round to nearest integer
             self.progress = round(progress)
             self.save(update_fields=['progress'])
 
-            # Update project progress
             self.project.calculate_progress()
-
             return self.progress
 
         except Exception as e:
             logger.error(f"Error calculating phase progress: {str(e)}")
             return 0
 
+    def get_all_time_entries(self):
+        """Get summary of time entries for all tasks in this phase."""
+        entries = TimeEntry.objects.filter(task__phase=self)
+
+        return {
+            'total_hours': entries.aggregate(total=Sum('hours'))['total'] or 0,
+            'billable_hours': entries.filter(is_billable=True).aggregate(total=Sum('hours'))['total'] or 0,
+            'non_billable_hours': entries.filter(is_billable=False).aggregate(total=Sum('hours'))['total'] or 0,
+        }
+
+    def get_tasks_with_time_entries(self):
+        """Get all tasks in this phase that have time entries with summary statistics."""
+        tasks = self.tasks.annotate(
+            total_hours=Sum('time_entries__hours'),
+            billable_hours=Sum(Case(
+                When(time_entries__is_billable=True, then=F('time_entries__hours')),
+                default=Value(0),
+                output_field=DecimalField()
+            )),
+            non_billable_hours=Sum(Case(
+                When(time_entries__is_billable=False, then=F('time_entries__hours')),
+                default=Value(0),
+                output_field=DecimalField()
+            ))
+        ).filter(total_hours__gt=0)
+
+        for task in tasks:
+            if task.estimated_hours and task.estimated_hours > 0:
+                task.progress_percentage = min(100, round((task.total_hours / task.estimated_hours) * 100))
+            else:
+                task.progress_percentage = 0
+
+        return tasks
+
+    def get_recent_time_entries(self, limit=10):
+        """Get the most recent time entries for all tasks in this phase."""
+        return TimeEntry.objects.filter(
+            task__phase=self
+        ).select_related('task', 'employee').order_by('-date', '-created_at')[:limit]
+
+    def __str__(self):
+        return f"{self.project.project_code} - {self.name}"
 
 class ProjectTask(models.Model):
     """
@@ -227,6 +266,7 @@ class ProjectTask(models.Model):
     start_date = models.DateField()
     due_date = models.DateField()
     estimated_hours = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    actual_hours = models.DecimalField(max_digits=6, decimal_places=2, default=0)
     dependencies = models.ManyToManyField('self', symmetrical=False, related_name='dependent_tasks', blank=True)
 
     class Meta:
@@ -235,6 +275,15 @@ class ProjectTask(models.Model):
     def __str__(self):
         return f"{self.phase.project.project_code} - {self.title}"
 
+    def update_actual_hours(self):
+        """Update the total actual hours logged for the task."""
+        self.actual_hours = self.time_entries.aggregate(total=Sum('hours'))['total'] or 0
+        self.save(update_fields=['actual_hours'])
+
+    def save(self, *args, **kwargs):
+        """Override save to ensure progress updates."""
+        super().save(*args, **kwargs)
+        self.phase.calculate_progress()
 
 class ProjectDocument(models.Model):
     """
@@ -311,20 +360,12 @@ class TimeEntry(models.Model):
     Time tracking for project tasks
     """
 
-    task = models.ForeignKey(
-        ProjectTask,
-        on_delete=models.CASCADE,
-        related_name='time_entries'
-    )
-    employee = models.ForeignKey(
-        Employee,
-        on_delete=models.CASCADE,
-        related_name='time_entries'
-    )
+    task = models.ForeignKey(ProjectTask, on_delete=models.CASCADE, related_name='time_entries')
+    employee = models.ForeignKey('core.Employee', on_delete=models.CASCADE, related_name='time_entries')
     date = models.DateField()
-    hours = models.DecimalField(max_digits=5, decimal_places=2)
+    hours = models.DecimalField(max_digits=5, decimal_places=2, validators=[MinValueValidator(0.25), MaxValueValidator(24)])
     description = models.TextField(blank=True)
-    is_billable = models.BooleanField(default=True)  # ✅ Added missing field
+    is_billable = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -333,15 +374,30 @@ class TimeEntry(models.Model):
         verbose_name_plural = 'Time entries'
 
     def __str__(self):
-        return f"{self.task.phase.project.project_code} - {self.employee.get_full_name()} - {self.date}"
+        user = getattr(self.employee, 'user', None)  # Get User from Employee
+        full_name = user.get_full_name() if user else "Unassigned"
+        return f"{self.task.phase.project.project_code} - {full_name} - {self.date}"
+
+
+    def clean(self):
+        """Prevent future time entries"""
+        if self.date > timezone.now().date():
+            raise ValidationError("Time entry date cannot be in the future.")
 
     def save(self, *args, **kwargs):
+        """Override save to update task, phase, and project progress."""
         super().save(*args, **kwargs)
-        # Update task actual hours
-        self.task.actual_hours = self.task.time_entries.aggregate(
-            total=models.Sum('hours')
-        )['total'] or 0
-        self.task.save()
+
+        # Update task's actual hours
+        self.task.update_actual_hours()
+
+        # Update phase progress
+        self.task.phase.calculate_progress()
+
+        # Update project progress
+        self.task.phase.project.calculate_progress()
+
+
 class ProjectComment(models.Model):
     """
     Comments on projects, tasks, and documents

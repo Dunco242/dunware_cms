@@ -1,0 +1,926 @@
+{% extends 'customer_projects/base_projects.html' %}
+
+{% block title %}Create New Project{% endblock %}
+
+{% block extra_css %}
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<style>
+    .phase-container, .task-container {
+        border: 1px solid #e9ecef;
+        border-radius: 0.25rem;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        background-color: #f8f9fa;
+    }
+    .task-container {
+        background-color: #ffffff;
+    }
+    .remove-btn {
+        color: #dc3545;
+        cursor: pointer;
+    }
+    .add-btn {
+        color: #28a745;
+        cursor: pointer;
+    }
+    .phase-header, .task-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+    .form-section {
+        border-left: 4px solid #007bff;
+        padding-left: 1rem;
+        margin-bottom: 1.5rem;
+    }
+    .form-section-title {
+        font-size: 1.2rem;
+        font-weight: bold;
+        color: #007bff;
+        margin-bottom: 1rem;
+    }
+    .phase-badge {
+        background-color: #6c757d;
+        color: white;
+        padding: 0.3rem 0.6rem;
+        border-radius: 0.25rem;
+        font-size: 0.8rem;
+    }
+    .task-badge {
+        background-color: #28a745;
+        color: white;
+        padding: 0.2rem 0.5rem;
+        border-radius: 0.25rem;
+        font-size: 0.75rem;
+    }
+    .collapsed-section {
+        cursor: pointer;
+    }
+    .section-toggle {
+        transition: transform 0.3s;
+    }
+    .section-toggle.collapsed {
+        transform: rotate(-90deg);
+    }
+</style>
+{% endblock %}
+
+{% block project_content %}
+<div class="container mt-4">
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h1 class="h3 text-dark">Create New Project</h1>
+                <div>
+                    <button type="button" class="btn btn-outline-primary" id="expand-all-btn">
+                        <i class="fas fa-expand-alt"></i> Expand All
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" id="collapse-all-btn">
+                        <i class="fas fa-compress-alt"></i> Collapse All
+                    </button>
+                </div>
+            </div>
+            <p class="text-muted">Create a complete project with phases and tasks all in one step</p>
+            <hr>
+
+            <form method="post" id="integratedProjectForm">
+                {% csrf_token %}
+
+                <!-- Project Section -->
+                <div class="card mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">Project Details</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <!-- Project Name -->
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Project Name</label>
+                                {{ project_form.name }}
+                                {% if project_form.name.errors %}
+                                    <div class="text-danger small">{{ project_form.name.errors }}</div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Customer -->
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Customer</label>
+                                {{ project_form.customer }}
+                                {% if project_form.customer.errors %}
+                                    <div class="text-danger small">{{ project_form.customer.errors }}</div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Project Manager -->
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Project Manager</label>
+                                {{ project_form.project_manager }}
+                                {% if project_form.project_manager.errors %}
+                                    <div class="text-danger small">{{ project_form.project_manager.errors }}</div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Status -->
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Status</label>
+                                {{ project_form.status }}
+                                {% if project_form.status.errors %}
+                                    <div class="text-danger small">{{ project_form.status.errors }}</div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Priority -->
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Priority</label>
+                                {{ project_form.priority }}
+                                {% if project_form.priority.errors %}
+                                    <div class="text-danger small">{{ project_form.priority.errors }}</div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Start Date -->
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Start Date</label>
+                                {{ project_form.start_date }}
+                                {% if project_form.start_date.errors %}
+                                    <div class="text-danger small">{{ project_form.start_date.errors }}</div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Target End Date -->
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Target End Date</label>
+                                {{ project_form.target_end_date }}
+                                {% if project_form.target_end_date.errors %}
+                                    <div class="text-danger small">{{ project_form.target_end_date.errors }}</div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Budget -->
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Budget</label>
+                                {{ project_form.budget }}
+                                {% if project_form.budget.errors %}
+                                    <div class="text-danger small">{{ project_form.budget.errors }}</div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Description -->
+                            <div class="col-12">
+                                <label class="form-label fw-bold">Description</label>
+                                {{ project_form.description }}
+                                {% if project_form.description.errors %}
+                                    <div class="text-danger small">{{ project_form.description.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Phases Section -->
+                <div class="card mb-4">
+                    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Project Phases</h5>
+                        <button type="button" class="btn btn-sm btn-light" id="add-phase-btn">
+                            <i class="fas fa-plus"></i> Add Phase
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div id="phases-container">
+                            {% for phase_form in phase_forms %}
+                            <div class="phase-container" id="phase-{{ forloop.counter0 }}">
+                                <div class="phase-header">
+                                    <div>
+                                        <h5>
+                                            <i class="fas fa-chevron-down section-toggle" data-bs-toggle="collapse"
+                                               data-bs-target="#phase-content-{{ forloop.counter0 }}"></i>
+                                            Phase #{{ forloop.counter }}
+                                            <span class="phase-badge">New</span>
+                                        </h5>
+                                    </div>
+                                    {% if forloop.counter > 1 %}
+                                    <button type="button" class="btn btn-sm btn-outline-danger remove-phase-btn" data-phase="{{ forloop.counter0 }}">
+                                        <i class="fas fa-trash"></i> Remove
+                                    </button>
+                                    {% endif %}
+                                </div>
+
+                                <div class="collapse show" id="phase-content-{{ forloop.counter0 }}">
+                                    <div class="row g-3">
+                                        <!-- Phase Name -->
+                                        <div class="col-md-6">
+                                            <label class="form-label fw-bold">Phase Name</label>
+                                            {{ phase_form.name }}
+                                            {% if phase_form.name.errors %}
+                                            <div class="text-danger small">{{ phase_form.name.errors }}</div>
+                                            {% endif %}
+                                        </div>
+
+                                        <!-- Status -->
+                                        <div class="col-md-6">
+                                            <label class="form-label fw-bold">Status</label>
+                                            {{ phase_form.status }}
+                                            {% if phase_form.status.errors %}
+                                            <div class="text-danger small">{{ phase_form.status.errors }}</div>
+                                            {% endif %}
+                                        </div>
+
+                                        <!-- Start Date -->
+                                        <div class="col-md-6">
+                                            <label class="form-label fw-bold">Start Date</label>
+                                            {{ phase_form.start_date }}
+                                            {% if phase_form.start_date.errors %}
+                                            <div class="text-danger small">{{ phase_form.start_date.errors }}</div>
+                                            {% endif %}
+                                        </div>
+
+                                        <!-- End Date -->
+                                        <div class="col-md-6">
+                                            <label class="form-label fw-bold">End Date</label>
+                                            {{ phase_form.end_date }}
+                                            {% if phase_form.end_date.errors %}
+                                            <div class="text-danger small">{{ phase_form.end_date.errors }}</div>
+                                            {% endif %}
+                                        </div>
+
+                                        <!-- Description -->
+                                        <div class="col-12">
+                                            <label class="form-label fw-bold">Description</label>
+                                            {{ phase_form.description }}
+                                            {% if phase_form.description.errors %}
+                                            <div class="text-danger small">{{ phase_form.description.errors }}</div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+
+                                    <!-- Tasks for this phase -->
+                                    <div class="mt-4">
+                                        <div class="d-flex justify-content-between align-items-center mb-3">
+                                            <h6>Tasks for this Phase</h6>
+                                            <button type="button" class="btn btn-sm btn-success add-task-btn" data-phase="{{ forloop.counter0 }}">
+                                                <i class="fas fa-plus"></i> Add Task
+                                            </button>
+                                        </div>
+
+                                        <div class="tasks-container" id="tasks-phase-{{ forloop.counter0 }}">
+                                            {% for task_form in task_forms|slice:forloop.counter0|first %}
+                                            <div class="task-container" id="phase-{{ forloop.parentloop.counter0 }}-task-{{ forloop.counter0 }}">
+                                                <div class="task-header">
+                                                    <div>
+                                                        <h6>
+                                                            <i class="fas fa-chevron-down section-toggle" data-bs-toggle="collapse"
+                                                               data-bs-target="#task-content-{{ forloop.parentloop.counter0 }}-{{ forloop.counter0 }}"></i>
+                                                            Task #{{ forloop.counter }}
+                                                            <span class="task-badge">New</span>
+                                                        </h6>
+                                                    </div>
+                                                    {% if forloop.counter > 1 %}
+                                                    <button type="button" class="btn btn-sm btn-outline-danger remove-task-btn"
+                                                            data-phase="{{ forloop.parentloop.counter0 }}" data-task="{{ forloop.counter0 }}">
+                                                        <i class="fas fa-trash"></i> Remove
+                                                    </button>
+                                                    {% endif %}
+                                                </div>
+
+                                                <div class="collapse show" id="task-content-{{ forloop.parentloop.counter0 }}-{{ forloop.counter0 }}">
+                                                    <div class="row g-3">
+                                                        <!-- Task Title -->
+                                                        <div class="col-md-6">
+                                                            <label class="form-label fw-bold">Task Title</label>
+                                                            {{ task_form.title }}
+                                                            {% if task_form.title.errors %}
+                                                            <div class="text-danger small">{{ task_form.title.errors }}</div>
+                                                            {% endif %}
+                                                        </div>
+
+                                                        <!-- Status -->
+                                                        <div class="col-md-6">
+                                                            <label class="form-label fw-bold">Status</label>
+                                                            {{ task_form.status }}
+                                                            {% if task_form.status.errors %}
+                                                            <div class="text-danger small">{{ task_form.status.errors }}</div>
+                                                            {% endif %}
+                                                        </div>
+
+                                                        <!-- Priority -->
+                                                        <div class="col-md-6">
+                                                            <label class="form-label fw-bold">Priority</label>
+                                                            {{ task_form.priority }}
+                                                            {% if task_form.priority.errors %}
+                                                            <div class="text-danger small">{{ task_form.priority.errors }}</div>
+                                                            {% endif %}
+                                                        </div>
+
+                                                        <!-- Assigned To -->
+                                                        <div class="col-md-6">
+                                                            <label class="form-label fw-bold">Assigned To</label>
+                                                            {{ task_form.assigned_to }}
+                                                            {% if task_form.assigned_to.errors %}
+                                                            <div class="text-danger small">{{ task_form.assigned_to.errors }}</div>
+                                                            {% endif %}
+                                                        </div>
+
+                                                        <!-- Start Date -->
+                                                        <div class="col-md-6">
+                                                            <label class="form-label fw-bold">Start Date</label>
+                                                            {{ task_form.start_date }}
+                                                            {% if task_form.start_date.errors %}
+                                                            <div class="text-danger small">{{ task_form.start_date.errors }}</div>
+                                                            {% endif %}
+                                                        </div>
+
+                                                        <!-- Due Date -->
+                                                        <div class="col-md-6">
+                                                            <label class="form-label fw-bold">Due Date</label>
+                                                            {{ task_form.due_date }}
+                                                            {% if task_form.due_date.errors %}
+                                                            <div class="text-danger small">{{ task_form.due_date.errors }}</div>
+                                                            {% endif %}
+                                                        </div>
+
+                                                        <!-- Estimated Hours -->
+                                                        <div class="col-md-12">
+                                                            <label class="form-label fw-bold">Estimated Hours</label>
+                                                            {{ task_form.estimated_hours }}
+                                                            {% if task_form.estimated_hours.errors %}
+                                                            <div class="text-danger small">{{ task_form.estimated_hours.errors }}</div>
+                                                            {% endif %}
+                                                        </div>
+
+                                                        <!-- Description -->
+                                                        <div class="col-12">
+                                                            <label class="form-label fw-bold">Description</label>
+                                                            {{ task_form.description }}
+                                                            {% if task_form.description.errors %}
+                                                            <div class="text-danger small">{{ task_form.description.errors }}</div>
+                                                            {% endif %}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            {% endfor %}
+                                        </div>
+
+                                        <!-- Hidden field to track number of tasks for this phase -->
+                                        <input type="hidden" name="phase-{{ forloop.counter0 }}-num_tasks"
+                                               id="phase-{{ forloop.counter0 }}-num_tasks" value="1">
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+
+                        <!-- Hidden field to track number of phases -->
+                        <input type="hidden" name="num_phases" id="num_phases" value="{{ num_phases }}">
+                    </div>
+                </div>
+
+                <!-- Form Buttons -->
+                <div class="mt-4 d-flex justify-content-between">
+                    <div>
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-save"></i> Save Project
+                        </button>
+                        <a href="{% url 'customer_projects:project-list' %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-times"></i> Cancel
+                        </a>
+                    </div>
+                    <div>
+                        <button type="button" class="btn btn-primary" id="copy-project-dates-btn">
+                            <i class="fas fa-calendar"></i> Copy Project Dates to Phases
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Task Template for Cloning (Hidden) -->
+<div id="task-template" class="task-container" style="display: none;">
+    <div class="task-header">
+        <div>
+            <h6>
+                <i class="fas fa-chevron-down section-toggle" data-bs-toggle="collapse" data-bs-target="#new-task-content"></i>
+                New Task
+                <span class="task-badge">New</span>
+            </h6>
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-danger remove-task-btn">
+            <i class="fas fa-trash"></i> Remove
+        </button>
+    </div>
+    <div class="collapse show" id="new-task-content">
+        <div class="row g-3">
+            <!-- Task Title -->
+            <div class="col-md-6">
+                <label class="form-label fw-bold">Task Title</label>
+                <input type="text" name="title" class="form-control" placeholder="Enter task title">
+            </div>
+            <!-- Status -->
+            <div class="col-md-6">
+                <label class="form-label fw-bold">Status</label>
+                <select name="status" class="form-control">
+                    <option value="todo">To Do</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="in_review">In Review</option>
+                    <option value="done">Done</option>
+                    <option value="blocked">Blocked</option>
+                </select>
+            </div>
+            <!-- Priority -->
+            <div class="col-md-6">
+                <label class="form-label fw-bold">Priority</label>
+                <select name="priority" class="form-control">
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="urgent">Urgent</option>
+                </select>
+            </div>
+            <!-- Start Date -->
+            <div class="col-md-6">
+                <label class="form-label fw-bold">Start Date</label>
+                <input type="date" name="start_date" class="form-control">
+            </div>
+            <!-- Due Date -->
+            <div class="col-md-6">
+                <label class="form-label fw-bold">Due Date</label>
+                <input type="date" name="due_date" class="form-control">
+            </div>
+            <!-- Estimated Hours -->
+            <div class="col-md-12">
+                <label class="form-label fw-bold">Estimated Hours</label>
+                <input type="number" name="estimated_hours" class="form-control" step="0.5" min="0">
+            </div>
+            <!-- Description -->
+            <div class="col-12">
+                <label class="form-label fw-bold">Description</label>
+                <textarea name="description" class="form-control" rows="3" placeholder="Enter task description"></textarea>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+$(document).ready(function() {
+    console.log('Document ready');
+
+    // Initialize Select2 for all dropdowns
+    $('.select2').select2({
+        width: '100%',
+        theme: "classic"
+    });
+
+    // Keep track of phase count
+    let phaseCount = $('.phase-container').length || 1;
+
+    // Add new phase - using simplified approach
+    $('#add-phase-btn').click(function() {
+        console.log('Add phase button clicked');
+        const newPhaseId = phaseCount++;
+
+        // Create phase template with correct structure
+        let phaseTemplate = `
+            <div class="phase-container" id="phase-${newPhaseId}">
+                <div class="phase-header">
+                    <div>
+                        <h5>
+                            <i class="fas fa-chevron-down section-toggle" data-bs-toggle="collapse"
+                               data-bs-target="#phase-content-${newPhaseId}"></i>
+                            Phase #${newPhaseId + 1}
+                            <span class="phase-badge">New</span>
+                        </h5>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-danger remove-phase-btn" data-phase="${newPhaseId}">
+                        <i class="fas fa-trash"></i> Remove
+                    </button>
+                </div>
+                <div class="collapse show" id="phase-content-${newPhaseId}">
+                    <div class="row g-3">
+                        <!-- Phase Name -->
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Phase Name</label>
+                            <input type="text" name="phase-${newPhaseId}-name" class="form-control" placeholder="Enter phase name">
+                        </div>
+                        <!-- Status -->
+                        <div class="col-md-6">
+                            <div class="col-md-6">
+                            <label class="form-label fw-bold">Status</label>
+                            <select name="phase-${newPhaseId}-status" class="form-control">
+                                <option value="planning">Planning</option>
+                                <option value="in_progress">In Progress</option>
+                                <option value="completed">Completed</option>
+                                <option value="on_hold">On Hold</option>
+                            </select>
+                        </div>
+                        <!-- Start Date -->
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Start Date</label>
+                            <input type="date" name="phase-${newPhaseId}-start_date" class="form-control">
+                        </div>
+                        <!-- End Date -->
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">End Date</label>
+                            <input type="date" name="phase-${newPhaseId}-end_date" class="form-control">
+                        </div>
+                        <!-- Description -->
+                        <div class="col-12">
+                            <label class="form-label fw-bold">Description</label>
+                            <textarea name="phase-${newPhaseId}-description" class="form-control" rows="3" placeholder="Enter phase description"></textarea>
+                        </div>
+                    </div>
+                    <!-- Tasks for this phase -->
+                    <div class="mt-4">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6>Tasks for this Phase</h6>
+                            <button type="button" class="btn btn-sm btn-success add-task-btn" data-phase="${newPhaseId}">
+                                <i class="fas fa-plus"></i> Add Task
+                            </button>
+                        </div>
+                        <div class="tasks-container" id="tasks-phase-${newPhaseId}">
+                        </div>
+                        <!-- Hidden field to track number of tasks for this phase -->
+                        <input type="hidden" name="phase-${newPhaseId}-num_tasks" id="phase-${newPhaseId}-num_tasks" value="0">
+                    </div>
+                </div>
+            </div>`;
+
+        // Append to container
+        $('#phases-container').append(phaseTemplate);
+
+        // Update the total phase count
+        $('#num_phases').val(phaseCount);
+    });
+
+    // Remove phase with direct handler
+    $(document).on('click', '.remove-phase-btn', function() {
+        console.log('Remove phase button clicked');
+        const phaseId = $(this).data('phase');
+        $('#phase-' + phaseId).remove();
+
+        // Update phase numbering
+        $('.phase-container').each(function(index) {
+            $(this).find('.phase-header h5').text('Phase #' + (index + 1));
+        });
+
+        // Update the total phase count
+        phaseCount--;
+        $('#num_phases').val(phaseCount);
+    });
+
+    // Add task with simplified approach
+    $(document).on('click', '.add-task-btn', function() {
+        console.log('Add task button clicked');
+        const phaseId = $(this).data('phase');
+        console.log('Phase ID:', phaseId);
+
+        // Clone the task template and customize it for this phase
+        const taskTemplate = $('#task-template').clone();
+        taskTemplate.removeAttr('id').show();
+
+        // Get the current task count for this phase
+        let taskCount = parseInt($('#phase-' + phaseId + '-num_tasks').val()) || 0;
+        taskCount++;
+
+        // Update task IDs and attributes
+        const taskId = 'phase-' + phaseId + '-task-' + (taskCount - 1);
+        taskTemplate.attr('id', taskId);
+
+        // Update collapse target
+        const collapseId = 'task-content-' + phaseId + '-' + (taskCount - 1);
+        taskTemplate.find('.section-toggle').attr('data-bs-target', '#' + collapseId);
+        taskTemplate.find('.collapse').attr('id', collapseId);
+
+        // Update task header
+        taskTemplate.find('.task-header h6').html(
+            `<i class="fas fa-chevron-down section-toggle" data-bs-toggle="collapse"
+               data-bs-target="#${collapseId}"></i>
+             Task #${taskCount}
+             <span class="task-badge">New</span>`
+        );
+
+        // Update form field names
+        taskTemplate.find('input, select, textarea').each(function() {
+            const fieldName = $(this).attr('name');
+            if (fieldName) {
+                const newName = 'phase-' + phaseId + '-task-' + (taskCount - 1) + '-' + fieldName;
+                $(this).attr('name', newName);
+            }
+        });
+
+        // Add remove button data attributes
+        taskTemplate.find('.remove-task-btn')
+            .attr('data-phase', phaseId)
+            .attr('data-task', taskCount - 1);
+
+        // Append to the tasks container
+        $('#tasks-phase-' + phaseId).append(taskTemplate);
+
+        // Update the task count hidden field
+        $('#phase-' + phaseId + '-num_tasks').val(taskCount);
+    });
+
+    // Remove task
+    $(document).on('click', '.remove-task-btn', function() {
+        console.log('Remove task button clicked');
+        const phaseId = $(this).data('phase');
+        const taskId = $(this).data('task');
+        $('#phase-' + phaseId + '-task-' + taskId).remove();
+
+        // Update task count
+        const taskCount = parseInt($('#phase-' + phaseId + '-num_tasks').val()) - 1;
+        $('#phase-' + phaseId + '-num_tasks').val(taskCount);
+
+        // Update task numbering
+        $('#tasks-phase-' + phaseId + ' .task-container').each(function(index) {
+            $(this).find('.task-header h6').text('Task #' + (index + 1));
+        });
+    });
+
+    // Copy project dates to phases
+    $('#copy-project-dates-btn').click(function() {
+        const projectStartDate = $('#id_start_date').val();
+        const projectEndDate = $('#id_target_end_date').val();
+
+        if (projectStartDate && projectEndDate) {
+            $('.phase-container').each(function() {
+                $(this).find('input[name$="start_date"]').val(projectStartDate);
+                $(this).find('input[name$="end_date"]').val(projectEndDate);
+            });
+
+            // Also set task dates
+            $('.task-container').each(function() {
+                $(this).find('input[name$="start_date"]').val(projectStartDate);
+                $(this).find('input[name$="due_date"]').val(projectEndDate);
+            });
+
+            Swal.fire({
+                icon: 'success',
+                title: 'Dates Copied',
+                text: 'Project dates have been applied to all phases and tasks',
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 3000
+            });
+        } else {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'Please set project start and end dates first',
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 3000
+            });
+        }
+    });
+
+    // Expand/Collapse all sections
+    $('#expand-all-btn').click(function() {
+        $('.collapse').collapse('show');
+        $('.section-toggle').removeClass('collapsed');
+    });
+
+    $('#collapse-all-btn').click(function() {
+        // Keep the first phase expanded
+        $('.collapse').not('#phase-content-0').collapse('hide');
+        $('.section-toggle').not('#phase-0 .section-toggle:first').addClass('collapsed');
+    });
+
+    // Toggle section icon rotation
+    $(document).on('click', '.section-toggle', function() {
+        $(this).toggleClass('collapsed');
+    });
+
+    // Phase date validation
+    $(document).on('change', 'input[name$="start_date"], input[name$="end_date"], input[name$="due_date"]', function() {
+        validateDates($(this));
+    });
+
+    function validateDates(input) {
+        const container = input.closest('.phase-container, .task-container');
+        let startDateInput, endDateInput;
+
+        if (container.hasClass('phase-container')) {
+            startDateInput = container.find('input[name$="start_date"]');
+            endDateInput = container.find('input[name$="end_date"]');
+        } else {
+            startDateInput = container.find('input[name$="start_date"]');
+            endDateInput = container.find('input[name$="due_date"]');
+        }
+
+        if (startDateInput.val() && endDateInput.val()) {
+            const startDate = new Date(startDateInput.val());
+            const endDate = new Date(endDateInput.val());
+
+            if (endDate < startDate) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Invalid Dates',
+                    text: 'End date cannot be before start date',
+                    toast: true,
+                    position: 'top-end',
+                    showConfirmButton: false,
+                    timer: 3000
+                });
+
+                // Reset the end date to be the same as start date
+                endDateInput.val(startDateInput.val());
+            }
+
+            // If this is a phase, also validate project dates
+            if (container.hasClass('phase-container')) {
+                const projectStartDate = new Date($('#id_start_date').val());
+                const projectEndDate = new Date($('#id_target_end_date').val());
+
+                if (projectStartDate && projectEndDate) {
+                    if (startDate < projectStartDate) {
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'Invalid Phase Date',
+                            text: 'Phase cannot start before project start date',
+                            toast: true,
+                            position: 'top-end',
+                            showConfirmButton: false,
+                            timer: 3000
+                        });
+                        startDateInput.val($('#id_start_date').val());
+                    }
+
+                    if (endDate > projectEndDate) {
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'Invalid Phase Date',
+                            text: 'Phase cannot end after project end date',
+                            toast: true,
+                            position: 'top-end',
+                            showConfirmButton: false,
+                            timer: 3000
+                        });
+                        endDateInput.val($('#id_target_end_date').val());
+                    }
+                }
+            }
+
+            // If this is a task, also validate phase dates
+            if (container.hasClass('task-container')) {
+                const phaseContainer = container.closest('.tasks-container').closest('.phase-container');
+                const phaseStartDate = new Date(phaseContainer.find('input[name$="start_date"]').val());
+                const phaseEndDate = new Date(phaseContainer.find('input[name$="end_date"]').val());
+
+                if (phaseStartDate && phaseEndDate) {
+                    if (startDate < phaseStartDate) {
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'Invalid Task Date',
+                            text: 'Task cannot start before phase start date',
+                            toast: true,
+                            position: 'top-end',
+                            showConfirmButton: false,
+                            timer: 3000
+                        });
+                        startDateInput.val(phaseContainer.find('input[name$="start_date"]').val());
+                    }
+
+                    if (endDate > phaseEndDate) {
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'Invalid Task Date',
+                            text: 'Task cannot end after phase end date',
+                            toast: true,
+                            position: 'top-end',
+                            showConfirmButton: false,
+                            timer: 3000
+                        });
+                        endDateInput.val(phaseContainer.find('input[name$="end_date"]').val());
+                    }
+                }
+            }
+        }
+    }
+
+    // Automatically update nested dates when parent dates change
+    $('#id_start_date, #id_target_end_date').change(function() {
+        // Ask if user wants to update all phase dates
+        if ($('.phase-container').length > 1) {
+            Swal.fire({
+                title: 'Update Phase Dates?',
+                text: 'Do you want to update all phase dates to match the project dates?',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Yes, update all',
+                cancelButtonText: 'No, keep current'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    $('#copy-project-dates-btn').click();
+                }
+            });
+        }
+    });
+
+    // Form submission validation
+    $('#integratedProjectForm').submit(function(e) {
+        let isValid = true;
+
+        // Validate project details
+        if (!$('#id_name').val()) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Missing Project Name',
+                text: 'Please enter a project name',
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 3000
+            });
+            $('#id_name').focus();
+            return false;
+        }
+
+        if (!$('#id_customer').val()) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Missing Customer',
+                text: 'Please select a customer',
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 3000
+            });
+            $('#id_customer').focus();
+            return false;
+        }
+
+        if (!$('#id_start_date').val() || !$('#id_target_end_date').val()) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Missing Dates',
+                text: 'Please set both start and end dates for the project',
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 3000
+            });
+            return false;
+        }
+
+        // Validate phase details
+        $('.phase-container').each(function() {
+            const phaseName = $(this).find('input[name$="name"]').val();
+            if (!phaseName) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Missing Phase Name',
+                    text: 'Please enter a name for all phases',
+                    toast: true,
+                    position: 'top-end',
+                    showConfirmButton: false,
+                    timer: 3000
+                });
+                $(this).find('input[name$="name"]').focus();
+                isValid = false;
+                return false;
+            }
+
+            if (!$(this).find('input[name$="start_date"]').val() || !$(this).find('input[name$="end_date"]').val()) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Missing Phase Dates',
+                    text: 'Please set both start and end dates for all phases',
+                    toast: true,
+                    position: 'top-end',
+                    showConfirmButton: false,
+                    timer: 3000
+                });
+                isValid = false;
+                return false;
+            }
+        });
+
+        if (!isValid) {
+            return false;
+        }
+
+        // Add a loading overlay
+        Swal.fire({
+            title: 'Creating Project',
+            html: 'Please wait while we save the project and all related data...',
+            allowOutsideClick: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
+
+        // The form will submit if all validations pass
+        return true;
+    });
+});
+</script>
+{% endblock %}

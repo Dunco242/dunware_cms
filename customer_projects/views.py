@@ -22,6 +22,7 @@ from django.core.exceptions import (
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.utils.decorators import method_decorator
 from django.views.decorators.http import require_http_methods
+from django.views.generic import View
 from django.views.decorators.csrf import csrf_exempt
 from django.template.loader import render_to_string
 from django.contrib.contenttypes.models import ContentType
@@ -237,9 +238,12 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
             if task_metrics['total_tasks'] > 0 else 0
         )
 
+        # Time Entry Form
+        time_entry_form = TimeEntryForm()
+
         context.update({
             'phases': phases,
-            'tasks': tasks,  # Add tasks to context with phase_id
+            'tasks': tasks,
             'team_members': project.team_members.all(),
             'documents': project.documents.all().order_by('-upload_date')[:5],
             'risks': project.risks.all().order_by('-risk_level')[:5],
@@ -249,13 +253,14 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
             'recent_activities': ProjectComment.objects.filter(
                 content_type__model='project',
                 object_id=project.id
-            ).select_related('author').order_by('-created_at')[:5]
+            ).select_related('author').order_by('-created_at')[:5],
+            'time_entry_form': time_entry_form,
         })
 
         return context
 
     def post(self, request, *args, **kwargs):
-        """Handle POST requests for project actions"""
+        """Handle POST requests for project actions, including time entry creation"""
         project = self.get_object()
         action = request.POST.get('action')
 
@@ -263,17 +268,51 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
             return self._handle_status_update(request, project)
         elif action == 'add_comment':
             return self._handle_add_comment(request, project)
+        elif action == 'add_time_entry':
+            return self._handle_add_time_entry(request, project)
 
-        return JsonResponse({'error': 'Invalid action'}, status=400)
+        return redirect(request.path)
+
+    def _handle_add_time_entry(self, request, project):
+        """Handle adding a time entry to a task within the project"""
+        time_entry_form = TimeEntryForm(request.POST)
+        if time_entry_form.is_valid():
+            try:
+                time_entry = time_entry_form.save(commit=False)
+                task_id = request.POST.get('task')
+                task = get_object_or_404(ProjectTask, pk=task_id, phase__project=project)
+
+                # Retrieve the Employee instance correctly
+                employee = Employee.objects.filter(user=request.user).first()
+                if not employee:
+                    messages.error(request, "You are not associated with an employee profile.")
+                    return redirect(request.path)
+
+                time_entry.task = task
+                time_entry.employee = employee
+                time_entry.save()
+
+                messages.success(request, "Time entry added successfully.")
+                return redirect(request.path)
+
+            except Exception as e:
+                messages.error(request, f"Error adding time entry: {str(e)}")
+                return redirect(request.path)
+
+        messages.error(request, "There was an error with the time entry form.")
+        return redirect(request.path)
 
     def _handle_status_update(self, request, project):
         """Handle project status updates"""
-        if project.project_manager != request.user.employee_profile:
-            return JsonResponse({'error': 'Permission denied'}, status=403)
+        employee = Employee.objects.filter(user=request.user).first()
+        if not employee or project.project_manager != employee:
+            messages.error(request, "Permission denied.")
+            return redirect(request.path)
 
         new_status = request.POST.get('status')
         if new_status not in dict(Project.STATUS_CHOICES):
-            return JsonResponse({'error': 'Invalid status'}, status=400)
+            messages.error(request, "Invalid project status selected.")
+            return redirect(request.path)
 
         try:
             old_status = project.status
@@ -283,41 +322,40 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
             # Log the status change
             ProjectComment.objects.create(
                 content_object=project,
-                author=request.user.employee_profile,
+                author=employee,
                 text=f"Project status updated from {old_status} to {new_status}"
             )
 
             messages.success(request, f"Project status updated to {project.get_status_display()}")
-            return JsonResponse({'status': 'success'})
+            return redirect(request.path)
         except Exception as e:
-            logger.error(f"Error updating project status: {str(e)}")
-            return JsonResponse({'error': str(e)}, status=500)
+            messages.error(request, f"Error updating project status: {str(e)}")
+            return redirect(request.path)
 
     def _handle_add_comment(self, request, project):
         """Handle adding comments to the project"""
         comment_text = request.POST.get('comment')
         if not comment_text:
-            return JsonResponse({'error': 'Comment text is required'}, status=400)
+            messages.error(request, "Comment text is required.")
+            return redirect(request.path)
 
         try:
-            comment = ProjectComment.objects.create(
+            employee = Employee.objects.filter(user=request.user).first()
+            if not employee:
+                messages.error(request, "You are not associated with an employee profile.")
+                return redirect(request.path)
+
+            ProjectComment.objects.create(
                 content_object=project,
-                author=request.user.employee_profile,
+                author=employee,
                 text=comment_text
             )
 
-            return JsonResponse({
-                'status': 'success',
-                'comment': {
-                    'id': comment.id,
-                    'text': comment.text,
-                    'author': comment.author.get_full_name(),
-                    'created_at': comment.created_at.strftime('%Y-%m-%d %H:%M')
-                }
-            })
+            messages.success(request, "Comment added successfully.")
+            return redirect(request.path)
         except Exception as e:
-            logger.error(f"Error adding comment: {str(e)}")
-            return JsonResponse({'error': str(e)}, status=500)
+            messages.error(request, f"Error adding comment: {str(e)}")
+            return redirect(request.path)
 
 
 class ProjectCreateView(LoginRequiredMixin, CreateView):
@@ -660,7 +698,7 @@ class TaskCreateView(LoginRequiredMixin, CreateView):
             return self.form_invalid(form)
 
     def get_success_url(self):
-        return reverse('customer_projects:task-list', kwargs={'phase_id': self.phase.id})
+        return reverse('customer_projects:project-task-list', kwargs={'project_id': self.phase.project.id, 'phase_id': self.phase.id})
 
 
 logger = logging.getLogger(__name__)
@@ -2399,3 +2437,173 @@ class ProjectTaskListView(LoginRequiredMixin, ListView):
         )
 
         return context
+
+
+class IntegratedProjectCreateView(LoginRequiredMixin, View):
+    """View for creating a project with phases and tasks in a single form"""
+    template_name = 'customer_projects/integrated_project_form.html'
+
+    def get(self, request, *args, **kwargs):
+        """Handle GET request - display the empty form"""
+        # Get customer ID if provided in query parameters
+        customer_id = request.GET.get('customer')
+
+        # Create initial form data with customer pre-selected if provided
+        initial_data = {}
+        if customer_id:
+            initial_data['customer'] = customer_id
+
+        project_form = ProjectForm(user=request.user, initial=initial_data)
+        phase_forms = [ProjectPhaseForm(prefix=f'phase-0')]
+        task_forms = [[ProjectTaskForm(prefix=f'phase-0-task-0')]]
+
+        context = {
+            'project_form': project_form,
+            'phase_forms': phase_forms,
+            'task_forms': task_forms,
+            'num_phases': 1,
+        }
+        return render(request, self.template_name, context)
+
+    def post(self, request, *args, **kwargs):
+        """Handle POST request - process the form data"""
+        print("POST data keys:", list(request.POST.keys()))  # Debug what keys are coming in
+
+        project_form = ProjectForm(request.POST, user=request.user)
+
+        if not project_form.is_valid():
+            # If project form is invalid, re-render with errors
+            messages.error(request, "Please correct the errors in the project form.")
+            return render(request, self.template_name, {'project_form': project_form})
+
+        # Save the project directly
+        try:
+            with transaction.atomic():
+                # Save the project
+                project = project_form.save(commit=False)
+                project.created_by = request.user.employee_profile
+                project.save()
+
+                # Add project manager to team members
+                if project.project_manager:
+                    ProjectTeamMember.objects.create(
+                        project=project,
+                        employee=project.project_manager,
+                        role='lead'
+                    )
+
+                # Process phases and tasks directly from POST data
+                # Get the number of phases from the form
+                num_phases = int(request.POST.get('num_phases', 1))
+
+                # Save phases and tasks - direct approach
+                for i in range(num_phases):
+                    prefix = f'phase-{i}'
+
+                    # Check if we have phase data
+                    phase_name = request.POST.get(f'{prefix}-name')
+                    if phase_name:
+                        # Create the phase
+                        phase = ProjectPhase(
+                            project=project,
+                            name=phase_name,
+                            status=request.POST.get(f'{prefix}-status', 'planning'),
+                            description=request.POST.get(f'{prefix}-description', '')
+                        )
+
+                        # Handle date fields
+                        start_date = request.POST.get(f'{prefix}-start_date')
+                        end_date = request.POST.get(f'{prefix}-end_date')
+
+                        if start_date:
+                            phase.start_date = start_date
+                        if end_date:
+                            phase.end_date = end_date
+
+                        phase.save()
+
+                        # Save tasks for this phase
+                        num_tasks = int(request.POST.get(f'{prefix}-num_tasks', 0))
+                        for j in range(num_tasks):
+                            task_prefix = f'{prefix}-task-{j}'
+
+                            # Check if any keys exist for this task
+                            task_keys = [k for k in request.POST.keys() if k.startswith(task_prefix)]
+
+                            if task_keys:
+                                task_title = request.POST.get(f'{task_prefix}-title')
+
+                                if task_title:
+                                    # Create the task
+                                    task = ProjectTask(
+                                        phase=phase,
+                                        title=task_title,
+                                        status=request.POST.get(f'{task_prefix}-status', 'todo'),
+                                        priority=request.POST.get(f'{task_prefix}-priority', 'medium'),
+                                        description=request.POST.get(f'{task_prefix}-description', '')
+                                    )
+
+                                    # Handle date fields
+                                    task_start_date = request.POST.get(f'{task_prefix}-start_date')
+                                    task_due_date = request.POST.get(f'{task_prefix}-due_date')
+
+                                    if task_start_date:
+                                        task.start_date = task_start_date
+                                    if task_due_date:
+                                        task.due_date = task_due_date
+
+                                    # Handle estimated hours (if present)
+                                    estimated_hours = request.POST.get(f'{task_prefix}-estimated_hours')
+                                    if estimated_hours:
+                                        try:
+                                            task.estimated_hours = float(estimated_hours)
+                                        except (ValueError, TypeError):
+                                            pass
+
+                                    # Handle assigned_to field (it's a foreign key)
+                                    assigned_to_id = request.POST.get(f'{task_prefix}-assigned_to')
+                                    if assigned_to_id:
+                                        try:
+                                            employee = Employee.objects.get(id=assigned_to_id)
+                                            task.assigned_to = employee
+                                        except Employee.DoesNotExist:
+                                            pass
+
+                                    task.save()
+
+                messages.success(request, "Project created successfully with phases and tasks.")
+                return redirect('customer_projects:project-detail', pk=project.pk)
+
+        except Exception as e:
+            import traceback
+            print(f"Error creating project: {str(e)}")
+            print(traceback.format_exc())
+            messages.error(request, f"Error creating project: {str(e)}")
+
+            # Recreate the forms for display
+            phase_forms = []
+            task_forms = []
+
+            for i in range(num_phases):
+                prefix = f'phase-{i}'
+                phase_form = ProjectPhaseForm(request.POST, prefix=prefix)
+                phase_forms.append(phase_form)
+
+                # Get number of tasks for this phase
+                num_tasks = int(request.POST.get(f'{prefix}-num_tasks', 0))
+                phase_task_forms = []
+
+                for j in range(num_tasks):
+                    task_prefix = f'{prefix}-task-{j}'
+                    task_form = ProjectTaskForm(request.POST, prefix=task_prefix)
+                    phase_task_forms.append(task_form)
+
+                task_forms.append(phase_task_forms)
+
+            context = {
+                'project_form': project_form,
+                'phase_forms': phase_forms,
+                'task_forms': task_forms,
+                'num_phases': num_phases
+            }
+            return render(request, self.template_name, context)

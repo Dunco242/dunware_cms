@@ -1,4 +1,5 @@
 from django import forms
+from django.forms import inlineformset_factory
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 from django.contrib.auth.models import User
@@ -305,12 +306,14 @@ class ProjectTaskForm(forms.ModelForm):
         self.fields['dependencies'].help_text = "Hold Ctrl/Cmd to select multiple tasks"
 
 class TimeEntryForm(forms.ModelForm):
-    """Form for time entries"""
+    """Form for logging time entries against tasks"""
+
     date = forms.DateField(
         widget=forms.DateInput(attrs={
             'class': 'form-control',
             'type': 'date'
-        })
+        }),
+        help_text="Select the date when the work was done."
     )
 
     hours = forms.DecimalField(
@@ -319,7 +322,10 @@ class TimeEntryForm(forms.ModelForm):
             'step': '0.25',
             'min': '0.25',
             'max': '24'
-        })
+        }),
+        min_value=0.25,
+        max_value=24,
+        help_text="Enter the number of hours worked (minimum: 0.25, maximum: 24)."
     )
 
     description = forms.CharField(
@@ -327,14 +333,17 @@ class TimeEntryForm(forms.ModelForm):
             'class': 'form-control',
             'rows': 2,
             'placeholder': 'Describe the work done'
-        })
+        }),
+        max_length=500,
+        help_text="Provide a brief description of the work done (max 500 characters)."
     )
 
     is_billable = forms.BooleanField(
         required=False,
         widget=forms.CheckboxInput(attrs={
             'class': 'form-check-input'
-        })
+        }),
+        help_text="Check if the time entry is billable."
     )
 
     class Meta:
@@ -342,31 +351,50 @@ class TimeEntryForm(forms.ModelForm):
         fields = ['date', 'hours', 'description', 'is_billable']
 
     def __init__(self, *args, **kwargs):
+        """
+        Custom initialization to allow task-based validation.
+        """
         self.task = kwargs.pop('task', None)
         super().__init__(*args, **kwargs)
 
-    def clean_date(self):
-        date = self.cleaned_data.get('date')
-        if date:
-            if date > timezone.now().date():
-                raise ValidationError("Cannot log time for future dates")
+        # Set default date to today
+        self.fields['date'].initial = timezone.now().date()
 
-            if self.task:
-                if date < self.task.start_date:
-                    raise ValidationError("Cannot log time before task start date")
-                if self.task.due_date and date > self.task.due_date:
-                    raise ValidationError("Cannot log time after task due date")
+    def clean_date(self):
+        """
+        Validate that the date is not in the future and falls within the task's duration.
+        """
+        date = self.cleaned_data.get('date')
+        if not date:
+            raise ValidationError("Date is required.")
+
+        today = timezone.now().date()
+        if date > today:
+            raise ValidationError("Cannot log time for future dates.")
+
+        if self.task:
+            if date < self.task.start_date:
+                raise ValidationError("Cannot log time before task start date.")
+            if self.task.due_date and date > self.task.due_date:
+                raise ValidationError("Cannot log time after task due date.")
 
         return date
 
     def clean_hours(self):
+        """
+        Validate that the logged hours are within the allowed range.
+        """
         hours = self.cleaned_data.get('hours')
-        if hours:
-            if hours < 0.25:
-                raise ValidationError("Minimum time entry is 15 minutes (0.25 hours)")
-            if hours > 24:
-                raise ValidationError("Maximum time entry is 24 hours per day")
+        if not hours:
+            raise ValidationError("Hours are required.")
+
+        if hours < 0.25:
+            raise ValidationError("Minimum time entry is 15 minutes (0.25 hours).")
+        if hours > 24:
+            raise ValidationError("Maximum time entry is 24 hours per day.")
+
         return hours
+
 
 class ProjectDocumentForm(forms.ModelForm):
     """Form for project documents"""
@@ -590,3 +618,41 @@ class BulkDocumentUploadForm(forms.Form):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # The actual file handling will be done in the view using request.FILES
+
+
+class IntegratedProjectForm(ProjectForm):
+    """Extended form for creating a project with phases and tasks in one step"""
+
+    # Add fields to specify how many phases to create
+    num_phases = forms.IntegerField(
+        initial=1,
+        min_value=0,
+        required=False,
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'id': 'num_phases'
+        }),
+        help_text="Number of initial phases to add"
+    )
+
+    class Meta(ProjectForm.Meta):
+        model = Project
+        fields = ProjectForm.Meta.fields + ['num_phases']
+
+# Create inline formsets for phases
+ProjectPhaseFormSet = inlineformset_factory(
+    Project,
+    ProjectPhase,
+    form=ProjectPhaseForm,
+    extra=1,  # Start with one empty form
+    can_delete=True
+)
+
+# Create inline formsets for tasks
+PhaseTaskFormSet = inlineformset_factory(
+    ProjectPhase,
+    ProjectTask,
+    form=ProjectTaskForm,
+    extra=1,  # Start with one empty form
+    can_delete=True
+)

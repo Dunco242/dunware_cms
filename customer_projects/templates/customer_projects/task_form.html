@@ -114,29 +114,84 @@
                         {% endif %}
                     </div>
                 </div>
-                    <div class="col-md-12">
-                        <label class="form-label fw-bold">Status</label>
-                        {{ form.status }}
-                    </div>
+
                 <!-- Form Buttons -->
                 <div class="mt-4">
                     <button type="submit" class="btn btn-success">
                         <i class="fas fa-save"></i> Save Task
                     </button>
                     {% if phase %}
-                        <a href="{% url 'customer_projects:project-task-list' phase.project.id phase.id %}" class="btn btn-outline-secondary">
-                            <i class="fas fa-times"></i> Cancel
-                        </a>
+                    <a href="{% url 'customer_projects:project-task-list' project_id=phase.project.id phase_id=phase.id %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-times"></i> Cancel
+                    </a>
                     {% else %}
-                        <a href="{% url 'customer_projects:project-task-list' project.id task.phase.id %}" class="btn btn-outline-secondary">
-                            <i class="fas fa-times"></i> Cancel
-                        </a>
+                    <a href="{% url 'customer_projects:project-task-list' project_id=phase.project.id phase_id=phase.id %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-times"></i> Cancel
+                    </a>
                     {% endif %}
                 </div>
             </form>
         </div>
     </div>
 </div>
+
+<!-- Time Entry Section (Only visible when editing existing task) -->
+{% if form.instance.pk %}
+<div class="container mt-4">
+    <div class="card shadow-sm">
+        <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Time Entries</h5>
+            <button type="button" class="btn btn-sm btn-light" data-bs-toggle="modal" data-bs-target="#addTimeEntryModal">
+                <i class="fas fa-plus"></i> Log Time
+            </button>
+        </div>
+        <div class="card-body">
+            {% with time_entries=form.instance.time_entries.all %}
+                {% if time_entries %}
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Hours</th>
+                                    <th>Employee</th>
+                                    <th>Description</th>
+                                    <th>Billable</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for entry in time_entries %}
+                                <tr>
+                                    <td>{{ entry.date|date:"M d, Y" }}</td>
+                                    <td>{{ entry.hours }}</td>
+                                    <td>{{ entry.employee.get_full_name }}</td>
+                                    <td>{{ entry.description|truncatechars:50 }}</td>
+                                    <td>
+                                        {% if entry.is_billable %}
+                                        <span class="badge bg-success">Yes</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">No</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'customer_projects:time-entry-update' entry.id %}" class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="text-center text-muted">No time entries recorded for this task yet.</p>
+                {% endif %}
+            {% endwith %}
+        </div>
+    </div>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block extra_js %}

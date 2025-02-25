@@ -5,7 +5,7 @@ from .views import (
     PhaseListView, PhaseCreateView, PhaseUpdateView, PhaseDeleteView,
     ProjectTaskDetailView, ProjectTaskListView, TaskDetailView,
     TaskCreateView, TaskUpdateView, TaskDeleteView, TimeEntryCreateView,
-    TimeEntryUpdateView
+    TimeEntryUpdateView, IntegratedProjectCreateView
 )
 
 app_name = 'customer_projects'
@@ -88,4 +88,9 @@ urlpatterns = [
     path('api/tasks/update-status/', views.update_task_status, name='api-task-status-update'),
     path('api/projects/progress/', views.project_progress_update, name='api-project-progress-update'),
     path('api/phases/<int:pk>/update-status/', views.update_phase_status, name='phase-status-update'),
+
+    # Integrated Project
+     path('projects/integrated-create/', IntegratedProjectCreateView.as_view(), name='integrated-project-create'),
+
+
 ]
