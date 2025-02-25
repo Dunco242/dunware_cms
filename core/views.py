@@ -3973,10 +3973,11 @@ def reply_email(request, message_id):
 
     else:
         # ✅ Prepopulate form fields with original email data
+        quoted_body_text = original_email.body_text.replace('\n', '\n> ')
         form = EmailComposeForm(initial={
             'subject': f"Re: {original_email.subject}",
-            'body_text': f"\n\nOn {original_email.created_at.strftime('%Y-%m-%d %H:%M')} {original_email.from_email} wrote:\n> {original_email.body_text.replace('\n', '\n> ')}"
-        })
+            'body_text': f"\n\nOn {original_email.created_at.strftime('%Y-%m-%d %H:%M')} {original_email.from_email} wrote:\n> {quoted_body_text}"
+})
 
     return render(request, 'core/reply_email.html', {
         'form': form,
