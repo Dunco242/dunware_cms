@@ -196,8 +196,7 @@ ACCOUNT_FORMS = {
 # Authentication settings
 LOGIN_URL = '/account/login/'
 LOGIN_REDIRECT_URL = '/'
-ACCOUNT_LOGOUT_REDIRECT_URL = '/account/login'
-
+LOGOUT_REDIRECT_URL = '/account/login'
 
 # Django AllAuth settings
 AUTHENTICATION_BACKENDS = [
