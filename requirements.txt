@@ -63,3 +63,4 @@ weasyprint==64.0
 webencodings==0.5.1
 zoomus==1.2.1
 zopfli==0.2.3.post1
+gunicorn
