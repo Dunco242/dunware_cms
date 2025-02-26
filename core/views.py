@@ -4104,3 +4104,35 @@ class IntegratedBillingDashboardView(LoginRequiredMixin, TemplateView):
             })
 
         return context
+
+
+@csrf_exempt
+def update_invoice_status(request, invoice_id):
+    """Update invoice status dynamically via AJAX"""
+    if request.method == 'POST':
+        invoice = get_object_or_404(Invoice, id=invoice_id)
+        new_status = request.POST.get('status')
+
+        if new_status in ['paid', 'pending', 'overdue']:
+            invoice.status = new_status
+            invoice.save()
+            return JsonResponse({'success': True, 'new_status': invoice.get_status_display()})
+        return JsonResponse({'success': False, 'error': 'Invalid status'})
+
+@csrf_exempt
+def process_payment(request):
+    """Process payment and update invoice status"""
+    if request.method == 'POST':
+        invoice_id = request.POST.get('invoice_id')
+        amount = request.POST.get('amount')
+
+        invoice = get_object_or_404(Invoice, id=invoice_id)
+        payment = Payment.objects.create(invoice=invoice, amount=amount)
+
+        # Update invoice status
+        invoice.status = 'paid'
+        invoice.save()
+
+        return JsonResponse({'success': True, 'invoice_id': invoice.id, 'new_status': 'Paid'})
+
+    return JsonResponse({'success': False, 'error': 'Invalid request'})
