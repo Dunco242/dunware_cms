@@ -175,11 +175,12 @@ class ProjectListView(LoginRequiredMixin, ListView):
 
         total_metrics = projects.aggregate(
             total_projects=Count('id'),
-            total_hours=Coalesce(Sum('total_hours'), 0,output_field=DecimalField())  # Fix: Ensure it has a value
+            total_hours=Coalesce(Sum('total_hours'), 0,output_field=DecimalField()),  # Fix: Ensure it has a value
             total_billable=Sum('billable_hours') or 0,
             total_non_billable=Sum('non_billable_hours') or 0,
             avg_progress=Avg('progress') or 0
         )
+
 
         context.update({
             'status_choices': Project.STATUS_CHOICES,
