@@ -116,83 +116,83 @@ class ProjectListView(LoginRequiredMixin, ListView):
     paginate_by = 10
 
     def get_queryset(self):
-    employee = self.request.user.employee_profile
+        employee = self.request.user.employee_profile
 
-    # Base queryset with time metrics
-    queryset = Project.objects.filter(
-        Q(project_manager=employee) |
-        Q(team_members=employee)
-    ).annotate(
-        project_total_hours=Coalesce(
-            Sum('phases__tasks__time_entries__hours'),
-            0,
-            output_field=DecimalField()
-        ),
-        project_billable_hours=Coalesce(
-            Sum('phases__tasks__time_entries__hours',
-                filter=Q(phases__tasks__time_entries__is_billable=True)),
-            0,
-            output_field=DecimalField()
-        ),
-        project_non_billable_hours=Coalesce(
-            Sum('phases__tasks__time_entries__hours',
-                filter=Q(phases__tasks__time_entries__is_billable=False)),
-            0,
-            output_field=DecimalField()
-        )
-    ).distinct()
+        # Base queryset with time metrics
+        queryset = Project.objects.filter(
+            Q(project_manager=employee) |
+            Q(team_members=employee)
+        ).annotate(
+            project_total_hours=Coalesce(
+                Sum('phases__tasks__time_entries__hours'),
+                0,
+                output_field=DecimalField()
+            ),
+            project_billable_hours=Coalesce(
+                Sum('phases__tasks__time_entries__hours',
+                    filter=Q(phases__tasks__time_entries__is_billable=True)),
+                0,
+                output_field=DecimalField()
+            ),
+            project_non_billable_hours=Coalesce(
+                Sum('phases__tasks__time_entries__hours',
+                    filter=Q(phases__tasks__time_entries__is_billable=False)),
+                0,
+                output_field=DecimalField()
+            )
+        ).distinct()
 
-    # Apply filters
-    search_query = self.request.GET.get('search')
-    status_filter = self.request.GET.get('status')
-    customer_filter = self.request.GET.get('customer')
+        # Apply filters
+        search_query = self.request.GET.get('search')
+        status_filter = self.request.GET.get('status')
+        customer_filter = self.request.GET.get('customer')
 
-    if search_query:
-        queryset = queryset.filter(
-            Q(name__icontains=search_query) |
-            Q(project_code__icontains=search_query) |
-            Q(customer__company_name__icontains=search_query)
-        )
+        if search_query:
+            queryset = queryset.filter(
+                Q(name__icontains=search_query) |
+                Q(project_code__icontains=search_query) |
+                Q(customer__company_name__icontains=search_query)
+            )
 
-    if status_filter:
-        queryset = queryset.filter(status=status_filter)
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
 
-    if customer_filter:
-        queryset = queryset.filter(customer_id=customer_filter)
+        if customer_filter:
+            queryset = queryset.filter(customer_id=customer_filter)
 
-    return queryset.select_related(
-        'customer',
-        'project_manager'
-    ).prefetch_related(
-        'phases',
-        'phases__tasks',
-        'phases__tasks__time_entries'
-    ).order_by('-created_at')
+        return queryset.select_related(
+            'customer',
+            'project_manager'
+        ).prefetch_related(
+            'phases',
+            'phases__tasks',
+            'phases__tasks__time_entries'
+        ).order_by('-created_at')
 
-def get_context_data(self, **kwargs):
-    context = super().get_context_data(**kwargs)
-    projects = self.get_queryset()
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        projects = self.get_queryset()
 
-    # Calculate the metrics properly using direct aggregation on annotated fields
-    metrics = {
-        'total_projects': projects.count(),
-        'total_hours': projects.aggregate(sum=Sum('project_total_hours'))['sum'] or 0,
-        'total_billable': projects.aggregate(sum=Sum('project_billable_hours'))['sum'] or 0,
-        'total_non_billable': projects.aggregate(sum=Sum('project_non_billable_hours'))['sum'] or 0,
-        'avg_progress': projects.aggregate(avg=Avg('progress'))['avg'] or 0
-    }
+        # Calculate the metrics properly using direct aggregation on annotated fields
+        metrics = {
+            'total_projects': projects.count(),
+            'total_hours': projects.aggregate(sum=Sum('project_total_hours'))['sum'] or 0,
+            'total_billable': projects.aggregate(sum=Sum('project_billable_hours'))['sum'] or 0,
+            'total_non_billable': projects.aggregate(sum=Sum('project_non_billable_hours'))['sum'] or 0,
+            'avg_progress': projects.aggregate(avg=Avg('progress'))['avg'] or 0
+        }
 
-    context.update({
-        'status_choices': Project.STATUS_CHOICES,
-        'customers': Customer.objects.all(),
-        'current_filters': {
-            'search': self.request.GET.get('search', ''),
-            'status': self.request.GET.get('status', ''),
-            'customer': self.request.GET.get('customer', '')
-        },
-        'metrics': metrics
-    })
-    return context
+        context.update({
+            'status_choices': Project.STATUS_CHOICES,
+            'customers': Customer.objects.all(),
+            'current_filters': {
+                'search': self.request.GET.get('search', ''),
+                'status': self.request.GET.get('status', ''),
+                'customer': self.request.GET.get('customer', '')
+            },
+            'metrics': metrics
+        })
+        return context
 
 class ProjectDetailView(LoginRequiredMixin, DetailView):
     """Detailed view of a project"""
