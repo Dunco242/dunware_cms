@@ -74,11 +74,11 @@
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle {% if 'billing' in request.resolver_match.url_name %}active{% endif %}" href="#" id="billingDropdown" role="button" data-bs-toggle="dropdown">Billing</a>
                         <ul class="dropdown-menu" aria-labelledby="billingDropdown">
-                            <li><a class="dropdown-item" href="{% url 'billing-dashboard' %}">Billing Dashboard</a></li>
-                            <li><a class="dropdown-item" href="{% url 'invoice-list' %}">All Invoices</a></li>
+                            <li><a class="dropdown-item" href="{% url 'integrated-billing-dashboard' %}">Billing Dashboard</a></li>
+                            <!-- <li><a class="dropdown-item" href="{% url 'invoice-list' %}">All Invoices</a></li>
                             <li><a class="dropdown-item" href="{% url 'payment-list' %}">Payments</a></li>
                             <li><a class="dropdown-item" href="{% url 'subscription-list' %}">Subscriptions</a></li>
-                            <li><a class="dropdown-item" href="{% url 'paid-invoices' %}">Paid Invoices</a></li>
+                            <li><a class="dropdown-item" href="{% url 'paid-invoices' %}">Paid Invoices</a></li> -->
                         </ul>
                     </li>
                     <!-- 🆕 Add Payments Tab -->

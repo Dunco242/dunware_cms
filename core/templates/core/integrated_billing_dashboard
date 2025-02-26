@@ -1,0 +1,377 @@
+{% extends "core/base.html" %}
+{% block title %}Billing Dashboard{% endblock %}
+
+{% block extra_css %}
+<style>
+    .card {
+        border: none;
+        margin-bottom: 1.5rem;
+    }
+    .card-header {
+        background-color: #f8f9fa;
+        padding: 1rem;
+        border-bottom: none;
+    }
+    .badge-pending {
+        background-color: #ffc107;
+        color: #212529;
+    }
+    .badge-paid {
+        background-color: #28a745;
+        color: white;
+    }
+    .badge-overdue {
+        background-color: #dc3545;
+        color: white;
+    }
+    .badge-active {
+        background-color: #28a745;
+        color: white;
+    }
+    .badge-expired {
+        background-color: #6c757d;
+        color: white;
+    }
+    .badge-cancelled {
+        background-color: #dc3545;
+        color: white;
+    }
+    .summary-card {
+        transition: all 0.3s;
+    }
+    .summary-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+    }
+    .table-responsive {
+        border-radius: 0.25rem;
+    }
+    .table th {
+        font-weight: 600;
+        border-top: none;
+    }
+    .btn-circle {
+        width: 30px;
+        height: 30px;
+        padding: 0;
+        border-radius: 15px;
+        text-align: center;
+        font-size: 12px;
+        line-height: 1.428571429;
+    }
+    .section-heading {
+        font-size: 1.2rem;
+        font-weight: bold;
+        color: #4e73df;
+        margin-bottom: 1rem;
+        border-left: 4px solid #4e73df;
+        padding-left: 0.75rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <!-- Dashboard Header -->
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 text-dark">Billing Dashboard</h1>
+        <div>
+            <a href="{% url 'invoice-create' %}" class="btn btn-primary btn-sm">
+                <i class="fas fa-plus"></i> Create Invoice
+            </a>
+            <a href="{% url 'paid-invoices' %}" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-check-circle"></i> View Paid Invoices
+            </a>
+        </div>
+    </div>
+
+    <!-- Summary Cards Row -->
+    <div class="row mb-4">
+        <!-- Unpaid Invoices Card -->
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-primary shadow h-100 py-2 summary-card">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                Unpaid Invoices</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ invoices|length }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-file-invoice fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Overdue Invoices Card -->
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-danger shadow h-100 py-2 summary-card">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">
+                                Overdue Invoices</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {{ invoices|selectattr("status", "equalto", "overdue")|list|length }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-calendar-times fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Active Subscriptions Card -->
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-success shadow h-100 py-2 summary-card">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                Active Subscriptions</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {{ subscriptions|selectattr("status", "equalto", "active")|list|length }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-sync fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Payments Card -->
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-info shadow h-100 py-2 summary-card">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                Recent Payments</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ payments|length }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-dollar-sign fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Invoices Section -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex justify-content-between align-items-center">
+            <h6 class="m-0 font-weight-bold text-primary">Pending Invoices</h6>
+            <div>
+                <a href="{% url 'invoice-list' %}" class="btn btn-sm btn-outline-primary">
+                    <i class="fas fa-list"></i> View All
+                </a>
+                <a href="{% url 'invoice-create' %}" class="btn btn-sm btn-primary">
+                    <i class="fas fa-plus"></i> New Invoice
+                </a>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="thead-light">
+                        <tr>
+                            <th>Invoice #</th>
+                            <th>Customer</th>
+                            <th>Issue Date</th>
+                            <th>Amount</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for invoice in invoices %}
+                        {% if invoice.status != 'paid' %}
+                        <tr>
+                            <td><a href="{% url 'invoice-detail' invoice.pk %}">{{ invoice.invoice_number }}</a></td>
+                            <td>{{ invoice.customer.company_name }}</td>
+                            <td>{{ invoice.issue_date|date:"M d, Y" }}</td>
+                            <td>${{ invoice.total_amount|floatformat:2 }}</td>
+                            <td>
+                                {% if invoice.status == 'paid' %}
+                                <span class="badge badge-paid">Paid</span>
+                                {% elif invoice.status == 'overdue' %}
+                                <span class="badge badge-overdue">Overdue</span>
+                                {% else %}
+                                <span class="badge badge-pending">{{ invoice.get_status_display }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="btn-group">
+                                    <a href="{% url 'invoice-update' invoice.pk %}" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <a href="{% url 'payment-create' %}?invoice={{ invoice.pk }}" class="btn btn-sm btn-outline-success">
+                                        <i class="fas fa-dollar-sign"></i>
+                                    </a>
+                                    <a href="{% url 'invoice-pdf' invoice.id %}" class="btn btn-sm btn-outline-info">
+                                        <i class="fas fa-file-pdf"></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endif %}
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-center">No pending invoices found.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Subscriptions Section -->
+        <div class="col-lg-7">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                    <h6 class="m-0 font-weight-bold text-primary">Active Subscriptions</h6>
+                    <a href="{% url 'subscription-create' %}" class="btn btn-sm btn-primary">
+                        <i class="fas fa-plus"></i> New Subscription
+                    </a>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="thead-light">
+                                <tr>
+                                    <th>Customer</th>
+                                    <th>Service</th>
+                                    <th>Start Date</th>
+                                    <th>Status</th>
+                                    <th>Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for subscription in subscriptions %}
+                                <tr>
+                                    <td>{{ subscription.customer.company_name }}</td>
+                                    <td>{{ subscription.service.name }}</td>
+                                    <td>{{ subscription.start_date|date:"M d, Y" }}</td>
+                                    <td>
+                                        {% if subscription.status == 'active' %}
+                                        <span class="badge badge-active">Active</span>
+                                        {% elif subscription.status == 'cancelled' %}
+                                        <span class="badge badge-cancelled">Cancelled</span>
+                                        {% elif subscription.status == 'expired' %}
+                                        <span class="badge badge-expired">Expired</span>
+                                        {% else %}
+                                        <span class="badge badge-secondary">{{ subscription.get_status_display }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>${{ subscription.price|floatformat:2 }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="5" class="text-center">No active subscriptions found.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Payments Section -->
+        <div class="col-lg-5">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                    <h6 class="m-0 font-weight-bold text-primary">Recent Payments</h6>
+                    <a href="{% url 'payment-list' %}" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-list"></i> View All
+                    </a>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="thead-light">
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Customer</th>
+                                    <th>Amount</th>
+                                    <th>Method</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for payment in payments %}
+                                <tr>
+                                    <td>{{ payment.transaction_date|date:"M d, Y" }}</td>
+                                    <td>{{ payment.customer.company_name }}</td>
+                                    <td>${{ payment.amount|floatformat:2 }}</td>
+                                    <td>{{ payment.get_payment_method_display }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="4" class="text-center">No recent payments found.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions Card -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">Quick Actions</h6>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-3 mb-3">
+                    <a href="{% url 'invoice-create' %}" class="btn btn-block btn-outline-primary">
+                        <i class="fas fa-file-invoice mr-2"></i> Create Invoice
+                    </a>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <a href="{% url 'payment-create' %}" class="btn btn-block btn-outline-success">
+                        <i class="fas fa-dollar-sign mr-2"></i> Record Payment
+                    </a>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <a href="{% url 'subscription-create' %}" class="btn btn-block btn-outline-info">
+                        <i class="fas fa-sync mr-2"></i> New Subscription
+                    </a>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <a href="{% url 'billing-settings' %}" class="btn btn-block btn-outline-secondary">
+                        <i class="fas fa-cog mr-2"></i> Billing Settings
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    $(document).ready(function() {
+        // Add any JavaScript interactions or charts here
+
+        // Example: Toggle collapse sections
+        $('.section-toggle').click(function() {
+            $(this).toggleClass('collapsed');
+        });
+
+        // Example: Tooltips
+        $('[data-toggle="tooltip"]').tooltip();
+    });
+</script>
+{% endblock %}

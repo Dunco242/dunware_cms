@@ -1,0 +1,33 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Delete Invoice{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card shadow-sm">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">Delete Invoice</h6>
+        </div>
+        <div class="card-body">
+            <form method="post">
+                {% csrf_token %}
+                <div class="alert alert-danger">
+                    <p>Are you sure you want to delete invoice #{{ invoice.invoice_number }}?</p>
+                    <p>This action cannot be undone.</p>
+                    {% if invoice.paid_amount > 0 %}
+                    <p class="font-weight-bold">Warning: This invoice has payments associated with it!</p>
+                    {% endif %}
+                </div>
+                <div class="form-group mt-4">
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-trash"></i> Confirm Delete
+                    </button>
+                    <a href="{% url 'invoice-detail' invoice.pk %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-times"></i> Cancel
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

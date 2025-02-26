@@ -4040,3 +4040,67 @@ class EmailThreadView(LoginRequiredMixin, ListView):
         original_email = get_object_or_404(EmailMessage, message_id=self.kwargs.get('message_id'))
         context['original_email'] = original_email
         return context
+
+
+
+class IntegratedBillingDashboardView(LoginRequiredMixin, TemplateView):
+    """
+    Integrated dashboard showing all billing-related information in one place
+    """
+    template_name = 'core/billing_dashboard.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        try:
+            # Get pending invoices (excluding paid ones)
+            invoices = Invoice.objects.exclude(status='paid').order_by('-issue_date')
+
+            # Get recent payments
+            payments = Payment.objects.filter(
+                status='completed'
+            ).select_related(
+                'customer', 'invoice'
+            ).order_by('-transaction_date')[:10]
+
+            # Get active subscriptions
+            subscriptions = ServiceSubscription.objects.filter(
+                is_active=True
+            ).select_related(
+                'customer', 'service'
+            ).order_by('-start_date')
+
+            # Calculate summary statistics
+            total_unpaid = invoices.aggregate(
+                total=Sum('total_amount')
+            )['total'] or 0
+
+            overdue_count = invoices.filter(status='overdue').count()
+
+            # Add all data to context
+            context.update({
+                'invoices': invoices,
+                'payments': payments,
+                'subscriptions': subscriptions,
+                'total_unpaid': total_unpaid,
+                'overdue_count': overdue_count,
+                'recent_payment_total': payments.aggregate(
+                    total=Sum('amount')
+                )['total'] or 0,
+                'active_subscription_count': subscriptions.count()
+            })
+
+        except Exception as e:
+            logger.error(f"Error loading billing dashboard data: {str(e)}")
+            messages.error(self.request, "Error loading billing data. Please try again.")
+            context.update({
+                'invoices': [],
+                'payments': [],
+                'subscriptions': [],
+                'total_unpaid': 0,
+                'overdue_count': 0,
+                'recent_payment_total': 0,
+                'active_subscription_count': 0
+            })
+
+        return context
