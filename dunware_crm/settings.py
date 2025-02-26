@@ -19,7 +19,15 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
+SECURE_SSL_REDIRECT = True
+SECURE_HSTS_SECONDS = 31536000  # 1 year
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_BROWSER_XSS_FILTER = True
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
+X_FRAME_OPTIONS = 'DENY'
 
 ALLOWED_HOSTS = ['127.0.0.1', 'localhost', 'dunware-cms.onrender.com']
 
@@ -102,7 +110,7 @@ CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
-            "hosts": [('127.0.0.1', 6379)],
+            "hosts": [os.getenv('REDIS_URL')],
             "capacity": 1500,  # Optional: default channel layer message capacity
             "expiry": 10,      # Optional: message expiry in seconds
         },
@@ -123,7 +131,13 @@ DATABASES = {
     }
 }
 
-
+REDIS_URL = os.getenv('REDIS_URL')
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": REDIS_URL,
+    }
+}
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
@@ -172,6 +186,8 @@ STATICFILES_DIRS = [
 # Change STATIC_ROOT to avoid overlap
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')  # Now it's a separate directory
 
+# Add this for more efficient static file handling
+STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.ManifestStaticFilesStorage'
 # Media files settings
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
@@ -246,9 +262,10 @@ Q_CLUSTER = {
     'compress': True,  # Added for better performance
     'label': 'Django Q2',  # Added for better identification
     'redis': {
-        'host': '127.0.0.1',
-        'port': 6379,
-        'db': 0,
+        'host': os.getenv('REDIS_HOST'),
+        'port': int(os.getenv('REDIS_PORT')),
+        'db': int(os.getenv('REDIS_DB')),
+        'password': os.getenv('REDIS_PASSWORD'),
     }
 }
 
@@ -293,3 +310,30 @@ CSRF_COOKIE_NAME = 'csrftoken'
 # settings.py
 MAX_UPLOAD_SIZE = 10485760  # 10MB
 CONTENT_TYPES = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
+
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'file': {
+            'level': 'ERROR',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, 'django-error.log'),
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['file'],
+            'level': 'ERROR',
+            'propagate': True,
+        },
+    },
+}

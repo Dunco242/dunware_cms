@@ -8,15 +8,60 @@
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <div class="card shadow mb-4">
-        <div class="card-header py-3">
-            <h6 class="m-0 font-weight-bold text-primary">
-                {% if form.instance.pk %}Update Event{% else %}Create New Event{% endif %}
-            </h6>
-        </div>
+<div class="container mt-4">
+    <!-- Event Form -->
+    <div class="card shadow-sm">
         <div class="card-body">
-            {% crispy form %}
+            <h1 class="h3 text-dark">
+                {% if form.instance.pk %}
+                    Update Event
+                {% else %}
+                    Create New Event
+                {% endif %}
+            </h1>
+            <hr>
+
+            <form method="post">
+                {% csrf_token %}
+                <div class="row g-3">
+                    {% for field in form %}
+                        {% if field.name == 'description' or field.name == 'notes' %}
+                            <!-- Full width fields -->
+                            <div class="col-12">
+                                <label class="form-label fw-bold">{{ field.label }}</label>
+                                {{ field }}
+                                {% if field.errors %}
+                                    <div class="text-danger small">{{ field.errors }}</div>
+                                {% endif %}
+                            </div>
+                        {% else %}
+                            <!-- Half width fields -->
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">{{ field.label }}</label>
+                                {{ field }}
+                                {% if field.errors %}
+                                    <div class="text-danger small">{{ field.errors }}</div>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+
+                <!-- Form Buttons -->
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-save"></i>
+                        {% if form.instance.pk %}
+                            Update Event
+                        {% else %}
+                            Create Event
+                        {% endif %}
+                    </button>
+                    <a href="{% url 'event-list' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-times"></i> Cancel
+                    </a>
+                </div>
+            </form>
         </div>
     </div>
 </div>

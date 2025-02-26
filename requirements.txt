@@ -95,6 +95,7 @@ tzdata==2025.1
 tzlocal==5.2
 uritemplate==4.1.1
 urllib3==2.3.0
+valkey==6.1.0
 vine==5.1.0
 wcwidth==0.2.13
 weasyprint==64.0

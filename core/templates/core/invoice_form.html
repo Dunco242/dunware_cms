@@ -4,37 +4,65 @@
 {% block title %}Edit Invoice{% endblock %}
 
 {% block content %}
-<div class="container">
-    <h1>Edit Invoice</h1>
-
-    <form method="post">
-        {% csrf_token %}
-        {{ form|crispy }}
-
-        <div class="d-flex justify-content-between mt-3">
-            <button type="submit" class="btn btn-primary">
-                <i class="fas fa-save"></i> Save Changes
-            </button>
-
-            <a href="{% url 'invoice-list' %}" class="btn btn-secondary">Cancel</a>
+<div class="container mt-4">
+    <!-- Invoice Form -->
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <h1 class="h3 text-dark">Edit Invoice</h1>
+            <hr>
 
             {% if invoice.balance_due > 0 %}
-            <a href="{% url 'payment-create' %}?invoice={{ invoice.pk }}" class="btn btn-success">
-                <i class="fas fa-credit-card"></i> Make Payment
-            </a>
+            <div class="alert alert-warning mb-4">
+                <strong>Balance Due:</strong> ${{ invoice.balance_due|floatformat:2 }}
+            </div>
+            {% else %}
+            <div class="alert alert-success mb-4">
+                This invoice has been fully paid.
+            </div>
             {% endif %}
+
+            <form method="post">
+                {% csrf_token %}
+                <div class="row g-3">
+                    {% for field in form %}
+                        {% if field.name == 'notes' or field.name == 'description' %}
+                            <!-- Full width fields -->
+                            <div class="col-12">
+                                <label class="form-label fw-bold">{{ field.label }}</label>
+                                {{ field }}
+                                {% if field.errors %}
+                                    <div class="text-danger small">{{ field.errors }}</div>
+                                {% endif %}
+                            </div>
+                        {% else %}
+                            <!-- Half width fields -->
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">{{ field.label }}</label>
+                                {{ field }}
+                                {% if field.errors %}
+                                    <div class="text-danger small">{{ field.errors }}</div>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+
+                <!-- Form Buttons -->
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-save"></i> Save Changes
+                    </button>
+                    <a href="{% url 'invoice-list' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-times"></i> Cancel
+                    </a>
+                    {% if invoice.balance_due > 0 %}
+                    <a href="{% url 'payment-create' %}?invoice={{ invoice.pk }}" class="btn btn-primary">
+                        <i class="fas fa-credit-card"></i> Make Payment
+                    </a>
+                    {% endif %}
+                </div>
+            </form>
         </div>
-    </form>
-
-    {% if invoice.balance_due > 0 %}
-    <div class="alert alert-warning mt-3">
-        <strong>Balance Due:</strong> ${{ invoice.balance_due|floatformat:2 }}
     </div>
-    {% else %}
-    <div class="alert alert-success mt-3">
-        This invoice has been fully paid.
-    </div>
-    {% endif %}
-
 </div>
 {% endblock %}

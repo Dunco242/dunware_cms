@@ -1,0 +1,134 @@
+services:
+  # Web Service (Django Application)
+  - type: web
+    name: dunware-cms
+    env: python
+    buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput
+    startCommand: daphne -b 0.0.0.0 -p $PORT dunware_crm.asgi:application
+    plan: standard
+    healthCheckPath: /admin/login/
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10.0
+      - key: WEB_CONCURRENCY
+        value: 4
+      - key: DEBUG
+        value: false
+      - key: SECRET_KEY
+        sync: false
+      - key: ALLOWED_HOSTS
+        value: dunware-cms.onrender.com
+      # Database configuration
+      - key: DB_ENGINE
+        value: django.db.backends.mysql
+      - key: DB_NAME
+        fromDatabase:
+          name: dunware-db
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: dunware-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: dunware-db
+          property: password
+      - key: DB_HOST
+        fromDatabase:
+          name: dunware-db
+          property: host
+      - key: DB_PORT
+        value: 3306
+      # Redis configuration
+      - key: REDIS_HOST
+        fromService:
+          name: dunware-redis
+          type: redis
+          property: host
+      - key: REDIS_PORT
+        fromService:
+          name: dunware-redis
+          type: redis
+          property: port
+      # Email configuration
+      - key: EMAIL_HOST
+        sync: false
+      - key: EMAIL_PORT
+        sync: false
+      - key: EMAIL_USE_TLS
+        sync: false
+      - key: EMAIL_HOST_USER
+        sync: false
+      - key: EMAIL_HOST_PASSWORD
+        sync: false
+      # Zoom API configuration
+      - key: ZOOM_API_KEY
+        sync: false
+      - key: ZOOM_API_SECRET
+        sync: false
+
+  # Background Worker (Django-Q)
+  - type: worker
+    name: dunware-worker
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python manage.py qcluster
+    plan: standard
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10.0
+      - key: DEBUG
+        value: false
+      - key: SECRET_KEY
+        sync: false
+      # Database configuration (same as web service)
+      - key: DB_ENGINE
+        value: django.db.backends.mysql
+      - key: DB_NAME
+        fromDatabase:
+          name: dunware-db
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: dunware-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: dunware-db
+          property: password
+      - key: DB_HOST
+        fromDatabase:
+          name: dunware-db
+          property: host
+      - key: DB_PORT
+        value: 3306
+      # Redis configuration
+      - key: REDIS_HOST
+        fromService:
+          name: dunware-redis
+          type: redis
+          property: host
+      - key: REDIS_PORT
+        fromService:
+          name: dunware-redis
+          type: redis
+          property: port
+
+  # Redis Service
+  - type: redis
+    name: dunware-redis
+    ipAllowList:
+      - source: 0.0.0.0/0
+        description: Allow all
+    plan: standard
+
+# Database Service
+databases:
+  - name: dunware-db
+    type: mysql
+    plan: standard
+    ipAllowList:
+      - source: 0.0.0.0/0
+        description: Allow all

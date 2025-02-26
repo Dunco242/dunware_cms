@@ -1,18 +1,59 @@
 {% extends 'core/base.html' %}
 {% load crispy_forms_tags %}
 
+{% block title %}{% if form.instance.pk %}Edit Scheduling Rule{% else %}Create Scheduling Rule{% endif %}{% endblock %}
+
 {% block content %}
-<div class="container">
-    <h1>{% if form.instance.pk %}Edit{% else %}Create{% endif %} Scheduling Rule</h1>
+<div class="container mt-4">
+    <!-- Schedule Rule Form -->
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <h1 class="h3 text-dark">
+                {% if form.instance.pk %}
+                    Edit Scheduling Rule
+                {% else %}
+                    Create Scheduling Rule
+                {% endif %}
+            </h1>
+            <hr>
 
-    <form method="post">
-        {% csrf_token %}
-        {{ form|crispy }}
+            <form method="post">
+                {% csrf_token %}
+                <div class="row g-3">
+                    {% for field in form %}
+                        {% if field.name == 'description' %}
+                            <!-- Full width fields -->
+                            <div class="col-12">
+                                <label class="form-label fw-bold">{{ field.label }}</label>
+                                {{ field }}
+                                {% if field.errors %}
+                                    <div class="text-danger small">{{ field.errors }}</div>
+                                {% endif %}
+                            </div>
+                        {% else %}
+                            <!-- Half width fields -->
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">{{ field.label }}</label>
+                                {{ field }}
+                                {% if field.errors %}
+                                    <div class="text-danger small">{{ field.errors }}</div>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
 
-        <button type="submit" class="btn btn-primary">
-            Save Rule
-        </button>
-        <a href="{% url 'schedule-rule-list' %}" class="btn btn-secondary">Cancel</a>
-    </form>
+                <!-- Form Buttons -->
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-save"></i> Save Rule
+                    </button>
+                    <a href="{% url 'schedule-rule-list' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-times"></i> Cancel
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 {% endblock %}

@@ -4,26 +4,57 @@
 {% block title %}Process Payment{% endblock %}
 
 {% block content %}
-<div class="container">
-    <h1>Process Payment</h1>
+<div class="container mt-4">
+    <!-- Payment Form -->
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <h1 class="h3 text-dark">Process Payment</h1>
+            <hr>
 
-    {% if form.invoice.initial %}
-    <div class="alert alert-info">
-        <strong>Invoice Number:</strong> {{ form.initial.invoice.invoice_number }}<br>
-        <strong>Balance Due:</strong> ${{ form.initial.invoice.balance_due|floatformat:2 }}
-    </div>
-    {% endif %}
+            {% if form.invoice.initial %}
+            <div class="alert alert-info">
+                <strong>Invoice Number:</strong> {{ form.initial.invoice.invoice_number }}<br>
+                <strong>Balance Due:</strong> ${{ form.initial.invoice.balance_due|floatformat:2 }}
+            </div>
+            {% endif %}
 
-    <form method="post">
-        {% csrf_token %}
-        {{ form|crispy }}
+            <form method="post">
+                {% csrf_token %}
+                <div class="row g-3">
+                    {% for field in form %}
+                        {% if field.name == 'notes' %}
+                            <!-- Full width fields -->
+                            <div class="col-12">
+                                <label class="form-label fw-bold">{{ field.label }}</label>
+                                {{ field }}
+                                {% if field.errors %}
+                                    <div class="text-danger small">{{ field.errors }}</div>
+                                {% endif %}
+                            </div>
+                        {% else %}
+                            <!-- Half width fields -->
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">{{ field.label }}</label>
+                                {{ field }}
+                                {% if field.errors %}
+                                    <div class="text-danger small">{{ field.errors }}</div>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
 
-        <div class="mt-3">
-            <button type="submit" class="btn btn-success">
-                <i class="fas fa-check"></i> Submit Payment
-            </button>
-            <a href="{% url 'invoice-list' %}" class="btn btn-secondary">Cancel</a>
+                <!-- Form Buttons -->
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-check"></i> Submit Payment
+                    </button>
+                    <a href="{% url 'invoice-list' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-times"></i> Cancel
+                    </a>
+                </div>
+            </form>
         </div>
-    </form>
+    </div>
 </div>
 {% endblock %}

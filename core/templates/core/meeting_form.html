@@ -1,5 +1,3 @@
-<!-- templates/core/meeting_form.html -->
-
 {% extends 'core/base.html' %}
 {% load crispy_forms_tags %}
 
@@ -17,39 +15,119 @@
 {% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-lg-8">
-        <div class="card shadow">
-            <div class="card-header py-3">
-                <h6 class="m-0 font-weight-bold text-primary">
-                    {% if form.instance.pk %}
-                        Edit Meeting: {{ form.instance.title }}
-                    {% else %}
-                        Schedule New Meeting
-                    {% endif %}
-                </h6>
-            </div>
-            <div class="card-body">
-                <form method="post" id="meetingForm">
-                    {% csrf_token %}
+<div class="container mt-4">
+    <!-- Meeting Form -->
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <h1 class="h3 text-dark">
+                {% if form.instance.pk %}
+                    Edit Meeting: {{ form.instance.title }}
+                {% else %}
+                    Schedule New Meeting
+                {% endif %}
+            </h1>
+            <hr>
 
-                    {{ form|crispy }}  {# ✅ Apply crispy to the entire form #}
-
-                    <div class="d-flex justify-content-between mt-4">
-                        <a href="{% url 'meeting-list' %}" class="btn btn-secondary">
-                            <i class="fas fa-arrow-left"></i> Back
-                        </a>
-                        <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-save"></i>
-                            {% if form.instance.pk %}
-                                Update Meeting
-                            {% else %}
-                                Schedule Meeting
-                            {% endif %}
-                        </button>
+            <form method="post" id="meetingForm">
+                {% csrf_token %}
+                <div class="row g-3">
+                    <!-- Title field -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Title</label>
+                        {{ form.title }}
+                        {% if form.title.errors %}
+                            <div class="text-danger small">{{ form.title.errors }}</div>
+                        {% endif %}
                     </div>
-                </form>
-            </div>
+
+                    <!-- Meeting Type field -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Meeting Type</label>
+                        {{ form.meeting_type }}
+                        {% if form.meeting_type.errors %}
+                            <div class="text-danger small">{{ form.meeting_type.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Location field - Only visible for in-person meetings -->
+                    <div class="col-md-12" id="locationField" style="display: none;">
+                        <label class="form-label fw-bold">Location</label>
+                        {{ form.location }}
+                        {% if form.location.errors %}
+                            <div class="text-danger small">{{ form.location.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Start Time field -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Start Time</label>
+                        {{ form.start_time }}
+                        {% if form.start_time.errors %}
+                            <div class="text-danger small">{{ form.start_time.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- End Time field -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">End Time</label>
+                        {{ form.end_time }}
+                        {% if form.end_time.errors %}
+                            <div class="text-danger small">{{ form.end_time.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Description field -->
+                    <div class="col-12">
+                        <label class="form-label fw-bold">Description</label>
+                        {{ form.description }}
+                        {% if form.description.errors %}
+                            <div class="text-danger small">{{ form.description.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Attendees field -->
+                    <div class="col-md-12">
+                        <label class="form-label fw-bold">Attendees</label>
+                        {{ form.attendees }}
+                        {% if form.attendees.errors %}
+                            <div class="text-danger small">{{ form.attendees.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Customers field -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Customers</label>
+                        {{ form.customers }}
+                        {% if form.customers.errors %}
+                            <div class="text-danger small">{{ form.customers.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Leads field -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Leads</label>
+                        {{ form.leads }}
+                        {% if form.leads.errors %}
+                            <div class="text-danger small">{{ form.leads.errors }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Form Buttons -->
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-save"></i>
+                        {% if form.instance.pk %}
+                            Update Meeting
+                        {% else %}
+                            Schedule Meeting
+                        {% endif %}
+                    </button>
+                    <a href="{% url 'meeting-list' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-times"></i> Cancel
+                    </a>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -81,12 +159,20 @@
             width: '100%'
         });
 
-        // Show/hide Zoom settings based on meeting type
+        // Show/hide location field and Zoom settings based on meeting type
         $('#id_meeting_type').change(function() {
-            if ($(this).val() === 'zoom') {
+            const meetingType = $(this).val();
+
+            // Handle Zoom settings visibility
+            if (meetingType === 'zoom') {
                 $('#zoomSettings').show();
+                $('#locationField').hide();
+            } else if (meetingType === 'in_person') {
+                $('#zoomSettings').hide();
+                $('#locationField').show();
             } else {
                 $('#zoomSettings').hide();
+                $('#locationField').hide();
             }
         }).trigger('change');
 

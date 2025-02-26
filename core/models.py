@@ -386,6 +386,7 @@ class Lead(models.Model):
     phone = models.CharField(
         validators=[phone_regex],
         max_length=17,
+        blank=True,
         help_text="Primary contact phone number"
     )
 

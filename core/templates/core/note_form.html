@@ -10,38 +10,60 @@
 {% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-lg-8">
-        <div class="card shadow">
-            <div class="card-header py-3">
-                <h6 class="m-0 font-weight-bold text-primary">
-                    {% if form.instance.pk %}
-                        Edit Note
-                    {% else %}
-                        New Note
-                    {% endif %}
-                </h6>
-            </div>
-            <div class="card-body">
-                <form method="post">
-                    {% csrf_token %}
-                    {{ form|crispy }}  {# ✅ Apply crispy formatting to the entire form #}
+<div class="container mt-4">
+    <!-- Note Form -->
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <h1 class="h3 text-dark">
+                {% if form.instance.pk %}
+                    Edit Note
+                {% else %}
+                    New Note
+                {% endif %}
+            </h1>
+            <hr>
 
-                    <div class="d-flex justify-content-between mt-4">
-                        <a href="{% url 'note-list' %}" class="btn btn-secondary">
-                            <i class="fas fa-arrow-left"></i> Back
-                        </a>
-                        <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-save"></i>
-                            {% if form.instance.pk %}
-                                Update Note
-                            {% else %}
-                                Save Note
-                            {% endif %}
-                        </button>
-                    </div>
-                </form>
-            </div>
+            <form method="post">
+                {% csrf_token %}
+                <div class="row g-3">
+                    {% for field in form %}
+                        {% if field.name == 'content' %}
+                            <!-- Full width fields -->
+                            <div class="col-12">
+                                <label class="form-label fw-bold">{{ field.label }}</label>
+                                {{ field }}
+                                {% if field.errors %}
+                                    <div class="text-danger small">{{ field.errors }}</div>
+                                {% endif %}
+                            </div>
+                        {% else %}
+                            <!-- Half width fields -->
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">{{ field.label }}</label>
+                                {{ field }}
+                                {% if field.errors %}
+                                    <div class="text-danger small">{{ field.errors }}</div>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+
+                <!-- Form Buttons -->
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-save"></i>
+                        {% if form.instance.pk %}
+                            Update Note
+                        {% else %}
+                            Save Note
+                        {% endif %}
+                    </button>
+                    <a href="{% url 'note-list' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-times"></i> Cancel
+                    </a>
+                </div>
+            </form>
         </div>
     </div>
 </div>

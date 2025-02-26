@@ -180,7 +180,7 @@ class ProjectListView(LoginRequiredMixin, ListView):
             total_billable=Sum('billable_hours'),
             total_non_billable=Sum('non_billable_hours'),
             avg_progress=Avg('progress')
-        )
+)
 
         context.update({
             'status_choices': Project.STATUS_CHOICES,

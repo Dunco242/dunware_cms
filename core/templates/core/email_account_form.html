@@ -1,72 +1,88 @@
 {% extends "core/base.html" %}
 
+{% block title %}{% if form.instance.pk %}Update Email Account{% else %}Add New Email Account{% endif %}{% endblock %}
+
 {% block content %}
 <div class="container mt-4">
-    <div class="row">
-        <!-- Sidebar -->
-        <div class="col-md-3">
-            <div class="list-group">
-                <a href="{% url 'email_inbox' %}" class="list-group-item list-group-item-action">
-                    Inbox
-                </a>
-                <a href="{% url 'email_sent' %}" class="list-group-item list-group-item-action">
-                    Sent Mail
-                </a>
-                <a href="{% url 'email_deleted' %}" class="list-group-item list-group-item-action">
-                    Deleted Mail
-                </a>
-                <a href="{% if latest_thread %}{% url 'email_thread' latest_thread.message_id %}{% else %}{% url 'compose_email' %}{% endif %}"
-                   class="list-group-item list-group-item-action">
-                    Email Threads
-                </a>
-                <a href="{% url 'email_account_list' %}" class="list-group-item list-group-item-action active">
-                    Manage Email Accounts
-                </a>
-            </div>
-            <a href="{% url 'compose_email' %}" class="btn btn-primary btn-block mt-3">
-                Compose Email
-            </a>
-        </div>
+    <!-- Email Account Form -->
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <h1 class="h3 text-dark">
+                {% if form.instance.pk %}
+                    Update Email Account
+                {% else %}
+                    Add New Email Account
+                {% endif %}
+            </h1>
+            <hr>
 
-        <!-- Main Content -->
-        <div class="col-md-9">
-            <div class="card">
-                <div class="card-header">
-                    {% if form.instance.pk %}
-                        Update Email Account
-                    {% else %}
-                        Add New Email Account
-                    {% endif %}
-                </div>
-                <div class="card-body">
-                    <form method="post">
-                        {% csrf_token %}
+            <form method="post">
+                {% csrf_token %}
+                <div class="row g-3">
+                    <!-- Email Address -->
+                    <div class="col-md-12">
+                        <label for="email_address" class="form-label fw-bold">Email Address</label>
+                        {{ form.email_address }}
+                        {% if form.email_address.errors %}
+                            <div class="text-danger small">{{ form.email_address.errors }}</div>
+                        {% endif %}
+                    </div>
 
-                        <div class="mb-3">
-                            <label for="email_address" class="form-label">Email Address</label>
-                            {{ form.email_address }}
-                        </div>
+                    <!-- Password -->
+                    <div class="col-md-12">
+                        <label for="password" class="form-label fw-bold">Password</label>
+                        {{ form.password }}
+                        {% if form.password.errors %}
+                            <div class="text-danger small">{{ form.password.errors }}</div>
+                        {% endif %}
+                    </div>
 
-                        <div class="mb-3">
-                            <label for="password" class="form-label">Password</label>
-                            {{ form.password }}
-                        </div>
-
-                        <div class="mb-3 form-check">
+                    <!-- Is Active -->
+                    <div class="col-md-12">
+                        <div class="form-check">
                             {{ form.is_active }}
-                            <label class="form-check-label" for="is_active">Activate Account</label>
-                        </div>
-
-                        <button type="submit" class="btn btn-success">
-                            {% if form.instance.pk %}
-                                Update Account
-                            {% else %}
-                                Add Account
+                            <label class="form-check-label fw-bold" for="id_is_active">Activate Account</label>
+                            {% if form.is_active.errors %}
+                                <div class="text-danger small">{{ form.is_active.errors }}</div>
                             {% endif %}
-                        </button>
-                        <a href="{% url 'email_account_list' %}" class="btn btn-secondary">Cancel</a>
-                    </form>
+                        </div>
+                    </div>
                 </div>
+
+                <!-- Form Buttons -->
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-save"></i>
+                        {% if form.instance.pk %}
+                            Update Account
+                        {% else %}
+                            Add Account
+                        {% endif %}
+                    </button>
+                    <a href="{% url 'email_account_list' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-times"></i> Cancel
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Email Navigation -->
+    <div class="card shadow-sm mt-3">
+        <div class="card-body">
+            <div class="d-flex justify-content-between">
+                <a href="{% url 'email_inbox' %}" class="btn btn-outline-primary">
+                    <i class="fas fa-inbox"></i> Inbox
+                </a>
+                <a href="{% url 'email_sent' %}" class="btn btn-outline-primary">
+                    <i class="fas fa-paper-plane"></i> Sent Mail
+                </a>
+                <a href="{% url 'email_deleted' %}" class="btn btn-outline-primary">
+                    <i class="fas fa-trash"></i> Deleted Mail
+                </a>
+                <a href="{% url 'compose_email' %}" class="btn btn-primary">
+                    <i class="fas fa-pen"></i> Compose Email
+                </a>
             </div>
         </div>
     </div>

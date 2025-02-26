@@ -3,86 +3,124 @@
 {% block title %}Service Subscription{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-lg-8 offset-lg-2 mb-4">
-        <div class="card shadow">
-            <div class="card-header py-3 d-flex justify-content-between align-items-center">
-                <h6 class="m-0 font-weight-bold text-primary">Service Subscription</h6>
-            </div>
-            <div class="card-body">
-                <form method="post" novalidate>
-                    {% csrf_token %}
+<div class="container mt-4">
+    <!-- Service Subscription Form -->
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <h1 class="h3 text-dark">
+                {% if form.instance.pk %}
+                    Edit Service Subscription
+                {% else %}
+                    New Service Subscription
+                {% endif %}
+            </h1>
+            <hr>
 
+            <form method="post" novalidate>
+                {% csrf_token %}
+                <div class="row g-3">
                     <!-- Customer and Service Fields -->
-                    <div class="mb-3">
-                        <label for="id_customer" class="form-label">Customer</label>
+                    <div class="col-md-6">
+                        <label for="id_customer" class="form-label fw-bold">Customer</label>
                         {{ form.customer }}
+                        {% if form.customer.errors %}
+                            <div class="text-danger small">{{ form.customer.errors }}</div>
+                        {% endif %}
                     </div>
-                    <div class="mb-3">
-                        <label for="id_service" class="form-label">Service</label>
+
+                    <div class="col-md-6">
+                        <label for="id_service" class="form-label fw-bold">Service</label>
                         {{ form.service }}
+                        {% if form.service.errors %}
+                            <div class="text-danger small">{{ form.service.errors }}</div>
+                        {% endif %}
                     </div>
 
                     <!-- Billing Cycle -->
-                    <div class="mb-3">
-                        <label for="billing_cycle" class="form-label">Billing Cycle</label>
+                    <div class="col-md-6">
+                        <label for="billing_cycle" class="form-label fw-bold">Billing Cycle</label>
                         {{ form.billing_cycle }}
+                        {% if form.billing_cycle.errors %}
+                            <div class="text-danger small">{{ form.billing_cycle.errors }}</div>
+                        {% endif %}
                     </div>
 
                     <!-- Hourly Rate and Hours -->
-                    <div class="mb-3 hourly-fields" style="display: none;">
-                        <label for="id_hourly_rate" class="form-label">Hourly Rate ($)</label>
+                    <div class="col-md-6 hourly-fields" style="display: none;">
+                        <label for="id_hourly_rate" class="form-label fw-bold">Hourly Rate ($)</label>
                         {{ form.hourly_rate }}
+                        {% if form.hourly_rate.errors %}
+                            <div class="text-danger small">{{ form.hourly_rate.errors }}</div>
+                        {% endif %}
                         <div class="form-text">Rate charged per hour</div>
                     </div>
 
-                    <div class="mb-3 hourly-fields" style="display: none;">
-                        <label for="id_hours" class="form-label">Number of Hours</label>
+                    <div class="col-md-6 hourly-fields" style="display: none;">
+                        <label for="id_hours" class="form-label fw-bold">Number of Hours</label>
                         {{ form.hours }}
+                        {% if form.hours.errors %}
+                            <div class="text-danger small">{{ form.hours.errors }}</div>
+                        {% endif %}
                         <div class="form-text">Total number of hours to bill</div>
                     </div>
 
                     <!-- Regular Price -->
-                    <div class="mb-3 non-hourly-fields">
-                        <label for="id_price" class="form-label">Price</label>
+                    <div class="col-md-6 non-hourly-fields">
+                        <label for="id_price" class="form-label fw-bold">Price</label>
                         {{ form.price }}
+                        {% if form.price.errors %}
+                            <div class="text-danger small">{{ form.price.errors }}</div>
+                        {% endif %}
                     </div>
 
                     <!-- Dates -->
-                    <div class="mb-3">
-                        <label for="id_start_date" class="form-label">Start Date</label>
+                    <div class="col-md-6">
+                        <label for="id_start_date" class="form-label fw-bold">Start Date</label>
                         {{ form.start_date }}
+                        {% if form.start_date.errors %}
+                            <div class="text-danger small">{{ form.start_date.errors }}</div>
+                        {% endif %}
                     </div>
-                    <div class="mb-3">
-                        <label for="id_end_date" class="form-label">End Date</label>
+
+                    <div class="col-md-6">
+                        <label for="id_end_date" class="form-label fw-bold">End Date</label>
                         {{ form.end_date }}
+                        {% if form.end_date.errors %}
+                            <div class="text-danger small">{{ form.end_date.errors }}</div>
+                        {% endif %}
                     </div>
 
                     <!-- Status -->
-                    <div class="mb-3">
-                        <label for="id_status" class="form-label">Status</label>
+                    <div class="col-md-6">
+                        <label for="id_status" class="form-label fw-bold">Status</label>
                         {{ form.status }}
+                        {% if form.status.errors %}
+                            <div class="text-danger small">{{ form.status.errors }}</div>
+                        {% endif %}
                     </div>
 
                     <!-- Is Active -->
-                    <div class="mb-3 form-check">
-                        {{ form.is_active }}
-                        <label class="form-check-label" for="id_is_active">Active</label>
-                    </div>
-
-                    <!-- Form Errors -->
-                    {% if form.errors %}
-                        <div class="alert alert-danger">
-                            Please correct the errors below.
+                    <div class="col-md-6">
+                        <div class="mt-4">
+                            {{ form.is_active }}
+                            <label class="form-check-label fw-bold" for="id_is_active">Active</label>
+                            {% if form.is_active.errors %}
+                                <div class="text-danger small">{{ form.is_active.errors }}</div>
+                            {% endif %}
                         </div>
-                    {% endif %}
-
-                    <div class="d-flex justify-content-end">
-                        <a href="{% url 'subscription-list' %}" class="btn btn-secondary me-2">Cancel</a>
-                        <button type="submit" class="btn btn-primary">Save</button>
                     </div>
-                </form>
-            </div>
+                </div>
+
+                <!-- Form Buttons -->
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-save"></i> Save Subscription
+                    </button>
+                    <a href="{% url 'subscription-list' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-times"></i> Cancel
+                    </a>
+                </div>
+            </form>
         </div>
     </div>
 </div>
