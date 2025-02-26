@@ -249,6 +249,7 @@ SITE_ID = 1
 ZOOM_API_KEY = os.getenv('ZOOM_API_KEY')
 ZOOM_API_SECRET = os.getenv('ZOOM_API_SECRET')
 
+PORT = os.getenv('PORT')
 
 Q_CLUSTER = {
     'name': 'DjangoQ',
