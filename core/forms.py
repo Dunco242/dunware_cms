@@ -345,7 +345,7 @@ class MeetingForm(forms.ModelForm):
     class Meta:
         model = Meeting
         fields = ('title', 'meeting_type', 'start_time', 'end_time',
-                 'description', 'attendees', 'customers', 'leads')
+                 'description', 'attendees', 'customers', 'leads', 'location')
         widgets = {
             'description': forms.Textarea(attrs={'rows': 4}),
             'customers': forms.CheckboxSelectMultiple(),
