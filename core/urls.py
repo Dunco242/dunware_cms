@@ -45,7 +45,7 @@ from .views import (
     ServiceSubscriptionListView, ServiceSubscriptionCreateView,
     ServiceSubscriptionUpdateView, ServiceSubscriptionDeleteView,
     SubscriptionDetailView, SubscriptionUpdateView, SubscriptionCancelView,
-    BillingSettingsView, IntegratedBillingDashboardView, update_invoice_status, process_payment,
+    BillingSettingsView, IntegratedBillingDashboardView, update_invoice_status, process_payment, process_payment_ajax,
 
     # Schedule Views
     ScheduleRuleListView, ScheduleRuleCreateView,
@@ -165,6 +165,7 @@ urlpatterns = [
     path('billing/integrated-dashboard/', views.IntegratedBillingDashboardView.as_view(), name='integrated-billing-dashboard'),
     path('process-payment/', process_payment, name='process-payment'),  # ✅ Add this line
     path('update-invoice-status/<int:invoice_id>/', update_invoice_status, name='update-invoice-status'),
+    path('process-payment-ajax/', process_payment_ajax, name='process-payment-ajax'),
 
     # Payment URLs
     path('billing/payments/', PaymentListView.as_view(), name='payment-list'),

@@ -4046,6 +4046,8 @@ class EmailThreadView(LoginRequiredMixin, ListView):
 
 
 
+logger = logging.getLogger(__name__)
+
 class IntegratedBillingDashboardView(LoginRequiredMixin, TemplateView):
     """
     Integrated dashboard showing all billing-related information in one place
@@ -4059,12 +4061,19 @@ class IntegratedBillingDashboardView(LoginRequiredMixin, TemplateView):
             # Get pending invoices (excluding paid ones)
             invoices = Invoice.objects.exclude(status='paid').order_by('-issue_date')
 
-            # Get recent payments
+            # Calculate correct balance for each invoice by querying related payments
+            for invoice in invoices:
+                total_paid = invoice.payment_set.filter(status='completed').aggregate(
+                    total=Sum('amount')
+                )['total'] or 0
+                invoice.balance_due = invoice.total_amount - total_paid
+
+            # Get recent payments with proper order and references
             payments = Payment.objects.filter(
                 status='completed'
             ).select_related(
                 'customer', 'invoice'
-            ).order_by('-transaction_date')[:10]
+            ).order_by('-date_paid', '-id')[:10]
 
             # Get active subscriptions
             subscriptions = ServiceSubscription.objects.filter(
@@ -4074,10 +4083,7 @@ class IntegratedBillingDashboardView(LoginRequiredMixin, TemplateView):
             ).order_by('-start_date')
 
             # Calculate summary statistics
-            total_unpaid = invoices.aggregate(
-                total=Sum('total_amount')
-            )['total'] or 0
-
+            total_unpaid = sum((invoice.balance_due for invoice in invoices))
             overdue_count = invoices.filter(status='overdue').count()
 
             # Add all data to context
@@ -4164,3 +4170,103 @@ def process_payment(request):
         })
 
     return JsonResponse({'success': False, 'error': 'Invalid request'})
+
+
+from django.http import JsonResponse
+from django.shortcuts import get_object_or_404
+from django.views.decorators.http import require_POST
+from django.views.decorators.csrf import csrf_protect
+from django.db import transaction
+from django.utils import timezone
+import time
+from django.db.models import Sum
+from .models import Invoice, Payment, Transaction
+
+@require_POST
+@csrf_protect
+def process_payment_ajax(request):
+    """Handles payment processing via AJAX."""
+    invoice_id = request.POST.get('invoice_id')
+    amount = request.POST.get('amount')
+    payment_method = request.POST.get('payment_method', 'online')  # Default method
+
+    if not invoice_id or not amount:
+        return JsonResponse({'success': False, 'error': 'Missing required fields: invoice ID or amount'})
+
+    try:
+        invoice = get_object_or_404(Invoice, pk=invoice_id)
+        customer = invoice.customer
+        amount = float(amount)
+
+        # Validate amount
+        if amount <= 0:
+            return JsonResponse({'success': False, 'error': 'Invalid payment amount.'})
+
+        # Calculate current balance due
+        total_paid = Payment.objects.filter(invoice=invoice, status='completed').aggregate(
+            total=Sum('amount')
+        )['total'] or 0
+        balance_due = invoice.total_amount - total_paid
+
+        if amount > balance_due:
+            return JsonResponse({'success': False, 'error': f"Payment exceeds outstanding balance of ${balance_due:.2f}!"})
+
+        with transaction.atomic():
+            # Generate reference number with timestamp to ensure uniqueness
+            reference_number = f"PAY-{invoice.invoice_number}-{int(time.time())}"
+
+            # Create payment record
+            payment = Payment.objects.create(
+                customer=customer,
+                invoice=invoice,
+                amount=amount,
+                status='completed',
+                payment_method=payment_method,
+                reference_number=reference_number,
+                date_paid=timezone.now()
+            )
+
+            # Create transaction record if necessary
+            if hasattr(models, 'Transaction'):
+                Transaction.objects.create(
+                    customer=customer,
+                    invoice=invoice,
+                    payment=payment,
+                    transaction_type='invoice_payment',
+                    amount=payment.amount,
+                    reference=reference_number,
+                    status='completed'
+                )
+
+            # Determine new invoice status
+            new_total_paid = total_paid + amount
+            remaining_balance = invoice.total_amount - new_total_paid
+
+            if remaining_balance <= 0:
+                invoice.status = 'paid'
+                status_label = "Paid"
+            else:
+                invoice.status = 'partial'
+                status_label = "Partial Payment"
+
+            invoice.save()
+
+        return JsonResponse({
+            'success': True,
+            'invoice_id': invoice.id,
+            'invoice_number': invoice.invoice_number,
+            'new_status': status_label,
+            'remaining_balance': remaining_balance,
+            'payment_reference': reference_number
+        })
+
+    except Invoice.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Invoice not found'})
+    except ValueError:
+        return JsonResponse({'success': False, 'error': 'Invalid amount format'})
+    except Exception as e:
+        # Log the error here for server-side debugging
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Payment processing error for invoice {invoice_id}: {str(e)}")
+        return JsonResponse({'success': False, 'error': f"An error occurred: {str(e)}"})
