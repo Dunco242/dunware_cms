@@ -20,8 +20,9 @@
 <div class="container mt-4">
     <h1 class="h3 text-dark">Billing Dashboard</h1>
 
-    <!-- Include CSRF Token for AJAX requests -->
+    <form id="csrf-form">
     {% csrf_token %}
+    </form>
 
     <!-- Invoices Section -->
     <div class="card shadow mb-4">
@@ -162,178 +163,144 @@
 
     <!-- JavaScript for Search and Filtering -->
     <script>
-        document.addEventListener("DOMContentLoaded", function() {
-            function filterTable(inputId, tableId) {
-                document.getElementById(inputId).addEventListener("input", function() {
-                    const query = this.value.toLowerCase();
-                    document.querySelectorAll(`#${tableId} tbody tr`).forEach(row => {
-                        const text = row.textContent.toLowerCase();
-                        row.style.display = text.includes(query) ? "" : "none";
-                    });
-                });
-            }
-
-            // Initialize search filtering for tables
-            filterTable("search-invoices", "invoice-list");
-            filterTable("search-payments", "payment-list");
-            filterTable("search-subscriptions", "subscription-list");
-
-            // Show payment input when "Pay" button is clicked
-            document.querySelectorAll(".pay-btn").forEach(button => {
-                button.addEventListener("click", function() {
-                    const invoiceId = this.getAttribute("data-invoice-id");
-                    document.getElementById(`pay-section-${invoiceId}`).style.display = "block";
-                });
-            });
-
-            // Function to get CSRF token from cookies or the form
-            function getCSRFToken() {
-                // First try to get from cookie
-                let token = null;
-                if (document.cookie && document.cookie !== '') {
-                    const cookies = document.cookie.split(';');
-                    for (let i = 0; i < cookies.length; i++) {
-                        const cookie = cookies[i].trim();
-                        if (cookie.substring(0, 'csrftoken='.length) === 'csrftoken=') {
-                            token = decodeURIComponent(cookie.substring('csrftoken='.length));
-                            break;
-                        }
-                    }
-                }
-
-                // If cookie didn't work, look for the CSRF token in the form
-                if (!token) {
-                    const csrfElement = document.querySelector('[name=csrfmiddlewaretoken]');
-                    if (csrfElement) {
-                        token = csrfElement.value;
-                    }
-                }
-
-                return token;
-            }
-
-            // Handle Payment Submission
-            document.querySelectorAll(".confirm-pay-btn").forEach(button => {
-                button.addEventListener("click", function() {
-                    const invoiceId = this.getAttribute("data-invoice-id");
-                    const amountInput = document.getElementById(`pay-input-${invoiceId}`);
-                    const amount = parseFloat(amountInput.value);
-
-                    if (!amount || amount <= 0) {
-                        alert("Please enter a valid payment amount.");
-                        return;
-                    }
-
-                    // Show loading spinner
-                    const confirmButton = this;
-                    confirmButton.classList.add('loading');
-                    confirmButton.disabled = true;
-
-                    // Get CSRF token
-                    const csrftoken = getCSRFToken();
-
-                    // Debug info
-                    console.log("Invoice ID:", invoiceId);
-                    console.log("Amount:", amount);
-                    console.log("CSRF Token:", csrftoken);
-
-                    // Send payment request via AJAX
-                    fetch("{% url 'process-payment-ajax' %}", {
-                        method: "POST",
-                        body: new URLSearchParams({
-                            invoice_id: invoiceId,
-                            amount: amount,
-                            payment_method: "online"
-                        }),
-                        headers: {
-                            "X-CSRFToken": csrftoken,
-                            "Content-Type": "application/x-www-form-urlencoded"
-                        }
-                    })
-                    .then(response => {
-                        console.log("Response status:", response.status);
-                        console.log("Response headers:",
-                            Array.from(response.headers.entries())
-                                .map(([key, value]) => `${key}: ${value}`)
-                                .join(', ')
-                        );
-
-                        if (!response.ok) {
-                            return response.text().then(text => {
-                                console.error("Error response text:", text);
-                                throw new Error(`Network response was not ok: ${response.status}`);
-                            });
-                        }
-                        return response.json();
-                    })
-                    .then(data => {
-                        console.log("Payment response data:", data);
-
-                        if (data.success) {
-                            // Update invoice status and balance dynamically
-                            document.getElementById(`status-${invoiceId}`).innerHTML = data.new_status;
-                            document.getElementById(`balance-${invoiceId}`).innerHTML = `$${data.remaining_balance.toFixed(2)}`;
-
-                            // Update badge color
-                            let statusBadge = document.getElementById(`status-${invoiceId}`);
-                            if (data.new_status === "Paid") {
-                                statusBadge.className = "badge badge-paid";
-                            } else {
-                                statusBadge.className = "badge badge-partial";
-                            }
-
-                            // Add new payment to payment list
-                            const paymentList = document.getElementById('payment-list');
-                            // Add a new row for the payment if a reference number is returned
-                            if (data.payment_reference) {
-                                const newRow = document.createElement('tr');
-                                newRow.innerHTML = `
-                                    <td>${data.payment_reference}</td>
-                                    <td>${data.invoice_number}</td>
-                                    <td>$${amount.toFixed(2)}</td>
-                                    <td>${new Date().toLocaleDateString()}</td>
-                                `;
-                                // Insert the new payment at the top of the list
-                                if (paymentList.firstChild) {
-                                    paymentList.insertBefore(newRow, paymentList.firstChild);
-                                } else {
-                                    paymentList.appendChild(newRow);
-                                }
-
-                                // If the payment list had a "No payments found" message, remove it
-                                const emptyMessage = paymentList.querySelector('td[colspan="4"]');
-                                if (emptyMessage && emptyMessage.textContent.includes('No payments found')) {
-                                    emptyMessage.parentElement.remove();
-                                }
-                            }
-
-                            // Hide the payment input field after successful payment
-                            document.getElementById(`pay-section-${invoiceId}`).style.display = "none";
-
-                            // Clear the input field
-                            amountInput.value = "";
-
-                            // Reset button state
-                            confirmButton.classList.remove('loading');
-                            confirmButton.disabled = false;
-                        } else {
-                            console.error("Payment failed:", data.error);
-                            alert(data.error || "Payment failed. Please try again.");
-                            // Reset button state
-                            confirmButton.classList.remove('loading');
-                            confirmButton.disabled = false;
-                        }
-                    })
-                    .catch(error => {
-                        console.error("Payment processing error:", error);
-                        alert("An error occurred while processing the payment: " + error.message);
-                        // Reset button state
-                        confirmButton.classList.remove('loading');
-                        confirmButton.disabled = false;
-                    });
-                });
+        // JavaScript for Search and Filtering
+document.addEventListener("DOMContentLoaded", function() {
+    function filterTable(inputId, tableId) {
+        document.getElementById(inputId).addEventListener("input", function() {
+            const query = this.value.toLowerCase();
+            document.querySelectorAll(`#${tableId} tbody tr`).forEach(row => {
+                const text = row.textContent.toLowerCase();
+                row.style.display = text.includes(query) ? "" : "none";
             });
         });
+    }
+
+    // Initialize search filtering for tables
+    filterTable("search-invoices", "invoice-list");
+    filterTable("search-payments", "payment-list");
+    filterTable("search-subscriptions", "subscription-list");
+
+    // Show payment input when "Pay" button is clicked
+    document.querySelectorAll(".pay-btn").forEach(button => {
+        button.addEventListener("click", function() {
+            const invoiceId = this.getAttribute("data-invoice-id");
+            document.getElementById(`pay-section-${invoiceId}`).style.display = "block";
+        });
+    });
+
+    // Handle Payment Submission
+    document.querySelectorAll(".confirm-pay-btn").forEach(button => {
+        button.addEventListener("click", function() {
+            const invoiceId = this.getAttribute("data-invoice-id");
+            const amountInput = document.getElementById(`pay-input-${invoiceId}`);
+            const amount = parseFloat(amountInput.value);
+
+            if (!amount || amount <= 0) {
+                alert("Please enter a valid payment amount.");
+                return;
+            }
+
+            // Show loading spinner
+            const confirmButton = this;
+            confirmButton.classList.add('loading');
+            confirmButton.disabled = true;
+
+            // Get CSRF token directly from the form
+            const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            console.log("Using CSRF Token:", csrftoken);
+
+            // Send payment request via AJAX
+            fetch("{% url 'process-payment-ajax' %}", {
+                method: "POST",
+                body: new URLSearchParams({
+                    invoice_id: invoiceId,
+                    amount: amount,
+                    payment_method: "online"
+                }),
+                headers: {
+                    "X-CSRFToken": csrftoken,
+                    "Content-Type": "application/x-www-form-urlencoded"
+                }
+            })
+            .then(response => {
+                console.log("Response status:", response.status);
+
+                if (!response.ok) {
+                    return response.text().then(text => {
+                        console.error("Error response text:", text);
+                        throw new Error(`Network response was not ok: ${response.status}`);
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log("Payment response data:", data);
+
+                if (data.success) {
+                    // Update invoice status and balance dynamically
+                    document.getElementById(`status-${invoiceId}`).innerHTML = data.new_status;
+                    document.getElementById(`balance-${invoiceId}`).innerHTML = `$${data.remaining_balance.toFixed(2)}`;
+
+                    // Update badge color
+                    let statusBadge = document.getElementById(`status-${invoiceId}`);
+                    if (data.new_status === "Paid") {
+                        statusBadge.className = "badge badge-paid";
+                    } else {
+                        statusBadge.className = "badge badge-partial";
+                    }
+
+                    // Add new payment to payment list
+                    const paymentList = document.getElementById('payment-list');
+                    // Add a new row for the payment if a reference number is returned
+                    if (data.payment_reference) {
+                        const newRow = document.createElement('tr');
+                        newRow.innerHTML = `
+                            <td>${data.payment_reference}</td>
+                            <td>${data.invoice_number}</td>
+                            <td>$${amount.toFixed(2)}</td>
+                            <td>${new Date().toLocaleDateString()}</td>
+                        `;
+                        // Insert the new payment at the top of the list
+                        if (paymentList.firstChild) {
+                            paymentList.insertBefore(newRow, paymentList.firstChild);
+                        } else {
+                            paymentList.appendChild(newRow);
+                        }
+
+                        // If the payment list had a "No payments found" message, remove it
+                        const emptyMessage = paymentList.querySelector('td[colspan="4"]');
+                        if (emptyMessage && emptyMessage.textContent.includes('No payments found')) {
+                            emptyMessage.parentElement.remove();
+                        }
+                    }
+
+                    // Hide the payment input field after successful payment
+                    document.getElementById(`pay-section-${invoiceId}`).style.display = "none";
+
+                    // Clear the input field
+                    amountInput.value = "";
+
+                    // Reset button state
+                    confirmButton.classList.remove('loading');
+                    confirmButton.disabled = false;
+                } else {
+                    console.error("Payment failed:", data.error);
+                    alert(data.error || "Payment failed. Please try again.");
+                    // Reset button state
+                    confirmButton.classList.remove('loading');
+                    confirmButton.disabled = false;
+                }
+            })
+            .catch(error => {
+                console.error("Payment processing error:", error);
+                alert("An error occurred while processing the payment: " + error.message);
+                // Reset button state
+                confirmButton.classList.remove('loading');
+                confirmButton.disabled = false;
+            });
+        });
+    });
+});
     </script>
 
 </div>

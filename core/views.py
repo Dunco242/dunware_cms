@@ -4144,6 +4144,7 @@ def process_payment(request):
 
 logger = logging.getLogger(__name__)
 
+@csrf_exempt
 @require_POST
 def process_payment_ajax(request):
     """Handles payment processing via AJAX."""
