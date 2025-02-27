@@ -1,9 +1,30 @@
-<!-- templates/core/customer_list.html -->
-
 {% extends 'core/base.html' %}
 {% load humanize %}
 
 {% block title %}Customers{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Custom badge styles for customer status */
+    .badge-active { background-color: #28a745; color: white; }
+    .badge-inactive { background-color: #6c757d; color: white; }
+    .badge-pending { background-color: #ffc107; color: black; }
+    .badge-archived { background-color: #dc3545; color: white; }
+
+    /* Support for both Bootstrap 4 and 5 */
+    .badge {
+        display: inline-block;
+        padding: 0.25em 0.4em;
+        font-size: 75%;
+        font-weight: 700;
+        line-height: 1;
+        text-align: center;
+        white-space: nowrap;
+        vertical-align: baseline;
+        border-radius: 0.25rem;
+    }
+</style>
+{% endblock %}
 
 {% block content %}
 <div class="card shadow">
@@ -75,9 +96,17 @@
                                     </a>
                                 </td>
                                 <td>
-                                    <span class="badge bg-{{ customer.get_status_color }}">
-                                        {{ customer.get_status_display }}
-                                    </span>
+                                    {% if customer.status == 'active' %}
+                                        <span class="badge badge-active">Active</span>
+                                    {% elif customer.status == 'inactive' %}
+                                        <span class="badge badge-inactive">Inactive</span>
+                                    {% elif customer.status == 'pending' %}
+                                        <span class="badge badge-pending">Pending</span>
+                                    {% elif customer.status == 'archived' %}
+                                        <span class="badge badge-archived">Archived</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">{{ customer.get_status_display }}</span>
+                                    {% endif %}
                                 </td>
                                 <td>
                                     {% if customer.assigned_to %}
@@ -117,11 +146,11 @@
                     <ul class="pagination justify-content-center">
                         {% if page_obj.has_previous %}
                             <li class="page-item">
-                                <a class="page-link" href="?page=1">First</a>
+                                <a class="page-link" href="?page=1{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}">First</a>
                             </li>
                             <li class="page-item">
                                 <a class="page-link"
-                                   href="?page={{ page_obj.previous_page_number }}">
+                                   href="?page={{ page_obj.previous_page_number }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}">
                                     Previous
                                 </a>
                             </li>
@@ -134,7 +163,7 @@
                                 </li>
                             {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
                                 <li class="page-item">
-                                    <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                                    <a class="page-link" href="?page={{ num }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}">{{ num }}</a>
                                 </li>
                             {% endif %}
                         {% endfor %}
@@ -142,13 +171,13 @@
                         {% if page_obj.has_next %}
                             <li class="page-item">
                                 <a class="page-link"
-                                   href="?page={{ page_obj.next_page_number }}">
+                                   href="?page={{ page_obj.next_page_number }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}">
                                     Next
                                 </a>
                             </li>
                             <li class="page-item">
                                 <a class="page-link"
-                                   href="?page={{ page_obj.paginator.num_pages }}">
+                                   href="?page={{ page_obj.paginator.num_pages }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}">
                                     Last
                                 </a>
                             </li>
