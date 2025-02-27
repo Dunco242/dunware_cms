@@ -150,38 +150,43 @@
         filterTable("search-subscriptions", "subscription-list");
 
         document.querySelectorAll(".pay-btn").forEach(button => {
-            button.addEventListener("click", function() {
-                const invoiceId = this.getAttribute("data-invoice-id");
-                document.getElementById(`pay-section-${invoiceId}`).style.display = "block";
+        button.addEventListener("click", function() {
+            const invoiceId = this.getAttribute("data-invoice-id");
+            document.getElementById(`pay-section-${invoiceId}`).style.display = "block";
+        });
+    });
+
+    document.querySelectorAll(".confirm-pay-btn").forEach(button => {
+        button.addEventListener("click", function() {
+            const invoiceId = this.getAttribute("data-invoice-id");
+            const amount = document.getElementById(`pay-input-${invoiceId}`).value;
+
+            if (!amount || amount <= 0) {
+                alert("Please enter a valid payment amount.");
+                return;
+            }
+
+            fetch("{% url 'process-payment' %}", {
+                method: "POST",
+                body: new URLSearchParams({ invoice_id: invoiceId, amount: amount }),
+                headers: { "X-CSRFToken": "{{ csrf_token }}" }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById(`status-${invoiceId}`).innerHTML = data.new_status;
+                    document.getElementById(`balance-${invoiceId}`).innerHTML = `$${data.remaining_balance.toFixed(2)}`;
+
+                    let statusBadge = document.getElementById(`status-${invoiceId}`);
+                    statusBadge.className = data.new_status === "Paid" ? "badge badge-paid" : "badge badge-partial";
+
+                    document.getElementById(`pay-section-${invoiceId}`).style.display = "none";
+                } else {
+                    alert(data.error);
+                }
             });
         });
-
-        document.querySelectorAll(".confirm-pay-btn").forEach(button => {
-            button.addEventListener("click", function() {
-                const invoiceId = this.getAttribute("data-invoice-id");
-                const amount = document.getElementById(`pay-input-${invoiceId}`).value;
-
-                fetch("{% url 'process-payment' %}", {
-                    method: "POST",
-                    body: new URLSearchParams({ invoice_id: invoiceId, amount: amount }),
-                    headers: { "X-CSRFToken": "{{ csrf_token }}" }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        document.getElementById(`status-${invoiceId}`).innerHTML = data.new_status;
-                        document.getElementById(`balance-${invoiceId}`).innerHTML = `$${data.remaining_balance.toFixed(2)}`;
-
-                        let statusBadge = document.getElementById(`status-${invoiceId}`);
-                        statusBadge.className = data.new_status === "Paid" ? "badge badge-paid" : "badge badge-partial";
-
-                        document.getElementById(`pay-section-${invoiceId}`).style.display = "none";
-                    } else {
-                        alert(data.error);
-                    }
-                });
-            });
-        });
-    </script>
+    });
+</script>
 </div>
 {% endblock %}

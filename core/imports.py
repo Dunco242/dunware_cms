@@ -25,7 +25,7 @@ from core.mixins import EmployeeRequiredMixin
 
 # Django Core
 from django.core.exceptions import ObjectDoesNotExist
-from django.db import transaction
+from django.db import transaction, models
 from django.contrib.contenttypes.models import ContentType
 
 from core.services.scheduling import SchedulingService

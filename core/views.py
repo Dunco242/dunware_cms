@@ -230,7 +230,10 @@ class CustomerDetailView(LoginRequiredMixin, DetailView):
             'events': Event.objects.filter(customer=customer).order_by('-start_time')[:5],
             'tasks': Task.objects.filter(customer=customer).order_by('-created_at')[:5],
             'meetings': Meeting.objects.filter(customers=customer).order_by('-start_time')[:5],
-            'projects': customer.projects.all().order_by('-created_at')
+            'projects': customer.projects.all().order_by('-created_at'),
+            'invoices': Invoice.objects.filter(customer=customer),  # ✅ Ensure invoices are included
+            'payments': Payment.objects.filter(invoice__customer=customer),  # ✅ Fetch payments linked to invoices
+            'total_paid': Payment.objects.filter(invoice__customer=customer).aggregate(total=models.Sum('amount'))['total'] or 0
 
         })
 
