@@ -4047,7 +4047,7 @@ class IntegratedBillingDashboardView(LoginRequiredMixin, TemplateView):
     """
     Integrated dashboard showing all billing-related information in one place
     """
-    template_name = 'core/billing_dashboard.html'
+    template_name = 'core/integrated_billing_dashboard.html'
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
