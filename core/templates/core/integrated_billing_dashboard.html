@@ -7,8 +7,8 @@
     .badge-paid { background-color: #28a745; color: white; }
     .badge-pending { background-color: #ffc107; color: black; }
     .badge-overdue { background-color: #dc3545; color: white; }
-    .table-responsive { border-radius: 0.25rem; }
     .form-inline { display: flex; gap: 10px; }
+    .search-box { width: 100%; padding: 8px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px; }
 </style>
 {% endblock %}
 
@@ -16,9 +16,12 @@
 <div class="container mt-4">
     <h1 class="h3 text-dark">Billing Dashboard</h1>
 
-    <!-- Invoice Table -->
+    <!-- Invoices Section -->
     <div class="card shadow mb-4">
-        <div class="card-header">Pending Invoices</div>
+        <div class="card-header">
+            <h6>Pending Invoices</h6>
+            <input type="text" id="search-invoices" class="search-box" placeholder="Search invoices...">
+        </div>
         <div class="card-body">
             <table class="table table-hover">
                 <thead>
@@ -47,78 +50,123 @@
                         </td>
                     </tr>
                     {% empty %}
-                    <tr><td colspan="5" class="text-center">No pending invoices.</td></tr>
+                    <tr><td colspan="5" class="text-center">No invoices found.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
     </div>
 
-    <!-- Payment Form -->
+    <!-- Payment Section -->
     <div class="card shadow mb-4">
-        <div class="card-header">Process Payment</div>
+        <div class="card-header">
+            <h6>Payments</h6>
+            <input type="text" id="search-payments" class="search-box" placeholder="Search payments...">
+        </div>
         <div class="card-body">
-            <form id="payment-form" class="form-inline">
-                <select id="invoice-select" class="form-control">
-                    <option value="">Select Invoice</option>
-                    {% for invoice in invoices %}
-                    <option value="{{ invoice.id }}">{{ invoice.invoice_number }}</option>
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Reference #</th>
+                        <th>Invoice</th>
+                        <th>Amount</th>
+                        <th>Date</th>
+                    </tr>
+                </thead>
+                <tbody id="payment-list">
+                    {% for payment in payments %}
+                    <tr data-payment-id="{{ payment.id }}">
+                        <td>{{ payment.reference_number }}</td>
+                        <td>{{ payment.invoice.invoice_number }}</td>
+                        <td>${{ payment.amount }}</td>
+                        <td>{{ payment.date_paid }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="4" class="text-center">No payments found.</td></tr>
                     {% endfor %}
-                </select>
-                <input type="number" id="payment-amount" class="form-control" placeholder="Enter Amount">
-                <button type="submit" class="btn btn-primary">Submit Payment</button>
-            </form>
+                </tbody>
+            </table>
         </div>
     </div>
-</div>
 
-<!-- JavaScript for AJAX -->
-<script>
-document.addEventListener("DOMContentLoaded", function() {
-    // Handle Payment Form Submission
-    document.getElementById("payment-form").addEventListener("submit", function(event) {
-        event.preventDefault();
-        const invoiceId = document.getElementById("invoice-select").value;
-        const amount = document.getElementById("payment-amount").value;
+    <!-- Subscription Section -->
+    <div class="card shadow mb-4">
+        <div class="card-header">
+            <h6>Subscriptions</h6>
+            <input type="text" id="search-subscriptions" class="search-box" placeholder="Search subscriptions...">
+        </div>
+        <div class="card-body">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Customer</th>
+                        <th>Service</th>
+                        <th>Status</th>
+                        <th>Next Billing Date</th>
+                    </tr>
+                </thead>
+                <tbody id="subscription-list">
+                    {% for subscription in subscriptions %}
+                    <tr data-subscription-id="{{ subscription.id }}">
+                        <td>{{ subscription.customer.company_name }}</td>
+                        <td>{{ subscription.service.name }}</td>
+                        <td>
+                            {% if subscription.status == 'active' %}
+                                <span class="badge badge-paid">Active</span>
+                            {% else %}
+                                <span class="badge badge-overdue">Expired</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ subscription.next_billing_date }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="4" class="text-center">No subscriptions found.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
 
-        fetch("{% url 'process-payment' %}", {
-            method: "POST",
-            body: new URLSearchParams({ invoice_id: invoiceId, amount: amount }),
-            headers: { "X-CSRFToken": "{{ csrf_token }}" }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                alert("Payment Successful");
-                updateInvoiceStatus(data.invoice_id, "Paid");
-            }
-        });
-    });
+    <!-- JavaScript for Search and Filtering -->
+    <script>
+        function filterTable(inputId, tableId) {
+            document.getElementById(inputId).addEventListener("input", function() {
+                const query = this.value.toLowerCase();
+                document.querySelectorAll(`#${tableId} tr`).forEach(row => {
+                    const text = row.textContent.toLowerCase();
+                    row.style.display = text.includes(query) ? "" : "none";
+                });
+            });
+        }
 
-    // Handle Invoice Status Update
-    document.querySelectorAll(".update-status-btn").forEach(button => {
-        button.addEventListener("click", function() {
-            const invoiceId = this.getAttribute("data-invoice-id");
-            fetch("{% url 'update-invoice-status' invoice_id=0 %}".replace("0", invoiceId), {
-                method: "POST",
-                body: new URLSearchParams({ status: "paid" }),
-                headers: { "X-CSRFToken": "{{ csrf_token }}" }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    updateInvoiceStatus(invoiceId, "Paid");
-                }
+        filterTable("search-invoices", "invoice-list");
+        filterTable("search-payments", "payment-list");
+        filterTable("search-subscriptions", "subscription-list");
+
+        // AJAX Invoice Status Update
+        document.querySelectorAll(".update-status-btn").forEach(button => {
+            button.addEventListener("click", function() {
+                const invoiceId = this.getAttribute("data-invoice-id");
+                fetch("{% url 'update-invoice-status' invoice_id=0 %}".replace("0", invoiceId), {
+                    method: "POST",
+                    body: new URLSearchParams({ status: "paid" }),
+                    headers: { "X-CSRFToken": "{{ csrf_token }}" }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        updateInvoiceStatus(invoiceId, "Paid");
+                    }
+                });
             });
         });
-    });
 
-    function updateInvoiceStatus(invoiceId, status) {
-        const row = document.querySelector(`[data-invoice-id='${invoiceId}']`);
-        if (row) {
-            row.querySelector("td:nth-child(4)").innerHTML = `<span class="badge badge-paid">${status}</span>`;
+        function updateInvoiceStatus(invoiceId, status) {
+            const row = document.querySelector(`[data-invoice-id='${invoiceId}']`);
+            if (row) {
+                row.querySelector("td:nth-child(4)").innerHTML = `<span class="badge badge-paid">${status}</span>`;
+            }
         }
-    }
-});
-</script>
+    </script>
+</div>
 {% endblock %}

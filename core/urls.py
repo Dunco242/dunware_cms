@@ -45,7 +45,7 @@ from .views import (
     ServiceSubscriptionListView, ServiceSubscriptionCreateView,
     ServiceSubscriptionUpdateView, ServiceSubscriptionDeleteView,
     SubscriptionDetailView, SubscriptionUpdateView, SubscriptionCancelView,
-    BillingSettingsView, IntegratedBillingDashboardView,
+    BillingSettingsView, IntegratedBillingDashboardView, update_invoice_status, process_payment,
 
     # Schedule Views
     ScheduleRuleListView, ScheduleRuleCreateView,
@@ -163,6 +163,8 @@ urlpatterns = [
     path('billing/invoices/<int:pk>/delete/', InvoiceDeleteView.as_view(), name='invoice-delete'),
     path("billing/invoice/<int:invoice_id>/pdf/", generate_invoice_pdf, name="invoice-pdf"),
     path('billing/integrated-dashboard/', views.IntegratedBillingDashboardView.as_view(), name='integrated-billing-dashboard'),
+    path('process-payment/', process_payment, name='process-payment'),  # ✅ Add this line
+    path('update-invoice-status/<int:invoice_id>/', update_invoice_status, name='update-invoice-status'),
 
     # Payment URLs
     path('billing/payments/', PaymentListView.as_view(), name='payment-list'),
