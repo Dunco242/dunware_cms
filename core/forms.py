@@ -337,25 +337,46 @@ class MeetingForm(forms.ModelForm):
     end_time = forms.DateTimeField(
         widget=forms.DateTimeInput(attrs={'type': 'datetime-local'})
     )
+
+    # Explicitly define these fields with their querysets
     attendees = forms.ModelMultipleChoiceField(
         queryset=Employee.objects.filter(is_active=True),
-        widget=forms.CheckboxSelectMultiple
+        widget=forms.CheckboxSelectMultiple,
+        required=False
+    )
+
+    customers = forms.ModelMultipleChoiceField(
+        queryset=Customer.objects.filter(status='active'),
+        widget=forms.CheckboxSelectMultiple,
+        required=False
+    )
+
+    leads = forms.ModelMultipleChoiceField(
+        queryset=Lead.objects.filter(status__in=['new', 'contacted', 'qualified']),
+        widget=forms.CheckboxSelectMultiple,
+        required=False
     )
 
     class Meta:
         model = Meeting
-        fields = ('title', 'meeting_type', 'start_time', 'end_time',
-                 'description', 'attendees', 'customers', 'leads', 'location')
+        fields = (
+            'title', 'meeting_type', 'start_time', 'end_time',
+            'description', 'attendees', 'customers', 'leads',
+            'location'
+        )
         widgets = {
             'description': forms.Textarea(attrs={'rows': 4}),
-            'customers': forms.CheckboxSelectMultiple(),
-            'leads': forms.CheckboxSelectMultiple(),
         }
 
     def __init__(self, *args, **kwargs):
         # Extract user from kwargs if passed
         self.user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
+
+        # Customize field displays
+        self.fields['attendees'].label_from_instance = lambda obj: f"{obj.user.get_full_name()} - {obj.get_department_display()}"
+        self.fields['customers'].label_from_instance = lambda obj: f"{obj.company_name} ({obj.contact_person})"
+        self.fields['leads'].label_from_instance = lambda obj: f"{obj.company_name} ({obj.contact_person})"
 
     def clean(self):
         cleaned_data = super().clean()
@@ -366,29 +387,30 @@ class MeetingForm(forms.ModelForm):
         if start_time and end_time:
             # Check that end time is after start time
             if start_time >= end_time:
-                raise ValidationError('End time must be after start time.')
+                raise forms.ValidationError('End time must be after start time.')
 
             # Check that start time is not in the past
             if start_time < timezone.now():
-                raise ValidationError('Start time cannot be in the past.')
+                raise forms.ValidationError('Start time cannot be in the past.')
 
-            # Check scheduling rules if user is available
+            # Additional meeting type specific validation
+            meeting_type = cleaned_data.get('meeting_type')
+            if meeting_type == 'in_person':
+                location = cleaned_data.get('location')
+                if not location:
+                    raise forms.ValidationError('Location is required for in-person meetings.')
+
+            # Scheduling availability check (if user is provided)
             if self.user:
+                from core.services.scheduling import SchedulingService
                 try:
                     scheduling_service = SchedulingService(self.user)
                     duration = int((end_time - start_time).total_seconds() / 60)
 
                     if not scheduling_service.check_availability(start_time, end_time, duration):
-                        raise ValidationError("The selected time conflicts with your scheduling rules.")
+                        raise forms.ValidationError("The selected time conflicts with your scheduling rules.")
                 except Exception as e:
-                    raise ValidationError(f"Error checking scheduling availability: {str(e)}")
-
-        # Additional Zoom meeting validation
-        meeting_type = cleaned_data.get('meeting_type')
-        if meeting_type == 'zoom':
-            # Additional validation for Zoom meetings can be added here
-            # For example, check if Zoom credentials are available
-            pass
+                    raise forms.ValidationError(f"Error checking scheduling availability: {str(e)}")
 
         return cleaned_data
 

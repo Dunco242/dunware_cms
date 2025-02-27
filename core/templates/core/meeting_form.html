@@ -13,7 +13,12 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css">
 <style>
-    /* Ensure the location field is properly displayed */
+    .form-check-input {
+        margin-right: 0.5rem;
+    }
+    .form-check-label {
+        margin-left: 1.25rem;
+    }
     #id_location {
         display: block;
         width: 100%;
@@ -33,22 +38,21 @@
 
 {% block content %}
 <div class="container mt-4">
-    <!-- Meeting Form -->
     <div class="card shadow-sm">
         <div class="card-body">
-            <h1 class="h3 text-dark">
+            <h1 class="h3 text-dark mb-4">
                 {% if form.instance.pk %}
                     Edit Meeting: {{ form.instance.title }}
                 {% else %}
                     Schedule New Meeting
                 {% endif %}
             </h1>
-            <hr>
 
             <form method="post" id="meetingForm">
                 {% csrf_token %}
+
                 <div class="row g-3">
-                    <!-- Title field -->
+                    <!-- Title and Meeting Type -->
                     <div class="col-md-6">
                         <label class="form-label fw-bold">Title</label>
                         {{ form.title }}
@@ -56,8 +60,6 @@
                             <div class="text-danger small">{{ form.title.errors }}</div>
                         {% endif %}
                     </div>
-
-                    <!-- Meeting Type field -->
                     <div class="col-md-6">
                         <label class="form-label fw-bold">Meeting Type</label>
                         {{ form.meeting_type }}
@@ -66,23 +68,16 @@
                         {% endif %}
                     </div>
 
-                    <!-- Location field - Only visible for in-person meetings -->
+                    <!-- Location Field (Conditional) -->
                     <div class="col-md-12" id="locationField" style="display: none;">
                         <label class="form-label fw-bold">Location</label>
-                        {% if form.location.is_hidden %}
-                            <!-- In case the field is hidden, create an explicit input -->
-                            <input type="text" name="location" id="id_location" class="form-control"
-                                   value="{{ form.location.value|default:'' }}"
-                                   placeholder="Enter meeting location">
-                        {% else %}
-                            {{ form.location }}
-                        {% endif %}
+                        {{ form.location }}
                         {% if form.location.errors %}
                             <div class="text-danger small">{{ form.location.errors }}</div>
                         {% endif %}
                     </div>
 
-                    <!-- Start Time field -->
+                    <!-- Start and End Time -->
                     <div class="col-md-6">
                         <label class="form-label fw-bold">Start Time</label>
                         {{ form.start_time }}
@@ -90,8 +85,6 @@
                             <div class="text-danger small">{{ form.start_time.errors }}</div>
                         {% endif %}
                     </div>
-
-                    <!-- End Time field -->
                     <div class="col-md-6">
                         <label class="form-label fw-bold">End Time</label>
                         {{ form.end_time }}
@@ -100,7 +93,7 @@
                         {% endif %}
                     </div>
 
-                    <!-- Description field -->
+                    <!-- Description -->
                     <div class="col-12">
                         <label class="form-label fw-bold">Description</label>
                         {{ form.description }}
@@ -109,28 +102,55 @@
                         {% endif %}
                     </div>
 
-                    <!-- Attendees field -->
+                    <!-- Attendees Checkboxes -->
                     <div class="col-md-12">
                         <label class="form-label fw-bold">Attendees</label>
-                        {{ form.attendees }}
+                        <div class="row">
+                            {% for checkbox in form.attendees %}
+                                <div class="col-md-4 form-check">
+                                    {{ checkbox.tag }}
+                                    <label class="form-check-label" for="{{ checkbox.id_for_label }}">
+                                        {{ checkbox.choice_label }}
+                                    </label>
+                                </div>
+                            {% endfor %}
+                        </div>
                         {% if form.attendees.errors %}
                             <div class="text-danger small">{{ form.attendees.errors }}</div>
                         {% endif %}
                     </div>
 
-                    <!-- Customers field -->
-                    <div class="col-md-6">
+                    <!-- Customers Checkboxes -->
+                    <div class="col-md-12">
                         <label class="form-label fw-bold">Customers</label>
-                        {{ form.customers }}
+                        <div class="row">
+                            {% for checkbox in form.customers %}
+                                <div class="col-md-4 form-check">
+                                    {{ checkbox.tag }}
+                                    <label class="form-check-label" for="{{ checkbox.id_for_label }}">
+                                        {{ checkbox.choice_label }}
+                                    </label>
+                                </div>
+                            {% endfor %}
+                        </div>
                         {% if form.customers.errors %}
                             <div class="text-danger small">{{ form.customers.errors }}</div>
                         {% endif %}
                     </div>
 
-                    <!-- Leads field -->
-                    <div class="col-md-6">
+                    <!-- Leads Checkboxes -->
+                    <div class="col-md-12">
                         <label class="form-label fw-bold">Leads</label>
-                        {{ form.leads }}
+                        <div class="row">
+                            {% for checkbox in form.leads %}
+                                <div class="col-md-4 form-check">
+                                    {{ checkbox.tag }}
+                                    <label class="form-check-label" for="{{ checkbox.id_for_label }}">
+                                        {{ checkbox.choice_label }}
+                                    </label>
+                                </div>
+                            {% endfor %}
+                        </div>
                         {% if form.leads.errors %}
                             <div class="text-danger small">{{ form.leads.errors }}</div>
                         {% endif %}
@@ -161,60 +181,52 @@
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script>
-    $(document).ready(function() {
-        // Initialize datetime pickers
-        flatpickr("#id_start_time", {
-            enableTime: true,
-            dateFormat: "Y-m-d H:i",
-            minDate: "today",
-            time_24hr: false
-        });
-
-        flatpickr("#id_end_time", {
-            enableTime: true,
-            dateFormat: "Y-m-d H:i",
-            minDate: "today",
-            time_24hr: false
-        });
-
-        // Initialize select2 for multiple selects
-        $('#id_attendees, #id_customers, #id_leads').select2({
-            placeholder: "Select options",
-            width: '100%'
-        });
-
-        // Show/hide location field and Zoom settings based on meeting type
-        $('#id_meeting_type').change(function() {
-            const meetingType = $(this).val();
-
-            // Handle Zoom settings visibility
-            if (meetingType === 'in_person') {
-                $('#locationField').show();
-            } else {
-                $('#locationField').hide();
-            }
-        }).trigger('change');
-
-        // Form validation
-        $('#meetingForm').submit(function(e) {
-            const startTime = new Date($('#id_start_time').val());
-            const endTime = new Date($('#id_end_time').val());
-
-            if (endTime <= startTime) {
-                e.preventDefault();
-                alert('End time must be after start time');
-            }
-
-            // Check if location is required for in-person meetings
-            const meetingType = $('#id_meeting_type').val();
-            if (meetingType === 'in_person') {
-                const location = $('#id_location').val().trim();
-                if (!location) {
-                    e.preventDefault();
-                    alert('Location is required for in-person meetings');
-                }
-            }
-        });
+$(document).ready(function() {
+    // Initialize datetime pickers
+    flatpickr("#id_start_time", {
+        enableTime: true,
+        dateFormat: "Y-m-d H:i",
+        minDate: "today",
+        time_24hr: false
     });
+
+    flatpickr("#id_end_time", {
+        enableTime: true,
+        dateFormat: "Y-m-d H:i",
+        minDate: "today",
+        time_24hr: false
+    });
+
+    // Show/hide location field based on meeting type
+    $('#id_meeting_type').change(function() {
+        const meetingType = $(this).val();
+        if (meetingType === 'in_person') {
+            $('#locationField').show();
+        } else {
+            $('#locationField').hide();
+        }
+    }).trigger('change');
+
+    // Form validation
+    $('#meetingForm').submit(function(e) {
+        const startTime = new Date($('#id_start_time').val());
+        const endTime = new Date($('#id_end_time').val());
+
+        if (endTime <= startTime) {
+            e.preventDefault();
+            alert('End time must be after start time');
+        }
+
+        // Check if location is required for in-person meetings
+        const meetingType = $('#id_meeting_type').val();
+        if (meetingType === 'in_person') {
+            const location = $('#id_location').val().trim();
+            if (!location) {
+                e.preventDefault();
+                alert('Location is required for in-person meetings');
+            }
+        }
+    });
+});
 </script>
 {% endblock %}
