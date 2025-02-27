@@ -125,4 +125,5 @@ from customer_projects.models import (
     ProjectPhase,
     ProjectTask,
     ProjectComment,
+    TimeEntry
 )

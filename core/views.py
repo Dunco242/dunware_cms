@@ -4121,18 +4121,43 @@ def update_invoice_status(request, invoice_id):
 
 @csrf_exempt
 def process_payment(request):
-    """Process payment and update invoice status"""
+    """Process payment and update invoice status accordingly"""
     if request.method == 'POST':
         invoice_id = request.POST.get('invoice_id')
         amount = request.POST.get('amount')
 
-        invoice = get_object_or_404(Invoice, id=invoice_id)
-        payment = Payment.objects.create(invoice=invoice, amount=amount)
+        if not invoice_id or not amount:
+            return JsonResponse({'success': False, 'error': 'Missing invoice ID or amount'})
 
-        # Update invoice status
-        invoice.status = 'paid'
+        invoice = get_object_or_404(Invoice, id=invoice_id)
+        amount = float(amount)  # Convert input to float
+
+        # Ensure valid payment amount
+        if amount <= 0:
+            return JsonResponse({'success': False, 'error': 'Invalid payment amount'})
+
+        # Create the payment entry
+        Payment.objects.create(invoice=invoice, amount=amount)
+
+        # Calculate remaining balance
+        total_paid = sum(payment.amount for payment in invoice.payment_set.all())
+        remaining_balance = invoice.total_amount - total_paid
+
+        # Determine new status
+        if remaining_balance <= 0:
+            invoice.status = 'paid'
+            new_status_display = 'Paid'
+        else:
+            invoice.status = 'partial'
+            new_status_display = 'Partial Payment'
+
         invoice.save()
 
-        return JsonResponse({'success': True, 'invoice_id': invoice.id, 'new_status': 'Paid'})
+        return JsonResponse({
+            'success': True,
+            'invoice_id': invoice.id,
+            'new_status': new_status_display,
+            'remaining_balance': remaining_balance
+        })
 
     return JsonResponse({'success': False, 'error': 'Invalid request'})

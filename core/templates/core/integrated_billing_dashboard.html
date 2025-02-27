@@ -5,10 +5,11 @@
 {% block extra_css %}
 <style>
     .badge-paid { background-color: #28a745; color: white; }
-    .badge-pending { background-color: #ffc107; color: black; }
+    .badge-partial { background-color: #ffc107; color: black; }
     .badge-overdue { background-color: #dc3545; color: white; }
     .form-inline { display: flex; gap: 10px; }
     .search-box { width: 100%; padding: 8px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px; }
+    .pay-section { display: none; margin-top: 5px; }
 </style>
 {% endblock %}
 
@@ -29,6 +30,7 @@
                         <th>Invoice #</th>
                         <th>Customer</th>
                         <th>Amount</th>
+                        <th>Balance</th>
                         <th>Status</th>
                         <th>Actions</th>
                     </tr>
@@ -39,18 +41,22 @@
                         <td>{{ invoice.invoice_number }}</td>
                         <td>{{ invoice.customer.company_name }}</td>
                         <td>${{ invoice.total_amount }}</td>
+                        <td id="balance-{{ invoice.id }}">${{ invoice.total_amount }}</td>
                         <td>
-                            <span class="badge {% if invoice.status == 'paid' %}badge-paid{% elif invoice.status == 'pending' %}badge-pending{% else %}badge-overdue{% endif %}">
+                            <span class="badge {% if invoice.status == 'paid' %}badge-paid{% elif invoice.status == 'partial' %}badge-partial{% else %}badge-overdue{% endif %}" id="status-{{ invoice.id }}">
                                 {{ invoice.get_status_display }}
                             </span>
                         </td>
                         <td>
-                            <button class="btn btn-sm btn-success pay-btn" data-invoice-id="{{ invoice.id }}">Pay</button>
-                            <button class="btn btn-sm btn-primary update-status-btn" data-invoice-id="{{ invoice.id }}">Update Status</button>
+                            <button class="btn btn-sm btn-success pay-btn" data-invoice-id="{{ invoice.id }}">Make Payment</button>
+                            <div class="pay-section" id="pay-section-{{ invoice.id }}">
+                                <input type="number" class="form-control pay-input" id="pay-input-{{ invoice.id }}" placeholder="Enter Amount">
+                                <button class="btn btn-primary confirm-pay-btn" data-invoice-id="{{ invoice.id }}">Confirm</button>
+                            </div>
                         </td>
                     </tr>
                     {% empty %}
-                    <tr><td colspan="5" class="text-center">No invoices found.</td></tr>
+                    <tr><td colspan="6" class="text-center">No invoices found.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
@@ -143,30 +149,39 @@
         filterTable("search-payments", "payment-list");
         filterTable("search-subscriptions", "subscription-list");
 
-        // AJAX Invoice Status Update
-        document.querySelectorAll(".update-status-btn").forEach(button => {
+        document.querySelectorAll(".pay-btn").forEach(button => {
             button.addEventListener("click", function() {
                 const invoiceId = this.getAttribute("data-invoice-id");
-                fetch("{% url 'update-invoice-status' invoice_id=0 %}".replace("0", invoiceId), {
+                document.getElementById(`pay-section-${invoiceId}`).style.display = "block";
+            });
+        });
+
+        document.querySelectorAll(".confirm-pay-btn").forEach(button => {
+            button.addEventListener("click", function() {
+                const invoiceId = this.getAttribute("data-invoice-id");
+                const amount = document.getElementById(`pay-input-${invoiceId}`).value;
+
+                fetch("{% url 'process-payment' %}", {
                     method: "POST",
-                    body: new URLSearchParams({ status: "paid" }),
+                    body: new URLSearchParams({ invoice_id: invoiceId, amount: amount }),
                     headers: { "X-CSRFToken": "{{ csrf_token }}" }
                 })
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        updateInvoiceStatus(invoiceId, "Paid");
+                        document.getElementById(`status-${invoiceId}`).innerHTML = data.new_status;
+                        document.getElementById(`balance-${invoiceId}`).innerHTML = `$${data.remaining_balance.toFixed(2)}`;
+
+                        let statusBadge = document.getElementById(`status-${invoiceId}`);
+                        statusBadge.className = data.new_status === "Paid" ? "badge badge-paid" : "badge badge-partial";
+
+                        document.getElementById(`pay-section-${invoiceId}`).style.display = "none";
+                    } else {
+                        alert(data.error);
                     }
                 });
             });
         });
-
-        function updateInvoiceStatus(invoiceId, status) {
-            const row = document.querySelector(`[data-invoice-id='${invoiceId}']`);
-            if (row) {
-                row.querySelector("td:nth-child(4)").innerHTML = `<span class="badge badge-paid">${status}</span>`;
-            }
-        }
     </script>
 </div>
 {% endblock %}

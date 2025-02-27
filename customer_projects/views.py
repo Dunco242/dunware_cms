@@ -13,7 +13,7 @@ from django.db.models import (
 )
 from django.db.models.functions import Coalesce
 from django.db import transaction
-from django.http import JsonResponse, HttpResponse, FileResponse
+from django.http import JsonResponse, HttpResponse, FileResponse, Http404
 from django.utils import timezone
 from django.core.exceptions import (
     PermissionDenied, ValidationError,
