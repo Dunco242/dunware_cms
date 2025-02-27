@@ -4063,21 +4063,22 @@ class IntegratedBillingDashboardView(LoginRequiredMixin, TemplateView):
 
             # Calculate correct balance for each invoice by querying related payments
             for invoice in invoices:
-                total_paid = invoice.payment_set.filter(status='completed').aggregate(
+                # Use the related_name 'payments' from your Payment model
+                total_paid = invoice.payments.all().aggregate(
                     total=Sum('amount')
                 )['total'] or 0
+
+                # Add balance_due attribute to each invoice object
                 invoice.balance_due = invoice.total_amount - total_paid
 
-            # Get recent payments with proper order and references
-            payments = Payment.objects.filter(
-                status='completed'
-            ).select_related(
+            # Get recent payments without filtering on 'completed' status since it might not exist
+            payments = Payment.objects.all().select_related(
                 'customer', 'invoice'
-            ).order_by('-date_paid', '-id')[:10]
+            ).order_by('-transaction_date')[:10]
 
             # Get active subscriptions
             subscriptions = ServiceSubscription.objects.filter(
-                is_active=True
+                is_active=True  # This field exists in your model
             ).select_related(
                 'customer', 'service'
             ).order_by('-start_date')
@@ -4101,7 +4102,7 @@ class IntegratedBillingDashboardView(LoginRequiredMixin, TemplateView):
 
         except Exception as e:
             logger.error(f"Error loading billing dashboard data: {str(e)}")
-            messages.error(self.request, "Error loading billing data. Please try again.")
+            messages.error(self.request, f"Error loading billing data: {str(e)}. Please try again.")
             context.update({
                 'invoices': [],
                 'payments': [],
@@ -4172,16 +4173,6 @@ def process_payment(request):
     return JsonResponse({'success': False, 'error': 'Invalid request'})
 
 
-from django.http import JsonResponse
-from django.shortcuts import get_object_or_404
-from django.views.decorators.http import require_POST
-from django.views.decorators.csrf import csrf_protect
-from django.db import transaction
-from django.utils import timezone
-import time
-from django.db.models import Sum
-from .models import Invoice, Payment, Transaction
-
 @require_POST
 @csrf_protect
 def process_payment_ajax(request):
@@ -4202,8 +4193,8 @@ def process_payment_ajax(request):
         if amount <= 0:
             return JsonResponse({'success': False, 'error': 'Invalid payment amount.'})
 
-        # Calculate current balance due
-        total_paid = Payment.objects.filter(invoice=invoice, status='completed').aggregate(
+        # Calculate current balance due - using the related_name 'payments' as per your model
+        total_paid = invoice.payments.all().aggregate(
             total=Sum('amount')
         )['total'] or 0
         balance_due = invoice.total_amount - total_paid
@@ -4215,28 +4206,26 @@ def process_payment_ajax(request):
             # Generate reference number with timestamp to ensure uniqueness
             reference_number = f"PAY-{invoice.invoice_number}-{int(time.time())}"
 
-            # Create payment record
+            # Create payment record - use fields that match your model
             payment = Payment.objects.create(
                 customer=customer,
                 invoice=invoice,
                 amount=amount,
-                status='completed',
                 payment_method=payment_method,
-                reference_number=reference_number,
-                date_paid=timezone.now()
+                reference=reference_number,  # Using 'reference' instead of 'reference_number'
+                transaction_date=timezone.now()  # Using 'transaction_date' instead of 'date_paid'
             )
 
-            # Create transaction record if necessary
-            if hasattr(models, 'Transaction'):
-                Transaction.objects.create(
-                    customer=customer,
-                    invoice=invoice,
-                    payment=payment,
-                    transaction_type='invoice_payment',
-                    amount=payment.amount,
-                    reference=reference_number,
-                    status='completed'
-                )
+            # Create transaction record if Transaction model exists
+            Transaction.objects.create(
+                customer=customer,
+                invoice=invoice,
+                payment=payment,
+                transaction_type='invoice_payment',
+                amount=payment.amount,
+                reference=reference_number,
+                status='completed'
+            )
 
             # Determine new invoice status
             new_total_paid = total_paid + amount

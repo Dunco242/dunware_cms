@@ -88,10 +88,10 @@
                 <tbody id="payment-list">
                     {% for payment in payments %}
                     <tr data-payment-id="{{ payment.id }}">
-                        <td>{{ payment.reference_number }}</td>
+                        <td>{{ payment.reference }}</td>
                         <td>{{ payment.invoice.invoice_number }}</td>
                         <td>${{ payment.amount }}</td>
-                        <td>{{ payment.date_paid }}</td>
+                        <td>{{ payment.transaction_date }}</td>
                     </tr>
                     {% empty %}
                     <tr><td colspan="4" class="text-center">No payments found.</td></tr>
@@ -126,10 +126,10 @@
                             {% if subscription.status == 'active' %}
                                 <span class="badge badge-paid">Active</span>
                             {% else %}
-                                <span class="badge badge-overdue">Expired</span>
+                                <span class="badge badge-overdue">{{ subscription.get_status_display }}</span>
                             {% endif %}
                         </td>
-                        <td>{{ subscription.next_billing_date }}</td>
+                        <td>{{ subscription.end_date }}</td>
                     </tr>
                     {% empty %}
                     <tr><td colspan="4" class="text-center">No subscriptions found.</td></tr>
