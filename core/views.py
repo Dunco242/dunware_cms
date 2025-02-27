@@ -4144,7 +4144,9 @@ def process_payment(request):
 
 logger = logging.getLogger(__name__)
 
-@csrf_exempt
+logger = logging.getLogger(__name__)
+
+@csrf_exempt  # Temporarily exempt from CSRF to test functionality
 @require_POST
 def process_payment_ajax(request):
     """Handles payment processing via AJAX."""
@@ -4158,10 +4160,12 @@ def process_payment_ajax(request):
     try:
         invoice = get_object_or_404(Invoice, pk=invoice_id)
         customer = invoice.customer
-        amount = float(amount)
+
+        # Convert amount to Decimal to match Django's model fields
+        amount = Decimal(amount)
 
         # Validate amount
-        if amount <= 0:
+        if amount <= Decimal('0'):
             return JsonResponse({'success': False, 'error': 'Invalid payment amount.'})
 
         # Get balance due using the property from your model
@@ -4190,15 +4194,15 @@ def process_payment_ajax(request):
                 invoice=invoice,
                 payment=payment,
                 transaction_type='invoice_payment',
-                amount=payment.amount,
+                amount=amount,
                 reference=reference_number,
                 status='completed'
             )
 
-            # Update invoice status
+            # Update invoice status - using Decimal for calculations
             remaining_balance = invoice.balance_due - amount
 
-            if remaining_balance <= 0:
+            if remaining_balance <= Decimal('0'):
                 invoice.status = 'paid'
                 status_label = "Paid"
             else:
@@ -4207,19 +4211,22 @@ def process_payment_ajax(request):
 
             invoice.save()
 
+        # Convert to float for JSON serialization
+        remaining_balance_float = float(remaining_balance)
+
         return JsonResponse({
             'success': True,
             'invoice_id': invoice.id,
             'invoice_number': invoice.invoice_number,
             'new_status': status_label,
-            'remaining_balance': remaining_balance,
+            'remaining_balance': remaining_balance_float,
             'payment_reference': reference_number
         })
 
     except Invoice.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Invoice not found'})
-    except ValueError:
-        return JsonResponse({'success': False, 'error': 'Invalid amount format'})
+    except ValueError as e:
+        return JsonResponse({'success': False, 'error': f'Invalid amount format: {str(e)}'})
     except Exception as e:
         # Log the error
         logger.error(f"Payment processing error for invoice {invoice_id}: {str(e)}")
