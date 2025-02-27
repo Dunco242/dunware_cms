@@ -45,6 +45,7 @@ from django.core.paginator import Paginator
 from django.template.loader import render_to_string
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required
+from django.views.decorators.http import require_POST
 from django.utils.decorators import method_decorator
 from .utils import get_privacy_policy_content
 from core.services.scheduling import SchedulingService
