@@ -44,7 +44,7 @@
                         <td>{{ invoice.invoice_number }}</td>
                         <td>{{ invoice.customer.company_name }}</td>
                         <td>${{ invoice.total_amount }}</td>
-                        <td id="balance-{{ invoice.id }}">${{ invoice.balance_due|default:invoice.total_amount }}</td>
+                        <td id="balance-{{ invoice.id }}">${{ invoice.balance_due }}</td>
                         <td>
                             <span class="badge {% if invoice.status == 'paid' %}badge-paid{% elif invoice.status == 'partial' %}badge-partial{% else %}badge-overdue{% endif %}" id="status-{{ invoice.id }}">
                                 {{ invoice.get_status_display }}
@@ -88,8 +88,20 @@
                 <tbody id="payment-list">
                     {% for payment in payments %}
                     <tr data-payment-id="{{ payment.id }}">
-                        <td>{{ payment.reference }}</td>
-                        <td>{{ payment.invoice.invoice_number }}</td>
+                        <td>
+                            {% if payment.reference %}
+                                {{ payment.reference }}
+                            {% else %}
+                                #{{ payment.id }}
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if payment.invoice %}
+                                {{ payment.invoice.invoice_number }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
                         <td>${{ payment.amount }}</td>
                         <td>{{ payment.transaction_date }}</td>
                     </tr>
@@ -114,7 +126,7 @@
                         <th>Customer</th>
                         <th>Service</th>
                         <th>Status</th>
-                        <th>Next Billing Date</th>
+                        <th>Next Billing</th>
                     </tr>
                 </thead>
                 <tbody id="subscription-list">
@@ -123,13 +135,19 @@
                         <td>{{ subscription.customer.company_name }}</td>
                         <td>{{ subscription.service.name }}</td>
                         <td>
-                            {% if subscription.status == 'active' %}
+                            {% if subscription.is_active %}
                                 <span class="badge badge-paid">Active</span>
                             {% else %}
-                                <span class="badge badge-overdue">{{ subscription.get_status_display }}</span>
+                                <span class="badge badge-overdue">Inactive</span>
                             {% endif %}
                         </td>
-                        <td>{{ subscription.end_date }}</td>
+                        <td>
+                            {% if subscription.end_date %}
+                                {{ subscription.end_date }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
                     </tr>
                     {% empty %}
                     <tr><td colspan="4" class="text-center">No subscriptions found.</td></tr>

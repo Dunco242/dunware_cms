@@ -4058,63 +4058,32 @@ class IntegratedBillingDashboardView(LoginRequiredMixin, TemplateView):
         context = super().get_context_data(**kwargs)
 
         try:
-            # Get pending invoices (excluding paid ones)
+            # Get invoices that are not paid, matching your working InvoiceListView
             invoices = Invoice.objects.exclude(status='paid').order_by('-issue_date')
 
-            # Calculate correct balance for each invoice by querying related payments
-            for invoice in invoices:
-                # Use the related_name 'payments' from your Payment model
-                total_paid = invoice.payments.all().aggregate(
-                    total=Sum('amount')
-                )['total'] or 0
+            # Get payments - matching your working PaymentListView
+            payments = Payment.objects.all().order_by('-transaction_date')[:10]
 
-                # Add balance_due attribute to each invoice object
-                invoice.balance_due = invoice.total_amount - total_paid
-
-            # Get recent payments without filtering on 'completed' status since it might not exist
-            payments = Payment.objects.all().select_related(
-                'customer', 'invoice'
-            ).order_by('-transaction_date')[:10]
-
-            # Get active subscriptions
-            subscriptions = ServiceSubscription.objects.filter(
-                is_active=True  # This field exists in your model
-            ).select_related(
-                'customer', 'service'
-            ).order_by('-start_date')
-
-            # Calculate summary statistics
-            total_unpaid = sum((invoice.balance_due for invoice in invoices))
-            overdue_count = invoices.filter(status='overdue').count()
+            # Get active subscriptions - ServiceSubscription has is_active field
+            subscriptions = ServiceSubscription.objects.filter(is_active=True).order_by('-start_date')
 
             # Add all data to context
             context.update({
                 'invoices': invoices,
                 'payments': payments,
-                'subscriptions': subscriptions,
-                'total_unpaid': total_unpaid,
-                'overdue_count': overdue_count,
-                'recent_payment_total': payments.aggregate(
-                    total=Sum('amount')
-                )['total'] or 0,
-                'active_subscription_count': subscriptions.count()
+                'subscriptions': subscriptions
             })
 
         except Exception as e:
             logger.error(f"Error loading billing dashboard data: {str(e)}")
-            messages.error(self.request, f"Error loading billing data: {str(e)}. Please try again.")
+            messages.error(self.request, f"Error loading billing data: {str(e)}")
             context.update({
                 'invoices': [],
                 'payments': [],
-                'subscriptions': [],
-                'total_unpaid': 0,
-                'overdue_count': 0,
-                'recent_payment_total': 0,
-                'active_subscription_count': 0
+                'subscriptions': []
             })
 
         return context
-
 
 @csrf_exempt
 def update_invoice_status(request, invoice_id):
@@ -4173,6 +4142,16 @@ def process_payment(request):
     return JsonResponse({'success': False, 'error': 'Invalid request'})
 
 
+from django.http import JsonResponse
+from django.shortcuts import get_object_or_404
+from django.views.decorators.http import require_POST
+from django.views.decorators.csrf import csrf_protect
+from django.db import transaction
+from django.utils import timezone
+import time
+from django.db.models import Sum
+from .models import Invoice, Payment, Transaction
+
 @require_POST
 @csrf_protect
 def process_payment_ajax(request):
@@ -4193,30 +4172,27 @@ def process_payment_ajax(request):
         if amount <= 0:
             return JsonResponse({'success': False, 'error': 'Invalid payment amount.'})
 
-        # Calculate current balance due - using the related_name 'payments' as per your model
-        total_paid = invoice.payments.all().aggregate(
-            total=Sum('amount')
-        )['total'] or 0
-        balance_due = invoice.total_amount - total_paid
+        # Get balance due using the property from your model
+        balance_due = invoice.balance_due
 
         if amount > balance_due:
             return JsonResponse({'success': False, 'error': f"Payment exceeds outstanding balance of ${balance_due:.2f}!"})
 
         with transaction.atomic():
-            # Generate reference number with timestamp to ensure uniqueness
+            # Generate reference number with timestamp
             reference_number = f"PAY-{invoice.invoice_number}-{int(time.time())}"
 
-            # Create payment record - use fields that match your model
+            # Create payment record - using fields that match your model and PaymentCreateView
             payment = Payment.objects.create(
                 customer=customer,
                 invoice=invoice,
                 amount=amount,
+                status='completed',  # Status used in your PaymentCreateView
                 payment_method=payment_method,
-                reference=reference_number,  # Using 'reference' instead of 'reference_number'
-                transaction_date=timezone.now()  # Using 'transaction_date' instead of 'date_paid'
+                transaction_date=timezone.now()
             )
 
-            # Create transaction record if Transaction model exists
+            # Create transaction record - following your PaymentCreateView example
             Transaction.objects.create(
                 customer=customer,
                 invoice=invoice,
@@ -4227,9 +4203,8 @@ def process_payment_ajax(request):
                 status='completed'
             )
 
-            # Determine new invoice status
-            new_total_paid = total_paid + amount
-            remaining_balance = invoice.total_amount - new_total_paid
+            # Update invoice status
+            remaining_balance = invoice.balance_due - amount
 
             if remaining_balance <= 0:
                 invoice.status = 'paid'
@@ -4254,7 +4229,7 @@ def process_payment_ajax(request):
     except ValueError:
         return JsonResponse({'success': False, 'error': 'Invalid amount format'})
     except Exception as e:
-        # Log the error here for server-side debugging
+        # Log the error
         import logging
         logger = logging.getLogger(__name__)
         logger.error(f"Payment processing error for invoice {invoice_id}: {str(e)}")
