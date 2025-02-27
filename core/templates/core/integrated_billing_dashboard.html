@@ -20,6 +20,9 @@
 <div class="container mt-4">
     <h1 class="h3 text-dark">Billing Dashboard</h1>
 
+    <!-- Include CSRF Token for AJAX requests -->
+    {% csrf_token %}
+
     <!-- Invoices Section -->
     <div class="card shadow mb-4">
         <div class="card-header">
@@ -183,6 +186,32 @@
                 });
             });
 
+            // Function to get CSRF token from cookies or the form
+            function getCSRFToken() {
+                // First try to get from cookie
+                let token = null;
+                if (document.cookie && document.cookie !== '') {
+                    const cookies = document.cookie.split(';');
+                    for (let i = 0; i < cookies.length; i++) {
+                        const cookie = cookies[i].trim();
+                        if (cookie.substring(0, 'csrftoken='.length) === 'csrftoken=') {
+                            token = decodeURIComponent(cookie.substring('csrftoken='.length));
+                            break;
+                        }
+                    }
+                }
+
+                // If cookie didn't work, look for the CSRF token in the form
+                if (!token) {
+                    const csrfElement = document.querySelector('[name=csrfmiddlewaretoken]');
+                    if (csrfElement) {
+                        token = csrfElement.value;
+                    }
+                }
+
+                return token;
+            }
+
             // Handle Payment Submission
             document.querySelectorAll(".confirm-pay-btn").forEach(button => {
                 button.addEventListener("click", function() {
@@ -200,23 +229,13 @@
                     confirmButton.classList.add('loading');
                     confirmButton.disabled = true;
 
-                    // Get CSRF token from the cookie
-                    function getCookie(name) {
-                        let cookieValue = null;
-                        if (document.cookie && document.cookie !== '') {
-                            const cookies = document.cookie.split(';');
-                            for (let i = 0; i < cookies.length; i++) {
-                                const cookie = cookies[i].trim();
-                                if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                                    break;
-                                }
-                            }
-                        }
-                        return cookieValue;
-                    }
+                    // Get CSRF token
+                    const csrftoken = getCSRFToken();
 
-                    const csrftoken = getCookie('csrftoken');
+                    // Debug info
+                    console.log("Invoice ID:", invoiceId);
+                    console.log("Amount:", amount);
+                    console.log("CSRF Token:", csrftoken);
 
                     // Send payment request via AJAX
                     fetch("{% url 'process-payment-ajax' %}", {
@@ -232,12 +251,24 @@
                         }
                     })
                     .then(response => {
+                        console.log("Response status:", response.status);
+                        console.log("Response headers:",
+                            Array.from(response.headers.entries())
+                                .map(([key, value]) => `${key}: ${value}`)
+                                .join(', ')
+                        );
+
                         if (!response.ok) {
-                            throw new Error('Network response was not ok');
+                            return response.text().then(text => {
+                                console.error("Error response text:", text);
+                                throw new Error(`Network response was not ok: ${response.status}`);
+                            });
                         }
                         return response.json();
                     })
                     .then(data => {
+                        console.log("Payment response data:", data);
+
                         if (data.success) {
                             // Update invoice status and balance dynamically
                             document.getElementById(`status-${invoiceId}`).innerHTML = data.new_status;
@@ -286,6 +317,7 @@
                             confirmButton.classList.remove('loading');
                             confirmButton.disabled = false;
                         } else {
+                            console.error("Payment failed:", data.error);
                             alert(data.error || "Payment failed. Please try again.");
                             // Reset button state
                             confirmButton.classList.remove('loading');
@@ -293,8 +325,8 @@
                         }
                     })
                     .catch(error => {
-                        alert("An error occurred while processing the payment. Please try again.");
-                        console.error("Payment error:", error);
+                        console.error("Payment processing error:", error);
+                        alert("An error occurred while processing the payment: " + error.message);
                         // Reset button state
                         confirmButton.classList.remove('loading');
                         confirmButton.disabled = false;

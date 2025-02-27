@@ -4142,18 +4142,9 @@ def process_payment(request):
     return JsonResponse({'success': False, 'error': 'Invalid request'})
 
 
-from django.http import JsonResponse
-from django.shortcuts import get_object_or_404
-from django.views.decorators.http import require_POST
-from django.views.decorators.csrf import csrf_protect
-from django.db import transaction
-from django.utils import timezone
-import time
-from django.db.models import Sum
-from .models import Invoice, Payment, Transaction
+logger = logging.getLogger(__name__)
 
 @require_POST
-@csrf_protect
 def process_payment_ajax(request):
     """Handles payment processing via AJAX."""
     invoice_id = request.POST.get('invoice_id')
@@ -4230,7 +4221,5 @@ def process_payment_ajax(request):
         return JsonResponse({'success': False, 'error': 'Invalid amount format'})
     except Exception as e:
         # Log the error
-        import logging
-        logger = logging.getLogger(__name__)
         logger.error(f"Payment processing error for invoice {invoice_id}: {str(e)}")
         return JsonResponse({'success': False, 'error': f"An error occurred: {str(e)}"})
