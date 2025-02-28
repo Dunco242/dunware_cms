@@ -116,6 +116,24 @@
                 </div>
             </div>
 
+            <!-- Add User to Chat -->
+            <div class="mb-3">
+                <label for="addUserSelect">Add User to Chat:</label>
+                <div class="input-group">
+                    <select id="addUserSelect" class="form-select">
+                        <option value="">Select User</option>
+                        {% for employee in all_employees %}
+                            {% if employee != request.user.employee_profile and employee not in session.participants.all %}
+                                <option value="{{ employee.employee_id }}">{{ employee.user.get_full_name }}</option>
+                            {% endif %}
+                        {% endfor %}
+                    </select>
+                    <button id="addUserBtn" class="btn btn-primary">
+                        <i class="fas fa-user-plus"></i> Add
+                    </button>
+                </div>
+            </div>
+
             <!-- Chat Container -->
             <div class="card chat-container">
                 <!-- Messages Container -->
@@ -140,6 +158,8 @@
                         </div>
                     </div>
                     {% endfor %}
+                    <!-- Typing Indicator -->
+                    <div id="typingIndicator" class="typing-indicator">Someone is typing...</div>
                 </div>
 
                 <!-- Message Form -->
@@ -173,8 +193,10 @@
     document.addEventListener('DOMContentLoaded', () => {
         const sessionId = document.querySelector('#messageContainer').dataset.sessionId;
         const employeeId = document.querySelector('#messageContainer').dataset.employeeId;
+        const addUserBtn = document.getElementById("addUserBtn");
+        const addUserSelect = document.getElementById("addUserSelect");
 
-        // Determine if we should use secure WebSockets based on the page protocol
+        // Determine WebSocket protocol
         const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
         const wsBaseUrl = protocol + window.location.host;
 
@@ -183,6 +205,36 @@
         } else {
             console.error('Missing required data attributes for chat initialization');
         }
+
+        // Add User to Chat
+        addUserBtn.addEventListener("click", function () {
+            const selectedUserId = addUserSelect.value;
+            if (!selectedUserId) {
+                alert("Please select a user to add.");
+                return;
+            }
+
+            fetch("{% url 'add_user_to_chat' %}", {
+                method: "POST",
+                headers: {
+                    "X-CSRFToken": "{{ csrf_token }}",
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    session_id: sessionId,
+                    user_id: selectedUserId,
+                }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert("User added successfully!");
+                    location.reload();
+                } else {
+                    alert("Error adding user: " + data.error);
+                }
+            });
+        });
     });
 </script>
 {% endblock %}

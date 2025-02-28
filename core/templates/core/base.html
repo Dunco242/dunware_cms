@@ -94,7 +94,7 @@
                     </li>
                     <li class="nav-item">
                         <a class="nav-link {% if 'chat' in request.resolver_match.url_name %}active{% endif %}"
-                           href="{% url 'chat_inbox' %}">
+                           href="{% url 'chat_inbox' %}" id="chatNavIcon">
                             <i class="fas fa-comments"></i> Chat
                         </a>
                     </li>
@@ -166,6 +166,48 @@
     <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="{% static 'js/main.js' %}"></script>
-    {% block extra_js %}{% endblock %}
+    {% block extra_js %}
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const userId = "{{ request.user.id }}";
+            if (!userId) return;
+
+            // Determine correct WebSocket protocol (ws:// or wss://)
+            const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+            const wsUrl = `${protocol}${window.location.host}/ws/notifications/${userId}/`;
+
+            const notificationSocket = new WebSocket(wsUrl);
+            notificationSocket.onmessage = function (event) {
+                const data = JSON.parse(event.data);
+
+                if (data.type === "new_message") {
+                    // Flash the chat icon when a new message is received
+                    const chatIcon = document.getElementById("chatNavIcon");
+                    chatIcon.classList.add("flash");
+
+                    setTimeout(() => {
+                        chatIcon.classList.remove("flash");
+                    }, 5000);
+                }
+            };
+
+            notificationSocket.onclose = function () {
+                console.log("WebSocket for notifications closed.");
+            };
+        });
+    </script>
+    <style>
+        /* Flash effect for chat icon */
+        @keyframes flash {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .flash {
+            animation: flash 1s infinite;
+        }
+    </style>
+    {% endblock %}
 </body>
 </html>
