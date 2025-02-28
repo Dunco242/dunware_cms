@@ -4278,3 +4278,24 @@ def chat_sessions_api(request):
 
 def websocket_test(request):
     return render(request, 'websocket_test.html')
+
+
+@csrf_exempt
+def add_user_to_chat(request):
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            session = ChatSession.objects.get(id=data["session_id"])
+            new_user = Employee.objects.get(employee_id=data["user_id"])
+
+            session.participants.add(new_user)
+            return JsonResponse({"success": True})
+
+        except ChatSession.DoesNotExist:
+            return JsonResponse({"success": False, "error": "Chat session not found"})
+        except Employee.DoesNotExist:
+            return JsonResponse({"success": False, "error": "User not found"})
+        except Exception as e:
+            return JsonResponse({"success": False, "error": str(e)})
+
+    return JsonResponse({"success": False, "error": "Invalid request"})

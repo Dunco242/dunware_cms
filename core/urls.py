@@ -56,7 +56,7 @@ from .views import (
     TaskUpdateView, TaskDeleteView, task_status_update,
 
     #chat
-    employee_list_api, chat_sessions_api,
+    employee_list_api, chat_sessions_api, add_user_to_chat,
     # Other Views
     IPStatisticsView,
 
@@ -221,6 +221,8 @@ urlpatterns = [
     path('chat/read/<int:session_id>/', views.mark_messages_read, name='mark_messages_read'),
     path('chat/employee-list/', views.employee_list_api, name='employee-list-api'),
     path('ws/notifications/<int:employee_id>/', views.notifications_ws, name='notifications-ws'),
+    path("chat/add-user/", add_user_to_chat, name="add_user_to_chat"),
+
 
     path('api/calendar/events/', views.user_calendar_events, name='user-calendar-events'),
     path('api/task/update/', views.update_task_status, name='api-update-task'),
