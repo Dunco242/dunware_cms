@@ -1,3 +1,4 @@
+```django
 {% extends 'core/base.html' %}
 {% load static %}
 
@@ -40,8 +41,8 @@
                         <a href="{% url 'start_chat' employee.employee_id %}"
                            class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
                             <div>
-                                <h6 class="mb-1">{{ user.get_full_name }}</h6>
-                                <small class="text-muted">{{ employee.department }}</small>
+                                <h6 class="mb-1">{{ employee.user.get_full_name }}</h6>
+                                <small class="text-muted">{{ employee.get_department_display }}</small>
                             </div>
                             <span class="badge bg-primary rounded-pill">
                                 <i class="fas fa-comment"></i>
@@ -65,14 +66,14 @@
                 <div class="list-group list-group-flush chat-list">
                     {% for session in chat_sessions %}
                         <a href="{% url 'chat_detail' session.id %}"
-                           class="list-group-item list-group-item-action chat-preview" data-session-id=""{{ session.id}}>
+                           class="list-group-item list-group-item-action chat-preview" data-session-id="{{ session.id }}">
                             <div class="d-flex w-100 justify-content-between align-items-center">
                                 <div>
                                     <h6 class="mb-1">
                                         {% if session.is_group_chat %}
                                             {{ session.name|default:"Group Chat" }}
                                         {% else %}
-                                            {% with other_participant=session.other_participant %}
+                                            {% with other_participant=session.participants.exclude.first %}
                                                 {{ other_participant.user.get_full_name }}
                                             {% endwith %}
                                         {% endif %}
@@ -107,13 +108,14 @@
         </div>
     </div>
 </div>
+{% endblock %}
 
 {% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // WebSocket connection for notifications
     const notificationSocket = new WebSocket(
-        'wss://' + window.location.host + '/ws/notifications/' +
+        'wss://' + window.location.host + '/wss/notifications/' +
         '{{ request.user.employee_profile.id }}/'
     );
 
@@ -205,4 +207,4 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 {% endblock %}
-{% endblock %}
+```
