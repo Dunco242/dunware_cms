@@ -8,71 +8,112 @@ logger = logging.getLogger(__name__)
 
 class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
-        self.session_id = self.scope["url_route"]["kwargs"]["session_id"]
-        self.room_group_name = f"chat_{self.session_id}"
+        """Connects to the WebSocket chat session."""
+        try:
+            self.session_id = self.scope["url_route"]["kwargs"]["session_id"]
+            self.room_group_name = f"chat_{self.session_id}"
 
-        await self.channel_layer.group_add(
-            self.room_group_name,
-            self.channel_name
-        )
-        await self.accept()
-        logger.info(f"WebSocket connected for session {self.session_id}")
+            await self.channel_layer.group_add(
+                self.room_group_name,
+                self.channel_name
+            )
+            await self.accept()
+            logger.info(f"WebSocket connected for session {self.session_id}")
+
+        except Exception as e:
+            logger.error(f"Error connecting ChatConsumer: {str(e)}")
+            await self.close()
 
     async def disconnect(self, close_code):
-        await self.channel_layer.group_discard(
-            self.room_group_name,
-            self.channel_name
-        )
-        logger.info(f"WebSocket disconnected for session {self.session_id}")
+        """Disconnects from WebSocket and removes the user from the chat group."""
+        try:
+            await self.channel_layer.group_discard(
+                self.room_group_name,
+                self.channel_name
+            )
+            logger.info(f"WebSocket disconnected for session {self.session_id}")
+
+        except Exception as e:
+            logger.error(f"Error disconnecting ChatConsumer: {str(e)}")
 
     async def receive(self, text_data):
+        """Handles incoming WebSocket messages (e.g., new messages)."""
         try:
-            from .models import ChatSession, Employee, ChatMessage  # ✅ Lazy Import
+            from .models import ChatSession, Employee, ChatMessage, ChatNotification  # ✅ Lazy Import
 
             data = json.loads(text_data)
-            message_type = data.get('type')
+            message_type = data.get("type")
 
-            if message_type == 'new_message':
+            if message_type == "new_message":
                 message = await self.save_message(
-                    session_id=data['session_id'],
-                    sender_id=data['sender_id'],
-                    receiver_id=data['receiver_id'],
-                    content=data['content']
+                    session_id=data["session_id"],
+                    sender_id=data["sender_id"],
+                    receiver_id=data["receiver_id"],
+                    content=data["content"]
                 )
 
                 if message:
                     message_data = await self.get_message_data(message)
 
+                    # Broadcast new message to chat room
                     await self.channel_layer.group_send(
                         self.room_group_name,
                         {
-                            'type': 'chat_message',
-                            'message': message_data
+                            "type": "chat_message",
+                            "message": message_data
+                        }
+                    )
+
+                    # Send notification to recipient
+                    await self.channel_layer.group_send(
+                        f'notifications_{data["receiver_id"]}',
+                        {
+                            "type": "notification_message",
+                            "message": message_data
                         }
                     )
 
         except json.JSONDecodeError:
             await self.send(text_data=json.dumps({
-                'type': 'error',
-                'message': 'Invalid message format'
+                "type": "error",
+                "message": "Invalid message format"
             }))
         except Exception as e:
             logger.error(f"Error in receive: {str(e)}")
             await self.send(text_data=json.dumps({
-                'type': 'error',
-                'message': str(e)
+                "type": "error",
+                "message": str(e)
             }))
 
     async def chat_message(self, event):
-        await self.send(text_data=json.dumps({
-            'type': 'chat_message',
-            'message': event['message']
-        }))
+        """Sends a new chat message to WebSocket clients."""
+        try:
+            await self.send(text_data=json.dumps({
+                "type": "chat_message",
+                "message": event["message"]
+            }))
+            logger.info(f"Message sent to chat session {self.session_id}")
+
+        except Exception as e:
+            logger.error(f"Error sending chat message: {str(e)}")
+
+    async def notification_message(self, event):
+        """Sends a new message notification to WebSocket clients."""
+        try:
+            await self.send(text_data=json.dumps({
+                "type": "new_message",
+                "message": event["message"]
+            }))
+            logger.info(f"Notification sent for new message in session {self.session_id}")
+
+        except Exception as e:
+            logger.error(f"Error sending notification message: {str(e)}")
 
     @database_sync_to_async
     def save_message(self, session_id, sender_id, receiver_id, content):
-        """Save chat message asynchronously"""
-        from .models import ChatSession, Employee, ChatMessage  # ✅ Lazy Import
+        """Saves a new chat message asynchronously."""
+        from .models import ChatSession, Employee, ChatMessage, ChatNotification  # ✅ Lazy Import
+
         try:
             session = ChatSession.objects.get(id=session_id)
             sender = Employee.objects.get(employee_id=sender_id)
@@ -86,13 +127,72 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 timestamp=timezone.now()
             )
 
+            # Update session timestamp
             session.updated_at = timezone.now()
             session.save()
+
+            # Create a new chat notification
+            ChatNotification.objects.create(
+                recipient=receiver,
+                message=message,
+                is_seen=False
+            )
 
             return message
         except Exception as e:
             logger.error(f"Error saving message: {str(e)}")
             return None
+
+    @database_sync_to_async
+    def get_message_data(self, message):
+        """Retrieves message data in JSON format."""
+        try:
+            sender_name = "Unknown"
+            if hasattr(message.sender, "get_full_name"):
+                sender_name = message.sender.get_full_name()
+            elif hasattr(message.sender, "user") and hasattr(message.sender.user, "get_full_name"):
+                sender_name = message.sender.user.get_full_name()
+            else:
+                sender_name = f"{message.sender.user.first_name} {message.sender.user.last_name}".strip() if message.sender.user else "Unknown"
+                if not sender_name:
+                    sender_name = message.sender.user.username if message.sender.user else "Unknown"
+
+            return {
+                "id": message.id,
+                "content": message.content,
+                "sender": {
+                    "id": message.sender.employee_id,
+                    "name": sender_name
+                },
+                "timestamp": message.timestamp.isoformat(),
+                "is_read": message.is_read
+            }
+        except Exception as e:
+            logger.error(f"Error in get_message_data: {str(e)}")
+            return {
+                "id": message.id,
+                "content": message.content,
+                "sender": {
+                    "id": getattr(message.sender, "employee_id", "unknown"),
+                    "name": "Unknown"
+                },
+                "timestamp": message.timestamp.isoformat(),
+                "is_read": message.is_read
+            }
+
+    @database_sync_to_async
+    def mark_message_as_read(self, message_id):
+        """Marks a message as read asynchronously."""
+        from .models import ChatMessage  # ✅ Lazy Import
+        try:
+            ChatMessage.objects.filter(id=message_id).update(
+                is_read=True,
+                read_at=timezone.now()
+            )
+            logger.info(f"Message {message_id} marked as read.")
+
+        except Exception as e:
+            logger.error(f"Error marking message as read: {str(e)}")
 
 
 class AddUserConsumer(AsyncWebsocketConsumer):
@@ -183,11 +283,6 @@ class AddUserConsumer(AsyncWebsocketConsumer):
 
 class NotificationConsumer(AsyncWebsocketConsumer):
     async def connect(self):
-        self.user = self.scope['user']
-        if not self.user.is_authenticated:
-            await self.close()
-            return
-
         self.employee_id = self.scope['url_route']['kwargs']['employee_id']
         self.notification_group_name = f'notifications_{self.employee_id}'
 
@@ -195,7 +290,6 @@ class NotificationConsumer(AsyncWebsocketConsumer):
             self.notification_group_name,
             self.channel_name
         )
-
         await self.accept()
 
     async def disconnect(self, close_code):
@@ -212,14 +306,17 @@ class NotificationConsumer(AsyncWebsocketConsumer):
         except json.JSONDecodeError:
             pass
 
+    async def notification_message(self, event):
+        await self.send(text_data=json.dumps({
+            "type": "new_message",
+            "message": event["message"]
+        }))
+
     @database_sync_to_async
     def mark_notifications_read(self):
-        """Mark notifications as read"""
-        from .models import ChatNotification  # ✅ Lazy Import
-        ChatNotification.objects.filter(
-            recipient_id=self.employee_id,
-            is_seen=False
-        ).update(is_seen=True)
+        from .models import ChatNotification
+        ChatNotification.objects.filter(recipient_id=self.employee_id, is_seen=False).update(is_seen=True)
+
 
 
 logger = logging.getLogger('django')

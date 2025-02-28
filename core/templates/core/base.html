@@ -172,7 +172,6 @@
             const userId = "{{ request.user.employee_profile.employee_id }}";
             if (!userId) return;
 
-            // Determine WebSocket protocol dynamically
             const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
             const wsUrl = `${protocol}${window.location.host}/wss/notifications/${userId}/`;
 
@@ -183,7 +182,6 @@
                 if (data.type === "new_message") {
                     const chatIcon = document.getElementById("chatNavIcon");
                     chatIcon.classList.add("flash");
-
                     setTimeout(() => {
                         chatIcon.classList.remove("flash");
                     }, 5000);
@@ -197,19 +195,6 @@
     </script>
 
     <style>
-        @keyframes flash {
-            0% { opacity: 1; }
-            50% { opacity: 0.5; }
-            100% { opacity: 1; }
-        }
-
-        .flash {
-            animation: flash 1s infinite;
-        }
-    </style>
-
-    <style>
-        /* Flash effect for chat icon */
         @keyframes flash {
             0% { opacity: 1; }
             50% { opacity: 0.5; }
