@@ -113,7 +113,7 @@
 document.addEventListener('DOMContentLoaded', function() {
     // WebSocket connection for notifications
     const notificationSocket = new WebSocket(
-        'wss://' + window.location.host + '/wss/notifications/' +
+        'wss://' + window.location.host + '/ws/notifications/' +
         '{{ request.user.employee_profile.id }}/'
     );
 

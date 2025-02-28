@@ -16,6 +16,11 @@ class WebSocketHandler {
             url = window.wsUrl;
         }
 
+        // Dynamically adjust protocol based on current page protocol
+        if (url && url.startsWith('ws://')) {
+            url = url.replace('ws://', window.location.protocol === 'https:' ? 'wss://' : 'ws://');
+        }
+
         if (!url) {
             console.error('WebSocket URL not provided');
             return;

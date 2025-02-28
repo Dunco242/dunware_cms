@@ -16,7 +16,7 @@ class ChatManager {
 
     initWebSocket() {
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${wsProtocol}//${window.location.host}/ws/chat/${this.sessionId}/`;
+        const wsUrl = `${wsProtocol}//${window.location.host}/wss/chat/${this.sessionId}/`;
 
         console.log('Connecting to WebSocket:', wsUrl);
 
