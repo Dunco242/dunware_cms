@@ -46,6 +46,7 @@ google-auth-httplib2==0.2.0
 google-auth-oauthlib==1.2.1
 googleapis-common-protos==1.66.0
 gunicorn==23.0.0
+h11==0.14.0
 hiredis==3.1.0
 httplib2==0.22.0
 hyperlink==21.0.0
@@ -95,6 +96,7 @@ tzdata==2025.1
 tzlocal==5.2
 uritemplate==4.1.1
 urllib3==2.3.0
+uvicorn==0.34.0
 valkey==6.1.0
 vine==5.1.0
 wcwidth==0.2.13
