@@ -11,4 +11,8 @@ websocket_urlpatterns = [
 
     re_path(r'wss/notifications/(?P<employee_id>\w+)/$', consumers.NotificationConsumer.as_asgi()) if use_wss else
     re_path(r'ws/notifications/(?P<employee_id>\w+)/$', consumers.NotificationConsumer.as_asgi()),
+
+    # ✅ New WebSocket Route: Add User to Chat
+    re_path(r'wss/chat/add-user/(?P<session_id>\d+)/$', consumers.AddUserConsumer.as_asgi()) if use_wss else
+    re_path(r'ws/chat/add-user/(?P<session_id>\d+)/$', consumers.AddUserConsumer.as_asgi()),
 ]

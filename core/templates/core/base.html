@@ -169,19 +169,18 @@
     {% block extra_js %}
     <script>
         document.addEventListener("DOMContentLoaded", function () {
-            const userId = "{{ request.user.id }}";
+            const userId = "{{ request.user.employee_profile.employee_id }}";
             if (!userId) return;
 
-            // Determine correct WebSocket protocol (ws:// or wss://)
+            // Determine WebSocket protocol dynamically
             const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-            const wsUrl = `${protocol}${window.location.host}/ws/notifications/${userId}/`;
+            const wsUrl = `${protocol}${window.location.host}/wss/notifications/${userId}/`;
 
             const notificationSocket = new WebSocket(wsUrl);
+
             notificationSocket.onmessage = function (event) {
                 const data = JSON.parse(event.data);
-
                 if (data.type === "new_message") {
-                    // Flash the chat icon when a new message is received
                     const chatIcon = document.getElementById("chatNavIcon");
                     chatIcon.classList.add("flash");
 
@@ -196,6 +195,19 @@
             };
         });
     </script>
+
+    <style>
+        @keyframes flash {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .flash {
+            animation: flash 1s infinite;
+        }
+    </style>
+
     <style>
         /* Flash effect for chat icon */
         @keyframes flash {

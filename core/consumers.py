@@ -12,7 +12,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
         self.session_id = self.scope["url_route"]["kwargs"]["session_id"]
         self.room_group_name = f"chat_{self.session_id}"
 
-        # Join room group
         await self.channel_layer.group_add(
             self.room_group_name,
             self.channel_name
@@ -22,7 +21,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
         logger.info(f"WebSocket connected for session {self.session_id}")
 
     async def disconnect(self, close_code):
-        # Leave room group
         await self.channel_layer.group_discard(
             self.room_group_name,
             self.channel_name
@@ -45,7 +43,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 if message:
                     message_data = await self.get_message_data(message)
 
-                    # Broadcast to room group
                     await self.channel_layer.group_send(
                         self.room_group_name,
                         {
@@ -67,7 +64,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
             }))
 
     async def chat_message(self, event):
-        """Send message to WebSocket"""
         await self.send(text_data=json.dumps({
             'type': 'chat_message',
             'message': event['message']
@@ -75,7 +71,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def save_message(self, session_id, sender_id, receiver_id, content):
-        """Save chat message to the database asynchronously"""
         try:
             session = ChatSession.objects.get(id=session_id)
             sender = Employee.objects.get(employee_id=sender_id)
@@ -89,7 +84,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 timestamp=timezone.now()
             )
 
-            # Update session timestamp
             session.updated_at = timezone.now()
             session.save()
 
@@ -98,61 +92,90 @@ class ChatConsumer(AsyncWebsocketConsumer):
             logger.error(f"Error saving message: {str(e)}")
             return None
 
-    @database_sync_to_async
-    def get_message_data(self, message):
-        """Get message data in a format suitable for JSON serialization"""
-        try:
-            # Get sender name safely
-            sender_name = "Unknown"
-            if hasattr(message.sender, 'get_full_name'):
-                sender_name = message.sender.get_full_name()
-            elif hasattr(message.sender, 'user') and hasattr(message.sender.user, 'get_full_name'):
-                sender_name = message.sender.user.get_full_name()
-            else:
-                sender_name = f"{message.sender.user.first_name} {message.sender.user.last_name}".strip() if message.sender.user else "Unknown"
-                if not sender_name:
-                    sender_name = message.sender.user.username if message.sender.user else "Unknown"
 
-            return {
-                'id': message.id,
-                'content': message.content,
-                'sender': {
-                    'id': message.sender.employee_id,
-                    'name': sender_name
-                },
-                'timestamp': message.timestamp.isoformat(),
-                'is_read': message.is_read
-            }
-        except Exception as e:
-            logger.error(f"Error in get_message_data: {str(e)}")
-            return {
-                'id': message.id,
-                'content': message.content,
-                'sender': {
-                    'id': getattr(message.sender, 'employee_id', 'unknown'),
-                    'name': 'Unknown'
-                },
-                'timestamp': message.timestamp.isoformat(),
-                'is_read': message.is_read
-            }
+class AddUserConsumer(AsyncWebsocketConsumer):
+    async def connect(self):
+        self.session_id = self.scope["url_route"]["kwargs"]["session_id"]
+        self.room_group_name = f"chat_{self.session_id}_add_user"
 
-    @database_sync_to_async
-    def get_user(self, user_id):
-        """Retrieve an employee by user ID"""
-        return Employee.objects.get(id=user_id)
-
-    @database_sync_to_async
-    def get_session(self, session_id):
-        """Retrieve a chat session by session ID"""
-        return ChatSession.objects.get(id=session_id)
-
-    @database_sync_to_async
-    def update_message_status(self, message_id, is_read=True):
-        """Update the read status of a message"""
-        return ChatMessage.objects.filter(id=message_id).update(
-            is_read=is_read,
-            read_at=timezone.now() if is_read else None
+        await self.channel_layer.group_add(
+            self.room_group_name,
+            self.channel_name
         )
+        await self.accept()
+        logger.info(f"WebSocket connected for user addition in session {self.session_id}")
+
+    async def disconnect(self, close_code):
+        await self.channel_layer.group_discard(
+            self.room_group_name,
+            self.channel_name
+        )
+        logger.info(f"WebSocket disconnected from user addition in session {self.session_id}")
+
+    async def receive(self, text_data):
+        try:
+            data = json.loads(text_data)
+            action = data.get('type')
+
+            if action == 'add_user':
+                new_user_id = data.get('user_id')
+
+                if new_user_id:
+                    success, response = await self.add_user_to_chat(self.session_id, new_user_id)
+
+                    if success:
+                        await self.channel_layer.group_send(
+                            self.room_group_name,
+                            {
+                                'type': 'user_added',
+                                'user_id': new_user_id,
+                                'message': response
+                            }
+                        )
+                    else:
+                        await self.send(text_data=json.dumps({
+                            'type': 'error',
+                            'message': response
+                        }))
+        except json.JSONDecodeError:
+            await self.send(text_data=json.dumps({
+                'type': 'error',
+                'message': 'Invalid JSON format'
+            }))
+        except Exception as e:
+            logger.error(f"Error in AddUserConsumer receive: {str(e)}")
+            await self.send(text_data=json.dumps({
+                'type': 'error',
+                'message': str(e)
+            }))
+
+    async def user_added(self, event):
+        await self.send(text_data=json.dumps({
+            'type': 'user_added',
+            'user_id': event['user_id'],
+            'message': event['message']
+        }))
+
+    @database_sync_to_async
+    def add_user_to_chat(self, session_id, user_id):
+        try:
+            session = ChatSession.objects.get(id=session_id)
+            new_user = Employee.objects.get(employee_id=user_id)
+
+            if new_user in session.participants.all():
+                return False, "User is already in the chat."
+
+            session.participants.add(new_user)
+
+            return True, f"User {new_user.user.get_full_name()} added to chat successfully."
+        except ChatSession.DoesNotExist:
+            return False, "Chat session not found."
+        except Employee.DoesNotExist:
+            return False, "User not found."
+        except Exception as e:
+            logger.error(f"Error adding user to chat: {str(e)}")
+            return False, str(e)
+
 
 class NotificationConsumer(AsyncWebsocketConsumer):
     async def connect(self):
@@ -164,7 +187,6 @@ class NotificationConsumer(AsyncWebsocketConsumer):
         self.employee_id = self.scope['url_route']['kwargs']['employee_id']
         self.notification_group_name = f'notifications_{self.employee_id}'
 
-        # Join notification group
         await self.channel_layer.group_add(
             self.notification_group_name,
             self.channel_name
@@ -173,7 +195,6 @@ class NotificationConsumer(AsyncWebsocketConsumer):
         await self.accept()
 
     async def disconnect(self, close_code):
-        # Leave notification group
         await self.channel_layer.group_discard(
             self.notification_group_name,
             self.channel_name
@@ -188,10 +209,8 @@ class NotificationConsumer(AsyncWebsocketConsumer):
             pass
 
     async def notification_message(self, event):
-        """Handle incoming notification"""
         message_data = event['message']
 
-        # Get additional message info if it's a chat message
         if message_data['type'] == 'new_message':
             message_data['formatted_message'] = await self.get_message_details(
                 message_data['session_id'],
@@ -200,11 +219,11 @@ class NotificationConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def mark_notifications_read(self):
-        """Mark notifications as read"""
         ChatNotification.objects.filter(
             recipient_id=self.employee_id,
             is_seen=False
         ).update(is_seen=True)
+
 
 logger = logging.getLogger('django')
 
