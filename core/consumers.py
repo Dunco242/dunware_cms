@@ -3,7 +3,6 @@ import logging
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.utils import timezone
-from .models import ChatNotification, ChatMessage, ChatSession, Employee
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +15,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
             self.room_group_name,
             self.channel_name
         )
-
         await self.accept()
         logger.info(f"WebSocket connected for session {self.session_id}")
 
@@ -29,6 +27,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
     async def receive(self, text_data):
         try:
+            from .models import ChatSession, Employee, ChatMessage  # ✅ Lazy Import
+
             data = json.loads(text_data)
             message_type = data.get('type')
 
@@ -71,6 +71,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def save_message(self, session_id, sender_id, receiver_id, content):
+        """Save chat message asynchronously"""
+        from .models import ChatSession, Employee, ChatMessage  # ✅ Lazy Import
         try:
             session = ChatSession.objects.get(id=session_id)
             sender = Employee.objects.get(employee_id=sender_id)
@@ -158,6 +160,8 @@ class AddUserConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def add_user_to_chat(self, session_id, user_id):
+        """Add a user to a chat session asynchronously"""
+        from .models import ChatSession, Employee  # ✅ Lazy Import
         try:
             session = ChatSession.objects.get(id=session_id)
             new_user = Employee.objects.get(employee_id=user_id)
@@ -208,17 +212,10 @@ class NotificationConsumer(AsyncWebsocketConsumer):
         except json.JSONDecodeError:
             pass
 
-    async def notification_message(self, event):
-        message_data = event['message']
-
-        if message_data['type'] == 'new_message':
-            message_data['formatted_message'] = await self.get_message_details(
-                message_data['session_id'],
-                message_data['message']['id']
-            )
-
     @database_sync_to_async
     def mark_notifications_read(self):
+        """Mark notifications as read"""
+        from .models import ChatNotification  # ✅ Lazy Import
         ChatNotification.objects.filter(
             recipient_id=self.employee_id,
             is_seen=False
