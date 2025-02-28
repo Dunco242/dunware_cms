@@ -82,20 +82,27 @@
     }
 
     .message-sender {
-        font-size: 0.8rem;
+        display: inline-block;
+        font-size: 0.75rem;
         font-weight: 600;
         margin-bottom: 0.2rem;
-        color: #555;
+        padding: 0.2rem 0.5rem;
+        border-radius: 1rem;
+        margin-bottom: 0.3rem;
     }
 
     .sent .message-sender {
-        text-align: right;
-        color: #0056b3;
+        background-color: #0069d9;
+        color: white;
+        margin-left: auto;
+        margin-right: 0;
     }
 
     .received .message-sender {
-        text-align: left;
-        color: #343a40;
+        background-color: #6c757d;
+        color: white;
+        margin-right: auto;
+        margin-left: 0;
     }
 
     /* Adjust spacing in the message to accommodate the sender name */
@@ -161,7 +168,8 @@
                 <div id="messageContainer"
                      class="message-container p-3"
                      data-session-id="{{ session.id }}"
-                     data-employee-id="{{ request.user.employee_profile.employee_id }}">
+                     data-employee-id="{{ request.user.employee_profile.employee_id }}"
+                     data-is-group="{{ session.is_group_chat|yesno:'true,false' }}">
                     {% for message in chat_messages %}
                     <div class="message {% if message.sender == request.user.employee_profile %}sent{% else %}received{% endif %} {% if message.is_read %}read{% endif %}">
                         <!-- Add sender name above the message content -->
@@ -220,6 +228,7 @@
     document.addEventListener('DOMContentLoaded', () => {
         const sessionId = document.querySelector('#messageContainer').dataset.sessionId;
         const employeeId = document.querySelector('#messageContainer').dataset.employeeId;
+        const isGroupChat = document.querySelector('#messageContainer').dataset.isGroup === 'true';
         const addUserBtn = document.getElementById("addUserBtn");
         const addUserSelect = document.getElementById("addUserSelect");
 
@@ -228,7 +237,7 @@
         const wsBaseUrl = protocol + window.location.host;
 
         if (sessionId && employeeId) {
-            window.chatManager = new ChatManager(sessionId, employeeId, wsBaseUrl);
+            window.chatManager = new ChatManager(sessionId, employeeId, wsBaseUrl, isGroupChat);
         } else {
             console.error('Missing required data attributes for chat initialization');
         }
