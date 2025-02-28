@@ -104,7 +104,7 @@
                     {% if session.is_group_chat %}
                         {{ session.name }}
                     {% else %}
-                        Chat with {{ other_participant.get_full_name }}
+                        Chat with {{ other_participant.user.get_full_name }}
                     {% endif %}
                 </h2>
                 <div id="connectionStatus" class="connecting">
