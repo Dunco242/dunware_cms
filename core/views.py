@@ -3182,10 +3182,27 @@ def chat_detail(request, session_id):
             'other_participant': other_participant,
         })
 
+
     except Exception as e:
         logger.error(f"Error in chat detail: {str(e)}")
         messages.error(request, "An error occurred while loading the chat.")
         return redirect('chat_inbox')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        session = self.get_object()
+        user_employee = self.request.user.employee_profile  # Get Employee instance of logged-in user
+
+        # Ensure other_participant is set correctly
+        other_participant = session.participants.exclude(id=user_employee.id).first()
+
+        if other_participant is None:
+            raise ValueError("Error: No other participant found in chat session.")
+
+        context["other_participant"] = other_participant
+        context["chat_messages"] = session.messages.all().order_by("timestamp")
+        return context
+
 
 @login_required
 def start_chat(request, employee_id):
