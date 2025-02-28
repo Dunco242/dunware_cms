@@ -1,178 +1,202 @@
+/**
+ * ChatManager handles WebSocket connections and messaging for the chat system
+ */
 class ChatManager {
-    constructor(sessionId, currentEmployee) {
+    /**
+     * Initialize the chat manager
+     * @param {string} sessionId - The chat session ID
+     * @param {string} employeeId - The current user's employee ID
+     * @param {string} wsBaseUrl - Base URL for WebSocket (with protocol)
+     */
+    constructor(sessionId, employeeId, wsBaseUrl = null) {
         this.sessionId = sessionId;
-        this.currentEmployee = currentEmployee;
-        this.ws = null;
+        this.employeeId = employeeId;
         this.messageContainer = document.getElementById('messageContainer');
         this.messageForm = document.getElementById('messageForm');
         this.connectionStatus = document.getElementById('connectionStatus');
-        this.csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-        this.reconnectAttempts = 0;
-        this.maxReconnectAttempts = 5;
 
-        this.initWebSocket();
-        this.initEventListeners();
-    }
+        // If wsBaseUrl is not provided, determine it based on page protocol
+        if (!wsBaseUrl) {
+            const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+            wsBaseUrl = protocol + window.location.host;
+        }
 
-    initWebSocket() {
-        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${wsProtocol}//${window.location.host}/wss/chat/${this.sessionId}/`;
+        this.wsUrl = `${wsBaseUrl}/wss/chat/${sessionId}/`;
 
-        console.log('Connecting to WebSocket:', wsUrl);
+        // Initialize the connection
+        this.connect();
 
-        this.ws = new WebSocket(wsUrl);
-        this.ws.onopen = this.handleWebSocketOpen.bind(this);
-        this.ws.onmessage = this.handleWebSocketMessage.bind(this);
-        this.ws.onclose = this.handleWebSocketClose.bind(this);
-        this.ws.onerror = this.handleWebSocketError.bind(this);
-    }
+        // Set up event listeners
+        this.setupEventListeners();
 
-    initEventListeners() {
-        this.messageForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            await this.handleMessageSubmit(e);
-        });
-
-        // Scroll to bottom on load
+        // Scroll to bottom of messages
         this.scrollToBottom();
     }
 
-    async handleMessageSubmit(event) {
-        const form = event.target;
-        const content = form.content.value.trim();
-        const receiverId = form.receiver_id.value;
+    /**
+     * Connect to the WebSocket server
+     */
+    connect() {
+        this.updateConnectionStatus('connecting');
+
+        this.socket = new WebSocket(this.wsUrl);
+
+        this.socket.onopen = () => {
+            console.log('WebSocket connected');
+            this.updateConnectionStatus('connected');
+        };
+
+        this.socket.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            this.handleMessage(data);
+        };
+
+        this.socket.onclose = (event) => {
+            console.log('WebSocket disconnected:', event.code, event.reason);
+            this.updateConnectionStatus('disconnected');
+
+            // Try to reconnect after a delay
+            setTimeout(() => {
+                this.connect();
+            }, 3000);
+        };
+
+        this.socket.onerror = (error) => {
+            console.error('WebSocket error:', error);
+            this.updateConnectionStatus('disconnected');
+        };
+    }
+
+    /**
+     * Set up event listeners for the message form
+     */
+    setupEventListeners() {
+        if (this.messageForm) {
+            this.messageForm.addEventListener('submit', (event) => {
+                event.preventDefault();
+                this.sendMessage();
+            });
+        }
+    }
+
+    /**
+     * Send a message through the WebSocket
+     */
+    sendMessage() {
+        if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
+            console.error('WebSocket is not connected');
+            return;
+        }
+
+        const formData = new FormData(this.messageForm);
+        const content = formData.get('content').trim();
+        const receiverId = formData.get('receiver_id');
 
         if (!content) return;
 
-        if (this.ws.readyState !== WebSocket.OPEN) {
-            alert('Connection lost. Attempting to reconnect...');
-            this.initWebSocket();
-            return;
-        }
+        // Create message data
+        const messageData = {
+            type: 'new_message',
+            session_id: this.sessionId,
+            sender_id: this.employeeId,
+            receiver_id: receiverId,
+            content: content
+        };
 
-        try {
-            // Only send via WebSocket
-            this.ws.send(JSON.stringify({
-                type: 'new_message',
-                content: content,
-                receiver_id: receiverId,
-                session_id: this.sessionId,
-                sender_id: this.currentEmployee
-            }));
+        // Send the message
+        this.socket.send(JSON.stringify(messageData));
 
-            // Clear input only after successful send
-            form.content.value = '';
-            form.content.focus();
-        } catch (error) {
-            console.error('Error sending message:', error);
-            alert('Failed to send message. Please try again.');
+        // Clear the input field
+        this.messageForm.reset();
+    }
+
+    /**
+     * Handle incoming messages
+     * @param {Object} data - The message data
+     */
+    handleMessage(data) {
+        if (data.type === 'chat_message') {
+            this.addMessageToDOM(data.message);
+        } else if (data.type === 'error') {
+            console.error('Error from server:', data.message);
         }
     }
 
-    handleWebSocketMessage(event) {
-        try {
-            const data = JSON.parse(event.data);
-            console.log('Received WebSocket message:', data);
+    /**
+     * Add a message to the DOM
+     * @param {Object} message - The message data
+     */
+    addMessageToDOM(message) {
+        const isSent = message.sender.id === this.employeeId;
 
-            switch (data.type) {
-                case 'chat_message':
-                    this.displayMessage(data.message);
-                    break;
-                case 'messages_read':
-                    this.updateReadStatus(data.reader_id);
-                    break;
-                case 'error':
-                    console.error('Server error:', data.message);
-                    alert(data.message);
-                    break;
-                default:
-                    console.warn('Unknown message type:', data.type);
-            }
-        } catch (error) {
-            console.error('Error handling WebSocket message:', error);
+        // Create message elements
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message ${isSent ? 'sent' : 'received'}`;
+        messageDiv.dataset.id = message.id;
+
+        const messageContent = document.createElement('div');
+        messageContent.className = 'message-content';
+        messageContent.textContent = message.content;
+
+        const messageFooter = document.createElement('div');
+        messageFooter.className = 'message-footer';
+
+        const messageTime = document.createElement('span');
+        messageTime.className = 'message-time';
+
+        // Format the time
+        const date = new Date(message.timestamp);
+        messageTime.textContent = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+
+        messageFooter.appendChild(messageTime);
+
+        // Add read status for sent messages
+        if (isSent) {
+            const messageStatus = document.createElement('span');
+            messageStatus.className = 'message-status';
+            messageStatus.textContent = message.is_read ? '✓✓' : '✓';
+            messageFooter.appendChild(messageStatus);
         }
-    }
 
-    displayMessage(message) {
-        // Check if message already exists to prevent duplicates
-        const messageId = `message-${message.id}`;
-        if (document.getElementById(messageId)) {
-            return;
-        }
+        // Assemble the message
+        messageDiv.appendChild(messageContent);
+        messageDiv.appendChild(messageFooter);
 
-        const isOwnMessage = message.sender.id === this.currentEmployee;
-        const messageHtml = `
-            <div id="${messageId}" class="message ${isOwnMessage ? 'sent' : 'received'} ${message.is_read ? 'read' : ''}">
-                <div class="message-content">
-                    ${this.escapeHtml(message.content)}
-                </div>
-                <div class="message-footer">
-                    <span class="message-time">
-                        ${new Date(message.timestamp).toLocaleTimeString()}
-                    </span>
-                    ${isOwnMessage ? `
-                        <span class="message-status">
-                            ${message.is_read ? '✓✓' : '✓'}
-                        </span>
-                    ` : ''}
-                </div>
-            </div>
-        `;
+        // Add to the container
+        this.messageContainer.appendChild(messageDiv);
 
-        this.messageContainer.insertAdjacentHTML('beforeend', messageHtml);
+        // Scroll to the new message
         this.scrollToBottom();
     }
 
-    handleWebSocketOpen() {
-        console.log('WebSocket connection established');
-        this.updateConnectionStatus('connected');
-        this.reconnectAttempts = 0;
-    }
-
-    handleWebSocketClose(event) {
-        console.log('WebSocket connection closed:', event);
-        this.updateConnectionStatus('disconnected');
-
-        if (this.reconnectAttempts < this.maxReconnectAttempts) {
-            const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 10000);
-            this.reconnectAttempts++;
-
-            console.log(`Attempting to reconnect in ${delay}ms... (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
-            setTimeout(() => this.initWebSocket(), delay);
-        } else {
-            alert('Connection lost. Please refresh the page.');
-        }
-    }
-
-    handleWebSocketError(error) {
-        console.error('WebSocket error:', error);
-        this.updateConnectionStatus('error');
-    }
-
-    updateConnectionStatus(status) {
-        if (this.connectionStatus) {
-            this.connectionStatus.className = `connection-status ${status}`;
-            this.connectionStatus.textContent = status.charAt(0).toUpperCase() + status.slice(1);
-        }
-    }
-
-    updateReadStatus(readerId) {
-        if (readerId !== this.currentEmployee) {
-            const unreadMessages = this.messageContainer.querySelectorAll('.message.sent:not(.read)');
-            unreadMessages.forEach(message => message.classList.add('read'));
-        }
-    }
-
+    /**
+     * Scroll to the bottom of the message container
+     */
     scrollToBottom() {
-        this.messageContainer.scrollTop = this.messageContainer.scrollHeight;
+        if (this.messageContainer) {
+            this.messageContainer.scrollTop = this.messageContainer.scrollHeight;
+        }
     }
 
-    escapeHtml(unsafe) {
-        return unsafe
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;")
-            .replace(/'/g, "&#039;");
+    /**
+     * Update the connection status indicator
+     * @param {string} status - The connection status (connecting, connected, disconnected)
+     */
+    updateConnectionStatus(status) {
+        if (!this.connectionStatus) return;
+
+        this.connectionStatus.className = status;
+
+        switch (status) {
+            case 'connected':
+                this.connectionStatus.textContent = 'Connected';
+                break;
+            case 'connecting':
+                this.connectionStatus.textContent = 'Connecting...';
+                break;
+            case 'disconnected':
+                this.connectionStatus.textContent = 'Disconnected';
+                break;
+        }
     }
 }

@@ -101,11 +101,14 @@
             <!-- Chat Header -->
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h2 class="mb-0">
-
                     {% if session.is_group_chat %}
                         {{ session.name }}
                     {% else %}
-                        Chat with {{ other_participant.get_full_name }}
+                        {% if other_participant.user %}
+                            Chat with {{ other_participant.user.first_name }} {{ other_participant.user.last_name }}
+                        {% else %}
+                            Chat session
+                        {% endif %}
                     {% endif %}
                 </h2>
                 <div id="connectionStatus" class="connecting">
@@ -171,8 +174,12 @@
         const sessionId = document.querySelector('#messageContainer').dataset.sessionId;
         const employeeId = document.querySelector('#messageContainer').dataset.employeeId;
 
+        // Determine if we should use secure WebSockets based on the page protocol
+        const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+        const wsBaseUrl = protocol + window.location.host;
+
         if (sessionId && employeeId) {
-            window.chatManager = new ChatManager(sessionId, employeeId);
+            window.chatManager = new ChatManager(sessionId, employeeId, wsBaseUrl);
         } else {
             console.error('Missing required data attributes for chat initialization');
         }

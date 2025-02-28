@@ -3113,7 +3113,8 @@ def chat_inbox(request):
         )
     ).prefetch_related(
         'participants',
-        'messages'  # Add this
+        'participants__user',  # Add this to prefetch user data
+        'messages'
     ).order_by('-updated_at')
 
     # Get the latest message for each session
@@ -3124,7 +3125,7 @@ def chat_inbox(request):
 
     context = {
         'chat_sessions': chat_sessions,
-        'available_employees': Employee.objects.exclude(id=current_employee.id),
+        'available_employees': Employee.objects.exclude(id=current_employee.id).select_related('user'),  # Add select_related
     }
 
     return render(request, 'chat/chat_inbox.html', context)
@@ -3182,35 +3183,10 @@ def chat_detail(request, session_id):
             'other_participant': other_participant,
         })
 
-
     except Exception as e:
         logger.error(f"Error in chat detail: {str(e)}")
         messages.error(request, "An error occurred while loading the chat.")
         return redirect('chat_inbox')
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        session = self.get_object()
-        user_employee = self.request.user.employee_profile  # Get Employee instance of logged-in user
-
-        # Find the other participant
-        other_participant = session.participants.exclude(id=user_employee.id).first()
-
-        # Debugging output
-        print("🔍 Debug: Fetching Other Participant")
-        if other_participant:
-            print(f"✅ Found Other Participant: {other_participant} (Employee ID: {other_participant.id})")
-            if other_participant.user:
-                print(f"✅ User Linked: {other_participant.user} (User ID: {other_participant.user.id})")
-            else:
-                print("❌ Other Participant has NO User linked!")
-        else:
-            print("❌ Other Participant is NULL!")
-
-        context["other_participant"] = other_participant
-        context["chat_messages"] = session.messages.all().order_by("timestamp")
-        return context
-
 
 
 @login_required
@@ -4257,3 +4233,42 @@ def process_payment_ajax(request):
         # Log the error
         logger.error(f"Payment processing error for invoice {invoice_id}: {str(e)}")
         return JsonResponse({'success': False, 'error': f"An error occurred: {str(e)}"})
+
+@login_required
+def chat_sessions_api(request):
+    """API endpoint to get chat sessions for AJAX updates"""
+    current_employee = request.user.employee_profile
+
+    # Get all chat sessions for the current user with annotations
+    chat_sessions = ChatSession.objects.filter(
+        participants=current_employee
+    ).annotate(
+        unread_count=Count(
+            'messages',
+            filter=Q(
+                messages__is_read=False,
+                messages__receiver=current_employee
+            )
+        )
+    ).prefetch_related(
+        'participants',
+        'participants__user',
+        'messages'
+    ).order_by('-updated_at')
+
+    # Get the latest message for each session
+    for session in chat_sessions:
+        session.last_message = session.messages.order_by('-timestamp').first()
+        # Get other participant
+        session.other_participant = session.participants.exclude(id=current_employee.id).first()
+
+    # Render just the chat list part as HTML
+    html = render_to_string('chat/includes/chat_list.html', {
+        'chat_sessions': chat_sessions,
+        'request': request
+    })
+
+    return JsonResponse({
+        'html': html,
+        'count': chat_sessions.count()
+    })

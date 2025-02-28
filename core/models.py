@@ -172,6 +172,13 @@ class Employee(models.Model):
         if bool(self.phone) != bool(self.carrier):
             raise ValidationError('Both phone number and carrier must be provided together')
 
+    def get_full_name(self):
+        """Return the user's full name or username if not available"""
+        if self.user.first_name or self.user.last_name:
+            return f"{self.user.first_name} {self.user.last_name}".strip()
+        return self.user.username
+
+
 class Customer(ProjectDatesMixin, models.Model):
     """
     Customer model with improved validation and relationship handling

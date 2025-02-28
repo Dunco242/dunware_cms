@@ -1,0 +1,41 @@
+{% for session in chat_sessions %}
+    <a href="{% url 'chat_detail' session.id %}"
+    class="list-group-item list-group-item-action chat-preview" data-session-id="{{ session.id }}">
+        <div class="d-flex w-100 justify-content-between align-items-center">
+            <div>
+                <h6 class="mb-1">
+                    {% if session.is_group_chat %}
+                        {{ session.name|default:"Group Chat" }}
+                    {% else %}
+                        {% if session.other_participant and session.other_participant.user %}
+                            {{ session.other_participant.user.first_name }} {{ session.other_participant.user.last_name }}
+                        {% else %}
+                            Unknown Chat
+                        {% endif %}
+                    {% endif %}
+                </h6>
+                {% if session.last_message %}
+                    <small class="text-muted">
+                        {{ session.last_message.content|truncatechars:50 }}
+                    </small>
+                {% endif %}
+            </div>
+            <div class="d-flex flex-column align-items-end">
+                {% if session.last_message %}
+                    <small class="text-muted timestamp" data-time="{{ session.last_message.timestamp|date:'c' }}">
+                        {{ session.last_message.timestamp|timesince }} ago
+                    </small>
+                {% endif %}
+                {% if session.unread_count > 0 %}
+                    <span class="badge bg-primary unread-badge mt-1">
+                        {{ session.unread_count }}
+                    </span>
+                {% endif %}
+            </div>
+        </div>
+    </a>
+{% empty %}
+    <div class="list-group-item text-center text-muted">
+        No active chats
+    </div>
+{% endfor %}

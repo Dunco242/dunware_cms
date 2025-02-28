@@ -37,21 +37,21 @@
                 </div>
                 <div class="list-group list-group-flush chat-list">
                     {% for employee in available_employees %}
-    <a href="{% url 'start_chat' employee.employee_id %}"
-       class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-        <div>
-            <h6 class="mb-1">{{ employee.first_name }} {{ employee.last_name }}</h6>
-            <small class="text-muted">{{ employee.get_department_display }}</small>
-        </div>
-        <span class="badge bg-primary rounded-pill">
-            <i class="fas fa-comment"></i>
-        </span>
-    </a>
-{% empty %}
-    <div class="list-group-item text-center text-muted">
-        No other employees available
-    </div>
-{% endfor %}
+                    <a href="{% url 'start_chat' employee.employee_id %}"
+                    class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-1">{{ employee.user.first_name }} {{ employee.user.last_name }}</h6>
+                            <small class="text-muted">{{ employee.get_department_display }}</small>
+                        </div>
+                        <span class="badge bg-primary rounded-pill">
+                            <i class="fas fa-comment"></i>
+                        </span>
+                    </a>
+                    {% empty %}
+                    <div class="list-group-item text-center text-muted">
+                        No other employees available
+                    </div>
+                    {% endfor %}
                 </div>
             </div>
         </div>
@@ -65,14 +65,18 @@
                 <div class="list-group list-group-flush chat-list">
                     {% for session in chat_sessions %}
                         <a href="{% url 'chat_detail' session.id %}"
-                           class="list-group-item list-group-item-action chat-preview" data-session-id="{{ session.id }}">
+                        class="list-group-item list-group-item-action chat-preview" data-session-id="{{ session.id }}">
                             <div class="d-flex w-100 justify-content-between align-items-center">
                                 <div>
                                     <h6 class="mb-1">
                                         {% if session.is_group_chat %}
                                             {{ session.name|default:"Group Chat" }}
                                         {% else %}
-                                            {{ session.other_participant.user.get_full_name }}
+                                            {% if session.other_participant and session.other_participant.user %}
+                                                {{ session.other_participant.user.first_name }} {{ session.other_participant.user.last_name }}
+                                            {% else %}
+                                                Unknown Chat
+                                            {% endif %}
                                         {% endif %}
                                     </h6>
                                     {% if session.last_message %}
@@ -110,20 +114,48 @@
 {% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Determine WebSocket protocol based on page protocol
+    const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+
     // WebSocket connection for notifications
-    const notificationSocket = new WebSocket(
-        'wss://' + window.location.host + '/wss/notifications/' +
-        '{{ request.user.employee_profile.id }}/'
-    );
+    let notificationSocket = null;
 
-    notificationSocket.onmessage = function(e) {
-        const data = JSON.parse(e.data);
+    function connectNotificationSocket() {
+        notificationSocket = new WebSocket(
+            protocol + window.location.host + '/wss/notifications/' +
+            '{{ request.user.employee_profile.employee_id }}/'
+        );
 
-        if (data.type === 'new_message') {
-            updateChatPreview(data.session_id, data.message);
-            updateUnreadCount(data.session_id);
-        }
-    };
+        // Setup event handlers
+        setupNotificationSocket();
+    }
+
+    function setupNotificationSocket() {
+        notificationSocket.onopen = function() {
+            console.log('Notification WebSocket connected');
+        };
+
+        notificationSocket.onmessage = function(e) {
+            try {
+                const data = JSON.parse(e.data);
+
+                if (data.type === 'new_message') {
+                    updateChatPreview(data.session_id, data.message);
+                    updateUnreadCount(data.session_id);
+                }
+            } catch (error) {
+                console.error('Error processing notification message:', error);
+            }
+        };
+
+        notificationSocket.onclose = function(e) {
+            console.log('Notification WebSocket closed. Reconnecting in 3 seconds...');
+            setTimeout(connectNotificationSocket, 3000);
+        };
+
+        notificationSocket.onerror = function(error) {
+            console.error('Notification WebSocket error:', error);
+        };
 
     // Function to update chat preview
     function updateChatPreview(sessionId, message) {
@@ -177,8 +209,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (chatList) {
                     chatList.innerHTML = data.html;
                 }
+            })
+            .catch(error => {
+                console.error('Error loading chat list:', error);
             });
     }
+
+    // Initialize the notification socket
+    connectNotificationSocket();
 
     // Periodically update timestamps
     setInterval(() => {

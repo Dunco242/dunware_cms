@@ -73,14 +73,39 @@ class ChatConsumer(AsyncWebsocketConsumer):
             'message': event['message']
         }))
 
-    @database_sync_to_async
-    def get_message_data(self, message):
+@database_sync_to_async
+def get_message_data(self, message):
+    """Get message data in a format suitable for JSON serialization"""
+    try:
+        # Get sender name safely
+        if hasattr(message.sender, 'get_full_name'):
+            sender_name = message.sender.get_full_name()
+        elif hasattr(message.sender, 'user') and hasattr(message.sender.user, 'get_full_name'):
+            sender_name = message.sender.user.get_full_name()
+        else:
+            sender_name = f"{message.sender.user.first_name} {message.sender.user.last_name}".strip() if message.sender.user else "Unknown"
+            if not sender_name:
+                sender_name = message.sender.user.username if message.sender.user else "Unknown"
+
         return {
             'id': message.id,
             'content': message.content,
             'sender': {
                 'id': message.sender.employee_id,
-                'name': message.sender.get_full_name()
+                'name': sender_name
+            },
+            'timestamp': message.timestamp.isoformat(),
+            'is_read': message.is_read
+        }
+    except Exception as e:
+        logger.error(f"Error in get_message_data: {str(e)}")
+        # Return minimal data to avoid breaking the app
+        return {
+            'id': message.id,
+            'content': message.content,
+            'sender': {
+                'id': getattr(message.sender, 'employee_id', 'unknown'),
+                'name': 'Unknown'
             },
             'timestamp': message.timestamp.isoformat(),
             'is_read': message.is_read
