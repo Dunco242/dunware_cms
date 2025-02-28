@@ -130,6 +130,8 @@ DATABASES = {
     }
 }
 
+
+
 REDIS_URL = os.getenv('REDIS_URL')
 CACHES = {
     "default": {
@@ -310,6 +312,12 @@ CSRF_COOKIE_NAME = 'csrftoken'
 # settings.py
 MAX_UPLOAD_SIZE = 10485760  # 10MB
 CONTENT_TYPES = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
+
+SECURE_SSL_REDIRECT = os.getenv("SECURE_SSL_REDIRECT", "True") == "True"
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+# Ensure WebSockets use `wss://` in production
+USE_SECURE_WEBSOCKETS = os.getenv("DJANGO_ENV", "development") == "production"
 
 
 LOGGING = {
