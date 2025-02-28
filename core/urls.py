@@ -244,6 +244,9 @@ urlpatterns = [
     path('email-accounts/<int:pk>/delete/', email_account_delete, name='email_account_delete'),
 
     path('email/activate/', activate_email_account, name='activate_email_account'),
+
+    # Debugging URLs
+    path('websocket-test/', views.websocket_test, name='websocket_test'),
 ]
 
 

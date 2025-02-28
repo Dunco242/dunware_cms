@@ -206,3 +206,19 @@ class NotificationConsumer(AsyncWebsocketConsumer):
             recipient_id=self.employee_id,
             is_seen=False
         ).update(is_seen=True)
+
+
+logger = logging.getLogger('django')
+
+class DebugConsumer(AsyncWebsocketConsumer):
+    async def connect(self):
+        logger.info("DEBUG: WebSocket connection attempt received")
+        try:
+            await self.accept()
+            logger.info("DEBUG: WebSocket connection accepted")
+        except Exception as e:
+            logger.error(f"DEBUG: Error accepting WebSocket connection: {str(e)}")
+            raise
+
+    async def disconnect(self, close_code):
+        logger.info(f"DEBUG: WebSocket disconnected with code {close_code}")

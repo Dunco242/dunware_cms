@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Test</title>
+    <style>
+        .log {
+            border: 1px solid #ccc;
+            padding: 10px;
+            height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+        }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+    </style>
+</head>
+<body>
+    <h1>WebSocket Test</h1>
+    <div id="status">Connecting...</div>
+    <div>
+        <input type="text" id="message" placeholder="Enter message">
+        <button id="send">Send</button>
+    </div>
+    <h3>Connection Log:</h3>
+    <div id="log" class="log"></div>
+
+    <script>
+        const status = document.getElementById('status');
+        const log = document.getElementById('log');
+        const messageInput = document.getElementById('message');
+        const sendButton = document.getElementById('send');
+
+        function logMessage(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = type;
+            entry.textContent = `${new Date().toISOString()} - ${message}`;
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        // Determine whether to use ws:// or wss:// based on page protocol
+        const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+        const socketUrl = protocol + window.location.host + '/wss/debug/';
+
+        logMessage(`Attempting to connect to: ${socketUrl}`);
+
+        let socket;
+        let reconnectAttempt = 0;
+        const maxReconnects = 3;
+
+        function connect() {
+            try {
+                socket = new WebSocket(socketUrl);
+
+                socket.onopen = function() {
+                    status.textContent = 'Connected!';
+                    status.style.color = 'green';
+                    logMessage('WebSocket connection established', 'success');
+                    reconnectAttempt = 0;
+                };
+
+                socket.onclose = function(event) {
+                    status.textContent = 'Disconnected!';
+                    status.style.color = 'red';
+                    logMessage(`WebSocket connection closed. Code: ${event.code}, Reason: ${event.reason}`, 'error');
+
+                    if (reconnectAttempt < maxReconnects) {
+                        reconnectAttempt++;
+                        logMessage(`Attempting reconnect ${reconnectAttempt}/${maxReconnects}...`);
+                        setTimeout(connect, 3000);
+                    } else {
+                        logMessage('Max reconnection attempts reached', 'error');
+                    }
+                };
+
+                socket.onerror = function(error) {
+                    status.textContent = 'Error connecting!';
+                    status.style.color = 'red';
+                    logMessage('WebSocket connection error', 'error');
+                    console.error('WebSocket error:', error);
+                };
+
+                socket.onmessage = function(event) {
+                    logMessage(`Message received: ${event.data}`, 'success');
+                };
+            } catch (err) {
+                logMessage(`Error creating WebSocket: ${err.message}`, 'error');
+            }
+        }
+
+        // Initial connection
+        connect();
+
+        // Send message
+        sendButton.addEventListener('click', function() {
+            const message = messageInput.value.trim();
+            if (message && socket && socket.readyState === WebSocket.OPEN) {
+                socket.send(message);
+                logMessage(`Message sent: ${message}`);
+                messageInput.value = '';
+            } else {
+                logMessage('Cannot send message: WebSocket not connected', 'error');
+            }
+        });
+    </script>
+</body>
+</html>

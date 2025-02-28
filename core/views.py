@@ -4272,3 +4272,9 @@ def chat_sessions_api(request):
         'html': html,
         'count': chat_sessions.count()
     })
+
+
+
+
+def websocket_test(request):
+    return render(request, 'websocket_test.html')
