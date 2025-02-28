@@ -3193,15 +3193,24 @@ def chat_detail(request, session_id):
         session = self.get_object()
         user_employee = self.request.user.employee_profile  # Get Employee instance of logged-in user
 
-        # Ensure other_participant is set correctly
+        # Find the other participant
         other_participant = session.participants.exclude(id=user_employee.id).first()
 
-        if other_participant is None:
-            raise ValueError("Error: No other participant found in chat session.")
+        # Debugging output
+        print("🔍 Debug: Fetching Other Participant")
+        if other_participant:
+            print(f"✅ Found Other Participant: {other_participant} (Employee ID: {other_participant.id})")
+            if other_participant.user:
+                print(f"✅ User Linked: {other_participant.user} (User ID: {other_participant.user.id})")
+            else:
+                print("❌ Other Participant has NO User linked!")
+        else:
+            print("❌ Other Participant is NULL!")
 
         context["other_participant"] = other_participant
         context["chat_messages"] = session.messages.all().order_by("timestamp")
         return context
+
 
 
 @login_required
