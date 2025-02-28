@@ -1,4 +1,3 @@
-```django
 {% extends 'core/base.html' %}
 {% load static %}
 
@@ -73,9 +72,7 @@
                                         {% if session.is_group_chat %}
                                             {{ session.name|default:"Group Chat" }}
                                         {% else %}
-                                            {% with other_participant=session.participants.exclude.first %}
-                                                {{ other_participant.user.get_full_name }}
-                                            {% endwith %}
+                                            {{ session.other_participant.user.get_full_name }}
                                         {% endif %}
                                     </h6>
                                     {% if session.last_message %}
@@ -207,4 +204,3 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 {% endblock %}
-```
