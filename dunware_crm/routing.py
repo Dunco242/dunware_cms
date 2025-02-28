@@ -1,16 +1,8 @@
-from channels.routing import ProtocolTypeRouter, URLRouter
-from channels.auth import AuthMiddlewareStack
-from channels.security.websocket import AllowedHostsOriginValidator
-from django.core.asgi import get_asgi_application
-from core.routing import websocket_urlpatterns as core_websocket_urlpatterns
+# core/routing.py
+from django.urls import re_path
+from . import consumers
 
-application = ProtocolTypeRouter({
-    "http": get_asgi_application(),
-    "websocket": AllowedHostsOriginValidator(
-        AuthMiddlewareStack(
-            URLRouter(
-                core_websocket_urlpatterns
-            )
-        )
-    ),
-})
+websocket_urlpatterns = [
+    re_path(r'wss/chat/(?P<session_id>\d+)/$', consumers.ChatConsumer.as_asgi()),
+    re_path(r'wss/notifications/(?P<employee_id>\w+)/$', consumers.NotificationConsumer.as_asgi()),
+]
