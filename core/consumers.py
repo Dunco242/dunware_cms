@@ -144,47 +144,47 @@ class ChatConsumer(AsyncWebsocketConsumer):
             return None
 
     @database_sync_to_async
-def get_message_data(self, message):
-    """Get message data in a format suitable for JSON serialization"""
-    try:
-        # Get sender name info
-        sender_name = ""
-        if hasattr(message.sender, 'user') and message.sender.user:
-            sender_name = f"{message.sender.user.first_name} {message.sender.user.last_name}".strip()
-            if not sender_name:
-                sender_name = message.sender.user.username
+    def get_message_data(self, message):
+        """Get message data in a format suitable for JSON serialization"""
+        try:
+            # Get sender name info
+            sender_name = ""
+            if hasattr(message.sender, 'user') and message.sender.user:
+                sender_name = f"{message.sender.user.first_name} {message.sender.user.last_name}".strip()
+                if not sender_name:
+                    sender_name = message.sender.user.username
 
-        return {
-            'id': message.id,
-            'content': message.content,
-            'sender': {
-                'id': message.sender.employee_id,
-                'name': sender_name  # Include sender name in the response
-            },
-            'receiver': {
-                'id': message.receiver.employee_id,
-                'name': f"{message.receiver.user.first_name} {message.receiver.user.last_name}".strip()
-            },
-            'timestamp': message.timestamp.isoformat(),
-            'is_read': message.is_read
-        }
-    except Exception as e:
-        logger.error(f"Error in get_message_data: {str(e)}")
-        # Return minimal data to avoid breaking the app
-        return {
-            'id': message.id,
-            'content': message.content,
-            'sender': {
-                'id': getattr(message.sender, 'employee_id', 'unknown'),
-                'name': 'Unknown'
-            },
-            'receiver': {
-                'id': getattr(message.receiver, 'employee_id', 'unknown'),
-                'name': 'Unknown'
-            },
-            'timestamp': message.timestamp.isoformat(),
-            'is_read': message.is_read
-        }
+            return {
+                'id': message.id,
+                'content': message.content,
+                'sender': {
+                    'id': message.sender.employee_id,
+                    'name': sender_name  # Include sender name in the response
+                },
+                'receiver': {
+                    'id': message.receiver.employee_id,
+                    'name': f"{message.receiver.user.first_name} {message.receiver.user.last_name}".strip()
+                },
+                'timestamp': message.timestamp.isoformat(),
+                'is_read': message.is_read
+            }
+        except Exception as e:
+            logger.error(f"Error in get_message_data: {str(e)}")
+            # Return minimal data to avoid breaking the app
+            return {
+                'id': message.id,
+                'content': message.content,
+                'sender': {
+                    'id': getattr(message.sender, 'employee_id', 'unknown'),
+                    'name': 'Unknown'
+                },
+                'receiver': {
+                    'id': getattr(message.receiver, 'employee_id', 'unknown'),
+                    'name': 'Unknown'
+                },
+                'timestamp': message.timestamp.isoformat(),
+                'is_read': message.is_read
+            }
 
     @database_sync_to_async
     def mark_message_as_read(self, message_id):
