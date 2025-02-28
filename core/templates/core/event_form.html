@@ -5,62 +5,33 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css">
+<style>
+    .select2-container {
+        width: 100% !important;
+    }
+    .select2-selection--multiple {
+        min-height: 38px;
+    }
+</style>
 {% endblock %}
 
 {% block content %}
 <div class="container mt-4">
-    <!-- Event Form -->
     <div class="card shadow-sm">
         <div class="card-body">
-            <h1 class="h3 text-dark">
+            <h1 class="h3 text-dark mb-4">
                 {% if form.instance.pk %}
                     Update Event
                 {% else %}
                     Create New Event
                 {% endif %}
             </h1>
-            <hr>
 
-            <form method="post">
+            <form method="post" id="eventForm">
                 {% csrf_token %}
-                <div class="row g-3">
-                    {% for field in form %}
-                        {% if field.name == 'description' or field.name == 'notes' %}
-                            <!-- Full width fields -->
-                            <div class="col-12">
-                                <label class="form-label fw-bold">{{ field.label }}</label>
-                                {{ field }}
-                                {% if field.errors %}
-                                    <div class="text-danger small">{{ field.errors }}</div>
-                                {% endif %}
-                            </div>
-                        {% else %}
-                            <!-- Half width fields -->
-                            <div class="col-md-6">
-                                <label class="form-label fw-bold">{{ field.label }}</label>
-                                {{ field }}
-                                {% if field.errors %}
-                                    <div class="text-danger small">{{ field.errors }}</div>
-                                {% endif %}
-                            </div>
-                        {% endif %}
-                    {% endfor %}
-                </div>
 
-                <!-- Form Buttons -->
-                <div class="mt-4">
-                    <button type="submit" class="btn btn-success">
-                        <i class="fas fa-save"></i>
-                        {% if form.instance.pk %}
-                            Update Event
-                        {% else %}
-                            Create Event
-                        {% endif %}
-                    </button>
-                    <a href="{% url 'event-list' %}" class="btn btn-outline-secondary">
-                        <i class="fas fa-times"></i> Cancel
-                    </a>
-                </div>
+                {% crispy form %}
             </form>
         </div>
     </div>
@@ -69,23 +40,64 @@
 
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        flatpickr("#id_start_time", {
-            enableTime: true,
-            dateFormat: "Y-m-d H:i",
-            time_24hr: true
-        });
-        flatpickr("#id_end_time", {
-            enableTime: true,
-            dateFormat: "Y-m-d H:i",
-            time_24hr: true
-        });
-        flatpickr("#id_recurrence_end", {
-            enableTime: true,
-            dateFormat: "Y-m-d H:i",
-            time_24hr: true
-        });
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize datetime pickers
+    const timePickerOptions = {
+        enableTime: true,
+        dateFormat: "Y-m-d H:i",
+        time_24hr: true,
+        minDate: "today"
+    };
+
+    flatpickr("#id_start_time", timePickerOptions);
+
+    flatpickr("#id_end_time", {
+        ...timePickerOptions,
+        minTime: function() {
+            const startTime = document.getElementById('id_start_time').value;
+            return startTime ? new Date(startTime) : 'today';
+        }
     });
+
+    flatpickr("#id_recurrence_end", timePickerOptions);
+
+    // Initialize Select2 for attendees
+    $('#id_attendees').select2({
+        placeholder: "Select attendees",
+        allowClear: true,
+        width: '100%'
+    });
+
+    // Form validation
+    const form = document.getElementById('eventForm');
+    form.addEventListener('submit', function(e) {
+        const startTime = new Date(document.getElementById('id_start_time').value);
+        const endTime = new Date(document.getElementById('id_end_time').value);
+
+        if (endTime <= startTime) {
+            e.preventDefault();
+            alert('End time must be after start time');
+        }
+
+        // Additional validation for recurring events
+        const isRecurring = document.getElementById('id_is_recurring').checked;
+        const recurrenceEnd = document.getElementById('id_recurrence_end').value;
+
+        if (isRecurring) {
+            if (!recurrenceEnd) {
+                e.preventDefault();
+                alert('Recurrence end date is required for recurring events');
+            }
+
+            const recurrenceEndDate = new Date(recurrenceEnd);
+            if (recurrenceEndDate <= startTime) {
+                e.preventDefault();
+                alert('Recurrence end must be after start time');
+            }
+        }
+    });
+});
 </script>
 {% endblock %}

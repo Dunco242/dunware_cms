@@ -7,6 +7,8 @@ from allauth.account.forms import LoginForm
 from django.core.validators import EmailValidator
 from django.core.exceptions import ValidationError
 from django.utils import timezone
+from crispy_forms.helper import FormHelper
+from crispy_forms.layout import Layout, Row, Column, Submit
 from django.utils.timezone import now
 from datetime import timedelta
 from crispy_forms.helper import FormHelper
@@ -562,6 +564,15 @@ class ICSUploadForm(forms.ModelForm):
 
 
 class EventForm(forms.ModelForm):
+    attendees = forms.ModelMultipleChoiceField(
+        queryset=Employee.objects.filter(is_active=True),
+        widget=forms.SelectMultiple(attrs={
+            'class': 'form-control select2-multiple',
+            'multiple': 'multiple'
+        }),
+        required=False
+    )
+
     class Meta:
         model = Event
         fields = [
@@ -590,6 +601,13 @@ class EventForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+        # Customize attendees field
+        self.fields['attendees'].label_from_instance = lambda obj: f"{obj.user.get_full_name()} - {obj.get_department_display()}"
+
+        # If this is an existing instance, pre-populate attendees
+        if self.instance.pk:
+            self.fields['attendees'].initial = self.instance.attendees.all()
 
         # Add crispy form helper
         self.helper = FormHelper()
@@ -626,16 +644,24 @@ class EventForm(forms.ModelForm):
 
     def clean(self):
         """
-        Additional validation for recurring events
+        Additional validation for recurring events and time constraints
         """
         cleaned_data = super().clean()
 
+        # Validate start and end times
+        start_time = cleaned_data.get('start_time')
+        end_time = cleaned_data.get('end_time')
+
+        if start_time and end_time:
+            if start_time >= end_time:
+                self.add_error('end_time', 'End time must be after start time')
+
+        # Validate recurring event requirements
         is_recurring = cleaned_data.get('is_recurring')
         recurrence_type = cleaned_data.get('recurrence_type')
         recurrence_rule = cleaned_data.get('recurrence_rule')
         recurrence_end = cleaned_data.get('recurrence_end')
 
-        # Validate recurring event requirements
         if is_recurring:
             if not recurrence_type:
                 self.add_error('recurrence_type', 'Recurrence type is required for recurring events')
@@ -646,8 +672,25 @@ class EventForm(forms.ModelForm):
 
             if not recurrence_end:
                 self.add_error('recurrence_end', 'Recurrence end date is required')
+            elif recurrence_end <= start_time:
+                self.add_error('recurrence_end', 'Recurrence end must be after start time')
 
         return cleaned_data
+
+    def save(self, commit=True):
+        """
+        Custom save method to handle many-to-many relationships
+        """
+        instance = super().save(commit=False)
+
+        if commit:
+            instance.save()
+
+            # Manually handle many-to-many relationship
+            if 'attendees' in self.cleaned_data:
+                instance.attendees.set(self.cleaned_data['attendees'])
+
+        return instance
 
 class CustomLoginForm(LoginForm):
     def __init__(self, *args, **kwargs):
