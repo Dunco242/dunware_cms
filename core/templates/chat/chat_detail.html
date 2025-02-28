@@ -101,16 +101,11 @@
             <!-- Chat Header -->
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h2 class="mb-0">
-                    {{ other_participant|default:"No other participant found" }}
-<br>
-{{ other_participant.user|default:"No user linked" }}
-<br>
-{{ other_participant.user.get_full_name|default:"No full name available" }}
 
                     {% if session.is_group_chat %}
                         {{ session.name }}
                     {% else %}
-                        Chat with {{ other_participant.user.get_full_name }}
+                        Chat with {{ other_participant.get_full_name }}
                     {% endif %}
                 </h2>
                 <div id="connectionStatus" class="connecting">
