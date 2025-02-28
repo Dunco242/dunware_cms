@@ -7,10 +7,12 @@ class ChatManager {
      * @param {string} sessionId - The chat session ID
      * @param {string} employeeId - The current user's employee ID
      * @param {string} wsBaseUrl - Base URL for WebSocket (with protocol)
+     * @param {boolean} isGroupChat - Whether this is a group chat
      */
-    constructor(sessionId, employeeId, wsBaseUrl = null) {
+    constructor(sessionId, employeeId, wsBaseUrl = null, isGroupChat = false) {
         this.sessionId = sessionId;
         this.employeeId = employeeId;
+        this.isGroupChat = isGroupChat;
         this.messageContainer = document.getElementById('messageContainer');
         this.messageForm = document.getElementById('messageForm');
         this.connectionStatus = document.getElementById('connectionStatus');
@@ -48,6 +50,7 @@ class ChatManager {
 
         this.socket.onmessage = (event) => {
             const data = JSON.parse(event.data);
+            console.log('Received WebSocket message:', data);
             this.handleMessage(data);
         };
 
@@ -116,6 +119,7 @@ class ChatManager {
      */
     handleMessage(data) {
         if (data.type === 'chat_message') {
+            console.log('Message details:', data.message);
             this.addMessageToDOM(data.message);
         } else if (data.type === 'error') {
             console.error('Error from server:', data.message);
@@ -133,6 +137,14 @@ class ChatManager {
         const messageDiv = document.createElement('div');
         messageDiv.className = `message ${isSent ? 'sent' : 'received'}`;
         messageDiv.dataset.id = message.id;
+
+        // Add sender name badge for received messages or in group chats
+        if ((this.isGroupChat || !isSent) && message.sender.name) {
+            const messageSender = document.createElement('div');
+            messageSender.className = 'message-sender';
+            messageSender.textContent = message.sender.name;
+            messageDiv.appendChild(messageSender);
+        }
 
         const messageContent = document.createElement('div');
         messageContent.className = 'message-content';
