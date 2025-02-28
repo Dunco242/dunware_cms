@@ -122,7 +122,7 @@
                 <div class="input-group">
                     <select id="addUserSelect" class="form-select">
                         <option value="">Select User</option>
-                        {% for employee in all_employees %}
+                        {% for employee in available_employees %}
                             <option value="{{ employee.employee_id }}">{{ employee.user.first_name }} {{ employee.user.last_name }}</option>
                         {% endfor %}
                     </select>
