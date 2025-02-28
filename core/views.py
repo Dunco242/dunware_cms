@@ -3130,10 +3130,12 @@ def chat_inbox(request):
 
     return render(request, 'chat/chat_inbox.html', context)
 
+logger = logging.getLogger(__name__)
+
 @login_required
 def chat_detail(request, session_id):
     """
-    Display chat detail view with messages
+    Display chat detail view with messages and allow adding new participants.
     """
     current_user = request.user.employee_profile
 
@@ -3142,32 +3144,29 @@ def chat_detail(request, session_id):
         session = get_object_or_404(
             ChatSession.objects.prefetch_related(
                 Prefetch(
-                    'participants',
-                    queryset=Employee.objects.select_related('user')
+                    "participants",
+                    queryset=Employee.objects.select_related("user")
                 )
             ),
             id=session_id,
             participants=current_user
         )
 
-        # Get other participant
-        other_participant = session.participants.exclude(
-            id=current_user.id
-        ).first()
+        # Get other participant for 1-on-1 chat
+        other_participant = session.participants.exclude(id=current_user.id).first()
 
         if not other_participant and not session.is_group_chat:
             messages.error(request, "Chat session not found or you don't have access.")
-            return redirect('chat_inbox')
+            return redirect("chat_inbox")
 
-        # Get messages with related user info
+        # Get chat messages and mark as read
         chat_messages = ChatMessage.objects.filter(
             session=session
         ).select_related(
-            'sender__user',
-            'receiver__user'
-        ).order_by('timestamp')
+            "sender__user",
+            "receiver__user"
+        ).order_by("timestamp")
 
-        # Mark messages as read
         ChatMessage.objects.filter(
             session=session,
             receiver=current_user,
@@ -3177,16 +3176,23 @@ def chat_detail(request, session_id):
             read_at=timezone.now()
         )
 
-        return render(request, 'chat/chat_detail.html', {
-            'session': session,
-            'chat_messages': chat_messages,
-            'other_participant': other_participant,
+        # Fetch employees NOT in the chat for "Add User" dropdown
+        available_employees = Employee.objects.exclude(
+            id__in=session.participants.values_list("id", flat=True)
+        )
+
+        return render(request, "chat/chat_detail.html", {
+            "session": session,
+            "chat_messages": chat_messages,
+            "other_participant": other_participant,
+            "available_employees": available_employees,  # ✅ Users available for selection in dropdown
         })
 
     except Exception as e:
         logger.error(f"Error in chat detail: {str(e)}")
         messages.error(request, "An error occurred while loading the chat.")
-        return redirect('chat_inbox')
+        return redirect("chat_inbox")
+
 
 
 @login_required

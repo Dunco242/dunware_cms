@@ -123,9 +123,7 @@
                     <select id="addUserSelect" class="form-select">
                         <option value="">Select User</option>
                         {% for employee in all_employees %}
-                            {% if employee != request.user.employee_profile and employee not in session.participants.all %}
-                                <option value="{{ employee.employee_id }}">{{ employee.user.get_full_name }}</option>
-                            {% endif %}
+                            <option value="{{ employee.employee_id }}">{{ employee.user.get_full_name }}</option>
                         {% endfor %}
                     </select>
                     <button id="addUserBtn" class="btn btn-primary">
@@ -133,7 +131,6 @@
                     </button>
                 </div>
             </div>
-
 
             <!-- Chat Container -->
             <div class="card chat-container">

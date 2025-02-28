@@ -176,15 +176,17 @@
             const wsUrl = `${protocol}${window.location.host}/wss/notifications/${userId}/`;
 
             const notificationSocket = new WebSocket(wsUrl);
+            const chatIcon = document.getElementById("chatNavIcon");
 
             notificationSocket.onmessage = function (event) {
                 const data = JSON.parse(event.data);
                 if (data.type === "new_message") {
-                    const chatIcon = document.getElementById("chatNavIcon");
-                    chatIcon.classList.add("flash");
-                    setTimeout(() => {
-                        chatIcon.classList.remove("flash");
-                    }, 5000);
+                    chatIcon.classList.add("pulse");
+
+                    // Remove the effect only when the user clicks the chat icon
+                    chatIcon.addEventListener("click", function () {
+                        chatIcon.classList.remove("pulse");
+                    });
                 }
             };
 
@@ -195,16 +197,17 @@
     </script>
 
     <style>
-        @keyframes flash {
-            0% { opacity: 1; }
-            50% { opacity: 0.5; }
-            100% { opacity: 1; }
+        @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 0 5px rgba(255, 0, 0, 0.8); }
+            50% { transform: scale(1.2); box-shadow: 0 0 20px rgba(255, 0, 0, 1); }
+            100% { transform: scale(1); box-shadow: 0 0 5px rgba(255, 0, 0, 0.8); }
         }
 
-        .flash {
-            animation: flash 1s infinite;
+        .pulse {
+            animation: pulse 1.2s infinite;
         }
     </style>
+
     {% endblock %}
 </body>
 </html>
