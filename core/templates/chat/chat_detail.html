@@ -80,6 +80,29 @@
         background-color: #dc3545;
         color: white;
     }
+
+    .message-sender {
+        font-size: 0.8rem;
+        font-weight: 600;
+        margin-bottom: 0.2rem;
+        color: #555;
+    }
+
+    .sent .message-sender {
+        text-align: right;
+        color: #0056b3;
+    }
+
+    .received .message-sender {
+        text-align: left;
+        color: #343a40;
+    }
+
+    /* Adjust spacing in the message to accommodate the sender name */
+    .message-content {
+        padding: 0.6rem 0.75rem;
+        margin-top: 0.1rem;
+    }
 </style>
 {% endblock %}
 
@@ -141,6 +164,12 @@
                      data-employee-id="{{ request.user.employee_profile.employee_id }}">
                     {% for message in chat_messages %}
                     <div class="message {% if message.sender == request.user.employee_profile %}sent{% else %}received{% endif %} {% if message.is_read %}read{% endif %}">
+                        <!-- Add sender name above the message content -->
+                        {% if session.is_group_chat or message.sender != request.user.employee_profile %}
+                        <div class="message-sender">
+                            {{ message.sender.user.first_name }} {{ message.sender.user.last_name }}
+                        </div>
+                        {% endif %}
                         <div class="message-content">
                             {{ message.content }}
                         </div>
