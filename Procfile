@@ -1,1 +1,1 @@
-web: daphne -b 0.0.0.0 -p $PORT dunware_crm.asgi:application
+web: gunicorn --bind 0.0.0.0:$PORT dunware_crm.wsgi:application
