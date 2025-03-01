@@ -1,200 +1,209 @@
+/**
+ * ChatManager handles WebSocket connections and messaging for the chat system.
+ */
 class ChatManager {
-    constructor(sessionId, currentEmployee) {
+    /**
+     * Initialize the chat manager.
+     * @param {string} sessionId - The chat session ID.
+     * @param {string} employeeId - The current user's employee ID.
+     * @param {boolean} isGroupChat - Whether this is a group chat.
+     */
+    constructor(sessionId, employeeId, isGroupChat = false) {
         this.sessionId = sessionId;
-        this.currentEmployee = currentEmployee;
-        this.ws = null;
-        this.messageContainer = document.getElementById('messageContainer');
-        this.messageForm = document.getElementById('messageForm');
-        this.connectionStatus = document.getElementById('connectionStatus');
-        this.receiverSelect = document.getElementById('receiverSelect');
-        this.alertContainer = document.getElementById('alertContainer');
-        this.isLoading = false;
-        this.hasMore = true;
-        this.lastTimestamp = null;
-        this.reconnectAttempts = 0;
-        this.maxReconnectAttempts = 5;
-        this.reconnectDelay = 1000;
+        this.employeeId = employeeId;
+        this.isGroupChat = isGroupChat;
+        this.messageContainer = document.getElementById("messageContainer");
+        this.messageForm = document.getElementById("messageForm");
+        this.connectionStatus = document.getElementById("connectionStatus");
 
-        this.initWebSocket();
-        this.initEventListeners();
-        this.initNotifications();
+        // Determine WebSocket protocol
+        const protocol = window.location.protocol === "https:" ? "wss://" : "ws://";
+        this.wsUrl = `${protocol}${window.location.host}/wss/chat/${sessionId}/`;
+
+        // Initialize the WebSocket connection
+        this.connect();
+
+        // Set up event listeners
+        this.setupEventListeners();
+
+        // Scroll to bottom of messages
+        this.scrollToBottom();
     }
 
-    showAlert(message, type = 'danger', duration = 5000) {
-        const alertDiv = document.createElement('div');
-        alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
-        alertDiv.innerHTML = `
-            ${message}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        `;
+    /**
+     * Connect to the WebSocket server.
+     */
+    connect() {
+        this.updateConnectionStatus("connecting");
 
-        this.alertContainer.appendChild(alertDiv);
+        this.socket = new WebSocket(this.wsUrl);
 
-        // Set up fade out and removal
-        setTimeout(() => {
-            alertDiv.classList.add('fade-out');
-            setTimeout(() => {
-                alertDiv.remove();
-            }, 500);
-        }, duration);
+        this.socket.onopen = () => {
+            console.log("WebSocket connected");
+            this.updateConnectionStatus("connected");
+        };
 
-        // Allow manual dismissal
-        alertDiv.querySelector('.btn-close').addEventListener('click', () => {
-            alertDiv.remove();
-        });
-    }
-
-    updateConnectionStatus(status) {
-        if (this.connectionStatus) {
-            this.connectionStatus.className = status;
-            switch (status) {
-                case 'connected':
-                    this.connectionStatus.textContent = 'Connected';
-                    break;
-                case 'connecting':
-                    this.connectionStatus.textContent = 'Connecting...';
-                    break;
-                case 'disconnected':
-                    this.connectionStatus.textContent = 'Disconnected';
-                    break;
-                default:
-                    this.connectionStatus.textContent = 'Connection Error';
-            }
-        }
-    }
-
-    initWebSocket() {
-        try {
-            this.updateConnectionStatus('connecting');
-
-            this.ws = new WebSocket(
-                `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/chat/${this.sessionId}/`
-            );
-
-            this.ws.onmessage = this.handleWebSocketMessage.bind(this);
-            this.ws.onopen = this.handleWebSocketOpen.bind(this);
-            this.ws.onclose = this.handleWebSocketClose.bind(this);
-            this.ws.onerror = this.handleWebSocketError.bind(this);
-        } catch (error) {
-            console.error('WebSocket initialization error:', error);
-            this.showAlert('Failed to initialize chat connection', 'danger');
-            this.scheduleReconnect();
-        }
-    }
-
-    handleWebSocketMessage(event) {
-        try {
+        this.socket.onmessage = (event) => {
             const data = JSON.parse(event.data);
+            console.log("Received WebSocket message:", data);
+            this.handleMessage(data);
+        };
 
-            switch (data.type) {
-                case 'chat_message':
-                    this.handleNewMessage(data.message);
-                    break;
-                case 'error':
-                    this.showAlert(data.message, 'danger');
-                    break;
-                case 'success':
-                    this.showAlert(data.message, 'success', 3000);
-                    break;
-                default:
-                    console.warn('Unknown message type:', data.type);
-            }
-        } catch (error) {
-            console.error('Error handling WebSocket message:', error);
-            this.showAlert('Error processing message', 'danger');
-        }
-    }
+        this.socket.onclose = (event) => {
+            console.log("WebSocket disconnected:", event.code, event.reason);
+            this.updateConnectionStatus("disconnected");
 
-    handleWebSocketOpen() {
-        console.log("WebSocket connection established");
-        this.updateConnectionStatus('connected');
-        this.reconnectAttempts = 0;
-        this.reconnectDelay = 1000;
-    }
-
-    handleWebSocketClose(event) {
-        console.warn('WebSocket connection closed:', event);
-        this.updateConnectionStatus('disconnected');
-        this.scheduleReconnect();
-    }
-
-    handleWebSocketError(error) {
-        console.error('WebSocket error:', error);
-        this.updateConnectionStatus('error');
-        this.showAlert('Connection error occurred', 'danger');
-    }
-
-    scheduleReconnect() {
-        if (this.reconnectAttempts < this.maxReconnectAttempts) {
-            this.reconnectAttempts++;
-            this.showAlert(`Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`, 'warning');
-
+            // Try to reconnect after a delay
             setTimeout(() => {
-                this.initWebSocket();
-            }, this.reconnectDelay);
+                this.connect();
+            }, 3000);
+        };
 
-            this.reconnectDelay = Math.min(this.reconnectDelay * 2, 30000);
-        } else {
-            this.showAlert('Unable to establish connection. Please refresh the page.', 'danger');
-        }
+        this.socket.onerror = (error) => {
+            console.error("WebSocket error:", error);
+            this.updateConnectionStatus("disconnected");
+        };
     }
 
-    initEventListeners() {
-        this.messageForm.addEventListener('submit', this.handleMessageSubmit.bind(this));
-
-        this.messageContainer.addEventListener('scroll', () => {
-            if (this.messageContainer.scrollTop === 0 && !this.isLoading && this.hasMore) {
-                this.loadMoreMessages();
-            }
-        });
-
-        if (this.receiverSelect) {
-            this.receiverSelect.addEventListener('change', (e) => {
-                const receiverId = e.target.value;
-                const receiverName = e.target.options[e.target.selectedIndex].text;
-                if (receiverId) {
-                    this.setReceiver(receiverId, receiverName);
-                }
+    /**
+     * Set up event listeners for the message form.
+     */
+    setupEventListeners() {
+        if (this.messageForm) {
+            this.messageForm.addEventListener("submit", (event) => {
+                event.preventDefault();
+                this.sendMessage();
             });
         }
-
-        window.addEventListener('focus', () => {
-            this.markMessagesRead();
-        });
     }
 
-    setReceiver(receiverId, receiverName) {
-        this.currentReceiverId = receiverId;
-        this.currentReceiverName = receiverName;
-        // You might want to clear the message container when switching receivers
-        // this.messageContainer.innerHTML = '';
-        this.showAlert(`Now chatting with ${receiverName}`, 'info', 3000);
-    }
-
-    async handleMessageSubmit(event) {
-        event.preventDefault();
-
-        const form = event.target;
-        const content = form.content.value.trim();
-
-        if (!content) {
-            this.showAlert("Message content cannot be empty", "warning");
+    /**
+     * Send a message through the WebSocket.
+     */
+    sendMessage() {
+        if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
+            console.error("WebSocket is not connected");
             return;
         }
 
-        if (!this.currentReceiverId) {
-            this.showAlert("Please select a recipient", "warning");
-            return;
-        }
+        const formData = new FormData(this.messageForm);
+        const content = formData.get("content").trim();
+        const receiverId = formData.get("receiver_id");
 
-        try {
-            await this.sendMessage(content, this.currentReceiverId);
-            form.content.value = '';
-            form.content.focus();
-        } catch (error) {
-            this.showAlert(`Failed to send message: ${error.message}`, 'danger');
+        if (!content) return;
+
+        // Create message data
+        const messageData = {
+            type: "new_message",
+            session_id: this.sessionId,
+            sender_id: this.employeeId,
+            receiver_id: receiverId,
+            content: content,
+        };
+
+        // Send the message
+        this.socket.send(JSON.stringify(messageData));
+
+        // Clear the input field
+        this.messageForm.reset();
+    }
+
+    /**
+     * Handle incoming messages.
+     * @param {Object} data - The message data.
+     */
+    handleMessage(data) {
+        if (data.type === "chat_message") {
+            console.log("Message details:", data.message);
+            this.addMessageToDOM(data.message);
+        } else if (data.type === "error") {
+            console.error("Error from server:", data.message);
         }
     }
 
-    // ... rest of the methods (sendMessage, handleNewMessage, etc.) remain the same
+    /**
+     * Add a message to the DOM.
+     * @param {Object} message - The message data.
+     */
+    addMessageToDOM(message) {
+        const isSent = message.sender.id === this.employeeId;
+
+        // Create message elements
+        const messageDiv = document.createElement("div");
+        messageDiv.className = `message ${isSent ? "sent" : "received"}`;
+        messageDiv.dataset.id = message.id;
+
+        // Add sender name badge for received messages or in group chats
+        if ((this.isGroupChat || !isSent) && message.sender.name) {
+            const messageSender = document.createElement("div");
+            messageSender.className = "message-sender";
+            messageSender.textContent = message.sender.name;
+            messageDiv.appendChild(messageSender);
+        }
+
+        const messageContent = document.createElement("div");
+        messageContent.className = "message-content";
+        messageContent.textContent = message.content;
+
+        const messageFooter = document.createElement("div");
+        messageFooter.className = "message-footer";
+
+        const messageTime = document.createElement("span");
+        messageTime.className = "message-time";
+
+        // Format the time
+        const date = new Date(message.timestamp);
+        messageTime.textContent = date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+
+        messageFooter.appendChild(messageTime);
+
+        // Add read status for sent messages
+        if (isSent) {
+            const messageStatus = document.createElement("span");
+            messageStatus.className = "message-status";
+            messageStatus.textContent = message.is_read ? "✓✓" : "✓";
+            messageFooter.appendChild(messageStatus);
+        }
+
+        // Assemble the message
+        messageDiv.appendChild(messageContent);
+        messageDiv.appendChild(messageFooter);
+
+        // Add to the container
+        this.messageContainer.appendChild(messageDiv);
+
+        // Scroll to the new message
+        this.scrollToBottom();
+    }
+
+    /**
+     * Scroll to the bottom of the message container.
+     */
+    scrollToBottom() {
+        if (this.messageContainer) {
+            this.messageContainer.scrollTop = this.messageContainer.scrollHeight;
+        }
+    }
+
+    /**
+     * Update the connection status indicator.
+     * @param {string} status - The connection status (connecting, connected, disconnected).
+     */
+    updateConnectionStatus(status) {
+        if (!this.connectionStatus) return;
+
+        this.connectionStatus.className = status;
+
+        switch (status) {
+            case "connected":
+                this.connectionStatus.textContent = "Connected";
+                break;
+            case "connecting":
+                this.connectionStatus.textContent = "Connecting...";
+                break;
+            case "disconnected":
+                this.connectionStatus.textContent = "Disconnected";
+                break;
+        }
+    }
 }
