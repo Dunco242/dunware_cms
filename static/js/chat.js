@@ -266,6 +266,13 @@ class ChatManager {
         fetch(`/chat/leave/${this.sessionId}/${this.employeeId}/`, {
             method: "POST",
             headers: { "X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]").value }
-        }).then(() => window.location.href = "/chat/inbox/");
+        }).then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert("You have left the chat.");
+                window.location.href = "/chat/inbox/"; // Redirect to chat inbox
+            } else {
+                alert("Error leaving chat: " + data.error);
+            }
+        });
     }
-}

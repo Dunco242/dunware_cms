@@ -56,7 +56,7 @@ from .views import (
     TaskUpdateView, TaskDeleteView, task_status_update,
 
     #chat
-    employee_list_api, chat_sessions_api, add_user_to_chat,
+    employee_list_api, chat_sessions_api, add_user_to_chat, leave_chat,
     # Other Views
     IPStatisticsView,
 
@@ -212,7 +212,7 @@ urlpatterns = [
     path('chat/session/<int:session_id>/', views.chat_detail, name='chat_detail'),
     path('chat/start/<str:employee_id>/', views.start_chat, name='start_chat'),
     path('chat/api/sessions/', views.chat_sessions_api, name='chat_sessions_api'),
-
+    path('chat/leave/<int:session_id>/<int:employee_id>/', leave_chat, name='leave_chat'),
 
     # Chat API Routes
     path('chat/send/', views.send_message, name='send_message'),
