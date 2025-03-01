@@ -15,18 +15,19 @@ class ChatManager {
         this.messageContainer = document.getElementById("messageContainer");
         this.messageForm = document.getElementById("messageForm");
         this.connectionStatus = document.getElementById("connectionStatus");
+        this.leaveChatBtn = document.getElementById("leaveChatBtn");
 
-        // Determine WebSocket protocol
+        // Determine WebSocket protocol dynamically
         const protocol = window.location.protocol === "https:" ? "wss://" : "ws://";
         this.wsUrl = `${protocol}${window.location.host}/wss/chat/${sessionId}/`;
 
-        // Initialize the WebSocket connection
+        // Initialize WebSocket connection
         this.connect();
 
         // Set up event listeners
         this.setupEventListeners();
 
-        // Scroll to bottom of messages
+        // Scroll to the bottom of the messages
         this.scrollToBottom();
     }
 
@@ -66,13 +67,19 @@ class ChatManager {
     }
 
     /**
-     * Set up event listeners for the message form.
+     * Set up event listeners for the message form and leave chat button.
      */
     setupEventListeners() {
         if (this.messageForm) {
             this.messageForm.addEventListener("submit", (event) => {
                 event.preventDefault();
                 this.sendMessage();
+            });
+        }
+
+        if (this.leaveChatBtn) {
+            this.leaveChatBtn.addEventListener("click", () => {
+                this.leaveChat();
             });
         }
     }
@@ -116,6 +123,9 @@ class ChatManager {
         if (data.type === "chat_message") {
             console.log("Message details:", data.message);
             this.addMessageToDOM(data.message);
+        } else if (data.type === "leave_chat") {
+            console.log("User left chat:", data.message);
+            this.removeUserFromChat(data.user_id);
         } else if (data.type === "error") {
             console.error("Error from server:", data.message);
         }
@@ -183,6 +193,43 @@ class ChatManager {
         if (this.messageContainer) {
             this.messageContainer.scrollTop = this.messageContainer.scrollHeight;
         }
+    }
+
+    /**
+     * Leave the chat session.
+     */
+    leaveChat() {
+        if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
+            console.error("WebSocket is not connected");
+            return;
+        }
+
+        const leaveData = {
+            type: "leave_chat",
+            session_id: this.sessionId,
+            user_id: this.employeeId,
+        };
+
+        // Send leave message to WebSocket
+        this.socket.send(JSON.stringify(leaveData));
+
+        // Redirect to chat inbox after leaving
+        setTimeout(() => {
+            window.location.href = "/chat/inbox/";
+        }, 1000);
+    }
+
+    /**
+     * Remove user from chat UI when they leave.
+     * @param {string} userId - ID of the user leaving the chat.
+     */
+    removeUserFromChat(userId) {
+        const userMessage = document.createElement("div");
+        userMessage.className = "system-message";
+        userMessage.textContent = `User ${userId} has left the chat.`;
+
+        this.messageContainer.appendChild(userMessage);
+        this.scrollToBottom();
     }
 
     /**
