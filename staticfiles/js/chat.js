@@ -333,3 +333,191 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 });
+
+/**
+ * NotificationManager handles WebSocket connections for receiving notifications
+ */
+class NotificationManager {
+    /**
+     * Initialize the notification manager
+     * @param {string} employeeId - The current user's employee ID
+     * @param {string} wsBaseUrl - Base URL for WebSocket (with protocol)
+     */
+    constructor(employeeId, wsBaseUrl = null) {
+        this.employeeId = employeeId;
+        this.notificationBadge = document.getElementById('notificationBadge');
+        this.reconnectAttempts = 0;
+        this.maxReconnectAttempts = 5;
+        this.isConnected = false;
+
+        // If wsBaseUrl is not provided, determine it based on page protocol
+        if (!wsBaseUrl) {
+            const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+            wsBaseUrl = protocol + window.location.host;
+        }
+
+        this.wsUrl = `${wsBaseUrl}/wss/notifications/${employeeId}/`;
+
+        // Initialize the connection
+        this.connect();
+    }
+
+    /**
+     * Connect to the WebSocket server
+     */
+    connect() {
+        try {
+            this.socket = new WebSocket(this.wsUrl);
+
+            this.socket.onopen = () => {
+                console.log('Notification WebSocket connected');
+                this.isConnected = true;
+                this.reconnectAttempts = 0;
+            };
+
+            this.socket.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                console.log('Received notification WebSocket message:', data);
+                this.handleMessage(data);
+            };
+
+            this.socket.onclose = (event) => {
+                console.log('Notification WebSocket disconnected:', event.code, event.reason);
+                this.isConnected = false;
+
+                // Try to reconnect after a delay
+                if (this.reconnectAttempts < this.maxReconnectAttempts) {
+                    this.reconnectAttempts++;
+                    const delay = Math.min(3000 * this.reconnectAttempts, 15000);
+
+                    setTimeout(() => {
+                        this.connect();
+                    }, delay);
+                } else {
+                    console.error('Maximum notification reconnection attempts reached');
+                }
+            };
+
+            this.socket.onerror = (error) => {
+                console.error('Notification WebSocket error:', error);
+                this.isConnected = false;
+            };
+        } catch (error) {
+            console.error('Error creating notification WebSocket connection:', error);
+
+            // Try to reconnect after a delay
+            setTimeout(() => {
+                this.connect();
+            }, 5000);
+        }
+    }
+
+    /**
+     * Handle incoming notification messages
+     * @param {Object} data - The message data
+     */
+    handleMessage(data) {
+        if (data.type === 'notification' || data.type === 'new_message') {
+            this.showNotification(data.message);
+            this.updateNotificationBadge();
+        } else if (data.type === 'notifications_read') {
+            this.updateNotificationBadge(0);
+        }
+    }
+
+    /**
+     * Show a notification to the user
+     * @param {Object} message - The notification message data
+     */
+    showNotification(message) {
+        // Check if browser supports notifications
+        if (!("Notification" in window)) {
+            console.warn("This browser does not support desktop notifications");
+            return;
+        }
+
+        // Check if permission is already granted
+        if (Notification.permission === "granted") {
+            this.createNotification(message);
+        }
+        // Otherwise, request permission
+        else if (Notification.permission !== "denied") {
+            Notification.requestPermission().then(permission => {
+                if (permission === "granted") {
+                    this.createNotification(message);
+                }
+            });
+        }
+    }
+
+    /**
+     * Create and display a browser notification
+     * @param {Object} message - The notification message data
+     */
+    createNotification(message) {
+        const title = `New message from ${message.sender.name}`;
+        const options = {
+            body: message.content,
+            icon: '/static/img/notification-icon.png', // Replace with your icon path
+            tag: `message-${message.id}`
+        };
+
+        const notification = new Notification(title, options);
+
+        // Handle notification click
+        notification.onclick = () => {
+            window.focus();
+            notification.close();
+
+            // Redirect to the chat session
+            window.location.href = `/chat/session/${message.session_id}/`;
+        };
+    }
+
+    /**
+     * Update the notification badge count
+     * @param {number|null} count - Notification count or null to increment
+     */
+    updateNotificationBadge(count = null) {
+        if (this.notificationBadge) {
+            if (count === null) {
+                // Increment current count
+                let currentCount = parseInt(this.notificationBadge.textContent) || 0;
+                this.notificationBadge.textContent = currentCount + 1;
+                this.notificationBadge.classList.remove('d-none');
+            } else if (count === 0) {
+                // Hide badge
+                this.notificationBadge.textContent = '';
+                this.notificationBadge.classList.add('d-none');
+            } else {
+                // Set to specific count
+                this.notificationBadge.textContent = count;
+                this.notificationBadge.classList.remove('d-none');
+            }
+        }
+    }
+
+    /**
+     * Mark all notifications as read
+     */
+    markAllAsRead() {
+        if (this.isConnected) {
+            this.socket.send(JSON.stringify({
+                type: 'read_notifications'
+            }));
+        } else {
+            console.error('Cannot mark notifications as read: WebSocket not connected');
+        }
+    }
+}
+
+// Initialize notification manager when the DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+    const employeeIdElement = document.getElementById('currentEmployeeId');
+    if (employeeIdElement) {
+        const employeeId = employeeIdElement.value;
+        if (employeeId) {
+            window.notificationManager = new NotificationManager(employeeId);
+        }
+    }
+});

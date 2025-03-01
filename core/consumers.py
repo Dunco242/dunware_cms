@@ -406,7 +406,7 @@ class NotificationConsumer(AsyncWebsocketConsumer):
 
     async def notification_message(self, event):
         await self.send(text_data=json.dumps({
-            "type": "new_message",
+            "type": "notification",
             "message": event["message"]
         }))
 

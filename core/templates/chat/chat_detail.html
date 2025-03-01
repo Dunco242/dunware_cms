@@ -162,14 +162,17 @@
                         {% endif %}
                     {% endif %}
                 </h2>
-                <div id="connectionStatus" class="connecting">
-                    Connecting...
+
+                <div class="d-flex align-items-center gap-3">
+                    <div id="connectionStatus" class="connecting">
+                        Connecting...
+                    </div>
+                    {% if session.is_group_chat %}
+                        <button id="leaveChatBtn" class="btn btn-danger">
+                            <i class="fas fa-sign-out-alt"></i> Leave Chat
+                        </button>
+                    {% endif %}
                 </div>
-                {% if session.is_group_chat %}
-                    <button id="leaveChatBtn" class="btn btn-danger">
-                        <i class="fas fa-sign-out-alt"></i> Leave Chat
-                    </button>
-                {% endif %}
             </div>
 
             <!-- Add User to Chat -->
