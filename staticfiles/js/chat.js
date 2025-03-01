@@ -110,7 +110,7 @@ class ChatManager {
         }
 
         // Find leave chat button if it exists
-        const leaveButton = document.getElementById('leaveChatButton');
+        const leaveButton = document.getElementById('leaveChatBtn');
         if (leaveButton) {
             leaveButton.addEventListener('click', () => {
                 this.leaveChat();
@@ -171,7 +171,7 @@ class ChatManager {
         } else {
             // Fallback to HTTP approach if WebSocket isn't connected
             console.log('WebSocket not connected, using HTTP fallback for leaving chat');
-            window.location.href = `/chats/leave/${this.sessionId}/`;
+            window.location.href = `/chat/leave/${this.sessionId}/${this.employeeId}/`;
         }
     }
 
@@ -190,7 +190,7 @@ class ChatManager {
             // If the user who left is the current user, redirect to chat list
             if (data.user_id === this.employeeId) {
                 setTimeout(() => {
-                    window.location.href = '/chats/';
+                    window.location.href = '/chat/';
                 }, 2000);
             }
         } else if (data.type === 'user_added') {
@@ -317,3 +317,19 @@ class ChatManager {
         }
     }
 }
+
+// Initialize the chat manager when the DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+    const messageContainer = document.getElementById('messageContainer');
+    if (messageContainer) {
+        const sessionId = messageContainer.dataset.sessionId;
+        const employeeId = messageContainer.dataset.employeeId;
+        const isGroupChat = messageContainer.dataset.isGroup === 'true';
+
+        if (sessionId && employeeId) {
+            window.chatManager = new ChatManager(sessionId, employeeId, null, isGroupChat);
+        } else {
+            console.error('Missing required data attributes for chat initialization');
+        }
+    }
+});
