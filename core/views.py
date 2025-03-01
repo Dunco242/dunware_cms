@@ -4308,15 +4308,57 @@ def add_user_to_chat(request):
 
 
 @login_required
-def leave_chat(request, session_id, user_id):
+def leave_chat(request, session_id):
     """
-    Allow a user to leave a group chat.
+    Allow a user to leave a chat session.
     """
-    user = get_object_or_404(Employee, employee_id=user_id)
-    session = get_object_or_404(ChatSession, id=session_id)
+    try:
+        # Get the employee profile for the current user
+        employee = Employee.objects.get(user=request.user)
 
-    if session.is_group_chat:
-        session.participants.remove(user)
-        session.save()
-        return JsonResponse({"success": True})
-    return JsonResponse({"success": False, "error": "Cannot leave private chats"})
+        # Get the chat session
+        session = get_object_or_404(ChatSession, id=session_id)
+
+        # Check if user is a participant
+        if employee not in session.participants.all():
+            return JsonResponse({
+                "success": False,
+                "error": "You are not a participant in this chat."
+            })
+
+        # For group chats, simply remove the user
+        if session.is_group_chat:
+            session.participants.remove(employee)
+
+            # If no participants remain, mark the chat as inactive
+            if session.participants.count() == 0:
+                session.is_active = False
+                session.save()
+
+            # Add system message about user leaving
+            user_name = employee.get_full_name()
+            system_message = f"{user_name} has left the chat."
+
+            # Log the action
+            logger.info(f"User {employee.employee_id} left chat session {session_id}")
+
+            return JsonResponse({"success": True, "message": system_message})
+        else:
+            # For direct chats, we can either mark it as inactive or disallow leaving
+            # Here we'll disallow leaving direct chats
+            return JsonResponse({
+                "success": False,
+                "error": "You cannot leave direct chat sessions. Please delete the conversation instead."
+            })
+
+    except Employee.DoesNotExist:
+        return JsonResponse({
+            "success": False,
+            "error": "Employee profile not found for this user."
+        })
+    except Exception as e:
+        logger.error(f"Error in leave_chat view: {str(e)}")
+        return JsonResponse({
+            "success": False,
+            "error": f"An error occurred: {str(e)}"
+        })

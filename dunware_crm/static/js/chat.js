@@ -16,16 +16,17 @@ class ChatManager {
         this.messageContainer = document.getElementById('messageContainer');
         this.messageForm = document.getElementById('messageForm');
         this.connectionStatus = document.getElementById('connectionStatus');
-        this.addUserBtn = document.getElementById("addUserBtn");
-        this.addUserSelect = document.getElementById("addUserSelect");
-        this.leaveChatBtn = document.getElementById("leaveChatBtn");
+        this.isConnected = false;
+        this.reconnectAttempts = 0;
+        this.maxReconnectAttempts = 5;
 
-        // Determine WebSocket protocol
+        // If wsBaseUrl is not provided, determine it based on page protocol
         if (!wsBaseUrl) {
             const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
             wsBaseUrl = protocol + window.location.host;
         }
 
+        this.wsBaseUrl = wsBaseUrl;
         this.wsUrl = `${wsBaseUrl}/wss/chat/${sessionId}/`;
 
         // Initialize the connection
@@ -44,37 +45,61 @@ class ChatManager {
     connect() {
         this.updateConnectionStatus('connecting');
 
-        this.socket = new WebSocket(this.wsUrl);
+        try {
+            this.socket = new WebSocket(this.wsUrl);
 
-        this.socket.onopen = () => {
-            console.log('WebSocket connected');
-            this.updateConnectionStatus('connected');
-        };
+            this.socket.onopen = () => {
+                console.log('WebSocket connected');
+                this.updateConnectionStatus('connected');
+                this.isConnected = true;
+                this.reconnectAttempts = 0; // Reset reconnect attempts on successful connection
+            };
 
-        this.socket.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            console.log('Received WebSocket message:', data);
-            this.handleMessage(data);
-        };
+            this.socket.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                console.log('Received WebSocket message:', data);
+                this.handleMessage(data);
+            };
 
-        this.socket.onclose = (event) => {
-            console.log('WebSocket disconnected:', event.code, event.reason);
+            this.socket.onclose = (event) => {
+                console.log('WebSocket disconnected:', event.code, event.reason);
+                this.updateConnectionStatus('disconnected');
+                this.isConnected = false;
+
+                // Try to reconnect after a delay
+                if (this.reconnectAttempts < this.maxReconnectAttempts) {
+                    this.reconnectAttempts++;
+                    const delay = Math.min(3000 * this.reconnectAttempts, 15000); // Exponential backoff with max 15s
+                    console.log(`Attempting to reconnect in ${delay}ms (attempt ${this.reconnectAttempts})`);
+
+                    setTimeout(() => {
+                        this.connect();
+                    }, delay);
+                } else {
+                    console.error('Maximum reconnection attempts reached');
+                    this.addSystemMessageToDOM('Connection lost. Please refresh the page to reconnect.', 'error');
+                }
+            };
+
+            this.socket.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                this.updateConnectionStatus('disconnected');
+                this.isConnected = false;
+            };
+        } catch (error) {
+            console.error('Error creating WebSocket connection:', error);
             this.updateConnectionStatus('disconnected');
+            this.isConnected = false;
 
             // Try to reconnect after a delay
             setTimeout(() => {
                 this.connect();
-            }, 3000);
-        };
-
-        this.socket.onerror = (error) => {
-            console.error('WebSocket error:', error);
-            this.updateConnectionStatus('disconnected');
-        };
+            }, 5000);
+        }
     }
 
     /**
-     * Set up event listeners for the message form, add user, and leave chat
+     * Set up event listeners for the message form
      */
     setupEventListeners() {
         if (this.messageForm) {
@@ -84,14 +109,10 @@ class ChatManager {
             });
         }
 
-        if (this.addUserBtn) {
-            this.addUserBtn.addEventListener("click", () => {
-                this.addUserToChat();
-            });
-        }
-
-        if (this.leaveChatBtn) {
-            this.leaveChatBtn.addEventListener("click", () => {
+        // Find leave chat button if it exists
+        const leaveButton = document.getElementById('leaveChatButton');
+        if (leaveButton) {
+            leaveButton.addEventListener('click', () => {
                 this.leaveChat();
             });
         }
@@ -101,8 +122,9 @@ class ChatManager {
      * Send a message through the WebSocket
      */
     sendMessage() {
-        if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
+        if (!this.isConnected) {
             console.error('WebSocket is not connected');
+            this.addSystemMessageToDOM('Cannot send message. Connection to server lost.', 'error');
             return;
         }
 
@@ -117,7 +139,7 @@ class ChatManager {
             type: 'new_message',
             session_id: this.sessionId,
             sender_id: this.employeeId,
-            receiver_id: this.isGroupChat ? null : receiverId,
+            receiver_id: receiverId,
             content: content
         };
 
@@ -129,6 +151,31 @@ class ChatManager {
     }
 
     /**
+     * Leave the current chat session
+     */
+    leaveChat() {
+        if (this.isConnected) {
+            // Use WebSocket approach if connected
+            // Create leave chat data
+            const leaveData = {
+                type: 'leave_chat',
+                session_id: this.sessionId,
+                employee_id: this.employeeId
+            };
+
+            // Send leave chat message
+            this.socket.send(JSON.stringify(leaveData));
+
+            // Add a system message to show we're processing the leave request
+            this.addSystemMessageToDOM('Leaving chat...');
+        } else {
+            // Fallback to HTTP approach if WebSocket isn't connected
+            console.log('WebSocket not connected, using HTTP fallback for leaving chat');
+            window.location.href = `/chats/leave/${this.sessionId}/`;
+        }
+    }
+
+    /**
      * Handle incoming messages
      * @param {Object} data - The message data
      */
@@ -136,8 +183,27 @@ class ChatManager {
         if (data.type === 'chat_message') {
             console.log('Message details:', data.message);
             this.addMessageToDOM(data.message);
+        } else if (data.type === 'user_left') {
+            console.log('User left:', data.user_id, data.message);
+            this.addSystemMessageToDOM(data.message);
+
+            // If the user who left is the current user, redirect to chat list
+            if (data.user_id === this.employeeId) {
+                setTimeout(() => {
+                    window.location.href = '/chats/';
+                }, 2000);
+            }
+        } else if (data.type === 'user_added') {
+            console.log('User added:', data.user_id, data.message);
+            this.addSystemMessageToDOM(data.message);
+
+            // Refresh the page to show updated participant list
+            setTimeout(() => {
+                window.location.reload();
+            }, 2000);
         } else if (data.type === 'error') {
             console.error('Error from server:', data.message);
+            this.addSystemMessageToDOM(`Error: ${data.message}`, 'error');
         }
     }
 
@@ -197,6 +263,30 @@ class ChatManager {
     }
 
     /**
+     * Add a system message to the DOM
+     * @param {string} text - The message text
+     * @param {string} type - Message type (default, error, etc.)
+     */
+    addSystemMessageToDOM(text, type = 'default') {
+        // Create system message element
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message system ${type}`;
+
+        const messageContent = document.createElement('div');
+        messageContent.className = 'message-content';
+        messageContent.textContent = text;
+
+        // Assemble the message
+        messageDiv.appendChild(messageContent);
+
+        // Add to the container
+        this.messageContainer.appendChild(messageDiv);
+
+        // Scroll to the new message
+        this.scrollToBottom();
+    }
+
+    /**
      * Scroll to the bottom of the message container
      */
     scrollToBottom() {
@@ -225,55 +315,5 @@ class ChatManager {
                 this.connectionStatus.textContent = 'Disconnected';
                 break;
         }
-    }
-
-    /**
-     * Add a user to the group chat
-     */
-    addUserToChat() {
-        const selectedUserId = this.addUserSelect.value;
-        if (!selectedUserId) {
-            alert("Please select a user to add.");
-            return;
-        }
-
-        fetch(`/chat/add-user/`, {
-            method: "POST",
-            headers: {
-                "X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]").value,
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                session_id: this.sessionId,
-                user_id: selectedUserId,
-            }),
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                alert("User added successfully!");
-                location.reload();
-            } else {
-                alert("Error adding user: " + data.error);
-            }
-        });
-    }
-
-    /**
-     * Leave a group chat
-     */
-    leaveChat() {
-        fetch(`/chat/leave/${this.sessionId}/${this.employeeId}/`, {
-            method: "POST",
-            headers: { "X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]").value }
-        }).then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                alert("You have left the chat.");
-                window.location.href = "/chat/inbox/"; // Redirect to chat inbox
-            } else {
-                alert("Error leaving chat: " + data.error);
-            }
-        });
     }
 }
