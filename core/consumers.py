@@ -3,8 +3,7 @@ import logging
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.utils import timezone
-
-logger = logging.getLogger(__name__)
+from .models import ChatSession, Employee, ChatMessage, ChatNotification
 
 logger = logging.getLogger(__name__)
 
@@ -181,6 +180,7 @@ class AddUserConsumer(AsyncWebsocketConsumer):
                             'type': 'error',
                             'message': response
                         }))
+
         except json.JSONDecodeError:
             await self.send(text_data=json.dumps({
                 'type': 'error',
@@ -190,8 +190,8 @@ class AddUserConsumer(AsyncWebsocketConsumer):
             logger.error(f"Error in AddUserConsumer receive: {str(e)}")
             await self.send(text_data=json.dumps({
                 'type': 'error',
-                'message': str(e)
-            }))
+                'message': str(e)}
+            ))
 
     async def user_added(self, event):
         await self.send(text_data=json.dumps({
@@ -203,7 +203,6 @@ class AddUserConsumer(AsyncWebsocketConsumer):
     @database_sync_to_async
     def add_user_to_chat(self, session_id, user_id):
         """Add a user to a chat session asynchronously"""
-        from .models import ChatSession, Employee  # ✅ Lazy Import
         try:
             session = ChatSession.objects.get(id=session_id)
             new_user = Employee.objects.get(employee_id=user_id)
@@ -212,8 +211,8 @@ class AddUserConsumer(AsyncWebsocketConsumer):
                 return False, "User is already in the chat."
 
             session.participants.add(new_user)
-
             return True, f"User {new_user.user.get_full_name()} added to chat successfully."
+
         except ChatSession.DoesNotExist:
             return False, "Chat session not found."
         except Employee.DoesNotExist:
@@ -248,30 +247,6 @@ class NotificationConsumer(AsyncWebsocketConsumer):
         except json.JSONDecodeError:
             pass
 
-    async def notification_message(self, event):
-        await self.send(text_data=json.dumps({
-            "type": "new_message",
-            "message": event["message"]
-        }))
-
     @database_sync_to_async
     def mark_notifications_read(self):
-        from .models import ChatNotification
         ChatNotification.objects.filter(recipient_id=self.employee_id, is_seen=False).update(is_seen=True)
-
-
-
-logger = logging.getLogger('django')
-
-class DebugConsumer(AsyncWebsocketConsumer):
-    async def connect(self):
-        logger.info("DEBUG: WebSocket connection attempt received")
-        try:
-            await self.accept()
-            logger.info("DEBUG: WebSocket connection accepted")
-        except Exception as e:
-            logger.error(f"DEBUG: Error accepting WebSocket connection: {str(e)}")
-            raise
-
-    async def disconnect(self, close_code):
-        logger.info(f"DEBUG: WebSocket disconnected with code {close_code}")
