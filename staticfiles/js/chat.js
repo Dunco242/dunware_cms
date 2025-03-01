@@ -16,8 +16,11 @@ class ChatManager {
         this.messageContainer = document.getElementById('messageContainer');
         this.messageForm = document.getElementById('messageForm');
         this.connectionStatus = document.getElementById('connectionStatus');
+        this.addUserBtn = document.getElementById("addUserBtn");
+        this.addUserSelect = document.getElementById("addUserSelect");
+        this.leaveChatBtn = document.getElementById("leaveChatBtn");
 
-        // If wsBaseUrl is not provided, determine it based on page protocol
+        // Determine WebSocket protocol
         if (!wsBaseUrl) {
             const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
             wsBaseUrl = protocol + window.location.host;
@@ -71,13 +74,25 @@ class ChatManager {
     }
 
     /**
-     * Set up event listeners for the message form
+     * Set up event listeners for the message form, add user, and leave chat
      */
     setupEventListeners() {
         if (this.messageForm) {
             this.messageForm.addEventListener('submit', (event) => {
                 event.preventDefault();
                 this.sendMessage();
+            });
+        }
+
+        if (this.addUserBtn) {
+            this.addUserBtn.addEventListener("click", () => {
+                this.addUserToChat();
+            });
+        }
+
+        if (this.leaveChatBtn) {
+            this.leaveChatBtn.addEventListener("click", () => {
+                this.leaveChat();
             });
         }
     }
@@ -102,7 +117,7 @@ class ChatManager {
             type: 'new_message',
             session_id: this.sessionId,
             sender_id: this.employeeId,
-            receiver_id: receiverId,
+            receiver_id: this.isGroupChat ? null : receiverId,
             content: content
         };
 
@@ -210,5 +225,47 @@ class ChatManager {
                 this.connectionStatus.textContent = 'Disconnected';
                 break;
         }
+    }
+
+    /**
+     * Add a user to the group chat
+     */
+    addUserToChat() {
+        const selectedUserId = this.addUserSelect.value;
+        if (!selectedUserId) {
+            alert("Please select a user to add.");
+            return;
+        }
+
+        fetch(`/chat/add-user/`, {
+            method: "POST",
+            headers: {
+                "X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]").value,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                session_id: this.sessionId,
+                user_id: selectedUserId,
+            }),
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert("User added successfully!");
+                location.reload();
+            } else {
+                alert("Error adding user: " + data.error);
+            }
+        });
+    }
+
+    /**
+     * Leave a group chat
+     */
+    leaveChat() {
+        fetch(`/chat/leave/${this.sessionId}/${this.employeeId}/`, {
+            method: "POST",
+            headers: { "X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]").value }
+        }).then(() => window.location.href = "/chat/inbox/");
     }
 }

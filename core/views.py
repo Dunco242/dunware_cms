@@ -4305,3 +4305,18 @@ def add_user_to_chat(request):
             return JsonResponse({"success": False, "error": str(e)})
 
     return JsonResponse({"success": False, "error": "Invalid request"})
+
+
+@login_required
+def leave_chat(request, session_id, user_id):
+    """
+    Allow a user to leave a group chat.
+    """
+    user = get_object_or_404(Employee, employee_id=user_id)
+    session = get_object_or_404(ChatSession, id=session_id)
+
+    if session.is_group_chat:
+        session.participants.remove(user)
+        session.save()
+        return JsonResponse({"success": True})
+    return JsonResponse({"success": False, "error": "Cannot leave private chats"})
