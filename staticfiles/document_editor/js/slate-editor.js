@@ -4,13 +4,41 @@ import { createEditor } from 'slate';
 import { Slate, Editable, withReact } from 'slate-react';
 import { withHistory } from 'slate-history';
 
-// Initialize the editor with history
+// Ensure that the editor container exists before mounting
+document.addEventListener('DOMContentLoaded', () => {
+  const editorContainer = document.getElementById('slate-editor');
+
+  if (!editorContainer) {
+    console.error("Error: 'slate-editor' container not found.");
+    return;
+  }
+
+  try {
+    ReactDOM.render(<SlateEditor />, editorContainer);
+  } catch (error) {
+    console.error("Error rendering Slate editor:", error);
+    editorContainer.innerHTML = '<p class="text-danger">Failed to load editor.</p>';
+  }
+});
+
+// Slate.js Editor Component
 const SlateEditor = () => {
   const [editor] = useState(() => withHistory(withReact(createEditor())));
+
+  // Fetch document content from hidden textarea
   const initialValue = useMemo(() => {
+    const contentField = document.getElementById('document-content');
+
+    if (!contentField) {
+      console.error("Error: 'document-content' textarea not found.");
+      return [{ type: 'paragraph', children: [{ text: '' }] }];
+    }
+
     try {
-      const contentField = document.getElementById('document-content');
-      return contentField && contentField.value ? JSON.parse(contentField.value) : [{ type: 'paragraph', children: [{ text: '' }] }];
+      const content = contentField.value.trim();
+      console.log("Loaded document content:", content); // Debugging output
+
+      return content ? JSON.parse(content) : [{ type: 'paragraph', children: [{ text: '' }] }];
     } catch (error) {
       console.error('Error parsing document content:', error);
       return [{ type: 'paragraph', children: [{ text: '' }] }];
@@ -30,17 +58,3 @@ const SlateEditor = () => {
     </Slate>
   );
 };
-
-// Mount the React editor
-document.addEventListener('DOMContentLoaded', () => {
-  const editorContainer = document.getElementById('slate-editor');
-
-  if (editorContainer) {
-    try {
-      ReactDOM.render(<SlateEditor />, editorContainer);
-    } catch (error) {
-      console.error("Error rendering Slate editor:", error);
-      editorContainer.innerHTML = '<p class="text-danger">Failed to load editor.</p>';
-    }
-  }
-});
