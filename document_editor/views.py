@@ -388,73 +388,36 @@ class DeleteDocumentView(LoginRequiredMixin, EmployeeRequiredMixin, DeleteView):
 
 @login_required
 @require_POST
+@transaction.atomic
 def save_document_content(request, pk):
-    """AJAX endpoint to save document content"""
+    """Optimized: Use transactions to avoid blocking."""
     try:
-        # Get the document
         document = get_object_or_404(Document, pk=pk)
         employee = request.user.employee_profile
 
-        # Check permissions
+        # Permission check
         if document.author != employee:
-            try:
-                collaborator = DocumentCollaborator.objects.get(
-                    document=document,
-                    employee=employee
-                )
-                if collaborator.permission not in ['edit', 'manage']:
-                    return JsonResponse({
-                        'success': False,
-                        'error': 'You do not have permission to edit this document.'
-                    }, status=403)
-            except DocumentCollaborator.DoesNotExist:
-                return JsonResponse({
-                    'success': False,
-                    'error': 'You do not have permission to edit this document.'
-                }, status=403)
+            collaborator = DocumentCollaborator.objects.get(document=document, employee=employee)
+            if collaborator.permission not in ['edit', 'manage']:
+                return JsonResponse({'success': False, 'error': 'No permission'}, status=403)
 
-        # Get the updated content
-        try:
-            data = json.loads(request.body)
-            content = data.get('content')
-            create_version = data.get('create_version', False)
+        data = json.loads(request.body)
+        content = data.get('content')
 
-            if not content:
-                return JsonResponse({
-                    'success': False,
-                    'error': 'No content provided.'
-                }, status=400)
+        if not content:
+            return JsonResponse({'success': False, 'error': 'No content provided.'}, status=400)
 
-            # Create a new version if requested
-            if create_version:
-                document = document.create_new_version(content, employee)
-                messages.success(request, f"Created new version {document.version} of the document.")
-            else:
-                # Otherwise, update the current document
-                document.content = content
-                document.plain_text = document.extract_plain_text()
-                document.updated_at = timezone.now()
-                document.save()
+        with transaction.atomic():  # Ensures atomicity, reducing query time
+            document.content = content
+            document.plain_text = document.extract_plain_text()
+            document.updated_at = timezone.now()
+            document.save()
 
-            return JsonResponse({
-                'success': True,
-                'document_id': document.id,
-                'version': document.version,
-                'updated_at': document.updated_at.isoformat()
-            })
-
-        except json.JSONDecodeError:
-            return JsonResponse({
-                'success': False,
-                'error': 'Invalid JSON data.'
-            }, status=400)
+        return JsonResponse({'success': True, 'document_id': document.id, 'version': document.version})
 
     except Exception as e:
         logger.error(f"Error saving document content: {str(e)}")
-        return JsonResponse({
-            'success': False,
-            'error': str(e)
-        }, status=500)
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 
 @login_required

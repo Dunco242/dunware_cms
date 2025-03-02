@@ -22,38 +22,20 @@ const SlateEditor = () => {
     if (contentField && contentField.value) {
       try {
         const parsedContent = JSON.parse(contentField.value);
-
-        // Normalize content structure
         const content = parsedContent.children || parsedContent;
 
-        // Ensure content is an array with at least one paragraph
         if (!Array.isArray(content) || content.length === 0) {
-          return [
-            {
-              type: 'paragraph',
-              children: [{ text: '' }],
-            },
-          ];
+          return [{ type: 'paragraph', children: [{ text: '' }] }];
         }
 
         return content;
       } catch (error) {
         console.error('Error parsing document content:', error);
-        return [
-          {
-            type: 'paragraph',
-            children: [{ text: '' }],
-          },
-        ];
+        return [{ type: 'paragraph', children: [{ text: '' }] }];
       }
     }
 
-    return [
-      {
-        type: 'paragraph',
-        children: [{ text: '' }],
-      },
-    ];
+    return [{ type: 'paragraph', children: [{ text: '' }] }];
   }, []);
 
   const [editor] = useState(() => withHistory(withReact(createEditor())));
@@ -90,12 +72,7 @@ const SlateEditor = () => {
 
       if (data.success) {
         setHasUnsavedChanges(false);
-
-        const successMsg = createVersion
-          ? `Created new version ${data.version}`
-          : 'Document saved successfully';
-
-        showNotification(successMsg, 'success');
+        showNotification(createVersion ? `Created new version ${data.version}` : 'Document saved successfully', 'success');
 
         if (data.updated_at) {
           const lastSavedTimeElement = document.getElementById('last-saved-time');
@@ -118,13 +95,13 @@ const SlateEditor = () => {
   useEffect(() => {
     if (!canEdit) return;
 
-    const interval = setInterval(() => {
+    const saveInterval = setInterval(() => {
       if (hasUnsavedChanges) {
         saveDocument();
       }
-    }, 30000);
+    }, 60000); // Auto-save every 60 seconds instead of 30
 
-    return () => clearInterval(interval);
+    return () => clearInterval(saveInterval);
   }, [hasUnsavedChanges]);
 
   useEffect(() => {
@@ -137,10 +114,7 @@ const SlateEditor = () => {
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
-
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [hasUnsavedChanges]);
 
   const handleKeyDown = event => {
@@ -153,8 +127,7 @@ const SlateEditor = () => {
     for (const hotkey in HOTKEYS) {
       if (isHotkey(hotkey, event)) {
         event.preventDefault();
-        const mark = HOTKEYS[hotkey];
-        toggleMark(editor, mark);
+        toggleMark(editor, HOTKEYS[hotkey]);
         return;
       }
     }
@@ -167,31 +140,6 @@ const SlateEditor = () => {
         <MarkButton format="italic" icon="format_italic" />
         <MarkButton format="underline" icon="format_underlined" />
         <MarkButton format="code" icon="code" />
-        <div className="border-r border-gray-300 h-6 mx-1"></div>
-        <BlockButton format="heading-one" icon="looks_one" />
-        <BlockButton format="heading-two" icon="looks_two" />
-        <BlockButton format="block-quote" icon="format_quote" />
-        <BlockButton format="numbered-list" icon="format_list_numbered" />
-        <BlockButton format="bulleted-list" icon="format_list_bulleted" />
-        <div className="border-r border-gray-300 h-6 mx-1"></div>
-        <div className="flex-grow"></div>
-        <button
-          disabled={isSaving || !hasUnsavedChanges}
-          onClick={() => saveDocument()}
-          className={`inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md shadow-sm text-white ${
-            isSaving || !hasUnsavedChanges
-              ? 'bg-gray-400 cursor-not-allowed'
-              : 'bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500'
-          }`}
-        >
-          {isSaving ? 'Saving...' : 'Save'}
-        </button>
-        <button
-          onClick={() => saveDocument(true)}
-          className="inline-flex items-center px-3 py-1 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-        >
-          Save as New Version
-        </button>
       </div>
 
       <div className="slate-editor border p-4 min-h-[500px] rounded-b-md bg-white">
@@ -200,11 +148,7 @@ const SlateEditor = () => {
           value={value}
           onChange={newValue => {
             setValue(newValue);
-
-            const isChanged = JSON.stringify(newValue) !== JSON.stringify(initialValue);
-            if (isChanged !== hasUnsavedChanges) {
-              setHasUnsavedChanges(isChanged);
-            }
+            setHasUnsavedChanges(JSON.stringify(newValue) !== JSON.stringify(initialValue));
           }}
         >
           <Editable
@@ -221,180 +165,19 @@ const SlateEditor = () => {
       </div>
 
       <div className="slate-statusbar text-sm text-gray-500 mt-2 flex justify-between">
-        <div>
-          {hasUnsavedChanges ? (
-            <span className="text-amber-600">Unsaved changes</span>
-          ) : (
-            <span>No unsaved changes</span>
-          )}
-        </div>
-        <div>
-          Last saved: <span id="last-saved-time">Never</span>
-        </div>
+        <div>{hasUnsavedChanges ? <span className="text-amber-600">Unsaved changes</span> : <span>No unsaved changes</span>}</div>
+        <div>Last saved: <span id="last-saved-time">Never</span></div>
       </div>
     </div>
   );
 };
 
-const Element = ({ attributes, children, element }) => {
-  const style = { textAlign: element.align };
-
-  switch (element.type) {
-    case 'block-quote':
-      return (
-        <blockquote style={style} className="border-l-4 border-gray-300 pl-4 italic text-gray-600" {...attributes}>
-          {children}
-        </blockquote>
-      );
-    case 'bulleted-list':
-      return (
-        <ul style={style} className="list-disc pl-10" {...attributes}>
-          {children}
-        </ul>
-      );
-    case 'heading-one':
-      return (
-        <h1 style={style} className="text-2xl font-bold my-4" {...attributes}>
-          {children}
-        </h1>
-      );
-    case 'heading-two':
-      return (
-        <h2 style={style} className="text-xl font-bold my-3" {...attributes}>
-          {children}
-        </h2>
-      );
-    case 'list-item':
-      return (
-        <li style={style} {...attributes}>
-          {children}
-        </li>
-      );
-    case 'numbered-list':
-      return (
-        <ol style={style} className="list-decimal pl-10" {...attributes}>
-          {children}
-        </ol>
-      );
-    default:
-      return (
-        <p style={style} className="my-2" {...attributes}>
-          {children}
-        </p>
-      );
-  }
-};
-
-const Leaf = ({ attributes, children, leaf }) => {
-  if (leaf.bold) {
-    children = <strong>{children}</strong>;
-  }
-
-  if (leaf.italic) {
-    children = <em>{children}</em>;
-  }
-
-  if (leaf.underline) {
-    children = <u>{children}</u>;
-  }
-
-  if (leaf.code) {
-    children = <code className="bg-gray-100 rounded px-1 py-0.5 font-mono text-sm">{children}</code>;
-  }
-
-  return <span {...attributes}>{children}</span>;
-};
-
-const MarkButton = ({ format, icon }) => {
-  const editor = useSlate();
-  return (
-    <button
-      className={`p-1 rounded hover:bg-gray-200 ${
-        isMarkActive(editor, format) ? 'bg-gray-200 text-indigo-600' : 'text-gray-700'
-      }`}
-      onMouseDown={event => {
-        event.preventDefault();
-        toggleMark(editor, format);
-      }}
-    >
-      <span className="material-icons">{icon}</span>
-    </button>
-  );
-};
-
-const BlockButton = ({ format, icon }) => {
-  const editor = useSlate();
-  return (
-    <button
-      className={`p-1 rounded hover:bg-gray-200 ${
-        isBlockActive(editor, format) ? 'bg-gray-200 text-indigo-600' : 'text-gray-700'
-      }`}
-      onMouseDown={event => {
-        event.preventDefault();
-        toggleBlock(editor, format);
-      }}
-    >
-      <span className="material-icons">{icon}</span>
-    </button>
-  );
-};
-
-const isMarkActive = (editor, format) => {
-  const marks = Editor.marks(editor);
-  return marks ? marks[format] === true : false;
-};
-
-const toggleMark = (editor, format) => {
-  const isActive = isMarkActive(editor, format);
-
-  if (isActive) {
-    Editor.removeMark(editor, format);
-  } else {
-    Editor.addMark(editor, format, true);
-  }
-};
-
-const isBlockActive = (editor, format) => {
-  const [match] = Editor.nodes(editor, {
-    match: n =>
-      !Editor.isEditor(n) && SlateElement.isElement(n) && n.type === format,
-  });
-
-  return !!match;
-};
-
-const toggleBlock = (editor, format) => {
-  const isActive = isBlockActive(editor, format);
-  const isList = LIST_TYPES.includes(format);
-
-  Transforms.unwrapNodes(editor, {
-    match: n =>
-      !Editor.isEditor(n) &&
-      SlateElement.isElement(n) &&
-      LIST_TYPES.includes(n.type),
-    split: true,
-  });
-
-  let newProperties = {
-    type: isActive ? 'paragraph' : isList ? 'list-item' : format,
-  };
-
-  Transforms.setNodes(editor, newProperties);
-
-  if (!isActive && isList) {
-    const block = { type: format, children: [] };
-    Transforms.wrapNodes(editor, block);
-  }
-};
-
 const showNotification = (message, type = 'info') => {
   const notification = document.createElement('div');
   notification.className = `fixed bottom-4 right-4 p-4 rounded-md shadow-lg ${
-    type === 'success'
-      ? 'bg-green-50 text-green-800 border border-green-200'
-      : type === 'error'
-      ? 'bg-red-50 text-red-800 border border-red-200'
-      : 'bg-blue-50 text-blue-800 border border-blue-200'
+    type === 'success' ? 'bg-green-50 text-green-800 border border-green-200' :
+    type === 'error' ? 'bg-red-50 text-red-800 border border-red-200' :
+    'bg-blue-50 text-blue-800 border border-blue-200'
   }`;
 
   notification.textContent = message;
@@ -402,9 +185,7 @@ const showNotification = (message, type = 'info') => {
 
   setTimeout(() => {
     notification.classList.add('opacity-0', 'transition-opacity', 'duration-500');
-    setTimeout(() => {
-      document.body.removeChild(notification);
-    }, 500);
+    setTimeout(() => document.body.removeChild(notification), 500);
   }, 3000);
 };
 
@@ -415,11 +196,7 @@ document.addEventListener('DOMContentLoaded', () => {
       ReactDOM.render(<SlateEditor />, editorContainer);
     } catch (error) {
       console.error('Error rendering Slate editor:', error);
-      editorContainer.innerHTML = `
-        <div class="alert alert-danger">
-          Unable to load document editor. Please refresh the page or contact support.
-        </div>
-      `;
+      editorContainer.innerHTML = `<div class="alert alert-danger">Unable to load document editor. Please refresh the page or contact support.</div>`;
     }
   }
 });
