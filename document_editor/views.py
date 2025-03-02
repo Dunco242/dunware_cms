@@ -287,74 +287,61 @@ class DocumentEditorView(LoginRequiredMixin, EmployeeRequiredMixin, DetailView):
         return context
 
 
-class CreateDocumentView(LoginRequiredMixin, EmployeeRequiredMixin, CreateView):
-    """View to create a new document"""
+class DocumentEditorView(LoginRequiredMixin, EmployeeRequiredMixin, DetailView):
     model = Document
-    form_class = DocumentForm
-    template_name = 'document_editor/document_form.html'
+    template_name = 'document_editor/document_editor.html'
+    context_object_name = 'document'
 
-    def get_initial(self):
-        """Pre-populate form with initial values"""
-        initial = super().get_initial()
+    def get_queryset(self):
+        employee = self.request.user.employee_profile
+        return Document.objects.filter(
+            Q(author=employee) |
+            Q(collaborators__employee=employee)
+        ).distinct()
 
-        # Check if creating from a template
-        template_id = self.request.GET.get('template_id')
-        if template_id:
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        document = self.get_object()
+        employee = self.request.user.employee_profile
+
+        # Explicitly set can_edit as a string 'True' or 'False'
+        if document.author == employee:
+            context['can_edit'] = 'True'
+            context['can_comment'] = 'True'
+        else:
             try:
-                template = DocumentTemplate.objects.get(pk=template_id)
-                initial['title'] = f"Copy of {template.name}"
-                initial['document_type'] = template.category
-                initial['content'] = template.content
-            except DocumentTemplate.DoesNotExist:
-                pass
+                collaborator = DocumentCollaborator.objects.get(
+                    document=document,
+                    employee=employee
+                )
+                context['can_edit'] = 'True' if collaborator.permission in ['edit', 'manage'] else 'False'
+                context['can_comment'] = 'True' if collaborator.permission in ['comment', 'edit', 'manage'] else 'False'
+            except DocumentCollaborator.DoesNotExist:
+                context['can_edit'] = 'False'
+                context['can_comment'] = 'False'
 
-        # Pre-select customer if provided
-        customer_id = self.request.GET.get('customer_id')
-        if customer_id:
-            try:
-                customer = Customer.objects.get(pk=customer_id)
-                initial['customer'] = customer
-            except Customer.DoesNotExist:
-                pass
+        context['comments'] = DocumentComment.objects.filter(
+            document=document
+        ).order_by('created_at')
 
-        return initial
-
-    def form_valid(self, form):
-        """Process the form if valid"""
-        form.instance.author = self.request.user.employee_profile
-
-        # Create initial empty Slate.js document structure if not provided
-        if not form.instance.content:
-            form.instance.content = {
+        context['document_content'] = json.dumps(
+            document.content or
+            {
                 "children": [
                     {
+                        "type": "paragraph",
                         "children": [
                             {
                                 "text": ""
                             }
-                        ],
-                        "type": "paragraph"
+                        ]
                     }
                 ]
-            }
+            },
+            separators=(',', ':')
+        )
 
-        # Extract plain text for search
-        form.instance.plain_text = form.instance.extract_plain_text()
-
-        response = super().form_valid(form)
-        messages.success(self.request, f"Document '{form.instance.title}' created successfully.")
-
-        # Redirect to editor
-        return redirect('document_editor:edit_document', pk=self.object.pk)
-
-    def form_invalid(self, form):
-        """Handle form errors"""
-        messages.error(self.request, "Please correct the errors below.")
-        return super().form_invalid(form)
-
-    def get_success_url(self):
-        return reverse('document_editor:edit_document', kwargs={'pk': self.object.pk})
-
+        return context
 
 class UpdateDocumentView(LoginRequiredMixin, EmployeeRequiredMixin, UpdateView):
     """View to update document metadata (not content)"""
