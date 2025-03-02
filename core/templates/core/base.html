@@ -38,7 +38,7 @@
 </head>
 <body>
     <!-- Hidden employee ID for JavaScript -->
-    {% if user.is_authenticated and hasattr(user, 'employee_profile') %}
+    {% if user.is_authenticated and user.employee_profile %}
     <div id="userInfo" data-employee-id="{{ user.employee_profile.employee_id }}" class="d-none"></div>
     {% endif %}
 
