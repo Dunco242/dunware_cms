@@ -101,6 +101,12 @@ class DocumentListView(LoginRequiredMixin, EmployeeRequiredMixin, ListView):
             is_latest_version=True
         ).count()
 
+        context['published_count'] = Document.objects.filter(
+            author=employee,
+            status='published',
+            is_latest_version=True
+        ).count()
+
         context['shared_count'] = Document.objects.filter(
             collaborators__employee=employee
         ).distinct().count()
