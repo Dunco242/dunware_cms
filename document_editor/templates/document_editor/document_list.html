@@ -4,134 +4,147 @@
 {% block title %}Documents{% endblock %}
 
 {% block content %}
-<div class="container mx-auto px-4 py-6">
+<div class="container-fluid">
   <!-- Header and actions -->
-  <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
-    <div>
-      <h1 class="text-3xl font-bold text-gray-900">Documents</h1>
-      <p class="mt-1 text-sm text-gray-500">
+  <div class="row mb-4">
+    <div class="col-md-8">
+      <h1 class="h3">Documents</h1>
+      <p class="text-muted">
         Manage your documents and collaborate with team members
       </p>
     </div>
-    <div class="mt-4 md:mt-0 flex flex-wrap gap-2">
-      <a href="{% url 'document_editor:create_document' %}" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-        <span class="material-icons text-sm mr-1">add</span>
-        New Document
+    <div class="col-md-4 text-md-end mt-3 mt-md-0">
+      <a href="{% url 'document_editor:create_document' %}" class="btn btn-primary me-2">
+        <i class="fas fa-plus me-1"></i> New Document
       </a>
-      <a href="{% url 'document_editor:template_list' %}" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-        <span class="material-icons text-sm mr-1">description</span>
-        Templates
+      <a href="{% url 'document_editor:template_list' %}" class="btn btn-outline-secondary">
+        <i class="fas fa-file-alt me-1"></i> Templates
       </a>
     </div>
   </div>
 
   <!-- Filters and search -->
-  <div class="bg-white shadow-sm rounded-lg mb-6 p-4">
-    <form method="get" action="{% url 'document_editor:document_list' %}" class="flex flex-wrap gap-4">
-      <div class="w-full md:w-auto flex-grow">
-        <label for="search" class="sr-only">Search</label>
-        <div class="relative rounded-md shadow-sm">
-          <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <span class="material-icons text-gray-400 text-sm">search</span>
+  <div class="card mb-4">
+    <div class="card-body">
+      <form method="get" action="{% url 'document_editor:document_list' %}">
+        <div class="row g-3">
+          <div class="col-md-4">
+            <div class="input-group">
+              <span class="input-group-text"><i class="fas fa-search"></i></span>
+              <input type="text" name="search" id="search" value="{{ current_filters.search }}" class="form-control" placeholder="Search documents">
+            </div>
           </div>
-          <input type="text" name="search" id="search" value="{{ current_filters.search }}" class="focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md" placeholder="Search documents">
+
+          <div class="col-md-2">
+            <select id="status" name="status" class="form-select">
+              <option value="">All Statuses</option>
+              {% for key, value in status_choices.items %}
+                <option value="{{ key }}" {% if current_filters.status == key %}selected{% endif %}>{{ value }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="col-md-2">
+            <select id="type" name="type" class="form-select">
+              <option value="">All Types</option>
+              {% for key, value in document_types.items %}
+                <option value="{{ key }}" {% if current_filters.type == key %}selected{% endif %}>{{ value }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="col-md-2">
+            <select id="customer" name="customer" class="form-select">
+              <option value="">All Customers</option>
+              {% for customer in customers %}
+                <option value="{{ customer.id }}" {% if current_filters.customer == customer.id|stringformat:"i" %}selected{% endif %}>{{ customer.company_name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="col-md-2">
+            <select id="is_template" name="is_template" class="form-select">
+              <option value="">Regular & Templates</option>
+              <option value="false" {% if current_filters.is_template == 'false' %}selected{% endif %}>Regular Documents</option>
+              <option value="true" {% if current_filters.is_template == 'true' %}selected{% endif %}>Templates Only</option>
+            </select>
+          </div>
+
+          <div class="col-12 mt-3">
+            <button type="submit" class="btn btn-primary">
+              <i class="fas fa-filter me-1"></i> Filter
+            </button>
+            <a href="{% url 'document_editor:document_list' %}" class="btn btn-outline-secondary ms-2">
+              <i class="fas fa-redo me-1"></i> Reset
+            </a>
+          </div>
         </div>
-      </div>
-
-      <div class="w-full sm:w-auto">
-        <label for="status" class="sr-only">Status</label>
-        <select id="status" name="status" class="focus:ring-indigo-500 focus:border-indigo-500 w-full rounded-md sm:text-sm border-gray-300">
-          <option value="">All Statuses</option>
-          {% for key, value in status_choices.items %}
-            <option value="{{ key }}" {% if current_filters.status == key %}selected{% endif %}>{{ value }}</option>
-          {% endfor %}
-        </select>
-      </div>
-
-      <div class="w-full sm:w-auto">
-        <label for="type" class="sr-only">Document Type</label>
-        <select id="type" name="type" class="focus:ring-indigo-500 focus:border-indigo-500 w-full rounded-md sm:text-sm border-gray-300">
-          <option value="">All Types</option>
-          {% for key, value in document_types.items %}
-            <option value="{{ key }}" {% if current_filters.type == key %}selected{% endif %}>{{ value }}</option>
-          {% endfor %}
-        </select>
-      </div>
-
-      <div class="w-full sm:w-auto">
-        <label for="customer" class="sr-only">Customer</label>
-        <select id="customer" name="customer" class="focus:ring-indigo-500 focus:border-indigo-500 w-full rounded-md sm:text-sm border-gray-300">
-          <option value="">All Customers</option>
-          {% for customer in customers %}
-            <option value="{{ customer.id }}" {% if current_filters.customer == customer.id|stringformat:"i" %}selected{% endif %}>{{ customer.company_name }}</option>
-          {% endfor %}
-        </select>
-      </div>
-
-      <div class="w-full sm:w-auto">
-        <label for="is_template" class="sr-only">Template Status</label>
-        <select id="is_template" name="is_template" class="focus:ring-indigo-500 focus:border-indigo-500 w-full rounded-md sm:text-sm border-gray-300">
-          <option value="">Regular & Templates</option>
-          <option value="false" {% if current_filters.is_template == 'false' %}selected{% endif %}>Regular Documents</option>
-          <option value="true" {% if current_filters.is_template == 'true' %}selected{% endif %}>Templates Only</option>
-        </select>
-      </div>
-
-      <button type="submit" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-        Filter
-      </button>
-      <a href="{% url 'document_editor:document_list' %}" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-        Reset
-      </a>
-    </form>
+      </form>
+    </div>
   </div>
 
   <!-- Document stats -->
-  <div class="mb-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-    <div class="bg-white shadow-sm rounded-lg p-4">
-      <div class="flex items-center">
-        <div class="flex-shrink-0 rounded-md bg-indigo-500 p-3">
-          <span class="material-icons text-white">description</span>
-        </div>
-        <div class="ml-4">
-          <h3 class="text-lg font-medium text-gray-900">Total Documents</h3>
-          <p class="text-2xl font-semibold text-gray-700">{{ document_count }}</p>
-        </div>
-      </div>
-    </div>
-
-    <div class="bg-white shadow-sm rounded-lg p-4">
-      <div class="flex items-center">
-        <div class="flex-shrink-0 rounded-md bg-amber-500 p-3">
-          <span class="material-icons text-white">edit</span>
-        </div>
-        <div class="ml-4">
-          <h3 class="text-lg font-medium text-gray-900">Drafts</h3>
-          <p class="text-2xl font-semibold text-gray-700">{{ draft_count }}</p>
+  <div class="row mb-4">
+    <div class="col-md-3 mb-3 mb-md-0">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="d-flex align-items-center">
+            <div class="me-3 bg-primary rounded p-3 text-white">
+              <i class="fas fa-file-alt"></i>
+            </div>
+            <div>
+              <h6 class="card-title">Total Documents</h6>
+              <h3 class="card-text">{{ document_count }}</h3>
+            </div>
+          </div>
         </div>
       </div>
     </div>
 
-    <div class="bg-white shadow-sm rounded-lg p-4">
-      <div class="flex items-center">
-        <div class="flex-shrink-0 rounded-md bg-green-500 p-3">
-          <span class="material-icons text-white">check_circle</span>
-        </div>
-        <div class="ml-4">
-          <h3 class="text-lg font-medium text-gray-900">Published</h3>
-          <p class="text-2xl font-semibold text-gray-700">{{ published_count }}</p>
+    <div class="col-md-3 mb-3 mb-md-0">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="d-flex align-items-center">
+            <div class="me-3 bg-warning rounded p-3 text-white">
+              <i class="fas fa-edit"></i>
+            </div>
+            <div>
+              <h6 class="card-title">Drafts</h6>
+              <h3 class="card-text">{{ draft_count }}</h3>
+            </div>
+          </div>
         </div>
       </div>
     </div>
 
-    <div class="bg-white shadow-sm rounded-lg p-4">
-      <div class="flex items-center">
-        <div class="flex-shrink-0 rounded-md bg-purple-500 p-3">
-          <span class="material-icons text-white">people</span>
+    <div class="col-md-3 mb-3 mb-md-0">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="d-flex align-items-center">
+            <div class="me-3 bg-success rounded p-3 text-white">
+              <i class="fas fa-check-circle"></i>
+            </div>
+            <div>
+              <h6 class="card-title">Published</h6>
+              <h3 class="card-text">{{ published_count }}</h3>
+            </div>
+          </div>
         </div>
-        <div class="ml-4">
-          <h3 class="text-lg font-medium text-gray-900">Shared with Me</h3>
-          <p class="text-2xl font-semibold text-gray-700">{{ shared_count }}</p>
+      </div>
+    </div>
+
+    <div class="col-md-3">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="d-flex align-items-center">
+            <div class="me-3 bg-purple rounded p-3 text-white">
+              <i class="fas fa-users"></i>
+            </div>
+            <div>
+              <h6 class="card-title">Shared with Me</h6>
+              <h3 class="card-text">{{ shared_count }}</h3>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -139,50 +152,40 @@
 
   <!-- Documents grid -->
   {% if documents %}
-    <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 mb-6">
+    <div class="row">
       {% for document in documents %}
-        <div class="bg-white shadow-sm rounded-lg overflow-hidden">
-          <div class="p-4">
-            <div class="flex justify-between items-start">
-              <div class="flex-1">
-                <div class="flex items-center space-x-2">
-                  <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                    {{ document.get_document_type_display }}
-                  </span>
-                  <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                    {% if document.status == 'draft' %}bg-yellow-100 text-yellow-800
-                    {% elif document.status == 'review' %}bg-purple-100 text-purple-800
-                    {% elif document.status == 'published' %}bg-green-100 text-green-800
-                    {% else %}bg-gray-100 text-gray-800{% endif %}">
-                    {{ document.get_status_display }}
-                  </span>
-                </div>
-                <h3 class="mt-2 text-lg font-medium text-gray-900 truncate" title="{{ document.title }}">
-                  {{ document.title }}
-                </h3>
-                <div class="mt-1 text-sm text-gray-500">
-                  By {{ document.author.get_full_name }}
-                </div>
-                {% if document.customer %}
-                  <div class="mt-1 text-sm text-gray-500">
-                    Customer: {{ document.customer.company_name }}
-                  </div>
-                {% endif %}
+        <div class="col-md-6 col-xl-3 mb-4">
+          <div class="card h-100">
+            <div class="card-body">
+              <div class="d-flex justify-content-between mb-2">
+                <span class="badge bg-primary">{{ document.get_document_type_display }}</span>
+                <span class="badge
+                  {% if document.status == 'draft' %}bg-warning
+                  {% elif document.status == 'review' %}bg-info
+                  {% elif document.status == 'published' %}bg-success
+                  {% else %}bg-secondary{% endif %}">
+                  {{ document.get_status_display }}
+                </span>
               </div>
-              <div class="ml-4">
-                {% if document.is_template %}
-                  <span class="material-icons text-gray-400">content_copy</span>
-                {% endif %}
+              <h5 class="card-title text-truncate" title="{{ document.title }}">{{ document.title }}</h5>
+              <p class="card-text text-muted small mb-1">By {{ document.author.get_full_name }}</p>
+              {% if document.customer %}
+                <p class="card-text text-muted small">Customer: {{ document.customer.company_name }}</p>
+              {% endif %}
+              {% if document.is_template %}
+                <div class="text-end">
+                  <i class="fas fa-copy text-muted"></i>
+                </div>
+              {% endif %}
+              <div class="d-flex justify-content-between mt-3 small text-muted">
+                <div>Updated: {{ document.updated_at|date:"M j, Y" }}</div>
+                <div>Version {{ document.version }}</div>
               </div>
             </div>
-            <div class="mt-4 text-xs text-gray-500 flex items-center justify-between">
-              <div>Updated: {{ document.updated_at|date:"M j, Y" }}</div>
-              <div>Version {{ document.version }}</div>
+            <div class="card-footer bg-light d-flex justify-content-between">
+              <a href="{% url 'document_editor:document_detail' document.id %}" class="text-primary">Details</a>
+              <a href="{% url 'document_editor:edit_document' document.id %}" class="text-primary">Open</a>
             </div>
-          </div>
-          <div class="border-t border-gray-200 bg-gray-50 px-4 py-3 flex justify-between">
-            <a href="{% url 'document_editor:document_detail' document.id %}" class="text-indigo-600 hover:text-indigo-900">Details</a>
-            <a href="{% url 'document_editor:edit_document' document.id %}" class="text-indigo-600 hover:text-indigo-900">Open</a>
           </div>
         </div>
       {% endfor %}
@@ -190,66 +193,46 @@
 
     <!-- Pagination -->
     {% if is_paginated %}
-      <div class="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
-        <div class="flex-1 flex justify-between sm:hidden">
+      <nav aria-label="Document pagination" class="mt-4">
+        <ul class="pagination justify-content-center">
           {% if page_obj.has_previous %}
-            <a href="?{% if current_filters.search %}search={{ current_filters.search }}&{% endif %}{% if current_filters.status %}status={{ current_filters.status }}&{% endif %}{% if current_filters.type %}type={{ current_filters.type }}&{% endif %}{% if current_filters.customer %}customer={{ current_filters.customer }}&{% endif %}{% if current_filters.is_template %}is_template={{ current_filters.is_template }}&{% endif %}page={{ page_obj.previous_page_number }}" class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
-              Previous
-            </a>
+            <li class="page-item">
+              <a class="page-link" href="?{% if current_filters.search %}search={{ current_filters.search }}&{% endif %}{% if current_filters.status %}status={{ current_filters.status }}&{% endif %}{% if current_filters.type %}type={{ current_filters.type }}&{% endif %}{% if current_filters.customer %}customer={{ current_filters.customer }}&{% endif %}{% if current_filters.is_template %}is_template={{ current_filters.is_template }}&{% endif %}page={{ page_obj.previous_page_number }}">
+                <i class="fas fa-chevron-left"></i>
+              </a>
+            </li>
           {% endif %}
+
+          {% for i in paginator.page_range %}
+            {% if page_obj.number == i %}
+              <li class="page-item active">
+                <span class="page-link">{{ i }}</span>
+              </li>
+            {% elif i > page_obj.number|add:"-3" and i < page_obj.number|add:"3" %}
+              <li class="page-item">
+                <a class="page-link" href="?{% if current_filters.search %}search={{ current_filters.search }}&{% endif %}{% if current_filters.status %}status={{ current_filters.status }}&{% endif %}{% if current_filters.type %}type={{ current_filters.type }}&{% endif %}{% if current_filters.customer %}customer={{ current_filters.customer }}&{% endif %}{% if current_filters.is_template %}is_template={{ current_filters.is_template }}&{% endif %}page={{ i }}">{{ i }}</a>
+              </li>
+            {% endif %}
+          {% endfor %}
+
           {% if page_obj.has_next %}
-            <a href="?{% if current_filters.search %}search={{ current_filters.search }}&{% endif %}{% if current_filters.status %}status={{ current_filters.status }}&{% endif %}{% if current_filters.type %}type={{ current_filters.type }}&{% endif %}{% if current_filters.customer %}customer={{ current_filters.customer }}&{% endif %}{% if current_filters.is_template %}is_template={{ current_filters.is_template }}&{% endif %}page={{ page_obj.next_page_number }}" class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
-              Next
-            </a>
+            <li class="page-item">
+              <a class="page-link" href="?{% if current_filters.search %}search={{ current_filters.search }}&{% endif %}{% if current_filters.status %}status={{ current_filters.status }}&{% endif %}{% if current_filters.type %}type={{ current_filters.type }}&{% endif %}{% if current_filters.customer %}customer={{ current_filters.customer }}&{% endif %}{% if current_filters.is_template %}is_template={{ current_filters.is_template }}&{% endif %}page={{ page_obj.next_page_number }}">
+                <i class="fas fa-chevron-right"></i>
+              </a>
+            </li>
           {% endif %}
-        </div>
-        <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-          <div>
-            <p class="text-sm text-gray-700">
-              Showing <span class="font-medium">{{ page_obj.start_index }}</span> to <span class="font-medium">{{ page_obj.end_index }}</span> of <span class="font-medium">{{ paginator.count }}</span> documents
-            </p>
-          </div>
-          <div>
-            <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
-              {% if page_obj.has_previous %}
-                <a href="?{% if current_filters.search %}search={{ current_filters.search }}&{% endif %}{% if current_filters.status %}status={{ current_filters.status }}&{% endif %}{% if current_filters.type %}type={{ current_filters.type }}&{% endif %}{% if current_filters.customer %}customer={{ current_filters.customer }}&{% endif %}{% if current_filters.is_template %}is_template={{ current_filters.is_template }}&{% endif %}page={{ page_obj.previous_page_number }}" class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
-                  <span class="sr-only">Previous</span>
-                  <span class="material-icons text-sm">chevron_left</span>
-                </a>
-              {% endif %}
-
-              {% for i in paginator.page_range %}
-                {% if page_obj.number == i %}
-                  <span class="relative inline-flex items-center px-4 py-2 border border-indigo-500 bg-indigo-50 text-sm font-medium text-indigo-600">
-                    {{ i }}
-                  </span>
-                {% elif i > page_obj.number|add:"-3" and i < page_obj.number|add:"3" %}
-                  <a href="?{% if current_filters.search %}search={{ current_filters.search }}&{% endif %}{% if current_filters.status %}status={{ current_filters.status }}&{% endif %}{% if current_filters.type %}type={{ current_filters.type }}&{% endif %}{% if current_filters.customer %}customer={{ current_filters.customer }}&{% endif %}{% if current_filters.is_template %}is_template={{ current_filters.is_template }}&{% endif %}page={{ i }}" class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">
-                    {{ i }}
-                  </a>
-                {% endif %}
-              {% endfor %}
-
-              {% if page_obj.has_next %}
-                <a href="?{% if current_filters.search %}search={{ current_filters.search }}&{% endif %}{% if current_filters.status %}status={{ current_filters.status }}&{% endif %}{% if current_filters.type %}type={{ current_filters.type }}&{% endif %}{% if current_filters.customer %}customer={{ current_filters.customer }}&{% endif %}{% if current_filters.is_template %}is_template={{ current_filters.is_template }}&{% endif %}page={{ page_obj.next_page_number }}" class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
-                  <span class="sr-only">Next</span>
-                  <span class="material-icons text-sm">chevron_right</span>
-                </a>
-              {% endif %}
-            </nav>
-          </div>
-        </div>
-      </div>
+        </ul>
+      </nav>
     {% endif %}
   {% else %}
-    <div class="text-center py-12 bg-white shadow rounded-lg">
-      <span class="material-icons text-gray-400 text-5xl">description</span>
-      <h3 class="mt-2 text-lg font-medium text-gray-900">No documents found</h3>
-      <p class="mt-1 text-sm text-gray-500">Get started by creating a new document.</p>
-      <div class="mt-6">
-        <a href="{% url 'document_editor:create_document' %}" class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-          <span class="material-icons text-sm mr-2">add</span>
-          New Document
+    <div class="card text-center py-5">
+      <div class="card-body">
+        <i class="fas fa-file-alt text-muted fa-3x mb-3"></i>
+        <h4>No documents found</h4>
+        <p class="text-muted">Get started by creating a new document.</p>
+        <a href="{% url 'document_editor:create_document' %}" class="btn btn-primary mt-2">
+          <i class="fas fa-plus me-1"></i> New Document
         </a>
       </div>
     </div>

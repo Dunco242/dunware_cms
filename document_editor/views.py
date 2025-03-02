@@ -341,6 +341,9 @@ class CreateDocumentView(LoginRequiredMixin, EmployeeRequiredMixin, CreateView):
         messages.error(self.request, "Please correct the errors below.")
         return super().form_invalid(form)
 
+    def get_success_url(self):
+        return reverse('document_editor:edit_document', kwargs={'pk': self.object.pk})
+
 
 class UpdateDocumentView(LoginRequiredMixin, EmployeeRequiredMixin, UpdateView):
     """View to update document metadata (not content)"""
