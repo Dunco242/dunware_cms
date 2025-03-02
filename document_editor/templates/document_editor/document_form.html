@@ -1,0 +1,240 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}
+  {% if is_update %}
+    Edit {{ document.title }}
+  {% else %}
+    New Document
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-6">
+  <!-- Breadcrumbs -->
+  <nav class="flex mb-5" aria-label="Breadcrumb">
+    <ol class="flex items-center space-x-1 md:space-x-3">
+      <li>
+        <div class="flex items-center">
+          <a href="{% url 'document_editor:document_list' %}" class="text-gray-500 hover:text-gray-700">Documents</a>
+          <span class="material-icons text-gray-400 mx-2 text-sm">chevron_right</span>
+        </div>
+      </li>
+      <li>
+        <div class="flex items-center">
+          <span class="text-gray-800 font-medium">
+            {% if is_update %}
+              Edit {{ document.title }}
+            {% else %}
+              New Document
+            {% endif %}
+          </span>
+        </div>
+      </li>
+    </ol>
+  </nav>
+
+  <!-- Header -->
+  <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+      <h1 class="text-3xl font-bold text-gray-900">
+        {% if is_update %}
+          Edit Document
+        {% else %}
+          New Document
+        {% endif %}
+      </h1>
+      <p class="mt-1 text-sm text-gray-500">
+        {% if is_update %}
+          Update document information
+        {% else %}
+          Create a new document
+        {% endif %}
+      </p>
+    </div>
+  </div>
+
+  <!-- Form Card -->
+  <div class="bg-white shadow-sm rounded-lg p-6 max-w-4xl mx-auto">
+    <form method="post" action="{% if is_update %}{% url 'document_editor:update_document' document.pk %}{% else %}{% url 'document_editor:create_document' %}{% endif %}">
+      {% csrf_token %}
+
+      {% if form.non_field_errors %}
+        <div class="mb-4 p-4 bg-red-50 border border-red-300 rounded-md">
+          <div class="flex">
+            <div class="flex-shrink-0">
+              <span class="material-icons text-red-400">error</span>
+            </div>
+            <div class="ml-3">
+              <h3 class="text-sm font-medium text-red-800">There were errors with your submission</h3>
+              <div class="mt-2 text-sm text-red-700">
+                <ul class="list-disc pl-5 space-y-1">
+                  {% for error in form.non_field_errors %}
+                    <li>{{ error }}</li>
+                  {% endfor %}
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      {% endif %}
+
+      <div class="grid grid-cols-1 gap-6">
+        <!-- Title -->
+        <div>
+          <label for="{{ form.title.id_for_label }}" class="block text-sm font-medium text-gray-700">
+            Document Title <span class="text-red-500">*</span>
+          </label>
+          <div class="mt-1">
+            {{ form.title }}
+            {% if form.title.errors %}
+              <div class="text-red-500 text-xs mt-1">
+                {% for error in form.title.errors %}
+                  {{ error }}
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Document Type -->
+        <div>
+          <label for="{{ form.document_type.id_for_label }}" class="block text-sm font-medium text-gray-700">
+            Document Type <span class="text-red-500">*</span>
+          </label>
+          <div class="mt-1">
+            {{ form.document_type }}
+            {% if form.document_type.errors %}
+              <div class="text-red-500 text-xs mt-1">
+                {% for error in form.document_type.errors %}
+                  {{ error }}
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Status -->
+        <div>
+          <label for="{{ form.status.id_for_label }}" class="block text-sm font-medium text-gray-700">
+            Status <span class="text-red-500">*</span>
+          </label>
+          <div class="mt-1">
+            {{ form.status }}
+            {% if form.status.errors %}
+              <div class="text-red-500 text-xs mt-1">
+                {% for error in form.status.errors %}
+                  {{ error }}
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Customer -->
+        <div>
+          <label for="{{ form.customer.id_for_label }}" class="block text-sm font-medium text-gray-700">
+            Customer
+          </label>
+          <div class="mt-1">
+            {{ form.customer }}
+            {% if form.customer.errors %}
+              <div class="text-red-500 text-xs mt-1">
+                {% for error in form.customer.errors %}
+                  {{ error }}
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
+          <p class="mt-1 text-xs text-gray-500">
+            Associate this document with a customer (optional)
+          </p>
+        </div>
+
+        <!-- Tags -->
+        <div>
+          <label for="{{ form.tags.id_for_label }}" class="block text-sm font-medium text-gray-700">
+            Tags
+          </label>
+          <div class="mt-1">
+            {{ form.tags }}
+            {% if form.tags.errors %}
+              <div class="text-red-500 text-xs mt-1">
+                {% for error in form.tags.errors %}
+                  {{ error }}
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
+          <p class="mt-1 text-xs text-gray-500">
+            {{ form.tags.help_text }}
+          </p>
+        </div>
+
+        <!-- Template and Public options -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+          <div>
+            <div class="flex items-start">
+              <div class="flex items-center h-5">
+                {{ form.is_template }}
+              </div>
+              <div class="ml-3 text-sm">
+                <label for="{{ form.is_template.id_for_label }}" class="font-medium text-gray-700">
+                  Template
+                </label>
+                <p class="text-gray-500">{{ form.is_template.help_text }}</p>
+                {% if form.is_template.errors %}
+                  <div class="text-red-500 text-xs mt-1">
+                    {% for error in form.is_template.errors %}
+                      {{ error }}
+                    {% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div class="flex items-start">
+              <div class="flex items-center h-5">
+                {{ form.is_public }}
+              </div>
+              <div class="ml-3 text-sm">
+                <label for="{{ form.is_public.id_for_label }}" class="font-medium text-gray-700">
+                  Public
+                </label>
+                <p class="text-gray-500">{{ form.is_public.help_text }}</p>
+                {% if form.is_public.errors %}
+                  <div class="text-red-500 text-xs mt-1">
+                    {% for error in form.is_public.errors %}
+                      {{ error }}
+                    {% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {% if form.content %}
+          <input type="hidden" name="content" id="content-field" value="{{ form.content.value|default:'{}' }}">
+        {% endif %}
+      </div>
+
+      <!-- Form Buttons -->
+      <div class="mt-6 flex items-center justify-end space-x-4">
+        <a href="{% url 'document_editor:document_list' %}" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+          Cancel
+        </a>
+        <button type="submit" class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+          {% if is_update %}
+            Update Document
+          {% else %}
+            Create Document
+          {% endif %}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

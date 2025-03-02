@@ -1,0 +1,584 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}{{ document.title }} - Details{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-6">
+  <!-- Breadcrumbs -->
+  <nav class="flex mb-5" aria-label="Breadcrumb">
+    <ol class="flex items-center space-x-1 md:space-x-3">
+      <li>
+        <div class="flex items-center">
+          <a href="{% url 'document_editor:document_list' %}" class="text-gray-500 hover:text-gray-700">Documents</a>
+          <span class="material-icons text-gray-400 mx-2 text-sm">chevron_right</span>
+        </div>
+      </li>
+      <li>
+        <div class="flex items-center">
+          <span class="text-gray-800 font-medium">{{ document.title }}</span>
+        </div>
+      </li>
+    </ol>
+  </nav>
+
+  <!-- Header and actions -->
+  <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+      <h1 class="text-3xl font-bold text-gray-900">{{ document.title }}</h1>
+      <div class="mt-1 flex flex-wrap items-center gap-2">
+        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+          {{ document.get_document_type_display }}
+        </span>
+        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+          {% if document.status == 'draft' %}bg-yellow-100 text-yellow-800
+          {% elif document.status == 'review' %}bg-purple-100 text-purple-800
+          {% elif document.status == 'published' %}bg-green-100 text-green-800
+          {% else %}bg-gray-100 text-gray-800{% endif %}">
+          {{ document.get_status_display }}
+        </span>
+        {% if document.is_template %}
+          <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+            Template
+          </span>
+        {% endif %}
+        {% if document.is_public %}
+          <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+            Public
+          </span>
+        {% endif %}
+        <span class="text-gray-500 text-sm">Version {{ document.version }}</span>
+      </div>
+    </div>
+
+    <div class="mt-4 md:mt-0 flex flex-wrap gap-2">
+      <a href="{% url 'document_editor:edit_document' document.id %}" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+        <span class="material-icons text-sm mr-1">edit</span>
+        Edit Document
+      </a>
+      <div class="relative" x-data="{ open: false }">
+        <button @click="open = !open" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+          <span class="material-icons text-sm mr-1">more_horiz</span>
+          More Actions
+        </button>
+        <div x-show="open" @click.away="open = false" class="origin-top-right absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-10">
+          <div class="py-1">
+            <a href="{% url 'document_editor:update_document' document.id %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+              <span class="material-icons mr-2 align-text-bottom text-gray-500">edit</span>
+              Edit Metadata
+            </a>
+            <a href="{% url 'document_editor:export_document' document.id 'html' %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+              <span class="material-icons mr-2 align-text-bottom text-gray-500">download</span>
+              Export as HTML
+            </a>
+            <a href="{% url 'document_editor:save_as_template' document.id %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+              <span class="material-icons mr-2 align-text-bottom text-gray-500">content_copy</span>
+              Save as Template
+            </a>
+            {% if document.author == request.user.employee_profile %}
+              <hr class="my-1">
+              <a href="{% url 'document_editor:delete_document' document.id %}" class="block px-4 py-2 text-sm text-red-700 hover:bg-red-100">
+                <span class="material-icons mr-2 align-text-bottom text-red-500">delete</span>
+                Delete Document
+              </a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Document info and metadata -->
+    <div class="lg:col-span-2 space-y-6">
+      <!-- Basic information -->
+      <div class="bg-white shadow-sm rounded-lg p-6">
+        <h2 class="text-lg font-medium text-gray-900 mb-4">Document Information</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <div class="text-sm font-medium text-gray-500">Author</div>
+            <div class="mt-1 text-sm text-gray-900">{{ document.author.get_full_name }}</div>
+          </div>
+          <div>
+            <div class="text-sm font-medium text-gray-500">Status</div>
+            <div class="mt-1 text-sm text-gray-900">{{ document.get_status_display }}</div>
+          </div>
+          <div>
+            <div class="text-sm font-medium text-gray-500">Document Type</div>
+            <div class="mt-1 text-sm text-gray-900">{{ document.get_document_type_display }}</div>
+          </div>
+          <div>
+            <div class="text-sm font-medium text-gray-500">Version</div>
+            <div class="mt-1 text-sm text-gray-900">{{ document.version }}</div>
+          </div>
+          <div>
+            <div class="text-sm font-medium text-gray-500">Created</div>
+            <div class="mt-1 text-sm text-gray-900">{{ document.created_at|date:"F j, Y, g:i a" }}</div>
+          </div>
+          <div>
+            <div class="text-sm font-medium text-gray-500">Last Updated</div>
+            <div class="mt-1 text-sm text-gray-900">{{ document.updated_at|date:"F j, Y, g:i a" }}</div>
+          </div>
+          {% if document.customer %}
+            <div>
+              <div class="text-sm font-medium text-gray-500">Customer</div>
+              <div class="mt-1 text-sm text-gray-900">{{ document.customer.company_name }}</div>
+            </div>
+          {% endif %}
+          {% if document.tags %}
+            <div>
+              <div class="text-sm font-medium text-gray-500">Tags</div>
+              <div class="mt-1 text-sm text-gray-900 flex flex-wrap gap-1">
+                {% for tag in document.tags.split %}
+                  <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                    {{ tag }}
+                  </span>
+                {% endfor %}
+              </div>
+            </div>
+          {% endif %}
+        </div>
+
+        <div class="mt-6">
+          <a href="{% url 'document_editor:update_document' document.id %}" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">
+            Edit Document Information
+          </a>
+        </div>
+      </div>
+
+      <!-- Version history -->
+      {% if versions %}
+        <div class="bg-white shadow-sm rounded-lg p-6">
+          <h2 class="text-lg font-medium text-gray-900 mb-4">Version History</h2>
+          <div class="overflow-hidden shadow-sm ring-1 ring-black ring-opacity-5 md:rounded-lg">
+            <table class="min-w-full divide-y divide-gray-300">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">Version</th>
+                  <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Last Updated</th>
+                  <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Author</th>
+                  <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Status</th>
+                  <th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-6">
+                    <span class="sr-only">View</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-200 bg-white">
+                {% for version in versions %}
+                  <tr class="{% if version.id == document.id %}bg-indigo-50{% endif %}">
+                    <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">{{ version.version }}</td>
+                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ version.updated_at|date:"M j, Y, g:i a" }}</td>
+                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ version.author.get_full_name }}</td>
+                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                      <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                        {% if version.status == 'draft' %}bg-yellow-100 text-yellow-800
+                        {% elif version.status == 'review' %}bg-purple-100 text-purple-800
+                        {% elif version.status == 'published' %}bg-green-100 text-green-800
+                        {% else %}bg-gray-100 text-gray-800{% endif %}">
+                        {{ version.get_status_display }}
+                      </span>
+                    </td>
+                    <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
+                      <a href="{% url 'document_editor:edit_document' version.id %}" class="text-indigo-600 hover:text-indigo-900">
+                        View<span class="sr-only">, version {{ version.version }}</span>
+                      </a>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      {% endif %}
+
+      <!-- Comments -->
+      {% if comments %}
+        <div class="bg-white shadow-sm rounded-lg p-6">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-medium text-gray-900">Comments</h2>
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-md text-sm font-medium bg-yellow-100 text-yellow-800">
+              {{ unresolved_count }} Unresolved
+            </span>
+          </div>
+          <div class="space-y-6 max-h-96 overflow-y-auto px-1">
+            {% for comment in comments %}
+              <div class="border border-gray-200 rounded-lg p-4 {% if comment.is_resolved %}bg-gray-50{% endif %}">
+                <div class="flex items-start">
+                  <div class="flex-shrink-0">
+                    <div class="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center">
+                      <span class="text-indigo-800 font-medium">{{ comment.author.get_full_name|slice:":1" }}</span>
+                    </div>
+                  </div>
+                  <div class="ml-3 flex-1">
+                    <div class="text-sm font-medium text-gray-900">
+                      {{ comment.author.get_full_name }}
+                      <span class="text-gray-500 text-xs">{{ comment.created_at|date:"M j, Y, g:i a" }}</span>
+                    </div>
+                    {% if comment.selected_text %}
+                      <div class="mt-1 text-xs text-gray-500 bg-gray-50 p-2 rounded italic border border-gray-200">
+                        "{{ comment.selected_text }}"
+                      </div>
+                    {% endif %}
+                    <div class="mt-1 text-sm text-gray-700">
+                      {{ comment.content }}
+                    </div>
+                    {% if comment.is_resolved %}
+                      <div class="mt-2 text-xs text-green-600 flex items-center">
+                        <span class="material-icons text-sm mr-1">check_circle</span>
+                        Resolved by {{ comment.resolved_by.get_full_name }} on {{ comment.resolved_at|date:"M j, Y, g:i a" }}
+                      </div>
+                    {% endif %}
+
+                    {% if comment.replies.exists %}
+                      <div class="mt-3 border-l-2 border-gray-200 pl-4 space-y-3">
+                        {% for reply in comment.replies.all %}
+                          <div class="text-sm">
+                            <div class="flex items-start">
+                              <div class="flex-shrink-0">
+                                <div class="h-6 w-6 rounded-full bg-gray-100 flex items-center justify-center">
+                                  <span class="text-gray-800 font-medium text-xs">{{ reply.author.get_full_name|slice:":1" }}</span>
+                                </div>
+                              </div>
+                              <div class="ml-2">
+                                <div class="font-medium text-gray-900">
+                                  {{ reply.author.get_full_name }}
+                                  <span class="text-gray-500 text-xs">{{ reply.created_at|date:"M j, Y, g:i a" }}</span>
+                                </div>
+                                <div class="text-gray-700">{{ reply.content }}</div>
+                              </div>
+                            </div>
+                          </div>
+                        {% endfor %}
+                      </div>
+                    {% endif %}
+                  </div>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+          <div class="mt-4 text-center">
+            <a href="{% url 'document_editor:edit_document' document.id %}" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+              View in Editor
+            </a>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- Right sidebar for collaborators and permissions -->
+    <div class="space-y-6">
+      <!-- Document permission level -->
+      <div class="bg-white shadow-sm rounded-lg p-6">
+        <h2 class="text-lg font-medium text-gray-900 mb-4">Your Access</h2>
+        <div class="flex items-center">
+          <span class="material-icons mr-2 text-indigo-600">
+            {% if permission == 'manage' %}admin_panel_settings
+            {% elif permission == 'edit' %}edit
+            {% elif permission == 'comment' %}comment
+            {% else %}visibility{% endif %}
+          </span>
+          <div class="text-lg font-medium text-gray-700">
+            {% if permission == 'manage' %}Manager
+            {% elif permission == 'edit' %}Editor
+            {% elif permission == 'comment' %}Commenter
+            {% else %}Viewer{% endif %}
+          </div>
+        </div>
+        <p class="mt-2 text-sm text-gray-500">
+          {% if permission == 'manage' %}
+            You can edit, comment, share, and manage this document
+          {% elif permission == 'edit' %}
+            You can edit and comment on this document
+          {% elif permission == 'comment' %}
+            You can view and comment on this document
+          {% else %}
+            You can only view this document
+          {% endif %}
+        </p>
+      </div>
+
+      <!-- Collaborators -->
+      {% if document.author == request.user.employee_profile or permission == 'manage' %}
+        <div class="bg-white shadow-sm rounded-lg p-6">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-medium text-gray-900">Collaborators</h2>
+            <button x-data @click="$dispatch('open-modal', {id: 'add-collaborator-modal'})" class="inline-flex items-center px-2 py-1 border border-transparent text-sm font-medium rounded-md text-indigo-600 bg-indigo-50 hover:bg-indigo-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+              <span class="material-icons text-sm mr-1">add</span>
+              Add
+            </button>
+          </div>
+
+          <div>
+            <!-- Owner -->
+            <div class="flex items-center justify-between py-3 border-b border-gray-200">
+              <div class="flex items-center">
+                <div class="flex-shrink-0">
+                  <div class="h-8 w-8 rounded-full bg-indigo-500 flex items-center justify-center">
+                    <span class="text-white font-medium">{{ document.author.get_full_name|slice:":1" }}</span>
+                  </div>
+                </div>
+                <div class="ml-3">
+                  <div class="text-sm font-medium text-gray-900">{{ document.author.get_full_name }}</div>
+                  <div class="text-xs text-gray-500">Owner</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Collaborators -->
+            {% if collaborators %}
+              {% for collaborator in collaborators %}
+                <div class="flex items-center justify-between py-3 border-b border-gray-200">
+                  <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                      <div class="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center">
+                        <span class="text-gray-700 font-medium">{{ collaborator.employee.get_full_name|slice:":1" }}</span>
+                      </div>
+                    </div>
+                    <div class="ml-3">
+                      <div class="text-sm font-medium text-gray-900">{{ collaborator.employee.get_full_name }}</div>
+                      <div class="text-xs text-gray-500">
+                        {% if collaborator.permission == 'manage' %}Manager
+                        {% elif collaborator.permission == 'edit' %}Editor
+                        {% elif collaborator.permission == 'comment' %}Commenter
+                        {% else %}Viewer{% endif %}
+                      </div>
+                    </div>
+                  </div>
+                  <div class="flex items-center">
+                    <div x-data="{ open: false }" class="relative">
+                      <button @click="open = !open" class="text-gray-500 hover:text-gray-700">
+                        <span class="material-icons text-sm">more_vert</span>
+                      </button>
+                      <div x-show="open" @click.away="open = false" class="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-10">
+                        <div class="py-1">
+                          <button @click="open = false; $dispatch('open-modal', {id: 'edit-permission-modal-{{ collaborator.id }}'})" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                            Edit Permissions
+                          </button>
+                          <form action="{% url 'document_editor:remove_collaborator' document.id collaborator.id %}" method="post" class="block w-full text-left">
+                            {% csrf_token %}
+                            <button type="submit" class="block w-full text-left px-4 py-2 text-sm text-red-700 hover:bg-red-100">
+                              Remove Access
+                            </button>
+                          </form>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Edit permission modal -->
+                    <div x-data="{ show: false }"
+                         @open-modal.window="if ($event.detail.id === 'edit-permission-modal-{{ collaborator.id }}') show = true"
+                         @keydown.escape.window="show = false"
+                         x-show="show"
+                         class="fixed inset-0 overflow-y-auto z-50"
+                         x-cloak>
+                      <div class="flex items-center justify-center min-h-screen p-4">
+                        <div x-show="show" @click="show = false" class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"></div>
+                        <div x-show="show" class="bg-white rounded-lg overflow-hidden shadow-xl transform transition-all sm:max-w-lg sm:w-full">
+                          <form action="{% url 'document_editor:update_collaborator_permission' document.id collaborator.id %}" method="post">
+                            {% csrf_token %}
+                            <div class="px-4 py-5 sm:p-6">
+                              <h3 class="text-lg leading-6 font-medium text-gray-900">
+                                Edit Permissions for {{ collaborator.employee.get_full_name }}
+                              </h3>
+                              <div class="mt-4">
+                                <label for="permission-{{ collaborator.id }}" class="block text-sm font-medium text-gray-700">
+                                  Permission Level
+                                </label>
+                                <select id="permission-{{ collaborator.id }}" name="permission" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                                  <option value="view" {% if collaborator.permission == 'view' %}selected{% endif %}>
+                                    Viewer (Can view)
+                                  </option>
+                                  <option value="comment" {% if collaborator.permission == 'comment' %}selected{% endif %}>
+                                    Commenter (Can view and comment)
+                                  </option>
+                                  <option value="edit" {% if collaborator.permission == 'edit' %}selected{% endif %}>
+                                    Editor (Can view, comment, and edit)
+                                  </option>
+                                  <option value="manage" {% if collaborator.permission == 'manage' %}selected{% endif %}>
+                                    Manager (Full access)
+                                  </option>
+                                </select>
+                              </div>
+                            </div>
+                            <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                              <button type="submit" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm">
+                                Update Permissions
+                              </button>
+                              <button @click="show = false" type="button" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
+                                Cancel
+                              </button>
+                            </div>
+                          </form>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              {% endfor %}
+            {% else %}
+              <div class="py-4 text-center text-sm text-gray-500">
+                No collaborators yet
+              </div>
+            {% endif %}
+          </div>
+
+          <div class="mt-4 text-sm text-gray-500 text-center">
+            Share this document to collaborate with others
+          </div>
+        </div>
+
+        <!-- Add Collaborator Modal -->
+        <div x-data="{ show: false }"
+             @open-modal.window="if ($event.detail.id === 'add-collaborator-modal') show = true"
+             @keydown.escape.window="show = false"
+             x-show="show"
+             class="fixed inset-0 overflow-y-auto z-50"
+             x-cloak>
+          <div class="flex items-center justify-center min-h-screen p-4">
+            <div x-show="show" @click="show = false" class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"></div>
+            <div x-show="show" class="bg-white rounded-lg overflow-hidden shadow-xl transform transition-all sm:max-w-lg sm:w-full">
+              <form action="{% url 'document_editor:add_collaborator' document.id %}" method="post" id="add-collaborator-form">
+                {% csrf_token %}
+                <div class="px-4 py-5 sm:p-6">
+                  <h3 class="text-lg leading-6 font-medium text-gray-900">
+                    Add Collaborator
+                  </h3>
+                  <div class="mt-4">
+                    <label for="employee_id" class="block text-sm font-medium text-gray-700">
+                      Employee
+                    </label>
+                    <select id="employee_id" name="employee_id" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md" required>
+                      <option value="">Select an employee</option>
+                      {% for employee in employees %}
+                        {% if employee != document.author %}
+                          <option value="{{ employee.id }}">{{ employee.get_full_name }}</option>
+                        {% endif %}
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div class="mt-4">
+                    <label for="permission" class="block text-sm font-medium text-gray-700">
+                      Permission Level
+                    </label>
+                    <select id="permission" name="permission" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                      <option value="view">Viewer (Can view)</option>
+                      <option value="comment">Commenter (Can view and comment)</option>
+                      <option value="edit">Editor (Can view, comment, and edit)</option>
+                      <option value="manage">Manager (Full access)</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                  <button type="submit" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm">
+                    Add Collaborator
+                  </button>
+                  <button @click="show = false" type="button" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      {% endif %}
+
+      <!-- Document Status -->
+      {% if document.author == request.user.employee_profile or permission == 'manage' %}
+        <div class="bg-white shadow-sm rounded-lg p-6">
+          <h2 class="text-lg font-medium text-gray-900 mb-4">Document Status</h2>
+          <form action="{% url 'document_editor:update_document_status' document.id %}" method="post" id="update-status-form">
+            {% csrf_token %}
+            <div>
+              <label for="status" class="block text-sm font-medium text-gray-700">
+                Current Status
+              </label>
+              <select id="status" name="status" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                {% for key, value in status_choices.items %}
+                  <option value="{{ key }}" {% if document.status == key %}selected{% endif %}>{{ value }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="mt-4">
+              <button type="submit" class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                Update Status
+              </button>
+            </div>
+          </form>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const updateStatusForm = document.getElementById('update-status-form');
+    if (updateStatusForm) {
+      updateStatusForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        const status = document.getElementById('status').value;
+
+        fetch("{% url 'document_editor:update_document_status' document.id %}", {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}'
+          },
+          body: JSON.stringify({ status })
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            // Reload the page to show the updated status
+            window.location.reload();
+          } else {
+            alert('Error updating status: ' + data.error);
+          }
+        })
+        .catch(error => {
+          console.error('Error updating status:', error);
+          alert('Error updating status. Please try again.');
+        });
+      });
+    }
+
+    const addCollaboratorForm = document.getElementById('add-collaborator-form');
+    if (addCollaboratorForm) {
+      addCollaboratorForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        const employeeId = document.getElementById('employee_id').value;
+        const permission = document.getElementById('permission').value;
+
+        if (!employeeId) {
+          alert('Please select an employee');
+          return;
+        }
+
+        fetch("{% url 'document_editor:add_collaborator' document.id %}", {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}'
+          },
+          body: JSON.stringify({ employee_id: employeeId, permission })
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            // Reload the page to show the new collaborator
+            window.location.reload();
+          } else {
+            alert('Error adding collaborator: ' + data.error);
+          }
+        })
+        .catch(error => {
+          console.error('Error adding collaborator:', error);
+          alert('Error adding collaborator. Please try again.');
+        });
+      });
+    }
+  });
+</script>
+{% endblock %}

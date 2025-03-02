@@ -68,6 +68,7 @@ INSTALLED_APPS = [
     'core',
     'customer_projects.apps.CustomerProjectsConfig',
     'dunware_crm',
+    'document_editor.apps.DocumentEditorConfig',
 ]
 
 MIDDLEWARE = [

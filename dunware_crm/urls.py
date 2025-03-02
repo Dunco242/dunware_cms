@@ -13,6 +13,7 @@ urlpatterns = [
     path('account/', include('allauth.urls')),
     path('', include('core.urls')),
     path('customer-projects/', include('customer_projects.urls', namespace="customer_projects")),
+    path('documents/', include('document_editor.urls', namespace='document_editor')),
 
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
