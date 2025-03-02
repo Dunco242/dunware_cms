@@ -9,7 +9,7 @@ urlpatterns = [
     path('templates/', views.DocumentTemplateListView.as_view(), name='template_list'),
 
     # Document CRUD views
-    path('create/', views.CreateDocumentView.as_view(), name='create_document'),
+    path('create/', views.DocumentCreateView.as_view(), name='create_document'),
     path('<int:pk>/', views.DocumentDetailView.as_view(), name='document_detail'),
     path('<int:pk>/edit/', views.DocumentEditorView.as_view(), name='edit_document'),
     path('<int:pk>/update/', views.UpdateDocumentView.as_view(), name='update_document'),

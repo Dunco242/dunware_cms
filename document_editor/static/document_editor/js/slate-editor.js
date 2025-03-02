@@ -1,9 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import ReactDOM from 'react-dom';
-import { createEditor, Editor, Transforms, Text, Element as SlateElement } from 'slate';
-import { Slate, Editable, withReact, useSlate } from 'slate-react';
+import { createEditor, Editor, Transforms, Text, Element as SlateElement, Range, Point } from 'slate';
+import { Slate, Editable, withReact, useSlate, ReactEditor } from 'slate-react';
 import { withHistory } from 'slate-history';
 import isHotkey from 'is-hotkey';
+import debounce from 'lodash/debounce';
 
 const HOTKEYS = {
   'mod+b': 'bold',
@@ -56,14 +57,185 @@ const SlateEditor = () => {
     ];
   }, []);
 
+  // Create editor instance
   const [editor] = useState(() => withHistory(withReact(createEditor())));
   const [value, setValue] = useState(initialValue);
   const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [selection, setSelection] = useState(null);
 
+  // WebSocket related state
+  const socketRef = useRef(null);
+  const [isConnected, setIsConnected] = useState(false);
+  const [remoteOperationsQueue, setRemoteOperationsQueue] = useState([]);
+  const isRemoteChangeRef = useRef(false);
+
+  // Get page elements
   const documentId = document.getElementById('document-id').value;
   const canEdit = document.getElementById('can-edit').value === 'True';
   const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+  // Function to send cursor position
+  const sendCursorPosition = useCallback(
+    debounce((selection) => {
+      if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN && selection) {
+        socketRef.current.send(
+          JSON.stringify({
+            type: 'cursor_position',
+            selection: selection,
+          })
+        );
+      }
+    }, 100),
+    [socketRef]
+  );
+
+  // Function to send content changes
+  const sendContentChange = useCallback(
+    debounce((operations) => {
+      if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN && operations.length > 0) {
+        socketRef.current.send(
+          JSON.stringify({
+            type: 'content_change',
+            operations: operations,
+          })
+        );
+      }
+    }, 250),
+    [socketRef]
+  );
+
+  // Handle remote operations
+  useEffect(() => {
+    if (remoteOperationsQueue.length > 0) {
+      const operations = [...remoteOperationsQueue];
+      setRemoteOperationsQueue([]);
+
+      isRemoteChangeRef.current = true;
+
+      try {
+        operations.forEach(op => {
+          Editor.withoutNormalizing(editor, () => {
+            try {
+              // Apply the remote operation based on its type
+              if (op.type === 'insert_node') {
+                Transforms.insertNodes(editor, op.node, { at: op.path });
+              } else if (op.type === 'remove_node') {
+                Transforms.delete(editor, { at: op.path });
+              } else if (op.type === 'set_node') {
+                Transforms.setNodes(editor, op.properties, { at: op.path });
+              } else if (op.type === 'insert_text') {
+                Transforms.insertText(editor, op.text, { at: op.path });
+              } else if (op.type === 'remove_text') {
+                Transforms.delete(editor, { at: op.path, distance: op.text.length });
+              } else if (op.type === 'split_node') {
+                Transforms.splitNodes(editor, { at: op.path });
+              } else if (op.type === 'merge_node') {
+                Transforms.mergeNodes(editor, { at: op.path });
+              } else {
+                console.warn('Unsupported operation:', op);
+              }
+            } catch (error) {
+              console.error('Error applying remote operation:', error, op);
+            }
+          });
+        });
+      } finally {
+        isRemoteChangeRef.current = false;
+      }
+    }
+  }, [editor, remoteOperationsQueue]);
+
+  // Initialize WebSocket connection
+  useEffect(() => {
+    // Get the WebSocket from the parent document
+    socketRef.current = window.socket || null;
+
+    // If socket doesn't exist in parent, try to initialize it here
+    if (!socketRef.current) {
+      const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+      const wsUrl = `${protocol}://${window.location.host}/wss/documents/${documentId}/`;
+
+      try {
+        socketRef.current = new WebSocket(wsUrl);
+
+        socketRef.current.onopen = () => {
+          console.log('WebSocket connection established from slate-editor');
+          setIsConnected(true);
+        };
+
+        socketRef.current.onclose = () => {
+          console.log('WebSocket connection closed from slate-editor');
+          setIsConnected(false);
+        };
+
+        socketRef.current.onerror = (error) => {
+          console.error('WebSocket error from slate-editor:', error);
+          setIsConnected(false);
+        };
+
+        // Export socket to parent window
+        window.socket = socketRef.current;
+      } catch (error) {
+        console.error('Error creating WebSocket connection:', error);
+      }
+    } else {
+      setIsConnected(socketRef.current.readyState === WebSocket.OPEN);
+    }
+
+    // Handle WebSocket messages
+    const handleMessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+
+        if (data.type === 'content_change' && data.operations && Array.isArray(data.operations)) {
+          // Queue remote operations for processing
+          setRemoteOperationsQueue(prev => [...prev, ...data.operations]);
+        } else if (data.type === 'save_confirmed') {
+          handleSaveConfirmed(data);
+        }
+      } catch (error) {
+        console.error('Error processing WebSocket message:', error);
+      }
+    };
+
+    // Add message handler
+    if (socketRef.current) {
+      socketRef.current.addEventListener('message', handleMessage);
+    }
+
+    // Cleanup
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.removeEventListener('message', handleMessage);
+      }
+    };
+  }, [documentId]);
+
+  // Handle save confirmation
+  const handleSaveConfirmed = (data) => {
+    if (data.success) {
+      setHasUnsavedChanges(false);
+      setIsSaving(false);
+
+      const successMsg = data.create_version
+        ? `Created new version ${data.version}`
+        : 'Document saved successfully';
+
+      showNotification(successMsg, 'success');
+
+      if (data.updated_at) {
+        const lastSavedTimeElement = document.getElementById('last-saved-time');
+        if (lastSavedTimeElement) {
+          lastSavedTimeElement.innerText = new Date(data.updated_at).toLocaleString();
+        }
+      }
+    } else {
+      console.error('Error saving document:', data.error);
+      showNotification('Error saving document: ' + data.error, 'error');
+      setIsSaving(false);
+    }
+  };
 
   const renderElement = useCallback(props => <Element {...props} />, []);
   const renderLeaf = useCallback(props => <Leaf {...props} />, []);
@@ -74,6 +246,21 @@ const SlateEditor = () => {
     setIsSaving(true);
 
     try {
+      // Try to save using WebSocket first
+      if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+        socketRef.current.send(
+          JSON.stringify({
+            type: 'save_document',
+            content: { children: value },
+            create_version: createVersion,
+          })
+        );
+
+        // Wait for save_confirmed message in the WebSocket handler
+        return;
+      }
+
+      // Fallback to HTTP if WebSocket is not available
       const response = await fetch(`/documents/${documentId}/save/`, {
         method: 'POST',
         headers: {
@@ -115,6 +302,7 @@ const SlateEditor = () => {
     }
   };
 
+  // Auto-save when changes are made
   useEffect(() => {
     if (!canEdit) return;
 
@@ -127,6 +315,7 @@ const SlateEditor = () => {
     return () => clearInterval(interval);
   }, [hasUnsavedChanges]);
 
+  // Warn before leaving with unsaved changes
   useEffect(() => {
     const handleBeforeUnload = (e) => {
       if (hasUnsavedChanges) {
@@ -142,6 +331,17 @@ const SlateEditor = () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   }, [hasUnsavedChanges]);
+
+  // Track selection changes
+  const handleSelectionChange = useCallback(() => {
+    const sel = editor.selection;
+    setSelection(sel);
+
+    // Send selection to other users if it exists and is not collapsed
+    if (sel && !Range.isCollapsed(sel) && canEdit) {
+      sendCursorPosition(sel);
+    }
+  }, [editor, canEdit, sendCursorPosition]);
 
   const handleKeyDown = event => {
     if ((event.ctrlKey || event.metaKey) && event.key === 's') {
@@ -198,14 +398,36 @@ const SlateEditor = () => {
         <Slate
           editor={editor}
           value={value}
-          onChange={newValue => {
+          onChange={(newValue) => {
+            // Only track changes if they're not from a remote user
+            if (!isRemoteChangeRef.current) {
+              // Get the operations since last change
+              const ops = editor.operations
+                .filter(op => {
+                  // Filter out selection operations as they don't modify content
+                  return op.type !== 'set_selection';
+                })
+                .map(op => {
+                  // Clone the operation for safe transmission
+                  return JSON.parse(JSON.stringify(op));
+                });
+
+              // Send operations to collaborators if there are any content changes
+              if (ops.length > 0 && canEdit && isConnected) {
+                sendContentChange(ops);
+              }
+            }
+
+            // Always update the value
             setValue(newValue);
 
+            // Track unsaved changes
             const isChanged = JSON.stringify(newValue) !== JSON.stringify(initialValue);
             if (isChanged !== hasUnsavedChanges) {
               setHasUnsavedChanges(isChanged);
             }
           }}
+          onSelectionChange={handleSelectionChange}
         >
           <Editable
             renderElement={renderElement}

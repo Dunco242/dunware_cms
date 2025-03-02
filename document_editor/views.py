@@ -1129,3 +1129,107 @@ def resolve_document_comment(request, comment_id):
             'success': False,
             'error': str(e)
         }, status=500)
+
+
+class DocumentCreateView(LoginRequiredMixin, EmployeeRequiredMixin, CreateView):
+    """View to create a new document"""
+    model = Document
+    form_class = DocumentForm
+    template_name = 'document_editor/document_form.html'
+
+    def get_initial(self):
+        """Set initial values for the form"""
+        initial = super().get_initial()
+
+        # Set default document type if provided in query params
+        doc_type = self.request.GET.get('type')
+        if doc_type and doc_type in dict(Document.DOCUMENT_TYPES):
+            initial['document_type'] = doc_type
+
+        # Set customer if provided in query params
+        customer_id = self.request.GET.get('customer')
+        if customer_id:
+            try:
+                customer = Customer.objects.get(id=customer_id)
+                initial['customer'] = customer
+            except Customer.DoesNotExist:
+                pass
+
+        # Set template status if creating template
+        is_template = self.request.GET.get('template') == 'true'
+        if is_template:
+            initial['is_template'] = True
+
+        return initial
+
+    def get_context_data(self, **kwargs):
+        """Add extra context data"""
+        context = super().get_context_data(**kwargs)
+        context['is_new'] = True
+        context['title'] = 'Create New Document'
+
+        # Check if creating from template
+        template_id = self.request.GET.get('from_template')
+        if template_id:
+            try:
+                template = DocumentTemplate.objects.get(id=template_id)
+                context['from_template'] = template
+            except DocumentTemplate.DoesNotExist:
+                pass
+
+        return context
+
+    def form_valid(self, form):
+        """Process the form if valid"""
+        # Set the author to the current user
+        form.instance.author = self.request.user.employee_profile
+
+        # If creating from template, use template content
+        template_id = self.request.GET.get('from_template')
+        if template_id:
+            try:
+                template = DocumentTemplate.objects.get(id=template_id)
+                form.instance.content = template.content
+            except DocumentTemplate.DoesNotExist:
+                # Create empty document content if no template
+                form.instance.content = {
+                    "children": [
+                        {
+                            "type": "paragraph",
+                            "children": [
+                                {
+                                    "text": ""
+                                }
+                            ]
+                        }
+                    ]
+                }
+        else:
+            # Create empty document content if not from template
+            form.instance.content = {
+                "children": [
+                    {
+                        "type": "paragraph",
+                        "children": [
+                            {
+                                "text": ""
+                            }
+                        ]
+                    }
+                ]
+            }
+
+        # Extract plain text from content for search
+        form.instance.plain_text = ""  # Will be updated by save method
+
+        # Set version and latest version flags
+        form.instance.version = 1
+        form.instance.is_latest_version = True
+
+        response = super().form_valid(form)
+        messages.success(self.request, f"Document '{form.instance.title}' created successfully.")
+        return response
+
+    def get_success_url(self):
+        """Redirect to document editor after creation"""
+        return reverse('document_editor:edit_document', kwargs={'pk': self.object.pk})

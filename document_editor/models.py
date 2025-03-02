@@ -1,53 +1,76 @@
 from django.db import models
 from django.conf import settings
 from django.utils import timezone
+from django.db.models import Q
+import json
+
 from core.models import Employee, Customer
 
+
 class Document(models.Model):
-    """
-    Document model for storing document content and metadata
-    """
-    DOCUMENT_TYPES = [
-        ('text', 'Text Document'),
-        ('rich', 'Rich Text Document'),
-        ('markdown', 'Markdown Document'),
+    """Model for document management"""
+
+    # Document type choices
+    DOCUMENT_TYPES = (
         ('contract', 'Contract'),
         ('proposal', 'Proposal'),
-        ('other', 'Other')
-    ]
+        ('report', 'Report'),
+        ('letter', 'Letter'),
+        ('invoice', 'Invoice'),
+        ('memo', 'Memo'),
+        ('other', 'Other'),
+    )
 
-    STATUS_CHOICES = [
+    # Document status choices
+    STATUS_CHOICES = (
         ('draft', 'Draft'),
         ('review', 'Under Review'),
+        ('approved', 'Approved'),
         ('published', 'Published'),
-        ('archived', 'Archived')
-    ]
+        ('archived', 'Archived'),
+    )
 
-    # Basic Information
     title = models.CharField(max_length=255)
-    content = models.JSONField(default=dict, help_text="Slate.js compatible document content")
-    plain_text = models.TextField(blank=True, help_text="Plain text version for search indexing")
-    document_type = models.CharField(max_length=20, choices=DOCUMENT_TYPES, default='text')
+    document_type = models.CharField(max_length=20, choices=DOCUMENT_TYPES)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
 
-    # Relationships
+    # Document content stored as JSON (Slate.js format)
+    content = models.JSONField(null=True, blank=True)
+
+    # Plain text extraction for search
+    plain_text = models.TextField(blank=True)
+
+    # Metadata
     author = models.ForeignKey(
         Employee,
-        on_delete=models.SET_NULL,
-        null=True,
-        related_name='created_documents'
+        on_delete=models.CASCADE,
+        related_name='authored_documents'
     )
     customer = models.ForeignKey(
         Customer,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='customer_documents'
+        related_name='documents'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        Employee,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='updated_documents'
     )
 
-    # Version Control
-    version = models.PositiveIntegerField(default=1)
-    is_latest_version = models.BooleanField(default=True)
+    # Tags as comma-separated string
+    tags = models.CharField(max_length=255, blank=True)
+
+    # Template and visibility flags
+    is_template = models.BooleanField(default=False)
+    is_public = models.BooleanField(default=False)
+
+    # Versioning fields
     parent_document = models.ForeignKey(
         'self',
         on_delete=models.SET_NULL,
@@ -55,103 +78,81 @@ class Document(models.Model):
         blank=True,
         related_name='versions'
     )
-
-    # Metadata
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    tags = models.CharField(max_length=255, blank=True, help_text="Comma-separated tags")
-
-    # Document Settings
-    is_template = models.BooleanField(default=False)
-    is_public = models.BooleanField(default=False)
+    version = models.IntegerField(default=1)
+    is_latest_version = models.BooleanField(default=True)
 
     class Meta:
         ordering = ['-updated_at']
         indexes = [
-            models.Index(fields=['title']),
+            models.Index(fields=['author']),
             models.Index(fields=['document_type']),
             models.Index(fields=['status']),
-            models.Index(fields=['created_at']),
             models.Index(fields=['is_template']),
+            models.Index(fields=['is_latest_version']),
         ]
 
     def __str__(self):
-        return self.title
+        return f"{self.title} (v{self.version})"
 
-    def save(self, *args, **kwargs):
-        if not self.pk and self.parent_document:
-            # If this is a new version of an existing document
-            # Mark previous version as not latest
-            self.parent_document.is_latest_version = False
-            self.parent_document.save(update_fields=['is_latest_version'])
+    def extract_plain_text(self):
+        """Extract plain text from Slate.js content for search"""
+        if not self.content:
+            return ""
 
-            # Set version number
-            self.version = self.parent_document.version + 1
+        text_parts = []
 
-        super().save(*args, **kwargs)
+        try:
+            # Process nodes recursively
+            def extract_text(nodes):
+                for node in nodes:
+                    if 'text' in node:
+                        text_parts.append(node['text'])
+                    elif 'children' in node:
+                        extract_text(node['children'])
 
-    def create_new_version(self, content, user):
-        """Create a new version of this document"""
-        new_version = Document.objects.create(
-            title=self.title,
-            content=content,
-            document_type=self.document_type,
-            status='draft',
-            author=user,
-            customer=self.customer,
-            parent_document=self,
-            version=self.version + 1,
-            tags=self.tags,
-            is_template=self.is_template,
-            is_public=self.is_public,
-        )
-        self.is_latest_version = False
-        self.save(update_fields=['is_latest_version'])
-        return new_version
+            # Start extraction from the root
+            children = self.content.get('children', [])
+            extract_text(children)
+
+            return ' '.join(text_parts)
+        except Exception as e:
+            return f"Error extracting text: {str(e)}"
 
     def get_all_versions(self):
         """Get all versions of this document"""
         if self.parent_document:
-            # If this is a child version, get the original parent
-            root = self.parent_document
-            while root.parent_document:
-                root = root.parent_document
-            return root.versions.all().order_by('-version')
-        else:
-            # If this is the original document
-            return self.versions.all().order_by('-version')
+            # This is not the original document
+            original = self.parent_document
+            while original.parent_document:
+                original = original.parent_document
 
-    def extract_plain_text(self):
-        """Extract plain text from Slate.js content for search indexing"""
-        # Implement this method based on your specific Slate.js structure
-        # For now, we'll use a placeholder
-        if self.content:
-            # This is a simplified example - you'll need to adapt based on your Slate structure
-            try:
-                # For a basic slate document with text nodes
-                text = []
-                for node in self.content.get('children', []):
-                    if isinstance(node, dict) and 'text' in node:
-                        text.append(node['text'])
-                    elif isinstance(node, dict) and 'children' in node:
-                        for child in node['children']:
-                            if isinstance(child, dict) and 'text' in child:
-                                text.append(child['text'])
-                return ' '.join(text)
-            except Exception:
-                return ""
-        return ""
+            # Get all versions including the original
+            return Document.objects.filter(
+                Q(id=original.id) | Q(parent_document=original)
+            ).order_by('version')
+        else:
+            # This is the original document
+            return Document.objects.filter(
+                Q(id=self.id) | Q(parent_document=self)
+            ).order_by('version')
+
+    def save(self, *args, **kwargs):
+        # Extract plain text for search
+        if self.content and not self.plain_text:
+            self.plain_text = self.extract_plain_text()
+
+        super().save(*args, **kwargs)
 
 
 class DocumentCollaborator(models.Model):
-    """Model to track document collaborators and their permissions"""
+    """Model for document collaborators"""
 
-    PERMISSION_CHOICES = [
+    PERMISSION_CHOICES = (
         ('view', 'View Only'),
         ('comment', 'Can Comment'),
         ('edit', 'Can Edit'),
-        ('manage', 'Can Manage')
-    ]
+        ('manage', 'Can Manage'),
+    )
 
     document = models.ForeignKey(
         Document,
@@ -168,20 +169,23 @@ class DocumentCollaborator(models.Model):
         choices=PERMISSION_CHOICES,
         default='view'
     )
-    added_at = models.DateTimeField(auto_now_add=True)
     added_by = models.ForeignKey(
         Employee,
         on_delete=models.SET_NULL,
         null=True,
         related_name='added_collaborators'
     )
+    added_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         unique_together = ['document', 'employee']
-        ordering = ['document', 'employee__user__first_name']
+        indexes = [
+            models.Index(fields=['document']),
+            models.Index(fields=['employee']),
+        ]
 
     def __str__(self):
-        return f"{self.employee.get_full_name()} - {self.get_permission_display()}"
+        return f"{self.employee} - {self.get_permission_display()} - {self.document.title}"
 
 
 class DocumentComment(models.Model):
@@ -197,14 +201,6 @@ class DocumentComment(models.Model):
         on_delete=models.CASCADE,
         related_name='document_comments'
     )
-    content = models.TextField()
-
-    # For selecting specific text in the document
-    selection_start = models.JSONField(null=True, blank=True)
-    selection_end = models.JSONField(null=True, blank=True)
-    selected_text = models.TextField(blank=True)
-
-    # For threading comments
     parent_comment = models.ForeignKey(
         'self',
         on_delete=models.CASCADE,
@@ -212,10 +208,16 @@ class DocumentComment(models.Model):
         blank=True,
         related_name='replies'
     )
-
-    # Tracking
+    content = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    # Selection info for contextual comments
+    selection_start = models.JSONField(null=True, blank=True)
+    selection_end = models.JSONField(null=True, blank=True)
+    selected_text = models.TextField(blank=True)
+
+    # Resolution status
     is_resolved = models.BooleanField(default=False)
     resolved_by = models.ForeignKey(
         Employee,
@@ -227,35 +229,41 @@ class DocumentComment(models.Model):
     resolved_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        ordering = ['created_at']
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['document']),
+            models.Index(fields=['author']),
+            models.Index(fields=['is_resolved']),
+        ]
 
     def __str__(self):
-        return f"Comment by {self.author.get_full_name()} on {self.document.title}"
+        return f"Comment by {self.author} on {self.document.title}"
 
-    def resolve(self, user):
+    def resolve(self, employee):
         """Mark comment as resolved"""
         self.is_resolved = True
-        self.resolved_by = user
+        self.resolved_by = employee
         self.resolved_at = timezone.now()
         self.save()
 
 
 class DocumentTemplate(models.Model):
-    """Model for document templates that can be reused"""
+    """Model for document templates"""
 
-    TEMPLATE_CATEGORIES = [
-        ('contract', 'Contract'),
-        ('proposal', 'Proposal'),
-        ('letter', 'Letter'),
-        ('report', 'Report'),
-        ('other', 'Other')
-    ]
+    TEMPLATE_CATEGORIES = (
+        ('contract', 'Contracts'),
+        ('proposal', 'Proposals'),
+        ('report', 'Reports'),
+        ('letter', 'Letters'),
+        ('invoice', 'Invoices'),
+        ('form', 'Forms'),
+        ('other', 'Other'),
+    )
 
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
-    content = models.JSONField(default=dict)
+    content = models.JSONField(null=True, blank=True)
     category = models.CharField(max_length=20, choices=TEMPLATE_CATEGORIES)
-
     created_by = models.ForeignKey(
         Employee,
         on_delete=models.SET_NULL,
@@ -264,24 +272,74 @@ class DocumentTemplate(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-
-    # Template settings
     is_public = models.BooleanField(default=True)
 
     class Meta:
         ordering = ['name']
+        indexes = [
+            models.Index(fields=['category']),
+            models.Index(fields=['is_public']),
+            models.Index(fields=['created_by']),
+        ]
 
     def __str__(self):
         return self.name
 
-    def create_document(self, title, author, customer=None):
-        """Create a new document from this template"""
-        return Document.objects.create(
-            title=title,
-            content=self.content,
-            document_type=self.category,
-            status='draft',
-            author=author,
-            customer=customer,
-            is_template=False
-        )
+
+class DocumentEditSession(models.Model):
+    """Model to track document editing sessions for WebSocket connections"""
+
+    document = models.ForeignKey(
+        Document,
+        on_delete=models.CASCADE,
+        related_name='edit_sessions'
+    )
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='document_sessions'
+    )
+
+    start_time = models.DateTimeField(
+        default=timezone.now,
+        help_text="When the editing session started"
+    )
+
+    end_time = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the editing session ended"
+    )
+
+    last_activity = models.DateTimeField(
+        default=timezone.now,
+        help_text="Timestamp of last activity in this session"
+    )
+
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Whether this session is currently active"
+    )
+
+    client_info = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Client information (browser, IP, etc.)"
+    )
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['document', 'is_active']),
+            models.Index(fields=['user', 'is_active']),
+            models.Index(fields=['last_activity']),
+        ]
+
+    def __str__(self):
+        return f"Session for {self.document.title} by {self.user.username}"
+
+    def end_session(self):
+        """End this editing session"""
+        self.is_active = False
+        self.end_time = timezone.now()
+        self.save()
