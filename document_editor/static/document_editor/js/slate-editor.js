@@ -18,15 +18,33 @@ const TEXT_ALIGN_TYPES = ['left', 'center', 'right', 'justify'];
 const SlateEditor = () => {
   const initialValue = useMemo(() => {
     const contentField = document.getElementById('document-content');
-    const documentId = document.getElementById('document-id');
-    const canEdit = document.getElementById('can-edit');
 
-    if (contentField && contentField.value && documentId && canEdit) {
+    if (contentField && contentField.value) {
       try {
         const parsedContent = JSON.parse(contentField.value);
-        return parsedContent.children || parsedContent;
+
+        // Normalize content structure
+        const content = parsedContent.children || parsedContent;
+
+        // Ensure content is an array with at least one paragraph
+        if (!Array.isArray(content) || content.length === 0) {
+          return [
+            {
+              type: 'paragraph',
+              children: [{ text: '' }],
+            },
+          ];
+        }
+
+        return content;
       } catch (error) {
         console.error('Error parsing document content:', error);
+        return [
+          {
+            type: 'paragraph',
+            children: [{ text: '' }],
+          },
+        ];
       }
     }
 
@@ -393,6 +411,15 @@ const showNotification = (message, type = 'info') => {
 document.addEventListener('DOMContentLoaded', () => {
   const editorContainer = document.getElementById('slate-editor');
   if (editorContainer) {
-    ReactDOM.render(<SlateEditor />, editorContainer);
+    try {
+      ReactDOM.render(<SlateEditor />, editorContainer);
+    } catch (error) {
+      console.error('Error rendering Slate editor:', error);
+      editorContainer.innerHTML = `
+        <div class="alert alert-danger">
+          Unable to load document editor. Please refresh the page or contact support.
+        </div>
+      `;
+    }
   }
 });

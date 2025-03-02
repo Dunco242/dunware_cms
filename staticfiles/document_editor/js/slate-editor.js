@@ -1,4 +1,3 @@
-// Import required Slate.js libraries
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { createEditor, Editor, Transforms, Text, Element as SlateElement } from 'slate';
@@ -6,7 +5,6 @@ import { Slate, Editable, withReact, useSlate } from 'slate-react';
 import { withHistory } from 'slate-history';
 import isHotkey from 'is-hotkey';
 
-// Define hotkeys for basic formatting
 const HOTKEYS = {
   'mod+b': 'bold',
   'mod+i': 'italic',
@@ -14,24 +12,42 @@ const HOTKEYS = {
   'mod+`': 'code',
 };
 
-// Define block types for the toolbar
 const LIST_TYPES = ['numbered-list', 'bulleted-list'];
 const TEXT_ALIGN_TYPES = ['left', 'center', 'right', 'justify'];
 
-// Initialize the Slate editor component
 const SlateEditor = () => {
-  // Get initial value from the document content field
   const initialValue = useMemo(() => {
     const contentField = document.getElementById('document-content');
+
     if (contentField && contentField.value) {
       try {
-        return JSON.parse(contentField.value);
+        const parsedContent = JSON.parse(contentField.value);
+
+        // Normalize content structure
+        const content = parsedContent.children || parsedContent;
+
+        // Ensure content is an array with at least one paragraph
+        if (!Array.isArray(content) || content.length === 0) {
+          return [
+            {
+              type: 'paragraph',
+              children: [{ text: '' }],
+            },
+          ];
+        }
+
+        return content;
       } catch (error) {
         console.error('Error parsing document content:', error);
+        return [
+          {
+            type: 'paragraph',
+            children: [{ text: '' }],
+          },
+        ];
       }
     }
 
-    // Default empty document structure
     return [
       {
         type: 'paragraph',
@@ -40,40 +56,32 @@ const SlateEditor = () => {
     ];
   }, []);
 
-  // Create the editor instance
   const [editor] = useState(() => withHistory(withReact(createEditor())));
-
-  // State for tracking whether the document has unsaved changes
   const [value, setValue] = useState(initialValue);
   const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
-  // Get document info
   const documentId = document.getElementById('document-id').value;
   const canEdit = document.getElementById('can-edit').value === 'True';
   const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
 
-  // Function to render elements (paragraphs, headings, etc.)
   const renderElement = useCallback(props => <Element {...props} />, []);
-
-  // Function to render leaf elements (bold, italic, etc.)
   const renderLeaf = useCallback(props => <Leaf {...props} />, []);
 
-  // Save the document content
   const saveDocument = async (createVersion = false) => {
     if (!hasUnsavedChanges && !createVersion) return;
 
     setIsSaving(true);
 
     try {
-      const response = await fetch(`/documents/${documentId}/save-content/`, {
+      const response = await fetch(`/documents/${documentId}/save/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'X-CSRFToken': csrfToken,
         },
         body: JSON.stringify({
-          content: value,
+          content: { children: value },
           create_version: createVersion,
         }),
       });
@@ -83,18 +91,17 @@ const SlateEditor = () => {
       if (data.success) {
         setHasUnsavedChanges(false);
 
-        // Show success message
         const successMsg = createVersion
           ? `Created new version ${data.version}`
           : 'Document saved successfully';
 
-        // Display a toast notification
         showNotification(successMsg, 'success');
 
-        // Update the last saved time
         if (data.updated_at) {
-          document.getElementById('last-saved-time').innerText =
-            new Date(data.updated_at).toLocaleString();
+          const lastSavedTimeElement = document.getElementById('last-saved-time');
+          if (lastSavedTimeElement) {
+            lastSavedTimeElement.innerText = new Date(data.updated_at).toLocaleString();
+          }
         }
       } else {
         console.error('Error saving document:', data.error);
@@ -108,7 +115,6 @@ const SlateEditor = () => {
     }
   };
 
-  // Auto-save the document every 30 seconds if there are unsaved changes
   useEffect(() => {
     if (!canEdit) return;
 
@@ -121,7 +127,6 @@ const SlateEditor = () => {
     return () => clearInterval(interval);
   }, [hasUnsavedChanges]);
 
-  // Set up autosave on page unload
   useEffect(() => {
     const handleBeforeUnload = (e) => {
       if (hasUnsavedChanges) {
@@ -138,16 +143,13 @@ const SlateEditor = () => {
     };
   }, [hasUnsavedChanges]);
 
-  // Handle keyboard shortcuts
   const handleKeyDown = event => {
-    // Save document on Ctrl+S
     if ((event.ctrlKey || event.metaKey) && event.key === 's') {
       event.preventDefault();
       saveDocument();
       return;
     }
 
-    // Apply formatting on hotkeys
     for (const hotkey in HOTKEYS) {
       if (isHotkey(hotkey, event)) {
         event.preventDefault();
@@ -160,7 +162,6 @@ const SlateEditor = () => {
 
   return (
     <div className="slate-editor-container">
-      {/* Toolbar */}
       <div className="slate-toolbar bg-gray-100 p-2 rounded-t-md flex items-center space-x-2 border-b">
         <MarkButton format="bold" icon="format_bold" />
         <MarkButton format="italic" icon="format_italic" />
@@ -193,7 +194,6 @@ const SlateEditor = () => {
         </button>
       </div>
 
-      {/* Editor */}
       <div className="slate-editor border p-4 min-h-[500px] rounded-b-md bg-white">
         <Slate
           editor={editor}
@@ -201,7 +201,6 @@ const SlateEditor = () => {
           onChange={newValue => {
             setValue(newValue);
 
-            // Check if content has changed
             const isChanged = JSON.stringify(newValue) !== JSON.stringify(initialValue);
             if (isChanged !== hasUnsavedChanges) {
               setHasUnsavedChanges(isChanged);
@@ -221,7 +220,6 @@ const SlateEditor = () => {
         </Slate>
       </div>
 
-      {/* Status Bar */}
       <div className="slate-statusbar text-sm text-gray-500 mt-2 flex justify-between">
         <div>
           {hasUnsavedChanges ? (
@@ -238,7 +236,6 @@ const SlateEditor = () => {
   );
 };
 
-// Custom Element component for rendering block elements
 const Element = ({ attributes, children, element }) => {
   const style = { textAlign: element.align };
 
@@ -288,7 +285,6 @@ const Element = ({ attributes, children, element }) => {
   }
 };
 
-// Custom Leaf component for rendering inline elements
 const Leaf = ({ attributes, children, leaf }) => {
   if (leaf.bold) {
     children = <strong>{children}</strong>;
@@ -309,7 +305,6 @@ const Leaf = ({ attributes, children, leaf }) => {
   return <span {...attributes}>{children}</span>;
 };
 
-// Button for toggling marks (bold, italic, etc.)
 const MarkButton = ({ format, icon }) => {
   const editor = useSlate();
   return (
@@ -327,7 +322,6 @@ const MarkButton = ({ format, icon }) => {
   );
 };
 
-// Button for toggling blocks (headings, lists, etc.)
 const BlockButton = ({ format, icon }) => {
   const editor = useSlate();
   return (
@@ -345,13 +339,11 @@ const BlockButton = ({ format, icon }) => {
   );
 };
 
-// Check if a mark is currently active
 const isMarkActive = (editor, format) => {
   const marks = Editor.marks(editor);
   return marks ? marks[format] === true : false;
 };
 
-// Toggle a mark on or off
 const toggleMark = (editor, format) => {
   const isActive = isMarkActive(editor, format);
 
@@ -362,7 +354,6 @@ const toggleMark = (editor, format) => {
   }
 };
 
-// Check if a block format is currently active
 const isBlockActive = (editor, format) => {
   const [match] = Editor.nodes(editor, {
     match: n =>
@@ -372,7 +363,6 @@ const isBlockActive = (editor, format) => {
   return !!match;
 };
 
-// Toggle a block format
 const toggleBlock = (editor, format) => {
   const isActive = isBlockActive(editor, format);
   const isList = LIST_TYPES.includes(format);
@@ -397,7 +387,6 @@ const toggleBlock = (editor, format) => {
   }
 };
 
-// Show a notification toast
 const showNotification = (message, type = 'info') => {
   const notification = document.createElement('div');
   notification.className = `fixed bottom-4 right-4 p-4 rounded-md shadow-lg ${
@@ -411,7 +400,6 @@ const showNotification = (message, type = 'info') => {
   notification.textContent = message;
   document.body.appendChild(notification);
 
-  // Remove after 3 seconds
   setTimeout(() => {
     notification.classList.add('opacity-0', 'transition-opacity', 'duration-500');
     setTimeout(() => {
@@ -420,10 +408,18 @@ const showNotification = (message, type = 'info') => {
   }, 3000);
 };
 
-// Initialize the editor when the DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
   const editorContainer = document.getElementById('slate-editor');
   if (editorContainer) {
-    ReactDOM.render(<SlateEditor />, editorContainer);
+    try {
+      ReactDOM.render(<SlateEditor />, editorContainer);
+    } catch (error) {
+      console.error('Error rendering Slate editor:', error);
+      editorContainer.innerHTML = `
+        <div class="alert alert-danger">
+          Unable to load document editor. Please refresh the page or contact support.
+        </div>
+      `;
+    }
   }
 });
