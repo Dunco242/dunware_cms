@@ -1,12 +1,11 @@
 {% extends 'core/base.html' %}
 {% load static %}
-{% load widget_tweaks %}
 
 {% block title %}
-  {% if object %}
-    Edit Template
+  {% if is_update %}
+    Edit {{ document.title }}
   {% else %}
-    New Template
+    New Document
   {% endif %}
 {% endblock %}
 
@@ -15,12 +14,12 @@
   <!-- Breadcrumbs -->
   <nav aria-label="breadcrumb" class="mb-4">
     <ol class="breadcrumb">
-      <li class="breadcrumb-item"><a href="{% url 'document_editor:template_list' %}">Templates</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'document_editor:document_list' %}">Documents</a></li>
       <li class="breadcrumb-item active">
-        {% if object %}
-          Edit {{ object.name }}
+        {% if is_update %}
+          Edit {{ document.title }}
         {% else %}
-          New Template
+          New Document
         {% endif %}
       </li>
     </ol>
@@ -30,17 +29,17 @@
   <div class="row mb-4">
     <div class="col-12">
       <h1 class="h3">
-        {% if object %}
-          Edit Template
+        {% if is_update %}
+          Edit Document
         {% else %}
-          New Template
+          New Document
         {% endif %}
       </h1>
       <p class="text-muted">
-        {% if object %}
-          Update template information
+        {% if is_update %}
+          Update document information
         {% else %}
-          Create a new document template
+          Create a new document
         {% endif %}
       </p>
     </div>
@@ -49,7 +48,7 @@
   <!-- Form Card -->
   <div class="card mb-4">
     <div class="card-body">
-      <form method="post" action="{% if object %}{% url 'document_editor:update_template' object.pk %}{% else %}{% url 'document_editor:create_template' %}{% endif %}">
+      <form method="post" action="{% if is_update %}{% url 'document_editor:update_document' document.pk %}{% else %}{% url 'document_editor:create_document' %}{% endif %}">
         {% csrf_token %}
 
         {% if form.non_field_errors %}
@@ -71,59 +70,140 @@
         {% endif %}
 
         <div class="row g-3">
-          <!-- Name -->
+          <!-- Title -->
           <div class="col-md-12">
-            <label for="{{ form.name.id_for_label }}" class="form-label">
-              Template Name <span class="text-danger">*</span>
+            <label for="{{ form.title.id_for_label }}" class="form-label">
+              Document Title <span class="text-danger">*</span>
             </label>
-            {{ form.name }}
-            {% if form.name.errors %}
+            <input type="text" name="{{ form.title.name }}" id="{{ form.title.id_for_label }}"
+                   class="form-control"
+                   value="{{ form.title.value|default:'' }}"
+                   {% if form.title.field.required %}required{% endif %}>
+            {% if form.title.errors %}
               <div class="text-danger mt-1 small">
-                {% for error in form.name.errors %}
+                {% for error in form.title.errors %}
                   {{ error }}
                 {% endfor %}
               </div>
             {% endif %}
           </div>
 
-          <!-- Description -->
-          <div class="col-md-12">
-            <label for="{{ form.description.id_for_label }}" class="form-label">
-              Description
+          <!-- Document Type -->
+          <div class="col-md-6">
+            <label for="{{ form.document_type.id_for_label }}" class="form-label">
+              Document Type <span class="text-danger">*</span>
             </label>
-            {{ form.description }}
-            {% if form.description.errors %}
+            <select name="{{ form.document_type.name }}" id="{{ form.document_type.id_for_label }}"
+                    class="form-select"
+                    {% if form.document_type.field.required %}required{% endif %}>
+              {% for value, text in form.document_type.field.choices %}
+                <option value="{{ value }}" {% if form.document_type.value == value|stringformat:'s' %}selected{% endif %}>
+                  {{ text }}
+                </option>
+              {% endfor %}
+            </select>
+            {% if form.document_type.errors %}
               <div class="text-danger mt-1 small">
-                {% for error in form.description.errors %}
+                {% for error in form.document_type.errors %}
                   {{ error }}
                 {% endfor %}
               </div>
             {% endif %}
-            <div class="form-text">Brief description of what this template is for</div>
           </div>
 
-          <!-- Category -->
-          <div class="col-md-12">
-            <label for="{{ form.category.id_for_label }}" class="form-label">
-              Category <span class="text-danger">*</span>
+          <!-- Status -->
+          <div class="col-md-6">
+            <label for="{{ form.status.id_for_label }}" class="form-label">
+              Status <span class="text-danger">*</span>
             </label>
-            {{ form.category }}
-            {% if form.category.errors %}
+            <select name="{{ form.status.name }}" id="{{ form.status.id_for_label }}"
+                    class="form-select"
+                    {% if form.status.field.required %}required{% endif %}>
+              {% for value, text in form.status.field.choices %}
+                <option value="{{ value }}" {% if form.status.value == value|stringformat:'s' %}selected{% endif %}>
+                  {{ text }}
+                </option>
+              {% endfor %}
+            </select>
+            {% if form.status.errors %}
               <div class="text-danger mt-1 small">
-                {% for error in form.category.errors %}
+                {% for error in form.status.errors %}
                   {{ error }}
                 {% endfor %}
               </div>
             {% endif %}
-            <div class="form-text">Category for organizing templates</div>
           </div>
 
-          <!-- Is Public -->
+          <!-- Customer -->
           <div class="col-md-12">
+            <label for="{{ form.customer.id_for_label }}" class="form-label">
+              Customer
+            </label>
+            <select name="{{ form.customer.name }}" id="{{ form.customer.id_for_label }}" class="form-select">
+              <option value="">---------</option>
+              {% for value, text in form.customer.field.choices %}
+                {% if value %}
+                  <option value="{{ value }}" {% if form.customer.value == value|stringformat:'s' %}selected{% endif %}>
+                    {{ text }}
+                  </option>
+                {% endif %}
+              {% endfor %}
+            </select>
+            {% if form.customer.errors %}
+              <div class="text-danger mt-1 small">
+                {% for error in form.customer.errors %}
+                  {{ error }}
+                {% endfor %}
+              </div>
+            {% endif %}
+            <div class="form-text">Associate this document with a customer (optional)</div>
+          </div>
+
+          <!-- Tags -->
+          <div class="col-md-12">
+            <label for="{{ form.tags.id_for_label }}" class="form-label">
+              Tags
+            </label>
+            <input type="text" name="{{ form.tags.name }}" id="{{ form.tags.id_for_label }}"
+                   class="form-control"
+                   value="{{ form.tags.value|default:'' }}">
+            {% if form.tags.errors %}
+              <div class="text-danger mt-1 small">
+                {% for error in form.tags.errors %}
+                  {{ error }}
+                {% endfor %}
+              </div>
+            {% endif %}
+            <div class="form-text">{{ form.tags.help_text }}</div>
+          </div>
+
+          <!-- Template and Public options -->
+          <div class="col-md-6">
             <div class="form-check">
-              {{ form.is_public }}
+              <input type="checkbox" name="{{ form.is_template.name }}" id="{{ form.is_template.id_for_label }}"
+                     class="form-check-input"
+                     {% if form.is_template.value %}checked{% endif %}>
+              <label class="form-check-label" for="{{ form.is_template.id_for_label }}">
+                Template
+              </label>
+              <div class="form-text">{{ form.is_template.help_text }}</div>
+              {% if form.is_template.errors %}
+                <div class="text-danger mt-1 small">
+                  {% for error in form.is_template.errors %}
+                    {{ error }}
+                  {% endfor %}
+                </div>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="col-md-6">
+            <div class="form-check">
+              <input type="checkbox" name="{{ form.is_public.name }}" id="{{ form.is_public.id_for_label }}"
+                     class="form-check-input"
+                     {% if form.is_public.value %}checked{% endif %}>
               <label class="form-check-label" for="{{ form.is_public.id_for_label }}">
-                Public Template
+                Public
               </label>
               <div class="form-text">{{ form.is_public.help_text }}</div>
               {% if form.is_public.errors %}
@@ -143,41 +223,19 @@
 
         <!-- Form Buttons -->
         <div class="mt-4 text-end">
-          <a href="{% url 'document_editor:template_list' %}" class="btn btn-outline-secondary me-2">
+          <a href="{% url 'document_editor:document_list' %}" class="btn btn-outline-secondary me-2">
             Cancel
           </a>
           <button type="submit" class="btn btn-primary">
-            {% if object %}
-              Update Template
+            {% if is_update %}
+              Update Document
             {% else %}
-              Create Template
+              Create Document
             {% endif %}
           </button>
         </div>
       </form>
     </div>
   </div>
-
-  {% if not object %}
-    <div class="card mb-4">
-      <div class="card-header">
-        <h5 class="card-title mb-0">Template Structure</h5>
-      </div>
-      <div class="card-body">
-        <p class="text-muted mb-3">
-          After creating your template, you'll be able to define its structure. Templates can include:
-        </p>
-        <ul class="list-group list-group-flush mb-3">
-          <li class="list-group-item"><i class="fas fa-check-circle text-success me-2"></i> Text formatting options (headings, lists, quotes)</li>
-          <li class="list-group-item"><i class="fas fa-check-circle text-success me-2"></i> Placeholder text that will be replaced when used</li>
-          <li class="list-group-item"><i class="fas fa-check-circle text-success me-2"></i> Standard sections specific to document types</li>
-          <li class="list-group-item"><i class="fas fa-check-circle text-success me-2"></i> Customizable styling and formatting</li>
-        </ul>
-        <p class="text-muted">
-          Create the template first, then you'll be directed to the editor to define its content.
-        </p>
-      </div>
-    </div>
-  {% endif %}
 </div>
 {% endblock %}
