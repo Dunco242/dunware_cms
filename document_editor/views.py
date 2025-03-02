@@ -232,13 +232,11 @@ class DocumentDetailView(LoginRequiredMixin, EmployeeRequiredMixin, DetailView):
 
 
 class DocumentEditorView(LoginRequiredMixin, EmployeeRequiredMixin, DetailView):
-    """Main view for the Slate.js document editor"""
     model = Document
     template_name = 'document_editor/document_editor.html'
     context_object_name = 'document'
 
     def get_queryset(self):
-        """Ensure user has access to the document"""
         employee = self.request.user.employee_profile
         return Document.objects.filter(
             Q(author=employee) |
@@ -250,9 +248,9 @@ class DocumentEditorView(LoginRequiredMixin, EmployeeRequiredMixin, DetailView):
         document = self.get_object()
         employee = self.request.user.employee_profile
 
-        # Check if user has edit permission
         if document.author == employee:
             context['can_edit'] = True
+            context['can_comment'] = True
         else:
             try:
                 collaborator = DocumentCollaborator.objects.get(
@@ -265,13 +263,26 @@ class DocumentEditorView(LoginRequiredMixin, EmployeeRequiredMixin, DetailView):
                 context['can_edit'] = False
                 context['can_comment'] = False
 
-        # Add comments
         context['comments'] = DocumentComment.objects.filter(
             document=document
         ).order_by('created_at')
 
-        # Add serialized document content for the editor
-        context['document_content'] = json.dumps(document.content)
+        context['document_content'] = json.dumps(
+            document.content or
+            {
+                "children": [
+                    {
+                        "type": "paragraph",
+                        "children": [
+                            {
+                                "text": ""
+                            }
+                        ]
+                    }
+                ]
+            },
+            separators=(',', ':')
+        )
 
         return context
 

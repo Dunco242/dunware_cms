@@ -1,8 +1,6 @@
 {% extends 'core/base.html' %}
 {% load static %}
-
 {% block title %}{{ document.title }} - Document Editor{% endblock %}
-
 {% block extra_css %}
 <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 <style>
@@ -19,6 +17,17 @@
     border: 1px solid #dee2e6;
     border-bottom: none;
     border-radius: 0.25rem 0.25rem 0 0;
+    padding: 0.5rem;
+    background-color: #f8f9fa;
+  }
+  .slate-toolbar button {
+    margin-right: 0.5rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+  }
+  .slate-toolbar button:hover {
+    background-color: #e9ecef;
   }
   .comments-panel {
     border-left: 1px solid #dee2e6;
@@ -48,10 +57,8 @@
   }
 </style>
 {% endblock %}
-
 {% block content %}
 <div class="container-fluid">
-  <!-- Document header -->
   <div class="row mb-4">
     <div class="col-md-8">
       <h1 class="h3">{{ document.title }}</h1>
@@ -70,178 +77,165 @@
         {% endif %}
       </div>
     </div>
-
-    <div class="col-md-4 text-md-end mt-3 mt-md-0">
-      <!-- Document actions -->
-      <div class="dropdown d-inline-block me-2">
-        <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="documentOptionsDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-          <i class="fas fa-ellipsis-h me-1"></i> Options
-        </button>
-        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="documentOptionsDropdown">
-          <li><a class="dropdown-item" href="{% url 'document_editor:document_detail' document.id %}">
-            <i class="fas fa-info-circle me-2 text-muted"></i> Document Details
-          </a></li>
-          <li><a class="dropdown-item" href="{% url 'document_editor:update_document' document.id %}">
-            <i class="fas fa-edit me-2 text-muted"></i> Edit Metadata
-          </a></li>
-          <li><a class="dropdown-item" href="{% url 'document_editor:export_document' document.id 'html' %}">
-            <i class="fas fa-download me-2 text-muted"></i> Export as HTML
-          </a></li>
-          <li><a class="dropdown-item" href="{% url 'document_editor:save_as_template' document.id %}">
-            <i class="fas fa-copy me-2 text-muted"></i> Save as Template
-          </a></li>
-          <li><hr class="dropdown-divider"></li>
-          <li><a class="dropdown-item" href="{% url 'document_editor:document_list' %}">
-            <i class="fas fa-arrow-left me-2 text-muted"></i> Back to Documents
-          </a></li>
-        </ul>
-      </div>
-
-      <!-- Version selector -->
-      {% if document.parent_document or document.versions.exists %}
-      <div class="dropdown d-inline-block me-2">
-        <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="versionDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-          <i class="fas fa-history me-1"></i> Version {{ document.version }}
-        </button>
-        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="versionDropdown" style="max-height: 300px; overflow-y: auto;">
-          {% for ver in document.get_all_versions %}
-            <li><a class="dropdown-item {% if ver.id == document.id %}active{% endif %}" href="{% url 'document_editor:edit_document' ver.id %}">
-              Version {{ ver.version }} - {{ ver.updated_at|date:"M j, Y" }}
-              {% if ver.is_latest_version %}<span class="badge bg-success ms-2">Latest</span>{% endif %}
-            </a></li>
-          {% endfor %}
-        </ul>
-      </div>
-      {% endif %}
-
-      <!-- Comments toggle -->
-      <button id="toggle-comments" class="btn btn-outline-secondary">
-        <i class="fas fa-comment me-1"></i> Comments
-        {% if comments %}
-          <span class="badge bg-primary ms-1">{{ comments|length }}</span>
-        {% endif %}
-      </button>
-    </div>
+Copy<div class="col-md-4 text-md-end mt-3 mt-md-0">
+  <div class="dropdown d-inline-block me-2">
+    <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="documentOptionsDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+      <i class="fas fa-ellipsis-h me-1"></i> Options
+    </button>
+    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="documentOptionsDropdown">
+      <li><a class="dropdown-item" href="{% url 'document_editor:document_detail' document.id %}">
+        <i class="fas fa-info-circle me-2 text-muted"></i> Document Details
+      </a></li>
+      <li><a class="dropdown-item" href="{% url 'document_editor:update_document' document.id %}">
+        <i class="fas fa-edit me-2 text-muted"></i> Edit Metadata
+      </a></li>
+      <li><a class="dropdown-item" href="{% url 'document_editor:export_document' document.id 'html' %}">
+        <i class="fas fa-download me-2 text-muted"></i> Export as HTML
+      </a></li>
+      <li><a class="dropdown-item" href="{% url 'document_editor:save_as_template' document.id %}">
+        <i class="fas fa-copy me-2 text-muted"></i> Save as Template
+      </a></li>
+      <li><hr class="dropdown-divider"></li>
+      <li><a class="dropdown-item" href="{% url 'document_editor:document_list' %}">
+        <i class="fas fa-arrow-left me-2 text-muted"></i> Back to Documents
+      </a></li>
+    </ul>
   </div>
 
-  <!-- Editor layout with comments panel -->
+  {% if document.parent_document or document.versions.exists %}
+  <div class="dropdown d-inline-block me-2">
+    <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="versionDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+      <i class="fas fa-history me-1"></i> Version {{ document.version }}
+    </button>
+    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="versionDropdown" style="max-height: 300px; overflow-y: auto;">
+      {% for ver in document.get_all_versions %}
+        <li><a class="dropdown-item {% if ver.id == document.id %}active{% endif %}" href="{% url 'document_editor:edit_document' ver.id %}">
+          Version {{ ver.version }} - {{ ver.updated_at|date:"M j, Y" }}
+          {% if ver.is_latest_version %}<span class="badge bg-success ms-2">Latest</span>{% endif %}
+        </a></li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  <button id="toggle-comments" class="btn btn-outline-secondary">
+    <i class="fas fa-comment me-1"></i> Comments
+    {% if comments %}
+      <span class="badge bg-primary ms-1">{{ comments|length }}</span>
+    {% endif %}
+  </button>
+</div>
+  </div>
   <div class="row">
-    <!-- Main editor area -->
     <div class="col-md-9" id="editor-container">
-      <!-- Hidden fields for the editor -->
       <input type="hidden" id="document-id" value="{{ document.id }}">
       <input type="hidden" id="document-content" value="{{ document_content|safe }}">
       <input type="hidden" id="can-edit" value="{{ can_edit }}">
       <input type="hidden" id="can-comment" value="{{ can_comment }}">
       {% csrf_token %}
+Copy  <div id="slate-editor" class="card shadow-sm mb-4"></div>
+</div>
 
-      <!-- Editor container -->
-      <div id="slate-editor" class="card shadow-sm mb-4"></div>
+<div id="comments-panel" class="col-md-3 d-none d-md-block">
+  <div class="card shadow-sm">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <h5 class="card-title mb-0">Comments</h5>
+      {% if can_comment %}
+      <button id="add-comment" class="btn btn-sm btn-primary">
+        <i class="fas fa-plus me-1"></i> Add
+      </button>
+      {% endif %}
     </div>
-
-    <!-- Comments panel (initially hidden on mobile) -->
-    <div id="comments-panel" class="col-md-3 d-none d-md-block">
-      <div class="card shadow-sm">
-        <div class="card-header d-flex justify-content-between align-items-center">
-          <h5 class="card-title mb-0">Comments</h5>
-          {% if can_comment %}
-          <button id="add-comment" class="btn btn-sm btn-primary">
-            <i class="fas fa-plus me-1"></i> Add
-          </button>
-          {% endif %}
+    <div class="card-body p-2 comments-panel">
+      {% if not comments %}
+        <div class="text-center py-5">
+          <i class="fas fa-comment text-muted fa-3x mb-3"></i>
+          <p class="text-muted">No comments yet</p>
         </div>
-        <div class="card-body p-2 comments-panel">
-          {% if not comments %}
-            <div class="text-center py-5">
-              <i class="fas fa-comment text-muted fa-3x mb-3"></i>
-              <p class="text-muted">No comments yet</p>
-            </div>
-          {% else %}
-            {% for comment in comments %}
-              <div class="card comment-card mb-3 {% if comment.is_resolved %}bg-light{% endif %}">
-                <div class="card-body p-3">
-                  <div class="d-flex">
-                    <div class="me-2">
-                      <div class="avatar bg-primary text-white">
-                        {{ comment.author.get_full_name|slice:":1" }}
-                      </div>
-                    </div>
-                    <div class="flex-grow-1">
-                      <div class="d-flex justify-content-between">
-                        <div>
-                          <h6 class="mb-0">{{ comment.author.get_full_name }}</h6>
-                          <div class="text-muted small">{{ comment.created_at|date:"M j, Y, g:i a" }}</div>
-                        </div>
-                        {% if not comment.is_resolved and comment.author == request.user.employee_profile %}
-                          <button
-                            data-comment-id="{{ comment.id }}"
-                            class="resolve-comment btn btn-sm btn-link text-primary p-0">
-                            Resolve
-                          </button>
-                        {% endif %}
-                      </div>
-
-                      {% if comment.selected_text %}
-                        <div class="bg-light p-2 rounded border my-2 fst-italic small text-muted">
-                          "{{ comment.selected_text }}"
-                        </div>
-                      {% endif %}
-
-                      <div class="mt-2">
-                        {{ comment.content }}
-                      </div>
-
-                      {% if comment.is_resolved %}
-                        <div class="mt-2 small text-success">
-                          <i class="fas fa-check-circle me-1"></i>
-                          Resolved by {{ comment.resolved_by.get_full_name }} on {{ comment.resolved_at|date:"M j, Y, g:i a" }}
-                        </div>
-                      {% endif %}
-
-                      {% if comment.replies.exists %}
-                        <div class="mt-3 border-start border-2 ps-3">
-                          {% for reply in comment.replies.all %}
-                            <div class="mb-2">
-                              <div class="d-flex">
-                                <div class="me-2">
-                                  <div class="avatar avatar-sm bg-light text-dark">
-                                    {{ reply.author.get_full_name|slice:":1" }}
-                                  </div>
-                                </div>
-                                <div>
-                                  <div class="fw-bold small">{{ reply.author.get_full_name }}
-                                    <span class="fw-normal text-muted">{{ reply.created_at|date:"M j, Y, g:i a" }}</span>
-                                  </div>
-                                  <div>{{ reply.content }}</div>
-                                </div>
-                              </div>
-                            </div>
-                          {% endfor %}
-                        </div>
-                      {% endif %}
-
-                      {% if can_comment and not comment.is_resolved %}
-                        <div class="mt-2">
-                          <button
-                            data-comment-id="{{ comment.id }}"
-                            class="reply-to-comment btn btn-sm btn-link text-primary p-0">
-                            Reply
-                          </button>
-                        </div>
-                      {% endif %}
-                    </div>
+      {% else %}
+        {% for comment in comments %}
+          <div class="card comment-card mb-3 {% if comment.is_resolved %}bg-light{% endif %}">
+            <div class="card-body p-3">
+              <div class="d-flex">
+                <div class="me-2">
+                  <div class="avatar bg-primary text-white">
+                    {{ comment.author.get_full_name|slice:":1" }}
                   </div>
                 </div>
+                <div class="flex-grow-1">
+                  <div class="d-flex justify-content-between">
+                    <div>
+                      <h6 class="mb-0">{{ comment.author.get_full_name }}</h6>
+                      <div class="text-muted small">{{ comment.created_at|date:"M j, Y, g:i a" }}</div>
+                    </div>
+                    {% if not comment.is_resolved and comment.author == request.user.employee_profile %}
+                      <button
+                        data-comment-id="{{ comment.id }}"
+                        class="resolve-comment btn btn-sm btn-link text-primary p-0">
+                        Resolve
+                      </button>
+                    {% endif %}
+                  </div>
+
+                  {% if comment.selected_text %}
+                    <div class="bg-light p-2 rounded border my-2 fst-italic small text-muted">
+                      "{{ comment.selected_text }}"
+                    </div>
+                  {% endif %}
+
+                  <div class="mt-2">
+                    {{ comment.content }}
+                  </div>
+
+                  {% if comment.is_resolved %}
+                    <div class="mt-2 small text-success">
+                      <i class="fas fa-check-circle me-1"></i>
+                      Resolved by {{ comment.resolved_by.get_full_name }} on {{ comment.resolved_at|date:"M j, Y, g:i a" }}
+                    </div>
+                  {% endif %}
+
+                  {% if comment.replies.exists %}
+                    <div class="mt-3 border-start border-2 ps-3">
+                      {% for reply in comment.replies.all %}
+                        <div class="mb-2">
+                          <div class="d-flex">
+                            <div class="me-2">
+                              <div class="avatar avatar-sm bg-light text-dark">
+                                {{ reply.author.get_full_name|slice:":1" }}
+                              </div>
+                            </div>
+                            <div>
+                              <div class="fw-bold small">{{ reply.author.get_full_name }}
+                                <span class="fw-normal text-muted">{{ reply.created_at|date:"M j, Y, g:i a" }}</span>
+                              </div>
+                              <div>{{ reply.content }}</div>
+                            </div>
+                          </div>
+                        </div>
+                      {% endfor %}
+                    </div>
+                  {% endif %}
+
+                  {% if can_comment and not comment.is_resolved %}
+                    <div class="mt-2">
+                      <button
+                        data-comment-id="{{ comment.id }}"
+                        class="reply-to-comment btn btn-sm btn-link text-primary p-0">
+                        Reply
+                      </button>
+                    </div>
+                  {% endif %}
+                </div>
               </div>
-            {% endfor %}
-          {% endif %}
-        </div>
-      </div>
+            </div>
+          </div>
+        {% endfor %}
+      {% endif %}
     </div>
   </div>
 </div>
-
-<!-- Comment Form Modal -->
+  </div>
+</div>
 <div class="modal fade" id="comment-modal" tabindex="-1" aria-labelledby="commentModalLabel" aria-hidden="true">
   <div class="modal-dialog">
     <div class="modal-content">
@@ -255,187 +249,33 @@
           <input type="hidden" id="comment-selection-start" value="">
           <input type="hidden" id="comment-selection-end" value="">
           <input type="hidden" id="comment-selected-text" value="">
-
-          <div class="mb-3">
-            <label for="comment-content" class="form-label">Comment</label>
-            <textarea id="comment-content" name="content" rows="4" class="form-control"></textarea>
-          </div>
-
-          <div class="d-flex justify-content-end">
-            <button type="button" id="comment-cancel" class="btn btn-outline-secondary me-2" data-bs-dismiss="modal">
-              Cancel
-            </button>
-            <button type="submit" id="comment-submit" class="btn btn-primary">
-              Add Comment
-            </button>
-          </div>
-        </form>
+Copy      <div class="mb-3">
+        <label for="comment-content" class="form-label">Comment</label>
+        <textarea id="comment-content" name="content" rows="4" class="form-control"></textarea>
       </div>
-    </div>
+
+      <div class="d-flex justify-content-end">
+        <button type="button" id="comment-cancel" class="btn btn-outline-secondary me-2" data-bs-dismiss="modal">
+          Cancel
+        </button>
+        <button type="submit" id="comment-submit" class="btn btn-primary">
+          Add Comment
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
   </div>
 </div>
 {% endblock %}
-
 {% block extra_js %}
-<!-- Slate.js dependencies -->
 <script src="https://unpkg.com/react@17/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@17/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/slate@0.72.0/dist/slate.js"></script>
 <script src="https://unpkg.com/slate-react@0.72.0/dist/slate-react.js"></script>
 <script src="https://unpkg.com/slate-history@0.72.0/dist/slate-history.js"></script>
 <script src="https://unpkg.com/is-hotkey@0.2.0/umd/is-hotkey.js"></script>
-
-<!-- Our custom editor script -->
+<script src="https://unpkg.com/lodash@4.17.21/lodash.min.js"></script>
 <script src="{% static 'document_editor/js/slate-editor.js' %}"></script>
-
-<script>
-  // Initialize the last saved time display
-  document.addEventListener('DOMContentLoaded', function() {
-    const lastSavedTime = document.getElementById('last-saved-time');
-    if (lastSavedTime) {
-      const updatedAt = "{{ document.updated_at|date:'c' }}";
-      lastSavedTime.textContent = new Date(updatedAt).toLocaleString();
-    }
-
-    // Toggle comments panel
-    const toggleCommentsBtn = document.getElementById('toggle-comments');
-    const commentsPanel = document.getElementById('comments-panel');
-    const editorContainer = document.getElementById('editor-container');
-
-    if (toggleCommentsBtn && commentsPanel) {
-      toggleCommentsBtn.addEventListener('click', function() {
-        commentsPanel.classList.toggle('d-none');
-        commentsPanel.classList.toggle('d-block');
-
-        if (commentsPanel.classList.contains('d-block')) {
-          editorContainer.classList.remove('col-md-9');
-          editorContainer.classList.add('col-md-6');
-        } else {
-          editorContainer.classList.remove('col-md-6');
-          editorContainer.classList.add('col-md-9');
-        }
-      });
-    }
-
-    // Comment modal functionality
-    const commentModal = new bootstrap.Modal(document.getElementById('comment-modal'));
-    const addCommentBtn = document.getElementById('add-comment');
-    const commentForm = document.getElementById('comment-form');
-    const commentParentId = document.getElementById('comment-parent-id');
-    const commentContent = document.getElementById('comment-content');
-    const commentModalTitle = document.getElementById('comment-modal-title');
-
-    // Function to open the comment modal
-    function openCommentModal(parentId = null, title = 'Add Comment') {
-      commentModalTitle.textContent = title;
-      commentParentId.value = parentId || '';
-      commentContent.value = '';
-      commentModal.show();
-      setTimeout(() => commentContent.focus(), 500);
-    }
-
-    // Handle add comment button
-    if (addCommentBtn) {
-      addCommentBtn.addEventListener('click', function() {
-        // Get any selected text from the editor
-        const selection = window.getSelection();
-        if (selection.rangeCount > 0) {
-          const range = selection.getRangeAt(0);
-          document.getElementById('comment-selected-text').value = range.toString();
-          // In a real implementation, you would need to convert DOM selection to Slate path
-        }
-
-        openCommentModal();
-      });
-    }
-
-    // Handle reply to comment buttons
-    const replyButtons = document.querySelectorAll('.reply-to-comment');
-    replyButtons.forEach(button => {
-      button.addEventListener('click', function() {
-        const commentId = this.getAttribute('data-comment-id');
-        openCommentModal(commentId, 'Reply to Comment');
-      });
-    });
-
-    // Handle resolve comment buttons
-    const resolveButtons = document.querySelectorAll('.resolve-comment');
-    resolveButtons.forEach(button => {
-      button.addEventListener('click', function() {
-        const commentId = this.getAttribute('data-comment-id');
-
-        fetch(`/documents/comments/${commentId}/resolve/`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': '{{ csrf_token }}'
-          }
-        })
-        .then(response => response.json())
-        .then(data => {
-          if (data.success) {
-            // Reload the page to show the resolved comment
-            window.location.reload();
-          } else {
-            alert('Error resolving comment: ' + data.error);
-          }
-        })
-        .catch(error => {
-          console.error('Error resolving comment:', error);
-          alert('Error resolving comment. Please try again.');
-        });
-      });
-    });
-
-    // Handle comment form submission
-    if (commentForm) {
-      commentForm.addEventListener('submit', function(e) {
-        e.preventDefault();
-
-        const documentId = document.getElementById('document-id').value;
-        const parentId = document.getElementById('comment-parent-id').value;
-        const content = document.getElementById('comment-content').value;
-        const selectionStart = document.getElementById('comment-selection-start').value;
-        const selectionEnd = document.getElementById('comment-selection-end').value;
-        const selectedText = document.getElementById('comment-selected-text').value;
-
-        if (!content.trim()) {
-          alert('Please enter a comment.');
-          return;
-        }
-
-        fetch(`/documents/${documentId}/add-comment/`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': '{{ csrf_token }}'
-          },
-          body: JSON.stringify({
-            content,
-            parent_id: parentId || null,
-            selection_start: selectionStart || null,
-            selection_end: selectionEnd || null,
-            selected_text: selectedText || null
-          })
-        })
-        .then(response => response.json())
-        .then(data => {
-          if (data.success) {
-            // Reload the page to show the new comment
-            window.location.reload();
-          } else {
-            alert('Error adding comment: ' + data.error);
-          }
-        })
-        .catch(error => {
-          console.error('Error adding comment:', error);
-          alert('Error adding comment. Please try again.');
-        });
-
-        // Hide the modal
-        commentModal.hide();
-      });
-    }
-  });
-</script>
+<script src="{% static 'document_editor/js/comments.js' %}"></script>
 {% endblock %}
