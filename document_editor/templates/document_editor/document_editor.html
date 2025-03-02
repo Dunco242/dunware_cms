@@ -40,16 +40,19 @@
       <form method="post" action="{% url 'document_editor:save_document_content' document.id %}">
         {% csrf_token %}
 
-        <!-- Hidden Fields for JS -->
+        <!-- Debugging Hidden Fields -->
         <input type="hidden" id="document-id" value="{{ document.id }}">
         <input type="hidden" id="can-edit" value="{{ can_edit }}">
         <input type="hidden" id="can-comment" value="{{ can_comment }}">
+
+        <!-- Debugging Message -->
+        <p id="editor-debug" class="text-danger">Editor is not loading...</p>
 
         <!-- Slate.js Editor -->
         <div id="slate-editor" class="card shadow-sm mb-4"></div>
 
         <!-- Backup Textarea for Content -->
-        <label for="document-content" class="form-label">Document Content</label>
+        <label for="document-content" class="form-label">Document Content (Fallback)</label>
         <textarea id="document-content" name="content" class="form-control" rows="10">
           {{ document_content|safe }}
         </textarea>
@@ -79,9 +82,19 @@
 <script>
   document.addEventListener('DOMContentLoaded', function () {
     const editorContainer = document.getElementById('slate-editor');
+    const debugMessage = document.getElementById('editor-debug');
+
     if (!editorContainer.innerHTML.trim()) {
-      editorContainer.innerHTML = '<p class="text-muted">Loading editor...</p>';
+      debugMessage.innerText = "Slate.js is initializing...";
     }
+
+    setTimeout(() => {
+      if (!editorContainer.innerHTML.trim()) {
+        debugMessage.innerText = "Slate.js failed to load! Check console.";
+      } else {
+        debugMessage.innerText = "";
+      }
+    }, 5000);
   });
 </script>
 {% endblock %}
