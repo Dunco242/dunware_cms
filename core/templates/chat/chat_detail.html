@@ -65,6 +65,11 @@
         color: #721c24;
     }
 
+    .system.info .message-content {
+        background-color: #d1ecf1;
+        color: #0c5460;
+    }
+
     .message-footer {
         font-size: 0.75rem;
         margin-top: 0.25rem;
@@ -131,6 +136,12 @@
         padding: 0.6rem 0.75rem;
         margin-top: 0.1rem;
     }
+
+    .header-actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
 </style>
 {% endblock %}
 
@@ -163,15 +174,15 @@
                     {% endif %}
                 </h2>
 
-                <div class="d-flex align-items-center gap-3">
+                <div class="header-actions">
                     <div id="connectionStatus" class="connecting">
                         Connecting...
                     </div>
-                    {% if session.is_group_chat %}
-                        <button id="leaveChatBtn" class="btn btn-danger">
-                            <i class="fas fa-sign-out-alt"></i> Leave Chat
-                        </button>
-                    {% endif %}
+
+                    <!-- Leave Chat Button - Now visible for all users -->
+                    <button id="leaveChatBtn" class="btn btn-danger">
+                        <i class="fas fa-sign-out-alt"></i> Leave Chat
+                    </button>
                 </div>
             </div>
 
@@ -248,43 +259,39 @@
 {% block extra_js %}
 <script src="{% static 'js/chat.js' %}"></script>
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Add user functionality
-        const addUserBtn = document.getElementById('addUserBtn');
-        if (addUserBtn) {
-            addUserBtn.addEventListener('click', function() {
-                const userSelect = document.getElementById('addUserSelect');
-                const userId = userSelect.value;
+    document.addEventListener('DOMContentLoaded', () => {
+        const addUserBtn = document.getElementById("addUserBtn");
+        const addUserSelect = document.getElementById("addUserSelect");
 
-                if (userId) {
-                    fetch('/chat/add-user/', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRFToken': '{{ csrf_token }}'
-                        },
-                        body: JSON.stringify({
-                            session_id: '{{ session.id }}',
-                            user_id: userId
-                        })
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            alert(data.message);
-                            // Optionally reload the page to show the new user
-                            window.location.reload();
-                        } else {
-                            alert('Error: ' + data.error);
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error adding user:', error);
-                        alert('An error occurred while adding user');
-                    });
-                } else {
-                    alert('Please select a user to add');
+        // Add User to Chat
+        if (addUserBtn && addUserSelect) {
+            addUserBtn.addEventListener("click", function () {
+                const selectedUserId = addUserSelect.value;
+                if (!selectedUserId) {
+                    alert("Please select a user to add.");
+                    return;
                 }
+
+                fetch("{% url 'add_user_to_chat' %}", {
+                    method: "POST",
+                    headers: {
+                        "X-CSRFToken": "{{ csrf_token }}",
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        session_id: "{{ session.id }}",
+                        user_id: selectedUserId,
+                    }),
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert("User added successfully!");
+                        location.reload();
+                    } else {
+                        alert("Error adding user: " + data.error);
+                    }
+                });
             });
         }
     });

@@ -68,10 +68,12 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     )
 
                     # Send notification to recipient
+                    notification_group = f'notifications_{data["receiver_id"]}'
+                    logger.info(f"Sending notification to {notification_group}")
                     await self.channel_layer.group_send(
-                        f'notifications_{data["receiver_id"]}',
+                        notification_group,
                         {
-                            "type": "notification_message",
+                            "type": "chat_notification",
                             "message": message_data
                         }
                     )
@@ -135,18 +137,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
         except Exception as e:
             logger.error(f"Error sending user_left event: {str(e)}")
 
-    async def notification_message(self, event):
-        """Sends a new message notification to WebSocket clients."""
-        try:
-            await self.send(text_data=json.dumps({
-                "type": "new_message",
-                "message": event["message"]
-            }))
-            logger.info(f"Notification sent for new message in session {self.session_id}")
-
-        except Exception as e:
-            logger.error(f"Error sending notification message: {str(e)}")
-
     @database_sync_to_async
     def save_message(self, session_id, sender_id, receiver_id, content):
         """Saves a new chat message asynchronously."""
@@ -194,17 +184,13 @@ class ChatConsumer(AsyncWebsocketConsumer):
             if employee not in session.participants.all():
                 return False, "User is not in this chat session."
 
-            # For direct chats, we don't allow leaving
-            if not session.is_group_chat:
-                return False, "You cannot leave direct chat sessions."
-
             # Remove user from chat participants
             session.participants.remove(employee)
 
             # Create system message about the user leaving
             user_name = f"{employee.user.first_name} {employee.user.last_name}".strip() or employee.user.username
 
-            # If this was a group chat with no participants, mark as inactive
+            # If this was a chat with no participants, mark as inactive
             if session.participants.count() == 0:
                 session.is_active = False
                 session.save()
@@ -233,10 +219,11 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
             return {
                 'id': message.id,
+                'session_id': message.session.id,
                 'content': message.content,
                 'sender': {
                     'id': message.sender.employee_id,
-                    'name': sender_name  # Include sender name in the response
+                    'name': sender_name
                 },
                 'receiver': {
                     'id': message.receiver.employee_id,
@@ -250,6 +237,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             # Return minimal data to avoid breaking the app
             return {
                 'id': message.id,
+                'session_id': message.session.id,
                 'content': message.content,
                 'sender': {
                     'id': getattr(message.sender, 'employee_id', 'unknown'),
@@ -404,15 +392,20 @@ class NotificationConsumer(AsyncWebsocketConsumer):
                 'message': str(e)
             }))
 
-    async def notification_message(self, event):
-        await self.send(text_data=json.dumps({
-            "type": "notification",
-            "message": event["message"]
-        }))
+    async def chat_notification(self, event):
+        """Handles chat notifications sent to this consumer"""
+        try:
+            await self.send(text_data=json.dumps({
+                "type": "new_message",
+                "message": event["message"]
+            }))
+            logger.info(f"Chat notification sent to employee {self.employee_id}")
+        except Exception as e:
+            logger.error(f"Error in chat_notification: {str(e)}")
 
     @database_sync_to_async
     def mark_notifications_read(self):
-        from .models import ChatNotification, Employee
+        from .models import ChatNotification
         try:
             ChatNotification.objects.filter(
                 recipient__employee_id=self.employee_id,
