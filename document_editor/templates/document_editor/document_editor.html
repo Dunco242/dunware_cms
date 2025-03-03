@@ -167,11 +167,24 @@
     const activeUsersContainer = document.getElementById('active-users');
     const documentId = document.getElementById('document-id').value;
     const canEdit = document.getElementById('can-edit').value === 'True';
-    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
-    console.log("🔑 CSRF Token:", csrfToken);
-// if (!csrfToken) {
-      console.error("🚨 Missing CSRF token! Check the form for {% csrf_token %}");
-},
+
+    // Get CSRF token from cookie (more reliable than from the form)
+    function getCookie(name) {
+      let cookieValue = null;
+      if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+          const cookie = cookies[i].trim();
+          if (cookie.substring(0, name.length + 1) === (name + '=')) {
+            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+            break;
+          }
+        }
+      }
+      return cookieValue;
+    }
+
+    const csrfToken = getCookie('csrftoken');
 
     // Setup toolbar buttons
     document.querySelectorAll('.toolbar-button').forEach(button => {
@@ -384,49 +397,49 @@
       // Log for debugging
       console.log('Saving content:', slateContent);
 
+      // Send save request with proper CSRF handling
       fetch(`/documents/${documentId}/save/`, {
-        method: "POST",
+        method: 'POST',
         headers: {
-            "Content-Type": "application/json",
-            "X-CSRFToken": csrfToken,
+          'Content-Type': 'application/json',
+          'X-CSRFToken': csrfToken,
         },
-        body: documentContent,
-    })
-    .then(response => {
-        console.log("🛜 Received response:", response);
-
+        credentials: 'same-origin', // This ensures cookies are sent with the request
+        body: JSON.stringify({
+          content: slateContent,
+          create_version: createVersion,
+        }),
+      })
+      .then(response => {
+        console.log('Received response:', response);
         if (!response.ok) {
-            return response.text().then(text => {
-                throw new Error(`Server error: ${response.status} - ${text}`);
-            });
+          throw new Error(`Server error: ${response.status} - ${response.statusText}`);
         }
-
         return response.json();
-    })
-    .then(data => {
+      })
+      .then(data => {
         if (data.success) {
-            console.log("✅ Document saved successfully:", data);
-            hasUnsavedChanges = false;
+          hasUnsavedChanges = false;
 
-            const successMsg = createVersion
-                ? `Created new version ${data.version}`
-                : "Document saved successfully";
+          const successMsg = createVersion
+            ? `Created new version ${data.version}`
+            : 'Document saved successfully';
 
-            showNotification(successMsg, "success");
+          showNotification(successMsg, 'success');
 
-            if (data.updated_at) {
-                document.getElementById("save-status").innerText = `Last saved: ${new Date(data.updated_at).toLocaleString()}`;
-            }
+          if (data.updated_at) {
+            saveStatus.innerText = `Last saved: ${new Date(data.updated_at).toLocaleString()}`;
+          }
         } else {
-            console.error("❌ Error saving document:", data.error);
-            showNotification("Error saving document: " + data.error, "error");
+          console.error('Error saving document:', data.error);
+          showNotification('Error saving document: ' + data.error, 'error');
         }
-    })
-    .catch(error => {
-        console.error("🚨 Network or server error:", error);
-        showNotification("Error saving document: " + error.message, "error");
-    });
-}
+      })
+      .catch(error => {
+        console.error('Network or server error:', error);
+        showNotification('Network or server error: ' + error.message, 'error');
+      });
+    }
 
     // Save button click handlers
     saveButton.addEventListener('click', function() {
