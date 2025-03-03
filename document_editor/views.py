@@ -442,8 +442,33 @@ def save_document_content(request, document_id):
         # Update document content
         document.content = content
 
-        # Update plain_text field
-        document.plain_text = document.extract_plain_text()
+        # Extract plain text from content
+        try:
+            # Extract plain text manually to ensure it works
+            text_parts = []
+
+            def extract_text_from_node(node):
+                if isinstance(node, dict):
+                    if 'text' in node:
+                        text_parts.append(node['text'])
+                    elif 'children' in node and isinstance(node['children'], list):
+                        for child in node['children']:
+                            extract_text_from_node(child)
+
+            if isinstance(content, dict) and 'children' in content:
+                for node in content['children']:
+                    extract_text_from_node(node)
+
+            plain_text = ' '.join(text_parts)
+
+            # Update the plain_text field explicitly
+            document.plain_text = plain_text
+
+            print(f"Extracted plain text ({len(plain_text)} chars): {plain_text[:100]}")
+        except Exception as e:
+            print(f"Error extracting plain text: {str(e)}")
+            # If extraction fails, use document's method as fallback
+            document.plain_text = document.extract_plain_text()
 
         # Update metadata
         document.updated_by = employee
@@ -451,8 +476,13 @@ def save_document_content(request, document_id):
 
         # Create version if requested
         if create_version:
-            # Create new version - adjust as needed for your model
-            version = document.version + 1 if hasattr(document, 'version') else 1
+            # Get the next version number
+            try:
+                latest_version = DocumentVersion.objects.filter(document=document).order_by('-version_number').first()
+                version = (latest_version.version_number + 1) if latest_version else 1
+            except Exception:
+                # Fallback to document version if available
+                version = document.version + 1 if hasattr(document, 'version') else 1
 
             # Create the version
             DocumentVersion.objects.create(
@@ -469,13 +499,20 @@ def save_document_content(request, document_id):
         # Save the document
         document.save()
 
+        # Verify what was saved
+        document.refresh_from_db()
+        print(f"After save - Plain text length: {len(document.plain_text)}")
+        print(f"Document saved successfully: ID={document.id}, version={document.version if hasattr(document, 'version') else 'N/A'}")
+
         return JsonResponse({
             'success': True,
             'updated_at': document.updated_at.isoformat()
         })
 
     except Exception as e:
-        logger.exception(f"Error saving document: {str(e)}")
+        import traceback
+        print(f"Error saving document: {str(e)}")
+        print(traceback.format_exc())
         return JsonResponse({
             'success': False,
             'error': str(e)

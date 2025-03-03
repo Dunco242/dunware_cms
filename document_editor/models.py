@@ -104,18 +104,35 @@ class Document(models.Model):
         try:
             # Process nodes recursively
             def extract_text(nodes):
+                if not isinstance(nodes, list):
+                    return
+
                 for node in nodes:
-                    if 'text' in node:
+                    if not isinstance(node, dict):
+                        continue
+
+                    if 'text' in node and node['text']:
                         text_parts.append(node['text'])
-                    elif 'children' in node:
+                    elif 'children' in node and isinstance(node['children'], list):
                         extract_text(node['children'])
 
             # Start extraction from the root
             children = self.content.get('children', [])
+            if not isinstance(children, list):
+                return ""
+
             extract_text(children)
 
-            return ' '.join(text_parts)
+            # Join text parts with space and normalize whitespace
+            result = ' '.join(text_parts)
+            # Replace multiple spaces with a single space
+            import re
+            result = re.sub(r'\s+', ' ', result).strip()
+            return result
         except Exception as e:
+            import traceback
+            print(f"Error extracting text: {str(e)}")
+            print(traceback.format_exc())
             return f"Error extracting text: {str(e)}"
 
     def get_all_versions(self):
