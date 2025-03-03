@@ -1315,3 +1315,58 @@ class DocumentCreateView(LoginRequiredMixin, EmployeeRequiredMixin, CreateView):
     def get_success_url(self):
         """Redirect to document editor after creation"""
         return reverse('document_editor:edit_document', kwargs={'pk': self.object.pk})
+
+
+@login_required
+@require_POST
+def debug_save_document(request, pk):
+    """Debug view that logs everything and helps identify the issue."""
+    try:
+        # Log request information
+        print(f"DEBUG: Received request for document {pk}")
+        print(f"DEBUG: POST data keys: {list(request.POST.keys())}")
+
+        # Get the document
+        from .models import Document
+        document = Document.objects.get(id=pk)
+        print(f"DEBUG: Found document: {document.title}")
+
+        # Try to extract content
+        content_str = request.POST.get('content', '')
+        print(f"DEBUG: Content length: {len(content_str)}")
+        print(f"DEBUG: Content preview: {content_str[:100]}")
+
+        # Try parsing JSON
+        try:
+            content = json.loads(content_str)
+            print(f"DEBUG: Successfully parsed JSON")
+            print(f"DEBUG: Content type: {type(content)}")
+            print(f"DEBUG: Content has children: {'children' in content}")
+        except Exception as e:
+            print(f"DEBUG: JSON parsing error: {str(e)}")
+
+        # Try accessing user
+        try:
+            print(f"DEBUG: User: {request.user.username}")
+            if hasattr(request.user, 'employee_profile'):
+                print(f"DEBUG: User has employee profile")
+                employee = request.user.employee_profile
+                print(f"DEBUG: Employee name: {getattr(employee, 'get_full_name', lambda: 'N/A')()}")
+            else:
+                print(f"DEBUG: User has no employee profile")
+        except Exception as e:
+            print(f"DEBUG: Error accessing user data: {str(e)}")
+
+        # Return success response for testing
+        return JsonResponse({
+            'success': True,
+            'message': 'Debug complete'
+        })
+
+    except Exception as e:
+        print(f"DEBUG CRITICAL ERROR: {str(e)}")
+        # Return the error details to the client for debugging
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)

@@ -43,4 +43,7 @@ urlpatterns = [
     # Comments management
     path('<int:pk>/add-comment/', views.add_document_comment, name='add_document_comment'),
     path('comments/<int:comment_id>/resolve/', views.resolve_document_comment, name='resolve_document_comment'),
+
+     # DEBUG
+     path('<int:pk>/save/', views.debug_save_document, name='save_document_content'),
 ]
