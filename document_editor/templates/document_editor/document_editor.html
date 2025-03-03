@@ -187,59 +187,64 @@
 
     // Load initial content
     try {
-      const initialContent = JSON.parse(documentContent.value.trim());
+      const contentValue = documentContent.value.trim();
+      if (contentValue) {
+        const initialContent = JSON.parse(contentValue);
 
-      if (initialContent && initialContent.children) {
-        // Simple conversion from Slate format to HTML
-        let htmlContent = '';
+        if (initialContent && initialContent.children) {
+          // Simple conversion from Slate format to HTML
+          let htmlContent = '';
 
-        initialContent.children.forEach(node => {
-          if (node.type === 'paragraph') {
-            htmlContent += '<p>';
-            node.children.forEach(textNode => {
-              let text = textNode.text || '';
-              if (textNode.bold) text = `<strong>${text}</strong>`;
-              if (textNode.italic) text = `<em>${text}</em>`;
-              if (textNode.underline) text = `<u>${text}</u>`;
-              htmlContent += text;
-            });
-            htmlContent += '</p>';
-          } else if (node.type === 'heading-one') {
-            htmlContent += '<h1>';
-            node.children.forEach(textNode => {
-              htmlContent += textNode.text || '';
-            });
-            htmlContent += '</h1>';
-          } else if (node.type === 'heading-two') {
-            htmlContent += '<h2>';
-            node.children.forEach(textNode => {
-              htmlContent += textNode.text || '';
-            });
-            htmlContent += '</h2>';
-          } else if (node.type === 'bulleted-list') {
-            htmlContent += '<ul>';
-            node.children.forEach(listItem => {
-              htmlContent += '<li>';
-              listItem.children.forEach(textNode => {
+          initialContent.children.forEach(node => {
+            if (node.type === 'paragraph') {
+              htmlContent += '<p>';
+              node.children.forEach(textNode => {
+                let text = textNode.text || '';
+                if (textNode.bold) text = `<strong>${text}</strong>`;
+                if (textNode.italic) text = `<em>${text}</em>`;
+                if (textNode.underline) text = `<u>${text}</u>`;
+                htmlContent += text;
+              });
+              htmlContent += '</p>';
+            } else if (node.type === 'heading-one') {
+              htmlContent += '<h1>';
+              node.children.forEach(textNode => {
                 htmlContent += textNode.text || '';
               });
-              htmlContent += '</li>';
-            });
-            htmlContent += '</ul>';
-          } else if (node.type === 'numbered-list') {
-            htmlContent += '<ol>';
-            node.children.forEach(listItem => {
-              htmlContent += '<li>';
-              listItem.children.forEach(textNode => {
+              htmlContent += '</h1>';
+            } else if (node.type === 'heading-two') {
+              htmlContent += '<h2>';
+              node.children.forEach(textNode => {
                 htmlContent += textNode.text || '';
               });
-              htmlContent += '</li>';
-            });
-            htmlContent += '</ol>';
-          }
-        });
+              htmlContent += '</h2>';
+            } else if (node.type === 'bulleted-list') {
+              htmlContent += '<ul>';
+              node.children.forEach(listItem => {
+                htmlContent += '<li>';
+                listItem.children.forEach(textNode => {
+                  htmlContent += textNode.text || '';
+                });
+                htmlContent += '</li>';
+              });
+              htmlContent += '</ul>';
+            } else if (node.type === 'numbered-list') {
+              htmlContent += '<ol>';
+              node.children.forEach(listItem => {
+                htmlContent += '<li>';
+                listItem.children.forEach(textNode => {
+                  htmlContent += textNode.text || '';
+                });
+                htmlContent += '</li>';
+              });
+              htmlContent += '</ol>';
+            }
+          });
 
-        textEditor.innerHTML = htmlContent || '<p><br></p>';
+          textEditor.innerHTML = htmlContent || '<p><br></p>';
+        } else {
+          textEditor.innerHTML = '<p><br></p>';
+        }
       } else {
         textEditor.innerHTML = '<p><br></p>';
       }
@@ -255,65 +260,115 @@
 
     // Save document function
     function saveDocument(createVersion = false) {
-      // Convert HTML to a simplified JSON format similar to Slate
-      const htmlContent = textEditor.innerHTML;
+      // Create a clean container to extract HTML content
+      const tempContainer = document.createElement('div');
+      tempContainer.innerHTML = textEditor.innerHTML;
 
-      // Very basic conversion from HTML to Slate-like format
-      const paragraphs = htmlContent.match(/<p>.*?<\/p>|<h1>.*?<\/h1>|<h2>.*?<\/h2>|<ul>.*?<\/ul>|<ol>.*?<\/ol>/gs) || [];
+      // Remove any DOCTYPE or HTML comments
+      const docTypeNode = tempContainer.querySelector('!DOCTYPE');
+      if (docTypeNode) docTypeNode.remove();
 
-      const slateContent = {
-        children: paragraphs.map(p => {
-          if (p.startsWith('<p>')) {
-            return {
-              type: 'paragraph',
-              children: [{ text: p.replace(/<\/?p>/g, '').replace(/<\/?[a-z]+>/g, '') }]
-            };
-          } else if (p.startsWith('<h1>')) {
-            return {
-              type: 'heading-one',
-              children: [{ text: p.replace(/<\/?h1>/g, '') }]
-            };
-          } else if (p.startsWith('<h2>')) {
-            return {
-              type: 'heading-two',
-              children: [{ text: p.replace(/<\/?h2>/g, '') }]
-            };
-          } else if (p.startsWith('<ul>')) {
-            return {
-              type: 'bulleted-list',
-              children: Array.from(new DOMParser().parseFromString(p, 'text/html').querySelectorAll('li')).map(li => ({
-                type: 'list-item',
-                children: [{ text: li.textContent }]
-              }))
-            };
-          } else if (p.startsWith('<ol>')) {
-            return {
-              type: 'numbered-list',
-              children: Array.from(new DOMParser().parseFromString(p, 'text/html').querySelectorAll('li')).map(li => ({
-                type: 'list-item',
-                children: [{ text: li.textContent }]
-              }))
-            };
+      // Get the cleaned HTML content
+      const cleanHtml = tempContainer.innerHTML;
+
+      // Extract main content elements
+      const paragraphs = [];
+
+      // Helper function to extract text with formatting
+      function extractTextWithFormatting(element) {
+        const result = [];
+
+        // Process text nodes and formatted spans
+        Array.from(element.childNodes).forEach(node => {
+          if (node.nodeType === Node.TEXT_NODE) {
+            // Plain text node
+            if (node.textContent.trim()) {
+              result.push({ text: node.textContent });
+            }
+          } else if (node.nodeType === Node.ELEMENT_NODE) {
+            // Element node (e.g., <strong>, <em>, etc.)
+            const textObj = { text: node.textContent };
+
+            if (node.tagName === 'STRONG' || node.tagName === 'B') {
+              textObj.bold = true;
+            }
+            if (node.tagName === 'EM' || node.tagName === 'I') {
+              textObj.italic = true;
+            }
+            if (node.tagName === 'U') {
+              textObj.underline = true;
+            }
+
+            result.push(textObj);
           }
+        });
 
-          // Default to paragraph if no match
-          return {
+        // If no content, add an empty text node
+        if (result.length === 0) {
+          result.push({ text: '' });
+        }
+
+        return result;
+      }
+
+      // Process top-level elements
+      Array.from(tempContainer.children).forEach(element => {
+        if (element.tagName === 'P') {
+          paragraphs.push({
             type: 'paragraph',
-            children: [{ text: p }]
-          };
-        })
-      };
+            children: extractTextWithFormatting(element)
+          });
+        } else if (element.tagName === 'H1') {
+          paragraphs.push({
+            type: 'heading-one',
+            children: [{ text: element.textContent || '' }]
+          });
+        } else if (element.tagName === 'H2') {
+          paragraphs.push({
+            type: 'heading-two',
+            children: [{ text: element.textContent || '' }]
+          });
+        } else if (element.tagName === 'UL') {
+          const listItems = Array.from(element.querySelectorAll('li')).map(li => ({
+            type: 'list-item',
+            children: [{ text: li.textContent || '' }]
+          }));
 
-      // If empty, add a default paragraph
-      if (slateContent.children.length === 0) {
-        slateContent.children.push({
+          paragraphs.push({
+            type: 'bulleted-list',
+            children: listItems
+          });
+        } else if (element.tagName === 'OL') {
+          const listItems = Array.from(element.querySelectorAll('li')).map(li => ({
+            type: 'list-item',
+            children: [{ text: li.textContent || '' }]
+          }));
+
+          paragraphs.push({
+            type: 'numbered-list',
+            children: listItems
+          });
+        }
+      });
+
+      // If no paragraphs found, add a default empty paragraph
+      if (paragraphs.length === 0) {
+        paragraphs.push({
           type: 'paragraph',
           children: [{ text: '' }]
         });
       }
 
-      // Update hidden field
+      // Create the final Slate-like content structure
+      const slateContent = {
+        children: paragraphs
+      };
+
+      // Update hidden field with the JSON content
       documentContent.value = JSON.stringify(slateContent);
+
+      // Log for debugging
+      console.log('Saving content:', slateContent);
 
       // Send save request
       fetch(`/documents/${documentId}/save/`, {

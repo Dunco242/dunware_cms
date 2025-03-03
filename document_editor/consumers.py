@@ -366,7 +366,7 @@ class DocumentConsumer(AsyncWebsocketConsumer):
                 return {
                     'id': employee.id,
                     'name': employee.get_full_name(),
-                    'email': employee.email,
+                    'email': employee.user.email,
                 }
             return None
         except Exception as e:
