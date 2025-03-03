@@ -167,7 +167,11 @@
     const activeUsersContainer = document.getElementById('active-users');
     const documentId = document.getElementById('document-id').value;
     const canEdit = document.getElementById('can-edit').value === 'True';
-    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+    console.log("🔑 CSRF Token:", csrfToken);
+// if (!csrfToken) {
+      console.error("🚨 Missing CSRF token! Check the form for {% csrf_token %}");
+},
 
     // Setup toolbar buttons
     document.querySelectorAll('.toolbar-button').forEach(button => {
