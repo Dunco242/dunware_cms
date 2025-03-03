@@ -391,45 +391,39 @@ def save_document_content(request, document_id):
                 'error': f'Invalid JSON content: {str(e)}'
             }, status=400)
 
-        # Update document content
+        # Extract plain text using a direct approach
+        plain_text = ""
+
+        def extract_all_text(obj):
+            nonlocal plain_text
+            if isinstance(obj, dict):
+                # Get text from this node if it exists
+                if 'text' in obj and obj['text']:
+                    plain_text += obj['text'] + " "
+
+                # Process all fields that could contain nested content
+                for key, value in obj.items():
+                    if isinstance(value, (dict, list)):
+                        extract_all_text(value)
+            elif isinstance(obj, list):
+                for item in obj:
+                    extract_all_text(item)
+
+        extract_all_text(content)
+
+        # Clean up the plain text
+        plain_text = plain_text.strip()
+
+        # Normalize whitespace
+        import re
+        plain_text = re.sub(r'\s+', ' ', plain_text)
+
+        # Log extracted plain text for debugging
+        print(f"Extracted plain_text ({len(plain_text)} chars): {plain_text[:100]}...")
+
+        # Update document content and plain_text
         document.content = content
-
-        # Extract plain text from content
-        try:
-            # Extract plain text manually to ensure it works
-            text_parts = []
-
-            def extract_text_from_node(node):
-                if isinstance(node, dict):
-                    if 'text' in node:
-                        text_parts.append(node['text'])
-                    elif 'children' in node and isinstance(node['children'], list):
-                        for child in node['children']:
-                            extract_text_from_node(child)
-
-            if isinstance(content, dict) and 'children' in content:
-                for node in content['children']:
-                    extract_text_from_node(node)
-
-            plain_text = ' '.join(text_parts)
-
-            # Normalize whitespace and clean up
-            plain_text = re.sub(r'\s+', ' ', plain_text).strip()
-
-            # Update the plain_text field explicitly
-            document.plain_text = plain_text
-
-            logger.debug(f"Extracted plain text ({len(plain_text)} chars): {plain_text[:100]}")
-        except Exception as e:
-            logger.error(f"Error extracting plain text: {str(e)}")
-            # If extraction fails, try document's method as fallback
-            try:
-                document.plain_text = document.extract_plain_text()
-            except Exception:
-                # If that fails too, at least have some text
-                document.plain_text = "Error extracting text from document"
-
-        # Update metadata
+        document.plain_text = plain_text
         document.updated_by = employee
         document.updated_at = timezone.now()
 
@@ -455,34 +449,64 @@ def save_document_content(request, document_id):
             if hasattr(document, 'version'):
                 document.version = version
 
-        # Save the document
-        document.save()
+        # Save the document using a direct update to ensure both fields are updated
+        from django.db import connection
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                UPDATE document_editor_document
+                SET content = %s, plain_text = %s, updated_at = %s, updated_by_id = %s
+                WHERE id = %s
+                """,
+                [
+                    json.dumps(content),
+                    plain_text,
+                    timezone.now(),
+                    employee.id,
+                    document.id
+                ]
+            )
 
-        # Verify what was saved
+        # Refresh from database to ensure we have the latest values
         document.refresh_from_db()
-        logger.debug(f"After save - Plain text length: {len(document.plain_text)}")
-        logger.debug(f"Document saved successfully: ID={document.id}, version={document.version if hasattr(document, 'version') else 'N/A'}")
+
+        # Log after save for debugging
+        print(f"After save - Document ID: {document.id}")
+        print(f"After save - Plain text length: {len(document.plain_text)}")
+        print(f"After save - Plain text preview: {document.plain_text[:100]}")
 
         # Try to notify other users via WebSocket
         try:
-            notify_document_saved(document, request.user)
+            channel_layer = get_channel_layer()
+            async_to_sync(channel_layer.group_send)(
+                f"document_{document.id}",
+                {
+                    "type": "document_saved",
+                    "document_id": document.id,
+                    "user_id": request.user.id,
+                    "user_name": request.user.get_full_name() if hasattr(request.user, 'get_full_name') else request.user.username,
+                    "updated_at": document.updated_at.isoformat()
+                }
+            )
         except Exception as e:
-            logger.error(f"Error sending WebSocket notification: {str(e)}")
-            # Don't fail the save if WebSocket notification fails
+            print(f"WebSocket notification error: {str(e)}")
+            # Don't fail the save if notification fails
 
         return JsonResponse({
             'success': True,
-            'updated_at': document.updated_at.isoformat()
+            'updated_at': document.updated_at.isoformat(),
+            'plain_text_length': len(document.plain_text),
+            'version': version if create_version else document.version
         })
 
     except Exception as e:
-        logger.error(f"Error saving document: {str(e)}")
-        logger.error(traceback.format_exc())
+        import traceback
+        print(f"Error saving document: {str(e)}")
+        print(traceback.format_exc())
         return JsonResponse({
             'success': False,
             'error': str(e)
         }, status=500)
-
 
 # The WebSocket notification helper function
 def notify_document_saved(document, user):
