@@ -392,94 +392,46 @@ logger = logging.getLogger(__name__)
 
 @login_required
 @require_POST
-def save_document_content(request, pk):
-    """Save document content and optionally create a version."""
+def simple_save_document(request, pk):
+    """Simplified document save view to isolate the issue."""
     try:
         # Get the document
         document = get_object_or_404(Document, id=pk)
 
-        # Verify user permissions
-        if not hasattr(request.user, 'employee_profile'):
-            return JsonResponse({
-                'success': False,
-                'error': 'No employee profile found'
-            }, status=403)
+        # Extract content from form data
+        content_str = request.POST.get('content', '')
 
-        employee = request.user.employee_profile
-        if document.author != employee:
-            try:
-                collaborator = document.collaborators.get(employee=employee)
-                if collaborator.permission not in ['edit', 'manage']:
-                    return JsonResponse({
-                        'success': False,
-                        'error': 'You do not have permission to edit this document'
-                    }, status=403)
-            except Exception:
-                return JsonResponse({
-                    'success': False,
-                    'error': 'You do not have permission to edit this document'
-                }, status=403)
-
-        # Extract content from request.POST
-        content_str = request.POST.get('content')
-        create_version = request.POST.get('create_version') == 'true'
-
-        if not content_str or content_str.isspace():
-            return JsonResponse({
-                'success': False,
-                'error': 'No content provided'
-            }, status=400)
-
-        # Parse the JSON content
-        try:
-            content = json.loads(content_str)
-        except json.JSONDecodeError as e:
-            return JsonResponse({
-                'success': False,
-                'error': f'Invalid JSON content: {str(e)}'
-            }, status=400)
-
-        # Update document content
-        document.content = content
-
-        # Update plain_text field
-        document.plain_text = document.extract_plain_text()
-
-        # Update metadata
-        document.updated_by = employee
-        document.updated_at = timezone.now()
-
-        # Create version if requested
-        if create_version:
-            # Create new version - adjust as needed for your model
-            version = document.version + 1 if hasattr(document, 'version') else 1
-
-            # Create the version
-            DocumentVersion.objects.create(
-                document=document,
-                version_number=version,
-                content=content,
-                created_by=employee
-            )
-
-            # Update document version if applicable
-            if hasattr(document, 'version'):
-                document.version = version
+        # Just save the content as a string for now, no processing
+        document.content = {
+            "children": [
+                {
+                    "type": "paragraph",
+                    "children": [
+                        {
+                            "text": "Updated content via simple save"
+                        }
+                    ]
+                }
+            ]
+        }
 
         # Save the document
         document.save()
 
         return JsonResponse({
             'success': True,
-            'updated_at': document.updated_at.isoformat()
+            'message': 'Document saved with hardcoded content'
         })
 
     except Exception as e:
-        logger.exception(f"Error saving document: {str(e)}")
-        return JsonResponse({
+        # Return detailed error information
+        import traceback
+        error_details = {
             'success': False,
-            'error': str(e)
-        }, status=500)
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }
+        return JsonResponse(error_details, status=500)
 
 # The WebSocket notification helper function (placed in channels.py)
 def notify_document_saved(document, user):
