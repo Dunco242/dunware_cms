@@ -701,41 +701,7 @@
       }
       clearInterval(pingInterval);
     });
-    // Add a test function in your JavaScript
-function testSimpleSave() {
-  const formData = new FormData();
-  formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
-  formData.append('content', JSON.stringify({
-    "children": [
-      {
-        "type": "paragraph",
-        "children": [
-          {
-            "text": "Test content from simple save"
-          }
-        ]
-      }
-    ]
-  }));
 
-  fetch(`/documents/${documentId}/save/`, {
-    method: 'POST',
-    body: formData,
-    credentials: 'same-origin'
-  })
-  .then(response => {
-    console.log('Test save response:', response);
-    return response.json();
-  })
-  .then(data => {
-    console.log('Test save result:', data);
-  })
-  .catch(error => {
-    console.error('Test save error:', error);
-  });
-}
-
-// You can add a button to your page to trigger this test function
   });
 </script>
 {% endblock %}
