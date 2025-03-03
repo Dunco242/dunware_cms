@@ -259,236 +259,27 @@
     });
 
     // Save document function with improved text extraction
-function saveDocument(createVersion = false) {
-  // Create a clean container to extract HTML content
-  const tempContainer = document.createElement('div');
-  tempContainer.innerHTML = textEditor.innerHTML;
+    function saveDocument(createVersion = false) {
+      // Create a clean container to extract HTML content
+      const tempContainer = document.createElement('div');
+      tempContainer.innerHTML = textEditor.innerHTML;
 
-  // Remove any DOCTYPE or HTML comments - using DOM traversal instead of querySelector
-  let child = tempContainer.firstChild;
-  while (child) {
-    // Check if it's a doctype node and remove it
-    if (child.nodeType === Node.DOCUMENT_TYPE_NODE) {
-      const toRemove = child;
-      child = child.nextSibling;
-      tempContainer.removeChild(toRemove);
-    } else {
-      child = child.nextSibling;
-    }
-  }
-
-  // Get the cleaned HTML content
-  const cleanHtml = tempContainer.innerHTML;
-  console.log("Cleaned HTML to convert:", cleanHtml);
-
-  // Extract main content elements
-  const paragraphs = [];
-
-  // Helper function to extract text with formatting
-  function extractTextWithFormatting(element) {
-    const result = [];
-
-    // Process text nodes and formatted spans
-    Array.from(element.childNodes).forEach(node => {
-      if (node.nodeType === Node.TEXT_NODE) {
-        // Plain text node - only add if it has content
-        const textContent = node.textContent;
-        if (textContent && textContent.trim()) {
-          result.push({ text: textContent });
-        } else if (textContent) {
-          // Preserve whitespace but avoid empty nodes
-          result.push({ text: textContent });
+      // Remove any DOCTYPE or HTML comments - using DOM traversal instead of querySelector
+      let child = tempContainer.firstChild;
+      while (child) {
+        // Check if it's a doctype node and remove it
+        if (child.nodeType === Node.DOCUMENT_TYPE_NODE) {
+          const toRemove = child;
+          child = child.nextSibling;
+          tempContainer.removeChild(toRemove);
+        } else {
+          child = child.nextSibling;
         }
-      } else if (node.nodeType === Node.ELEMENT_NODE) {
-        // Element node (e.g., <strong>, <em>, etc.)
-        const textContent = node.textContent;
-
-        // Skip empty nodes
-        if (!textContent && !textContent.trim()) {
-          return;
-        }
-
-        const textObj = { text: textContent };
-
-        if (node.tagName === 'STRONG' || node.tagName === 'B') {
-          textObj.bold = true;
-        }
-        if (node.tagName === 'EM' || node.tagName === 'I') {
-          textObj.italic = true;
-        }
-        if (node.tagName === 'U') {
-          textObj.underline = true;
-        }
-
-        result.push(textObj);
       }
-    });
-
-    // If no content, add an empty text node
-    if (result.length === 0) {
-      result.push({ text: '' });
-    }
-
-    return result;
-  }
-
-  // Process top-level elements
-  Array.from(tempContainer.children).forEach(element => {
-    if (element.tagName === 'P') {
-      paragraphs.push({
-        type: 'paragraph',
-        children: extractTextWithFormatting(element)
-      });
-    } else if (element.tagName === 'H1') {
-      paragraphs.push({
-        type: 'heading-one',
-        children: extractTextWithFormatting(element)
-      });
-    } else if (element.tagName === 'H2') {
-      paragraphs.push({
-        type: 'heading-two',
-        children: extractTextWithFormatting(element)
-      });
-    } else if (element.tagName === 'UL') {
-      const listItems = Array.from(element.querySelectorAll('li')).map(li => ({
-        type: 'list-item',
-        children: extractTextWithFormatting(li)
-      }));
-
-      paragraphs.push({
-        type: 'bulleted-list',
-        children: listItems
-      });
-    } else if (element.tagName === 'OL') {
-      const listItems = Array.from(element.querySelectorAll('li')).map(li => ({
-        type: 'list-item',
-        children: extractTextWithFormatting(li)
-      }));
-
-      paragraphs.push({
-        type: 'numbered-list',
-        children: listItems
-      });
-    } else {
-      // Fallback for any other element types
-      paragraphs.push({
-        type: 'paragraph',
-        children: extractTextWithFormatting(element)
-      });
-    }
-  });
-
-  // If no paragraphs found, add a default empty paragraph
-  if (paragraphs.length === 0) {
-    paragraphs.push({
-      type: 'paragraph',
-      children: [{ text: '' }]
-    });
-  }
-
-  // Create the final Slate-like content structure
-  const slateContent = {
-    children: paragraphs
-  };
-
-  // For debugging: extract text from the structure to confirm it's being captured
-  const extractedText = paragraphs.map(p => {
-    if (p.children) {
-      return p.children.map(child => {
-        if (typeof child === 'object' && 'text' in child) {
-          return child.text;
-        } else if (typeof child === 'object' && child.children) {
-          return child.children.map(c => c.text || '').join(' ');
-        }
-        return '';
-      }).join(' ');
-    }
-    return '';
-  }).join(' ');
-
-  console.log("Extracted text for plain_text:", extractedText);
-
-  // Update hidden field with the JSON content
-  documentContent.value = JSON.stringify(slateContent);
-
-  // Log for debugging
-  console.log('Saving content:', slateContent);
-
-  // Instead of using fetch with X-CSRFToken header, we will submit the form directly
-  // This ensures that Django's CSRF protection works correctly
-  const form = document.createElement('form');
-  form.method = 'POST';
-  form.action = `/documents/${documentId}/save/`;
-  form.style.display = 'none';
-
-  // Add CSRF token
-  const csrfInput = document.createElement('input');
-  csrfInput.type = 'hidden';
-  csrfInput.name = 'csrfmiddlewaretoken';
-  csrfInput.value = document.querySelector('[name=csrfmiddlewaretoken]').value;
-  form.appendChild(csrfInput);
-
-  // Add content
-  const contentInput = document.createElement('input');
-  contentInput.type = 'hidden';
-  contentInput.name = 'content';
-  contentInput.value = JSON.stringify(slateContent);
-  form.appendChild(contentInput);
-
-  // Add create_version flag
-  const versionInput = document.createElement('input');
-  versionInput.type = 'hidden';
-  versionInput.name = 'create_version';
-  versionInput.value = createVersion;
-  form.appendChild(versionInput);
-
-  // Add form to body and submit
-  document.body.appendChild(form);
-
-  // Use fetch with FormData instead of JSON
-  const formData = new FormData(form);
-
-  fetch(form.action, {
-    method: 'POST',
-    body: formData,
-    credentials: 'same-origin'
-  })
-  .then(response => {
-    console.log('Received response:', response);
-    if (!response.ok) {
-      throw new Error(`Server error: ${response.status} - ${response.statusText}`);
-    }
-    return response.json();
-  })
-  .then(data => {
-    document.body.removeChild(form); // Clean up
-
-    if (data.success) {
-      hasUnsavedChanges = false;
-
-      const successMsg = createVersion
-        ? `Created new version ${data.version}`
-        : 'Document saved successfully';
-
-      showNotification(successMsg, 'success');
-
-      if (data.updated_at) {
-        saveStatus.innerText = `Last saved: ${new Date(data.updated_at).toLocaleString()}`;
-      }
-    } else {
-      console.error('Error saving document:', data.error);
-      showNotification('Error saving document: ' + data.error, 'error');
-    }
-  })
-  .catch(error => {
-    document.body.removeChild(form); // Clean up
-    console.error('Network or server error:', error);
-    showNotification('Network or server error: ' + error.message, 'error');
-  });
-}
 
       // Get the cleaned HTML content
       const cleanHtml = tempContainer.innerHTML;
+      console.log("Cleaned HTML to convert:", cleanHtml);
 
       // Extract main content elements
       const paragraphs = [];
@@ -500,13 +291,24 @@ function saveDocument(createVersion = false) {
         // Process text nodes and formatted spans
         Array.from(element.childNodes).forEach(node => {
           if (node.nodeType === Node.TEXT_NODE) {
-            // Plain text node
-            if (node.textContent.trim()) {
-              result.push({ text: node.textContent });
+            // Plain text node - only add if it has content
+            const textContent = node.textContent;
+            if (textContent && textContent.trim()) {
+              result.push({ text: textContent });
+            } else if (textContent) {
+              // Preserve whitespace but avoid empty nodes
+              result.push({ text: textContent });
             }
           } else if (node.nodeType === Node.ELEMENT_NODE) {
             // Element node (e.g., <strong>, <em>, etc.)
-            const textObj = { text: node.textContent };
+            const textContent = node.textContent;
+
+            // Skip empty nodes
+            if (!textContent && !textContent.trim()) {
+              return;
+            }
+
+            const textObj = { text: textContent };
 
             if (node.tagName === 'STRONG' || node.tagName === 'B') {
               textObj.bold = true;
@@ -540,17 +342,17 @@ function saveDocument(createVersion = false) {
         } else if (element.tagName === 'H1') {
           paragraphs.push({
             type: 'heading-one',
-            children: [{ text: element.textContent || '' }]
+            children: extractTextWithFormatting(element)
           });
         } else if (element.tagName === 'H2') {
           paragraphs.push({
             type: 'heading-two',
-            children: [{ text: element.textContent || '' }]
+            children: extractTextWithFormatting(element)
           });
         } else if (element.tagName === 'UL') {
           const listItems = Array.from(element.querySelectorAll('li')).map(li => ({
             type: 'list-item',
-            children: [{ text: li.textContent || '' }]
+            children: extractTextWithFormatting(li)
           }));
 
           paragraphs.push({
@@ -560,12 +362,18 @@ function saveDocument(createVersion = false) {
         } else if (element.tagName === 'OL') {
           const listItems = Array.from(element.querySelectorAll('li')).map(li => ({
             type: 'list-item',
-            children: [{ text: li.textContent || '' }]
+            children: extractTextWithFormatting(li)
           }));
 
           paragraphs.push({
             type: 'numbered-list',
             children: listItems
+          });
+        } else {
+          // Fallback for any other element types
+          paragraphs.push({
+            type: 'paragraph',
+            children: extractTextWithFormatting(element)
           });
         }
       });
@@ -582,6 +390,23 @@ function saveDocument(createVersion = false) {
       const slateContent = {
         children: paragraphs
       };
+
+      // For debugging: extract text from the structure to confirm it's being captured
+      const extractedText = paragraphs.map(p => {
+        if (p.children) {
+          return p.children.map(child => {
+            if (typeof child === 'object' && 'text' in child) {
+              return child.text;
+            } else if (typeof child === 'object' && child.children) {
+              return child.children.map(c => c.text || '').join(' ');
+            }
+            return '';
+          }).join(' ');
+        }
+        return '';
+      }).join(' ');
+
+      console.log("Extracted text for plain_text:", extractedText);
 
       // Update hidden field with the JSON content
       documentContent.value = JSON.stringify(slateContent);
@@ -910,7 +735,6 @@ function saveDocument(createVersion = false) {
       }
       clearInterval(pingInterval);
     });
-
   });
 </script>
 {% endblock %}

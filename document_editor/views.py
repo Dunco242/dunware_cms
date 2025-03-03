@@ -16,6 +16,8 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST, require_http_methods
 import json
 import logging
+import re
+import traceback
 
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
@@ -214,7 +216,9 @@ class DocumentDetailView(LoginRequiredMixin, EmployeeRequiredMixin, DetailView):
         context['collaborators'] = document.collaborators.all()
 
         # Add document versions
-        if document.parent_document or document.versions.exists():
+        if hasattr(document, 'parent_document') and document.parent_document:
+            context['versions'] = document.get_all_versions()
+        elif hasattr(document, 'document_versions') and document.document_versions.exists():
             context['versions'] = document.get_all_versions()
 
         # Add comments if user can view them
@@ -234,11 +238,13 @@ class DocumentDetailView(LoginRequiredMixin, EmployeeRequiredMixin, DetailView):
 
 
 class DocumentEditorView(LoginRequiredMixin, EmployeeRequiredMixin, DetailView):
+    """View for document editor interface"""
     model = Document
     template_name = 'document_editor/document_editor.html'
     context_object_name = 'document'
 
     def get_queryset(self):
+        """Ensure user has access to the document"""
         employee = self.request.user.employee_profile
         return Document.objects.filter(
             Q(author=employee) |
@@ -250,63 +256,7 @@ class DocumentEditorView(LoginRequiredMixin, EmployeeRequiredMixin, DetailView):
         document = self.get_object()
         employee = self.request.user.employee_profile
 
-        if document.author == employee:
-            context['can_edit'] = True
-            context['can_comment'] = True
-        else:
-            try:
-                collaborator = DocumentCollaborator.objects.get(
-                    document=document,
-                    employee=employee
-                )
-                context['can_edit'] = collaborator.permission in ['edit', 'manage']
-                context['can_comment'] = collaborator.permission in ['comment', 'edit', 'manage']
-            except DocumentCollaborator.DoesNotExist:
-                context['can_edit'] = False
-                context['can_comment'] = False
-
-        context['comments'] = DocumentComment.objects.filter(
-            document=document
-        ).order_by('created_at')
-
-        context['document_content'] = json.dumps(
-            document.content or
-            {
-                "children": [
-                    {
-                        "type": "paragraph",
-                        "children": [
-                            {
-                                "text": ""
-                            }
-                        ]
-                    }
-                ]
-            },
-            separators=(',', ':')
-        )
-
-        return context
-
-
-class DocumentEditorView(LoginRequiredMixin, EmployeeRequiredMixin, DetailView):
-    model = Document
-    template_name = 'document_editor/document_editor.html'
-    context_object_name = 'document'
-
-    def get_queryset(self):
-        employee = self.request.user.employee_profile
-        return Document.objects.filter(
-            Q(author=employee) |
-            Q(collaborators__employee=employee)
-        ).distinct()
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        document = self.get_object()
-        employee = self.request.user.employee_profile
-
-        # Explicitly set can_edit as a string 'True' or 'False'
+        # Determine permission levels and convert to string format for template
         if document.author == employee:
             context['can_edit'] = 'True'
             context['can_comment'] = 'True'
@@ -322,28 +272,32 @@ class DocumentEditorView(LoginRequiredMixin, EmployeeRequiredMixin, DetailView):
                 context['can_edit'] = 'False'
                 context['can_comment'] = 'False'
 
+        # Load comments
         context['comments'] = DocumentComment.objects.filter(
             document=document
         ).order_by('created_at')
 
+        # Prepare document content or default empty structure
+        default_content = {
+            "children": [
+                {
+                    "type": "paragraph",
+                    "children": [
+                        {
+                            "text": ""
+                        }
+                    ]
+                }
+            ]
+        }
+
         context['document_content'] = json.dumps(
-            document.content or
-            {
-                "children": [
-                    {
-                        "type": "paragraph",
-                        "children": [
-                            {
-                                "text": ""
-                            }
-                        ]
-                    }
-                ]
-            },
+            document.content or default_content,
             separators=(',', ':')
         )
 
         return context
+
 
 class UpdateDocumentView(LoginRequiredMixin, EmployeeRequiredMixin, UpdateView):
     """View to update document metadata (not content)"""
@@ -387,8 +341,6 @@ class DeleteDocumentView(LoginRequiredMixin, EmployeeRequiredMixin, DeleteView):
 
 
 # AJAX Endpoints for the Editor
-
-logger = logging.getLogger(__name__)
 
 @login_required
 @require_POST
@@ -461,14 +413,21 @@ def save_document_content(request, document_id):
 
             plain_text = ' '.join(text_parts)
 
+            # Normalize whitespace and clean up
+            plain_text = re.sub(r'\s+', ' ', plain_text).strip()
+
             # Update the plain_text field explicitly
             document.plain_text = plain_text
 
-            print(f"Extracted plain text ({len(plain_text)} chars): {plain_text[:100]}")
+            logger.debug(f"Extracted plain text ({len(plain_text)} chars): {plain_text[:100]}")
         except Exception as e:
-            print(f"Error extracting plain text: {str(e)}")
-            # If extraction fails, use document's method as fallback
-            document.plain_text = document.extract_plain_text()
+            logger.error(f"Error extracting plain text: {str(e)}")
+            # If extraction fails, try document's method as fallback
+            try:
+                document.plain_text = document.extract_plain_text()
+            except Exception:
+                # If that fails too, at least have some text
+                document.plain_text = "Error extracting text from document"
 
         # Update metadata
         document.updated_by = employee
@@ -501,8 +460,15 @@ def save_document_content(request, document_id):
 
         # Verify what was saved
         document.refresh_from_db()
-        print(f"After save - Plain text length: {len(document.plain_text)}")
-        print(f"Document saved successfully: ID={document.id}, version={document.version if hasattr(document, 'version') else 'N/A'}")
+        logger.debug(f"After save - Plain text length: {len(document.plain_text)}")
+        logger.debug(f"Document saved successfully: ID={document.id}, version={document.version if hasattr(document, 'version') else 'N/A'}")
+
+        # Try to notify other users via WebSocket
+        try:
+            notify_document_saved(document, request.user)
+        except Exception as e:
+            logger.error(f"Error sending WebSocket notification: {str(e)}")
+            # Don't fail the save if WebSocket notification fails
 
         return JsonResponse({
             'success': True,
@@ -510,34 +476,35 @@ def save_document_content(request, document_id):
         })
 
     except Exception as e:
-        import traceback
-        print(f"Error saving document: {str(e)}")
-        print(traceback.format_exc())
+        logger.error(f"Error saving document: {str(e)}")
+        logger.error(traceback.format_exc())
         return JsonResponse({
             'success': False,
             'error': str(e)
         }, status=500)
 
-# The WebSocket notification helper function (placed in channels.py)
+
+# The WebSocket notification helper function
 def notify_document_saved(document, user):
     """
     Send a WebSocket notification to all users viewing the document
     that the document has been saved.
     """
-    from asgiref.sync import async_to_sync
-    from channels.layers import get_channel_layer
+    try:
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            f"document_{document.id}",
+            {
+                "type": "document_saved",
+                "document_id": document.id,
+                "user_id": user.id,
+                "user_name": user.get_full_name() if hasattr(user, 'get_full_name') else user.username,
+                "updated_at": document.updated_at.isoformat()
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error in notify_document_saved: {str(e)}")
 
-    channel_layer = get_channel_layer()
-    async_to_sync(channel_layer.group_send)(
-        f"document_{document.id}",
-        {
-            "type": "document_saved",
-            "document_id": document.id,
-            "user_id": user.id,
-            "user_name": user.get_full_name() or user.username,
-            "updated_at": document.updated_at.isoformat()
-        }
-    )
 
 @login_required
 @require_POST
@@ -1113,7 +1080,7 @@ def get_document_content(request, pk):
         return JsonResponse({
             'success': True,
             'content': document.content,
-            'version': document.version,
+            'version': document.version if hasattr(document, 'version') else 1,
             'updated_at': document.updated_at.isoformat()
         })
 
@@ -1379,8 +1346,34 @@ def debug_save_document(request, pk):
             print(f"DEBUG: Successfully parsed JSON")
             print(f"DEBUG: Content type: {type(content)}")
             print(f"DEBUG: Content has children: {'children' in content}")
+
+            # Try to extract plain text
+            if isinstance(content, dict) and 'children' in content:
+                text_parts = []
+
+                def extract_text(node):
+                    if isinstance(node, dict):
+                        if 'text' in node:
+                            text_parts.append(node['text'])
+                        elif 'children' in node and isinstance(node['children'], list):
+                            for child in node['children']:
+                                extract_text(child)
+
+                for node in content['children']:
+                    extract_text(node)
+
+                plain_text = ' '.join(text_parts)
+                print(f"DEBUG: Extracted plain text ({len(plain_text)} chars): {plain_text[:100]}")
+
+                # Update document for testing
+                document.content = content
+                document.plain_text = plain_text
+                document.save()
+                print("DEBUG: Document updated with new content and plain_text")
+
         except Exception as e:
-            print(f"DEBUG: JSON parsing error: {str(e)}")
+            print(f"DEBUG: JSON parsing or text extraction error: {str(e)}")
+            print(traceback.format_exc())
 
         # Try accessing user
         try:
@@ -1402,6 +1395,7 @@ def debug_save_document(request, pk):
 
     except Exception as e:
         print(f"DEBUG CRITICAL ERROR: {str(e)}")
+        print(traceback.format_exc())
         # Return the error details to the client for debugging
         return JsonResponse({
             'success': False,
