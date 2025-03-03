@@ -117,15 +117,45 @@
 {% endblock %}
 
 {% block extra_js %}
+<!-- React and ReactDOM -->
 <script src="https://unpkg.com/react@17/umd/react.production.min.js" crossorigin></script>
 <script src="https://unpkg.com/react-dom@17/umd/react-dom.production.min.js" crossorigin></script>
-<script src="https://unpkg.com/slate@0.63.0/dist/slate.js" crossorigin></script>
-<script src="https://unpkg.com/slate-react@0.63.0/dist/slate-react.js" crossorigin></script>
-<script src="https://unpkg.com/slate-history@0.63.0/dist/slate-history.js" crossorigin></script>
-<script src="https://unpkg.com/is-hotkey@0.2.0/umd/is-hotkey.js" crossorigin></script>
-<script src="https://unpkg.com/lodash@4.17.21/lodash.min.js" crossorigin></script>
 
-<script type="module" src="{% static 'document_editor/js/slate-editor.js' %}"></script>
+<!-- Manually expose Slate libraries on window to make them available -->
+<script>
+  window.Slate = {};
+  window.SlateReact = {};
+  window.SlateHistory = {};
+</script>
+
+<!-- Slate libraries -->
+<script src="https://cdn.jsdelivr.net/npm/slate@0.63.0/dist/slate.min.js" crossorigin></script>
+<script>
+  // Make Slate available on window
+  window.Slate = slate;
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/slate-react@0.63.0/dist/slate-react.min.js" crossorigin></script>
+<script>
+  // Make SlateReact available on window
+  window.SlateReact = slateReact;
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/slate-history@0.63.0/dist/slate-history.min.js" crossorigin></script>
+<script>
+  // Make SlateHistory available on window
+  window.SlateHistory = slateHistory;
+</script>
+
+<!-- Utilities -->
+<script src="https://cdn.jsdelivr.net/npm/is-hotkey@0.2.0/umd/is-hotkey.min.js" crossorigin></script>
+<script src="https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js" crossorigin></script>
+
+<!-- Load Material Icons -->
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+
+<!-- Our editor script -->
+<script src="{% static 'document_editor/js/slate-editor.js' %}"></script>
 
 <script>
   document.addEventListener('DOMContentLoaded', function () {
@@ -151,7 +181,7 @@
       window.documentSocket = socket;
 
       socket.onopen = function(e) {
-        console.log('WebSocket connection established');
+        console.log('Document WebSocket connection established');
         updateConnectionStatus('connected');
         reconnectAttempts = 0;
 
@@ -167,7 +197,7 @@
       };
 
       socket.onclose = function(e) {
-        console.log('WebSocket connection closed', e);
+        console.log('Document WebSocket connection closed', e);
         updateConnectionStatus('disconnected');
         clearInterval(pingInterval);
 
@@ -180,7 +210,7 @@
       };
 
       socket.onerror = function(e) {
-        console.error('WebSocket error:', e);
+        console.error('Document WebSocket error:', e);
         updateConnectionStatus('disconnected');
       };
     }
@@ -337,22 +367,34 @@
       }, 3000);
     }
 
+    // Initialize everything when the page loads
     if (editorContainer) {
       try {
-        setTimeout(() => {
-          if (!editorContainer.innerHTML.trim()) {
-            debugMessage.innerText = "Slate.js failed to load! Check console.";
-          } else {
-            debugMessage.innerText = "";
-            initWebSocket();
+        // Wait for the editor to initialize
+        const checkEditorInterval = setInterval(() => {
+          if (window.Slate && window.SlateReact && window.SlateHistory) {
+            clearInterval(checkEditorInterval);
+
+            setTimeout(() => {
+              // Check if editor was initialized successfully
+              if (!editorContainer.innerHTML.trim()) {
+                debugMessage.innerText = "Slate.js failed to load! Check console.";
+              } else {
+                debugMessage.innerText = "";
+                // Initialize WebSocket connection
+                initWebSocket();
+              }
+            }, 1000);
           }
-        }, 5000);
+        }, 100);
+
       } catch (error) {
         console.error('Error initializing document editor:', error);
         debugMessage.innerText = "Error initializing document editor. Please refresh the page.";
       }
     }
 
+    // Clean up on page unload
     window.addEventListener('beforeunload', () => {
       if (socket && socket.readyState === WebSocket.OPEN) {
         socket.close(1000, "Page closed by user");
@@ -360,6 +402,7 @@
       clearInterval(pingInterval);
     });
 
+    // Toggle comments sidebar
     document.getElementById('toggle-comments').addEventListener('click', function() {
       const commentsSidebar = document.querySelector('.col-md-3');
       if (commentsSidebar) {

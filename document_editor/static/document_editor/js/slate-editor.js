@@ -1,13 +1,20 @@
-// Import from CDN-loaded globals
+// Access globals from CDNs
 const React = window.React;
-const { useCallback, useEffect, useMemo, useState, useRef } = React;
 const ReactDOM = window.ReactDOM;
-const { createEditor, Editor, Transforms, Text, Element: SlateElement, Range, Point } = window.Slate;
-const { Slate, Editable, withReact, useSlate, ReactEditor } = window.SlateReact;
-const { withHistory } = window.SlateHistory;
+const SlateNamespace = window.Slate;
+const SlateReactNamespace = window.SlateReact;
+const SlateHistoryNamespace = window.SlateHistory;
 const isHotkey = window.isHotkey;
-const debounce = window._.debounce;
+const _ = window._;
 
+// Destructure needed functions and components
+const { useState, useCallback, useEffect, useMemo, useRef } = React;
+const { createEditor, Editor, Transforms, Text, Element: SlateElement, Range } = SlateNamespace;
+const { Slate, Editable, withReact, useSlate } = SlateReactNamespace;
+const { withHistory } = SlateHistoryNamespace;
+const debounce = _.debounce;
+
+// Define constants
 const HOTKEYS = {
   'mod+b': 'bold',
   'mod+i': 'italic',
@@ -16,172 +23,71 @@ const HOTKEYS = {
 };
 
 const LIST_TYPES = ['numbered-list', 'bulleted-list'];
-const TEXT_ALIGN_TYPES = ['left', 'center', 'right', 'justify'];
 
+// Main editor component
 const SlateEditor = () => {
+  // Parse initial content from the hidden textarea
   const initialValue = useMemo(() => {
     const contentField = document.getElementById('document-content');
-
     if (contentField && contentField.value) {
       try {
         const parsedContent = JSON.parse(contentField.value);
-
-        // Normalize content structure
         const content = parsedContent.children || parsedContent;
 
-        // Ensure content is an array with at least one paragraph
         if (!Array.isArray(content) || content.length === 0) {
-          return [
-            {
-              type: 'paragraph',
-              children: [{ text: '' }],
-            },
-          ];
+          return [{ type: 'paragraph', children: [{ text: '' }] }];
         }
 
         return content;
       } catch (error) {
         console.error('Error parsing document content:', error);
-        return [
-          {
-            type: 'paragraph',
-            children: [{ text: '' }],
-          },
-        ];
       }
     }
 
-    return [
-      {
-        type: 'paragraph',
-        children: [{ text: '' }],
-      },
-    ];
+    return [{ type: 'paragraph', children: [{ text: '' }] }];
   }, []);
 
-  // Create editor instance
+  // Set up state
   const [editor] = useState(() => withHistory(withReact(createEditor())));
   const [value, setValue] = useState(initialValue);
   const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const [selection, setSelection] = useState(null);
-
-  // WebSocket related state
   const socketRef = useRef(null);
   const [isConnected, setIsConnected] = useState(false);
-  const [remoteOperationsQueue, setRemoteOperationsQueue] = useState([]);
   const isRemoteChangeRef = useRef(false);
 
-  // Get page elements
+  // Get document info
   const documentId = document.getElementById('document-id').value;
   const canEdit = document.getElementById('can-edit').value === 'True';
   const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
 
-  // Function to send cursor position
-  const sendCursorPosition = useCallback(
-    debounce((selection) => {
-      if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN && selection) {
-        socketRef.current.send(
-          JSON.stringify({
-            type: 'cursor_position',
-            selection: selection,
-          })
-        );
-      }
-    }, 100),
-    [socketRef]
-  );
-
-  // Function to send content changes
-  const sendContentChange = useCallback(
-    debounce((operations) => {
-      if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN && operations.length > 0) {
-        socketRef.current.send(
-          JSON.stringify({
-            type: 'content_change',
-            operations: operations,
-          })
-        );
-      }
-    }, 250),
-    [socketRef]
-  );
-
-  // Handle remote operations
+  // Connect to WebSocket
   useEffect(() => {
-    if (remoteOperationsQueue.length > 0) {
-      const operations = [...remoteOperationsQueue];
-      setRemoteOperationsQueue([]);
-
-      isRemoteChangeRef.current = true;
-
-      try {
-        operations.forEach(op => {
-          Editor.withoutNormalizing(editor, () => {
-            try {
-              // Apply the remote operation based on its type
-              if (op.type === 'insert_node') {
-                Transforms.insertNodes(editor, op.node, { at: op.path });
-              } else if (op.type === 'remove_node') {
-                Transforms.delete(editor, { at: op.path });
-              } else if (op.type === 'set_node') {
-                Transforms.setNodes(editor, op.properties, { at: op.path });
-              } else if (op.type === 'insert_text') {
-                Transforms.insertText(editor, op.text, { at: op.path });
-              } else if (op.type === 'remove_text') {
-                Transforms.delete(editor, { at: op.path, distance: op.text.length });
-              } else if (op.type === 'split_node') {
-                Transforms.splitNodes(editor, { at: op.path });
-              } else if (op.type === 'merge_node') {
-                Transforms.mergeNodes(editor, { at: op.path });
-              } else {
-                console.warn('Unsupported operation:', op);
-              }
-            } catch (error) {
-              console.error('Error applying remote operation:', error, op);
-            }
-          });
-        });
-      } finally {
-        isRemoteChangeRef.current = false;
-      }
-    }
-  }, [editor, remoteOperationsQueue]);
-
-  // Initialize WebSocket connection
-  useEffect(() => {
-    // Use the WebSocket from the parent document
     socketRef.current = window.documentSocket || null;
 
     if (socketRef.current) {
       setIsConnected(socketRef.current.readyState === WebSocket.OPEN);
 
-      // Handle connection status changes
       const handleOpen = () => setIsConnected(true);
       const handleClose = () => setIsConnected(false);
 
       socketRef.current.addEventListener('open', handleOpen);
       socketRef.current.addEventListener('close', handleClose);
 
-      // Handle WebSocket messages
       const handleMessage = (event) => {
         try {
           const data = JSON.parse(event.data);
 
-          if (data.type === 'content_change' && data.operations && Array.isArray(data.operations)) {
-            // Queue remote operations for processing
-            setRemoteOperationsQueue(prev => [...prev, ...data.operations]);
-          } else if (data.type === 'save_confirmed') {
+          if (data.type === 'save_confirmed') {
             handleSaveConfirmed(data);
           }
         } catch (error) {
-          console.error('Error processing WebSocket message:', error);
+          console.error('Error handling WebSocket message:', error);
         }
       };
 
       socketRef.current.addEventListener('message', handleMessage);
 
-      // Cleanup
       return () => {
         if (socketRef.current) {
           socketRef.current.removeEventListener('open', handleOpen);
@@ -190,9 +96,9 @@ const SlateEditor = () => {
         }
       };
     }
-  }, [documentId]);
+  }, []);
 
-  // Handle save confirmation
+  // Handle save confirmation from WebSocket
   const handleSaveConfirmed = (data) => {
     if (data.success) {
       setHasUnsavedChanges(false);
@@ -217,16 +123,18 @@ const SlateEditor = () => {
     }
   };
 
+  // Render Element and Leaf components
   const renderElement = useCallback(props => <Element {...props} />, []);
   const renderLeaf = useCallback(props => <Leaf {...props} />, []);
 
+  // Save document function
   const saveDocument = async (createVersion = false) => {
     if (!hasUnsavedChanges && !createVersion) return;
 
     setIsSaving(true);
 
     try {
-      // Try to save using WebSocket first
+      // Try to save using WebSocket
       if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
         socketRef.current.send(
           JSON.stringify({
@@ -235,12 +143,10 @@ const SlateEditor = () => {
             create_version: createVersion,
           })
         );
-
-        // Wait for save_confirmed message in the WebSocket handler
         return;
       }
 
-      // Fallback to HTTP if WebSocket is not available
+      // Fallback to HTTP
       const response = await fetch(`/documents/${documentId}/save/`, {
         method: 'POST',
         headers: {
@@ -265,10 +171,8 @@ const SlateEditor = () => {
         showNotification(successMsg, 'success');
 
         if (data.updated_at) {
-          const lastSavedTimeElement = document.getElementById('last-saved-time');
-          if (lastSavedTimeElement) {
-            lastSavedTimeElement.innerText = new Date(data.updated_at).toLocaleString();
-          }
+          document.getElementById('last-saved-time').innerText =
+            new Date(data.updated_at).toLocaleString();
         }
       } else {
         console.error('Error saving document:', data.error);
@@ -282,7 +186,7 @@ const SlateEditor = () => {
     }
   };
 
-  // Auto-save when changes are made
+  // Auto-save
   useEffect(() => {
     if (!canEdit) return;
 
@@ -295,34 +199,7 @@ const SlateEditor = () => {
     return () => clearInterval(interval);
   }, [hasUnsavedChanges]);
 
-  // Warn before leaving with unsaved changes
-  useEffect(() => {
-    const handleBeforeUnload = (e) => {
-      if (hasUnsavedChanges) {
-        const message = 'You have unsaved changes. Are you sure you want to leave?';
-        e.returnValue = message;
-        return message;
-      }
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
-  }, [hasUnsavedChanges]);
-
-  // Track selection changes
-  const handleSelectionChange = useCallback(() => {
-    const sel = editor.selection;
-    setSelection(sel);
-
-    // Send selection to other users if it exists and is not collapsed
-    if (sel && !Range.isCollapsed(sel) && canEdit) {
-      sendCursorPosition(sel);
-    }
-  }, [editor, canEdit, sendCursorPosition]);
-
+  // Handle keyboard shortcuts
   const handleKeyDown = event => {
     if ((event.ctrlKey || event.metaKey) && event.key === 's') {
       event.preventDefault();
@@ -340,6 +217,7 @@ const SlateEditor = () => {
     }
   };
 
+  // Render the editor
   return (
     <div className="slate-editor-container">
       <div className="slate-toolbar bg-gray-100 p-2 rounded-t-md flex items-center space-x-2 border-b">
@@ -379,35 +257,13 @@ const SlateEditor = () => {
           editor={editor}
           value={value}
           onChange={(newValue) => {
-            // Only track changes if they're not from a remote user
-            if (!isRemoteChangeRef.current) {
-              // Get the operations since last change
-              const ops = editor.operations
-                .filter(op => {
-                  // Filter out selection operations as they don't modify content
-                  return op.type !== 'set_selection';
-                })
-                .map(op => {
-                  // Clone the operation for safe transmission
-                  return JSON.parse(JSON.stringify(op));
-                });
-
-              // Send operations to collaborators if there are any content changes
-              if (ops.length > 0 && canEdit && isConnected) {
-                sendContentChange(ops);
-              }
-            }
-
-            // Always update the value
             setValue(newValue);
 
-            // Track unsaved changes
             const isChanged = JSON.stringify(newValue) !== JSON.stringify(initialValue);
             if (isChanged !== hasUnsavedChanges) {
               setHasUnsavedChanges(isChanged);
             }
           }}
-          onSelectionChange={handleSelectionChange}
         >
           <Editable
             renderElement={renderElement}
@@ -438,6 +294,7 @@ const SlateEditor = () => {
   );
 };
 
+// Define Element component
 const Element = ({ attributes, children, element }) => {
   const style = { textAlign: element.align };
 
@@ -487,6 +344,7 @@ const Element = ({ attributes, children, element }) => {
   }
 };
 
+// Define Leaf component
 const Leaf = ({ attributes, children, leaf }) => {
   if (leaf.bold) {
     children = <strong>{children}</strong>;
@@ -507,6 +365,7 @@ const Leaf = ({ attributes, children, leaf }) => {
   return <span {...attributes}>{children}</span>;
 };
 
+// Define button components
 const MarkButton = ({ format, icon }) => {
   const editor = useSlate();
   return (
@@ -541,6 +400,7 @@ const BlockButton = ({ format, icon }) => {
   );
 };
 
+// Helper functions
 const isMarkActive = (editor, format) => {
   const marks = Editor.marks(editor);
   return marks ? marks[format] === true : false;
@@ -616,6 +476,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (editorContainer) {
     try {
       ReactDOM.render(React.createElement(SlateEditor), editorContainer);
+      console.log('Slate editor initialized successfully');
     } catch (error) {
       console.error('Error rendering Slate editor:', error);
       editorContainer.innerHTML = `
