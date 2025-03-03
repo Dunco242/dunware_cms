@@ -21,7 +21,7 @@ urlpatterns = [
     path('templates/<int:pk>/delete/', views.DeleteDocumentTemplateView.as_view(), name='delete_template'),
 
     # Document content AJAX endpoints
-    path('<int:pk>/save-content/', views.save_document_content, name='save_document_content'),
+    path('<int:pk>/save/', views.save_document_content, name='save_document_content'),
     path('<int:pk>/get-content/', views.get_document_content, name='get_document_content'),
 
     # Document status endpoints
