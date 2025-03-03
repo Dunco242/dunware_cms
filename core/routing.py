@@ -1,12 +1,13 @@
 from django.urls import re_path
 from . import consumers
-from document_editor import consumers
 import os
+from document_editor.routing import document_websocket_urlpatterns
 
 # Determine if we're in production
 use_wss = os.getenv("DJANGO_ENV", "development") == "production"
 
-websocket_urlpatterns = [
+# Core WebSocket patterns
+core_websocket_urlpatterns = [
     re_path(r'wss/chat/(?P<session_id>\d+)/$', consumers.ChatConsumer.as_asgi()) if use_wss else
     re_path(r'ws/chat/(?P<session_id>\d+)/$', consumers.ChatConsumer.as_asgi()),
 
@@ -17,11 +18,10 @@ websocket_urlpatterns = [
     re_path(r'wss/chat/add-user/(?P<session_id>\d+)/$', consumers.AddUserConsumer.as_asgi()) if use_wss else
     re_path(r'ws/chat/add-user/(?P<session_id>\d+)/$', consumers.AddUserConsumer.as_asgi()),
 
-    # Document editor WebSocket
-    re_path(r'wss/documents/(?P<document_id>\w+)/$', consumers.DocumentConsumer.as_asgi()) if use_wss else
-    re_path(r'ws/documents/(?P<document_id>\w+)/$', consumers.DocumentConsumer.as_asgi()),
-
     # Debug WebSocket endpoint
     re_path(r'wss/debug/$', consumers.DebugConsumer.as_asgi()) if use_wss else
     re_path(r'ws/debug/$', consumers.DebugConsumer.as_asgi()),
 ]
+
+# Combine all WebSocket patterns
+websocket_urlpatterns = core_websocket_urlpatterns + document_websocket_urlpatterns
