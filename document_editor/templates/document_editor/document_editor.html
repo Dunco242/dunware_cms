@@ -264,9 +264,19 @@
       const tempContainer = document.createElement('div');
       tempContainer.innerHTML = textEditor.innerHTML;
 
-      // Remove any DOCTYPE or HTML comments
-      const docTypeNode = tempContainer.querySelector('!DOCTYPE');
-      if (docTypeNode) docTypeNode.remove();
+      // Remove any DOCTYPE or HTML comments - using DOM traversal instead of querySelector
+      // We need to find and remove any DOCTYPE nodes manually since querySelector can't select them
+      let child = tempContainer.firstChild;
+      while (child) {
+        // Check if it's a doctype node and remove it
+        if (child.nodeType === Node.DOCUMENT_TYPE_NODE) {
+          const toRemove = child;
+          child = child.nextSibling;
+          tempContainer.removeChild(toRemove);
+        } else {
+          child = child.nextSibling;
+        }
+      }
 
       // Get the cleaned HTML content
       const cleanHtml = tempContainer.innerHTML;
