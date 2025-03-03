@@ -1,10 +1,12 @@
-import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
-import ReactDOM from 'react-dom';
-import { createEditor, Editor, Transforms, Text, Element as SlateElement, Range, Point } from 'slate';
-import { Slate, Editable, withReact, useSlate, ReactEditor } from 'slate-react';
-import { withHistory } from 'slate-history';
-import isHotkey from 'is-hotkey';
-import debounce from 'lodash/debounce';
+// Import from CDN-loaded globals
+const React = window.React;
+const { useCallback, useEffect, useMemo, useState, useRef } = React;
+const ReactDOM = window.ReactDOM;
+const { createEditor, Editor, Transforms, Text, Element: SlateElement, Range, Point } = window.Slate;
+const { Slate, Editable, withReact, useSlate, ReactEditor } = window.SlateReact;
+const { withHistory } = window.SlateHistory;
+const isHotkey = window.isHotkey;
+const debounce = window._.debounce;
 
 const HOTKEYS = {
   'mod+b': 'bold',
@@ -148,68 +150,46 @@ const SlateEditor = () => {
 
   // Initialize WebSocket connection
   useEffect(() => {
-    // Get the WebSocket from the parent document
-    socketRef.current = window.socket || null;
+    // Use the WebSocket from the parent document
+    socketRef.current = window.documentSocket || null;
 
-    // If socket doesn't exist in parent, try to initialize it here
-    if (!socketRef.current) {
-      const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-      const wsUrl = `${protocol}://${window.location.host}/wss/documents/${documentId}/`;
-
-      try {
-        socketRef.current = new WebSocket(wsUrl);
-
-        socketRef.current.onopen = () => {
-          console.log('WebSocket connection established from slate-editor');
-          setIsConnected(true);
-        };
-
-        socketRef.current.onclose = () => {
-          console.log('WebSocket connection closed from slate-editor');
-          setIsConnected(false);
-        };
-
-        socketRef.current.onerror = (error) => {
-          console.error('WebSocket error from slate-editor:', error);
-          setIsConnected(false);
-        };
-
-        // Export socket to parent window
-        window.socket = socketRef.current;
-      } catch (error) {
-        console.error('Error creating WebSocket connection:', error);
-      }
-    } else {
-      setIsConnected(socketRef.current.readyState === WebSocket.OPEN);
-    }
-
-    // Handle WebSocket messages
-    const handleMessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-
-        if (data.type === 'content_change' && data.operations && Array.isArray(data.operations)) {
-          // Queue remote operations for processing
-          setRemoteOperationsQueue(prev => [...prev, ...data.operations]);
-        } else if (data.type === 'save_confirmed') {
-          handleSaveConfirmed(data);
-        }
-      } catch (error) {
-        console.error('Error processing WebSocket message:', error);
-      }
-    };
-
-    // Add message handler
     if (socketRef.current) {
-      socketRef.current.addEventListener('message', handleMessage);
-    }
+      setIsConnected(socketRef.current.readyState === WebSocket.OPEN);
 
-    // Cleanup
-    return () => {
-      if (socketRef.current) {
-        socketRef.current.removeEventListener('message', handleMessage);
-      }
-    };
+      // Handle connection status changes
+      const handleOpen = () => setIsConnected(true);
+      const handleClose = () => setIsConnected(false);
+
+      socketRef.current.addEventListener('open', handleOpen);
+      socketRef.current.addEventListener('close', handleClose);
+
+      // Handle WebSocket messages
+      const handleMessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+
+          if (data.type === 'content_change' && data.operations && Array.isArray(data.operations)) {
+            // Queue remote operations for processing
+            setRemoteOperationsQueue(prev => [...prev, ...data.operations]);
+          } else if (data.type === 'save_confirmed') {
+            handleSaveConfirmed(data);
+          }
+        } catch (error) {
+          console.error('Error processing WebSocket message:', error);
+        }
+      };
+
+      socketRef.current.addEventListener('message', handleMessage);
+
+      // Cleanup
+      return () => {
+        if (socketRef.current) {
+          socketRef.current.removeEventListener('open', handleOpen);
+          socketRef.current.removeEventListener('close', handleClose);
+          socketRef.current.removeEventListener('message', handleMessage);
+        }
+      };
+    }
   }, [documentId]);
 
   // Handle save confirmation
@@ -630,11 +610,12 @@ const showNotification = (message, type = 'info') => {
   }, 3000);
 };
 
+// Initialize the editor when the DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
   const editorContainer = document.getElementById('slate-editor');
   if (editorContainer) {
     try {
-      ReactDOM.render(<SlateEditor />, editorContainer);
+      ReactDOM.render(React.createElement(SlateEditor), editorContainer);
     } catch (error) {
       console.error('Error rendering Slate editor:', error);
       editorContainer.innerHTML = `
