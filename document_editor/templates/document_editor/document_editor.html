@@ -167,24 +167,7 @@
     const activeUsersContainer = document.getElementById('active-users');
     const documentId = document.getElementById('document-id').value;
     const canEdit = document.getElementById('can-edit').value === 'True';
-
-    // Get CSRF token from cookie (more reliable than from the form)
-    function getCookie(name) {
-      let cookieValue = null;
-      if (document.cookie && document.cookie !== '') {
-        const cookies = document.cookie.split(';');
-        for (let i = 0; i < cookies.length; i++) {
-          const cookie = cookies[i].trim();
-          if (cookie.substring(0, name.length + 1) === (name + '=')) {
-            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-            break;
-          }
-        }
-      }
-      return cookieValue;
-    }
-
-    const csrfToken = getCookie('csrftoken');
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
 
     // Setup toolbar buttons
     document.querySelectorAll('.toolbar-button').forEach(button => {
@@ -397,18 +380,44 @@
       // Log for debugging
       console.log('Saving content:', slateContent);
 
-      // Send save request with proper CSRF handling
-      fetch(`/documents/${documentId}/save/`, {
+      // Instead of using fetch with X-CSRFToken header, we will submit the form directly
+      // This ensures that Django's CSRF protection works correctly
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = `/documents/${documentId}/save/`;
+      form.style.display = 'none';
+
+      // Add CSRF token
+      const csrfInput = document.createElement('input');
+      csrfInput.type = 'hidden';
+      csrfInput.name = 'csrfmiddlewaretoken';
+      csrfInput.value = document.querySelector('[name=csrfmiddlewaretoken]').value;
+      form.appendChild(csrfInput);
+
+      // Add content
+      const contentInput = document.createElement('input');
+      contentInput.type = 'hidden';
+      contentInput.name = 'content';
+      contentInput.value = JSON.stringify(slateContent);
+      form.appendChild(contentInput);
+
+      // Add create_version flag
+      const versionInput = document.createElement('input');
+      versionInput.type = 'hidden';
+      versionInput.name = 'create_version';
+      versionInput.value = createVersion;
+      form.appendChild(versionInput);
+
+      // Add form to body and submit
+      document.body.appendChild(form);
+
+      // Use fetch with FormData instead of JSON
+      const formData = new FormData(form);
+
+      fetch(form.action, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRFToken': csrfToken,
-        },
-        credentials: 'same-origin', // This ensures cookies are sent with the request
-        body: JSON.stringify({
-          content: slateContent,
-          create_version: createVersion,
-        }),
+        body: formData,
+        credentials: 'same-origin'
       })
       .then(response => {
         console.log('Received response:', response);
@@ -418,6 +427,8 @@
         return response.json();
       })
       .then(data => {
+        document.body.removeChild(form); // Clean up
+
         if (data.success) {
           hasUnsavedChanges = false;
 
@@ -436,6 +447,7 @@
         }
       })
       .catch(error => {
+        document.body.removeChild(form); // Clean up
         console.error('Network or server error:', error);
         showNotification('Network or server error: ' + error.message, 'error');
       });

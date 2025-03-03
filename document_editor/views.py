@@ -21,7 +21,7 @@ from core.models import Employee, Customer
 from core.mixins import EmployeeRequiredMixin
 
 from .models import (
-    Document, DocumentCollaborator, DocumentComment, DocumentTemplate
+    Document, DocumentCollaborator, DocumentComment, DocumentTemplate, DocumentVersion
 )
 from .forms import (
     DocumentForm, DocumentTemplateForm, DocumentCollaboratorForm, DocumentCommentForm
@@ -386,39 +386,155 @@ class DeleteDocumentView(LoginRequiredMixin, EmployeeRequiredMixin, DeleteView):
 
 # AJAX Endpoints for the Editor
 
+logger = logging.getLogger(__name__)
+
 @login_required
 @require_POST
-@transaction.atomic
-def save_document_content(request, pk):
-    """Optimized: Use transactions to avoid blocking."""
+def save_document_content(request, document_id):
+    """
+    Save document content and optionally create a version.
+
+    This view handles form data submissions from the document editor.
+
+    Parameters:
+    - document_id: The ID of the document to save
+
+    Form data:
+    - content: JSON string of the document content in Slate-like format
+    - create_version: Boolean indicating whether to create a new version
+
+    Returns:
+    - JsonResponse with success status and additional information
+    """
     try:
-        document = get_object_or_404(Document, pk=pk)
+        # Get the document
+        document = get_object_or_404(Document, id=document_id)
         employee = request.user.employee_profile
 
-        # Permission check
-        if document.author != employee:
-            collaborator = DocumentCollaborator.objects.get(document=document, employee=employee)
-            if collaborator.permission not in ['edit', 'manage']:
-                return JsonResponse({'success': False, 'error': 'No permission'}, status=403)
+        # Check if user has edit permission
+        can_edit = False
 
-        data = json.loads(request.body)
-        content = data.get('content')
+        # Document author can always edit
+        if document.author == employee:
+            can_edit = True
+        else:
+            # Check collaborator permissions
+            try:
+                collaborator = document.collaborators.get(employee=employee)
+                can_edit = collaborator.permission in ['edit', 'manage']
+            except Exception:
+                can_edit = False
 
-        if not content:
-            return JsonResponse({'success': False, 'error': 'No content provided.'}, status=400)
+        if not can_edit:
+            return JsonResponse({
+                'success': False,
+                'error': 'You do not have permission to edit this document'
+            }, status=403)
 
-        with transaction.atomic():  # Ensures atomicity, reducing query time
-            document.content = content
-            document.plain_text = document.extract_plain_text()
-            document.updated_at = timezone.now()
-            document.save()
+        # Extract content from form data
+        content_str = request.POST.get('content')
+        create_version = request.POST.get('create_version') == 'true'
 
-        return JsonResponse({'success': True, 'document_id': document.id, 'version': document.version})
+        if not content_str:
+            return JsonResponse({
+                'success': False,
+                'error': 'No content provided'
+            }, status=400)
+
+        # Parse the JSON content to validate it
+        content = json.loads(content_str)
+
+        # Check if content has valid structure
+        if not isinstance(content, dict) or 'children' not in content:
+            return JsonResponse({
+                'success': False,
+                'error': 'Invalid content structure'
+            }, status=400)
+
+        # Update the document content
+        document.content = content
+        document.plain_text = document.extract_plain_text()
+        document.updated_at = timezone.now()
+        document.updated_by = employee
+
+        response_data = {
+            'success': True,
+            'updated_at': timezone.now().isoformat()
+        }
+
+        # Create a version if requested
+        if create_version:
+            # Get the next version number
+            version_number = document.version + 1
+
+            # Create new version
+            document_version = DocumentVersion.objects.create(
+                document=document,
+                content=content,
+                created_by=employee,
+                version_number=version_number
+            )
+
+            # Update response data
+            response_data['version'] = version_number
+            response_data['create_version'] = True
+
+            logger.info(f"Created version {version_number} for document {document_id} by user {request.user.username}")
+
+            # Update document version
+            document.version = version_number
+
+        # Save the document
+        document.save()
+
+        # Notify other users via WebSocket
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            f"document_{document.id}",
+            {
+                "type": "document_saved",
+                "document_id": document.id,
+                "user_id": request.user.id,
+                "user_name": employee.get_full_name() or request.user.username,
+                "updated_at": document.updated_at.isoformat()
+            }
+        )
+
+        return JsonResponse(response_data)
+
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Invalid JSON content'
+        }, status=400)
 
     except Exception as e:
-        logger.error(f"Error saving document content: {str(e)}")
-        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+        logger.error(f"Error saving document {document_id}: {str(e)}", exc_info=True)
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
 
+# The WebSocket notification helper function (placed in channels.py)
+def notify_document_saved(document, user):
+    """
+    Send a WebSocket notification to all users viewing the document
+    that the document has been saved.
+    """
+    from asgiref.sync import async_to_sync
+    from channels.layers import get_channel_layer
+
+    channel_layer = get_channel_layer()
+    async_to_sync(channel_layer.group_send)(
+        f"document_{document.id}",
+        {
+            "type": "document_saved",
+            "document_id": document.id,
+            "user_id": user.id,
+            "user_name": user.get_full_name() or user.username,
+            "updated_at": document.updated_at.isoformat()
+        }
+    )
 
 @login_required
 @require_POST

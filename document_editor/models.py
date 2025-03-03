@@ -1,7 +1,7 @@
 from django.db import models
 from django.conf import settings
 from django.utils import timezone
-from django.db.models import Q
+from django.db.models import Q, Max
 import json
 
 from core.models import Employee, Customer
@@ -76,7 +76,7 @@ class Document(models.Model):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='versions'
+        related_name='document_versions'  # Changed from 'versions' to avoid conflict
     )
     version = models.IntegerField(default=1)
     is_latest_version = models.BooleanField(default=True)
@@ -136,12 +136,60 @@ class Document(models.Model):
                 Q(id=self.id) | Q(parent_document=self)
             ).order_by('version')
 
-    def save(self, *args, **kwargs):
-        # Extract plain text for search
-        if self.content and not self.plain_text:
-            self.plain_text = self.extract_plain_text()
+    def can_user_edit(self, user):
+        """Check if a user has permission to edit this document"""
+        if not hasattr(user, 'employee_profile'):
+            return False
 
-        super().save(*args, **kwargs)
+        employee = user.employee_profile
+
+        # Document author can always edit
+        if self.author == employee:
+            return True
+
+        # Check collaborator permissions
+        try:
+            collaborator = self.collaborators.get(employee=employee)
+            return collaborator.permission in ['edit', 'manage']
+        except Exception:
+            return False
+
+
+class DocumentVersion(models.Model):
+    """Model for storing document versions"""
+
+    document = models.ForeignKey(
+        Document,
+        on_delete=models.CASCADE,
+        related_name='version_history'  # Changed from 'versions' to avoid conflict
+    )
+    version_number = models.PositiveIntegerField()
+    content = models.JSONField()
+    created_by = models.ForeignKey(
+        Employee,
+        on_delete=models.CASCADE,
+        related_name='created_document_versions'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    comment = models.TextField(blank=True, null=True)
+
+    class Meta:
+        ordering = ['-version_number']
+        unique_together = ['document', 'version_number']
+
+    def __str__(self):
+        return f"{self.document.title} - v{self.version_number}"
+
+    @staticmethod
+    def get_next_version_number(document):
+        """Get the next version number for a document"""
+        max_version = DocumentVersion.objects.filter(
+            document=document
+        ).aggregate(
+            max_version=Max('version_number')
+        )['max_version'] or 0
+
+        return max_version + 1
 
 
 class DocumentCollaborator(models.Model):
