@@ -392,126 +392,90 @@ logger = logging.getLogger(__name__)
 
 @login_required
 @require_POST
-def save_document_content(request, document_id):
-    """
-    Save document content and optionally create a version.
-
-    This view handles form data submissions from the document editor.
-
-    Parameters:
-    - document_id: The ID of the document to save
-
-    Form data:
-    - content: JSON string of the document content in Slate-like format
-    - create_version: Boolean indicating whether to create a new version
-
-    Returns:
-    - JsonResponse with success status and additional information
-    """
+def save_document_content(request, pk):
+    """Save document content and optionally create a version."""
     try:
         # Get the document
-        document = get_object_or_404(Document, id=document_id)
-        employee = request.user.employee_profile
+        document = get_object_or_404(Document, id=pk)
 
-        # Check if user has edit permission
-        can_edit = False
-
-        # Document author can always edit
-        if document.author == employee:
-            can_edit = True
-        else:
-            # Check collaborator permissions
-            try:
-                collaborator = document.collaborators.get(employee=employee)
-                can_edit = collaborator.permission in ['edit', 'manage']
-            except Exception:
-                can_edit = False
-
-        if not can_edit:
+        # Verify user permissions
+        if not hasattr(request.user, 'employee_profile'):
             return JsonResponse({
                 'success': False,
-                'error': 'You do not have permission to edit this document'
+                'error': 'No employee profile found'
             }, status=403)
 
-        # Extract content from form data
+        employee = request.user.employee_profile
+        if document.author != employee:
+            try:
+                collaborator = document.collaborators.get(employee=employee)
+                if collaborator.permission not in ['edit', 'manage']:
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'You do not have permission to edit this document'
+                    }, status=403)
+            except Exception:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'You do not have permission to edit this document'
+                }, status=403)
+
+        # Extract content from request.POST
         content_str = request.POST.get('content')
         create_version = request.POST.get('create_version') == 'true'
 
-        if not content_str:
+        if not content_str or content_str.isspace():
             return JsonResponse({
                 'success': False,
                 'error': 'No content provided'
             }, status=400)
 
-        # Parse the JSON content to validate it
-        content = json.loads(content_str)
-
-        # Check if content has valid structure
-        if not isinstance(content, dict) or 'children' not in content:
+        # Parse the JSON content
+        try:
+            content = json.loads(content_str)
+        except json.JSONDecodeError as e:
             return JsonResponse({
                 'success': False,
-                'error': 'Invalid content structure'
+                'error': f'Invalid JSON content: {str(e)}'
             }, status=400)
 
-        # Update the document content
+        # Update document content
         document.content = content
+
+        # Update plain_text field
         document.plain_text = document.extract_plain_text()
-        document.updated_at = timezone.now()
+
+        # Update metadata
         document.updated_by = employee
+        document.updated_at = timezone.now()
 
-        response_data = {
-            'success': True,
-            'updated_at': timezone.now().isoformat()
-        }
-
-        # Create a version if requested
+        # Create version if requested
         if create_version:
-            # Get the next version number
-            version_number = document.version + 1
+            # Create new version - adjust as needed for your model
+            version = document.version + 1 if hasattr(document, 'version') else 1
 
-            # Create new version
-            document_version = DocumentVersion.objects.create(
+            # Create the version
+            DocumentVersion.objects.create(
                 document=document,
+                version_number=version,
                 content=content,
-                created_by=employee,
-                version_number=version_number
+                created_by=employee
             )
 
-            # Update response data
-            response_data['version'] = version_number
-            response_data['create_version'] = True
-
-            logger.info(f"Created version {version_number} for document {document_id} by user {request.user.username}")
-
-            # Update document version
-            document.version = version_number
+            # Update document version if applicable
+            if hasattr(document, 'version'):
+                document.version = version
 
         # Save the document
         document.save()
 
-        # Notify other users via WebSocket
-        channel_layer = get_channel_layer()
-        async_to_sync(channel_layer.group_send)(
-            f"document_{document.id}",
-            {
-                "type": "document_saved",
-                "document_id": document.id,
-                "user_id": request.user.id,
-                "user_name": employee.get_full_name() or request.user.username,
-                "updated_at": document.updated_at.isoformat()
-            }
-        )
-
-        return JsonResponse(response_data)
-
-    except json.JSONDecodeError:
         return JsonResponse({
-            'success': False,
-            'error': 'Invalid JSON content'
-        }, status=400)
+            'success': True,
+            'updated_at': document.updated_at.isoformat()
+        })
 
     except Exception as e:
-        logger.error(f"Error saving document {document_id}: {str(e)}", exc_info=True)
+        logger.exception(f"Error saving document: {str(e)}")
         return JsonResponse({
             'success': False,
             'error': str(e)
