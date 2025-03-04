@@ -164,7 +164,7 @@
             {% if document.approval_workflow.current_approver %}
             <div class="mb-3">
               <div class="text-muted small">Current Approver</div>
-              <div>{{ document.approval_workflow.current_approver.get_full_name }}</div>
+              <div>{{ document.approval_workflow.current_approver.user.get_full_name }}</div>
             </div>
             {% endif %}
 
