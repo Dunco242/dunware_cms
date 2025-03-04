@@ -623,18 +623,35 @@
 </div>
 {% endif %}
 
+<!-- In the body of your HTML template, add these data attributes -->
+<div id="workflowData"
+     data-document-id="{{ document.id }}"
+     data-csrf-token="{{ csrf_token }}"
+     {% if document.approval_workflow and document.approval_workflow.id %}
+     data-workflow-id="{{ document.approval_workflow.id }}"
+     data-cancel-url="/documents/approval-workflows/{{ document.approval_workflow.id }}/cancel/"
+     {% endif %}>
+</div>
+
 <script>
-  document.addEventListener('DOMContentLoaded', function() {
+  document.addEventListener('DOMContentLoaded', function () {
+      // Get data from HTML data attributes
+      const dataElement = document.getElementById('workflowData');
+      const documentId = dataElement.dataset.documentId;
+      const csrfToken = dataElement.dataset.csrfToken;
+      const workflowId = dataElement.dataset.workflowId || null;
+      const cancelUrl = dataElement.dataset.cancelUrl || null;
+
       const updateStatusForm = document.getElementById('update-status-form');
       if (updateStatusForm) {
-          updateStatusForm.addEventListener('submit', function(e) {
+          updateStatusForm.addEventListener('submit', function (e) {
               e.preventDefault();
               const status = document.getElementById('status').value;
-              fetch("{% url 'document_editor:update_document_status' document.id %}", {
+              fetch(`/documents/${documentId}/update-status/`, {
                   method: 'POST',
                   headers: {
                       'Content-Type': 'application/json',
-                      'X-CSRFToken': '{{ csrf_token }}'
+                      'X-CSRFToken': csrfToken
                   },
                   body: JSON.stringify({ status: status })
               })
@@ -655,7 +672,7 @@
 
       const addCollaboratorForm = document.getElementById('add-collaborator-form');
       if (addCollaboratorForm) {
-          addCollaboratorForm.addEventListener('submit', function(e) {
+          addCollaboratorForm.addEventListener('submit', function (e) {
               e.preventDefault();
               const employeeId = document.getElementById('employee_id').value;
               const permission = document.getElementById('permission').value;
@@ -663,11 +680,11 @@
                   alert('Please select an employee');
                   return;
               }
-              fetch("{% url 'document_editor:add_collaborator' document.id %}", {
+              fetch(`/documents/${documentId}/add-collaborator/`, {
                   method: 'POST',
                   headers: {
                       'Content-Type': 'application/json',
-                      'X-CSRFToken': '{{ csrf_token }}'
+                      'X-CSRFToken': csrfToken
                   },
                   body: JSON.stringify({ employee_id: employeeId, permission: permission })
               })
@@ -687,13 +704,13 @@
       }
 
       const confirmCancelWorkflow = document.getElementById('confirmCancelWorkflow');
-      if (confirmCancelWorkflow) {
-          confirmCancelWorkflow.addEventListener('click', function() {
-              fetch("{% url 'document_editor:cancel_approval_workflow' document.approval_workflow.id %}", {
+      if (confirmCancelWorkflow && workflowId) {
+          confirmCancelWorkflow.addEventListener('click', function () {
+              fetch(cancelUrl, {
                   method: 'POST',
                   headers: {
                       'Content-Type': 'application/json',
-                      'X-CSRFToken': '{{ csrf_token }}'
+                      'X-CSRFToken': csrfToken
                   }
               })
               .then(response => response.json())
@@ -709,7 +726,11 @@
                   alert('Error cancelling workflow. Please try again.');
               });
           });
+      } else if (confirmCancelWorkflow) {
+          confirmCancelWorkflow.addEventListener('click', function() {
+              alert('Error: Cannot cancel workflow. Workflow information not available.');
+          });
       }
   });
-  </script>
+</script>
 {% endblock %}
