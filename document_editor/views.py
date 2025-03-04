@@ -1125,42 +1125,87 @@ def add_document_comment(request, document_id):
         document = get_object_or_404(Document, pk=document_id)
         employee = request.user.employee_profile
 
+        # Debug logging
+        print(f"Adding comment to document {document_id}")
+        print(f"Current user: {request.user.username}, employee ID: {employee.id if employee else 'None'}")
+        print(f"Document author ID: {document.author.id if document.author else 'None'}")
+
+        is_author = document.author == employee
+        print(f"Is user the author? {is_author}")
+
         # Check permissions
-        if document.author != employee:
+        if not is_author:
             try:
                 collaborator = DocumentCollaborator.objects.get(
                     document=document,
                     employee=employee
                 )
+                print(f"Found collaborator record, permission: {collaborator.permission}")
+
                 if collaborator.permission not in ['comment', 'edit', 'manage']:
+                    print(f"Permission denied: {collaborator.permission} not in ['comment', 'edit', 'manage']")
                     return JsonResponse({
                         'success': False,
-                        'error': 'You do not have permission to comment on this document.'
+                        'error': f"Permission denied: You have '{collaborator.permission}' permission but need 'comment', 'edit', or 'manage'"
                     }, status=403)
             except DocumentCollaborator.DoesNotExist:
+                print("No collaborator record found")
                 return JsonResponse({
                     'success': False,
-                    'error': 'You do not have permission to comment on this document.'
+                    'error': 'You do not have permission to comment on this document - no collaborator record found.'
                 }, status=403)
 
-        # Parse the JSON data
+        # Parse the form data
         try:
-            data = json.loads(request.body)
-        except json.JSONDecodeError:
-            # If JSON parsing fails, try getting from POST
-            data = request.POST
+            # First try to get from POST data (for FormData submissions)
+            content = request.POST.get('content')
+            parent_id = request.POST.get('parent_id')
+            selection_start = request.POST.get('selection_start')
+            selection_end = request.POST.get('selection_end')
+            selected_text = request.POST.get('selected_text', '')
 
-        content = data.get('content')
-        parent_id = data.get('parent_id')
-        selection_start = data.get('selection_start')
-        selection_end = data.get('selection_end')
-        selected_text = data.get('selected_text', '')
+            # If content is not in POST, try JSON body
+            if not content:
+                data = json.loads(request.body)
+                content = data.get('content')
+                parent_id = data.get('parent_id')
+                selection_start = data.get('selection_start')
+                selection_end = data.get('selection_end')
+                selected_text = data.get('selected_text', '')
+
+            # Log what we received
+            print(f"Received comment content: {content[:50]}...")
+            print(f"Parent ID: {parent_id}")
+            print(f"Has selection data: {bool(selection_start)}")
+        except json.JSONDecodeError:
+            # If both approaches fail, log the error
+            print(f"Could not parse request body: {request.body[:100]}")
+            print(f"POST data: {dict(request.POST)}")
+            return JsonResponse({
+                'success': False,
+                'error': 'Invalid request format.'
+            }, status=400)
 
         if not content:
             return JsonResponse({
                 'success': False,
                 'error': 'Comment content is required.'
             }, status=400)
+
+        # Process selection data if it's a string (from FormData)
+        if selection_start and isinstance(selection_start, str):
+            try:
+                selection_start = json.loads(selection_start)
+            except json.JSONDecodeError:
+                print(f"Could not parse selection_start: {selection_start}")
+                selection_start = None
+
+        if selection_end and isinstance(selection_end, str):
+            try:
+                selection_end = json.loads(selection_end)
+            except json.JSONDecodeError:
+                print(f"Could not parse selection_end: {selection_end}")
+                selection_end = None
 
         # Create the comment
         comment = DocumentComment(
@@ -1174,20 +1219,28 @@ def add_document_comment(request, document_id):
 
         # Add parent comment if replying
         if parent_id:
-            parent_comment = get_object_or_404(DocumentComment, pk=parent_id)
-            comment.parent_comment = parent_comment
+            try:
+                parent_comment = get_object_or_404(DocumentComment, pk=parent_id)
+                comment.parent_comment = parent_comment
+            except:
+                print(f"Could not find parent comment with ID: {parent_id}")
+                # Continue without parent if not found
 
         comment.save()
+        print(f"Comment saved with ID: {comment.id}")
+
+        # Prepare author data safely
+        author_data = {
+            'id': employee.id,
+            'name': employee.get_full_name() if hasattr(employee, 'get_full_name') else str(employee)
+        }
 
         return JsonResponse({
             'success': True,
             'comment': {
                 'id': comment.id,
                 'content': comment.content,
-                'author': {
-                    'id': comment.author.id,
-                    'name': comment.author.get_full_name()
-                },
+                'author': author_data,
                 'created_at': comment.created_at.isoformat(),
                 'is_resolved': comment.is_resolved,
                 'parent_id': parent_id,
@@ -1198,10 +1251,15 @@ def add_document_comment(request, document_id):
         })
 
     except Exception as e:
-        logger.error(f"Error adding comment: {str(e)}")
+        # Log the full exception with traceback
+        import traceback
+        print(f"Error adding comment: {str(e)}")
+        print(traceback.format_exc())
+
+        # Return a more detailed error message
         return JsonResponse({
             'success': False,
-            'error': str(e)
+            'error': f"Server error: {str(e)}"
         }, status=500)
 
 

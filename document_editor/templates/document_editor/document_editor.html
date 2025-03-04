@@ -551,20 +551,20 @@
             ? `Created new version ${data.version}`
             : 'Document saved successfully';
 
-          showNotification(successMsg, 'success');
+          documentEditorShowNotification(successMsg, 'success');
 
           if (data.updated_at) {
             saveStatus.innerText = `Last saved: ${new Date(data.updated_at).toLocaleString()}`;
           }
         } else {
           console.error('Error saving document:', data.error);
-          showNotification('Error saving document: ' + data.error, 'error');
+          documentEditorShowNotification('Error saving document: ' + data.error, 'error');
         }
       })
       .catch(error => {
         document.body.removeChild(form); // Clean up
         console.error('Network or server error:', error);
-        showNotification('Network or server error: ' + error.message, 'error');
+        documentEditorShowNotification('Network or server error: ' + error.message, 'error');
       });
     }
 
@@ -667,14 +667,14 @@
           ? `Created new version ${data.version}`
           : 'Document saved successfully';
 
-        showNotification(successMsg, 'success');
+        documentEditorShowNotification(successMsg, 'success');
 
         if (data.updated_at) {
           saveStatus.innerText = `Last saved: ${new Date(data.updated_at).toLocaleString()}`;
         }
       } else {
         console.error('Error saving document:', data.error);
-        showNotification('Error saving document: ' + data.error, 'error');
+        documentEditorShowNotification('Error saving document: ' + data.error, 'error');
       }
     }
 
@@ -700,7 +700,7 @@
 
       updateActiveUsersUI();
 
-      showNotification(`${data.user_name} joined the document`, 'info');
+      documentEditorShowNotification(`${data.user_name} joined the document`, 'info');
     }
 
     function handleUserLeft(data) {
@@ -708,11 +708,11 @@
 
       updateActiveUsersUI();
 
-      showNotification(`${data.user_name} left the document`, 'info');
+      documentEditorShowNotification(`${data.user_name} left the document`, 'info');
     }
 
     function handleDocumentSaved(data) {
-      showNotification(`${data.user_name} saved the document`, 'info');
+      documentEditorShowNotification(`${data.user_name} saved the document`, 'info');
     }
 
     function updateActiveUsersUI() {
@@ -746,8 +746,8 @@
       return colors[Math.abs(hash) % colors.length];
     }
 
-    // Fix the showNotification function or ensure it's properly defined
-function showNotification(message, type = 'info') {
+    // Fix the documentEditorShowNotification function or ensure it's properly defined
+function documentEditorShowNotification(message, type = 'info') {
   try {
     const notification = document.createElement('div');
     notification.className = `position-fixed bottom-0 end-0 p-3`;
@@ -833,7 +833,7 @@ function initializeCommentFunctionality() {
 
       const commentContent = commentTextarea.value.trim();
       if (!commentContent) {
-        showNotification('Comment cannot be empty', 'error');
+        documentEditorShowNotification('Comment cannot be empty', 'error');
         return;
       }
 
@@ -866,7 +866,7 @@ function initializeCommentFunctionality() {
         const replyContent = replyForm.querySelector('.reply-textarea').value.trim();
 
         if (!replyContent) {
-          showNotification('Reply cannot be empty', 'error');
+          documentEditorShowNotification('Reply cannot be empty', 'error');
           return;
         }
 
@@ -933,14 +933,14 @@ function submitComment(content) {
       // Update comment count
       updateCommentCount(1);
 
-      showNotification('Comment added successfully', 'success');
+      documentEditorShowNotification('Comment added successfully', 'success');
     } else {
-      showNotification(`Error: ${data.error}`, 'error');
+      documentEditorShowNotification(`Error: ${data.error}`, 'error');
     }
   })
   .catch(error => {
     console.error('Error adding comment:', error);
-    showNotification(`Error: ${error.message}`, 'error');
+    documentEditorShowNotification(`Error: ${error.message}`, 'error');
   });
 }
 
@@ -982,14 +982,14 @@ function submitReply(parentId, content) {
       // Update comment count
       updateCommentCount(1);
 
-      showNotification('Reply added successfully', 'success');
+      documentEditorShowNotification('Reply added successfully', 'success');
     } else {
-      showNotification(`Error: ${data.error}`, 'error');
+      documentEditorShowNotification(`Error: ${data.error}`, 'error');
     }
   })
   .catch(error => {
     console.error('Error adding reply:', error);
-    showNotification(`Error: ${error.message}`, 'error');
+    documentEditorShowNotification(`Error: ${error.message}`, 'error');
   });
 }
 
@@ -1015,14 +1015,14 @@ function resolveComment(commentId) {
     if (data.success) {
       // Update comment UI to show resolved state
       updateCommentResolved(commentId, data.resolved_by, data.resolved_at);
-      showNotification('Comment resolved', 'success');
+      documentEditorShowNotification('Comment resolved', 'success');
     } else {
-      showNotification(`Error: ${data.error}`, 'error');
+      documentEditorShowNotification(`Error: ${data.error}`, 'error');
     }
   })
   .catch(error => {
     console.error('Error resolving comment:', error);
-    showNotification(`Error: ${error.message}`, 'error');
+    documentEditorShowNotification(`Error: ${error.message}`, 'error');
   });
 }
 
