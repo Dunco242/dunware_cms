@@ -142,13 +142,94 @@
 
     <div class="col-md-3 d-none d-md-block">
       <div class="card shadow-sm">
-        <div class="card-header">
+        <div class="card-header d-flex justify-content-between align-items-center">
           <h5 class="card-title mb-0">Comments</h5>
+          <span class="badge bg-primary" id="comment-count">{{ comments|length }}</span>
         </div>
-        <div class="card-body" id="comments-container">
-          <p class="text-muted">No comments yet</p>
+        <div class="card-body p-0">
+          <div id="comments-container" class="comments-list">
+            {% if comments %}
+              {% for comment in comments %}
+                <div class="comment-item p-3 border-bottom" data-comment-id="{{ comment.id }}">
+                  <div class="d-flex justify-content-between">
+                    <div class="comment-author fw-bold">{{ comment.author.get_full_name }}</div>
+                    <div class="comment-date small text-muted">{{ comment.created_at|date:"M j, g:i a" }}</div>
+                  </div>
+                  <div class="comment-content mt-1">{{ comment.content }}</div>
+                  {% if not comment.is_resolved %}
+                    <div class="comment-actions mt-2">
+                      <button type="button" class="btn btn-sm btn-outline-success resolve-comment-btn" data-comment-id="{{ comment.id }}">
+                        <i class="fas fa-check me-1"></i> Resolve
+                      </button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary reply-comment-btn" data-comment-id="{{ comment.id }}">
+                        <i class="fas fa-reply me-1"></i> Reply
+                      </button>
+                    </div>
+                  {% else %}
+                    <div class="resolved-badge mt-2">
+                      <span class="badge bg-success">Resolved by {{ comment.resolved_by.get_full_name }} on {{ comment.resolved_at|date:"M j, g:i a" }}</span>
+                    </div>
+                  {% endif %}
+
+                  {% if comment.replies.count > 0 %}
+                    <div class="comment-replies mt-3 ms-3 border-start ps-3">
+                      {% for reply in comment.replies.all %}
+                        <div class="reply-item mb-2" data-reply-id="{{ reply.id }}">
+                          <div class="d-flex justify-content-between">
+                            <div class="reply-author small fw-bold">{{ reply.author.get_full_name }}</div>
+                            <div class="reply-date small text-muted">{{ reply.created_at|date:"M j, g:i a" }}</div>
+                          </div>
+                          <div class="reply-content small">{{ reply.content }}</div>
+                        </div>
+                      {% endfor %}
+                    </div>
+                  {% endif %}
+
+                  <div class="reply-form mt-2 d-none" id="reply-form-{{ comment.id }}">
+                    <textarea class="form-control form-control-sm reply-textarea" rows="2" placeholder="Write a reply..."></textarea>
+                    <div class="mt-2">
+                      <button type="button" class="btn btn-sm btn-primary submit-reply-btn" data-comment-id="{{ comment.id }}">Submit Reply</button>
+                      <button type="button" class="btn btn-sm btn-link cancel-reply-btn">Cancel</button>
+                    </div>
+                  </div>
+                </div>
+              {% endfor %}
+            {% else %}
+              <div class="text-center text-muted py-4">
+                <i class="fas fa-comments fa-2x mb-2"></i>
+                <p>No comments yet</p>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+        <div class="card-footer">
+          <form id="comment-form" class="mt-2">
+            <div class="mb-2">
+              <label for="comment-textarea" class="form-label">Add a comment</label>
+              <textarea id="comment-textarea" class="form-control" rows="3" placeholder="Write your comment here..."></textarea>
+            </div>
+            <button type="submit" id="add-comment-btn" class="btn btn-primary">
+              <i class="fas fa-comment me-1"></i> Add Comment
+            </button>
+          </form>
         </div>
       </div>
+
+      <style>
+        .comments-list {
+          max-height: 500px;
+          overflow-y: auto;
+        }
+        .comment-item {
+          background-color: #f8f9fa;
+        }
+        .comment-item:hover {
+          background-color: #f1f3f5;
+        }
+        .resolved-badge {
+          opacity: 0.8;
+        }
+      </style>
     </div>
   </div>
 </div>
@@ -736,5 +817,351 @@
       clearInterval(pingInterval);
     });
   });
+  // Add these functions to your existing script section, after the initialization code
+
+// Comment functionality
+function initializeCommentFunctionality() {
+  const commentForm = document.getElementById('comment-form');
+  const commentTextarea = document.getElementById('comment-textarea');
+  const commentsContainer = document.getElementById('comments-container');
+  const commentCount = document.getElementById('comment-count');
+
+  // Add comment form submission
+  if (commentForm) {
+    commentForm.addEventListener('submit', function(e) {
+      e.preventDefault();
+
+      const commentContent = commentTextarea.value.trim();
+      if (!commentContent) {
+        showNotification('Comment cannot be empty', 'error');
+        return;
+      }
+
+      submitComment(commentContent);
+    });
+  }
+
+  // Delegate event listeners for comment actions
+  if (commentsContainer) {
+    commentsContainer.addEventListener('click', function(e) {
+      // Resolve comment button
+      if (e.target.closest('.resolve-comment-btn')) {
+        const btn = e.target.closest('.resolve-comment-btn');
+        const commentId = btn.getAttribute('data-comment-id');
+        resolveComment(commentId);
+      }
+
+      // Reply button
+      if (e.target.closest('.reply-comment-btn')) {
+        const btn = e.target.closest('.reply-comment-btn');
+        const commentId = btn.getAttribute('data-comment-id');
+        showReplyForm(commentId);
+      }
+
+      // Submit reply button
+      if (e.target.closest('.submit-reply-btn')) {
+        const btn = e.target.closest('.submit-reply-btn');
+        const commentId = btn.getAttribute('data-comment-id');
+        const replyForm = document.getElementById(`reply-form-${commentId}`);
+        const replyContent = replyForm.querySelector('.reply-textarea').value.trim();
+
+        if (!replyContent) {
+          showNotification('Reply cannot be empty', 'error');
+          return;
+        }
+
+        submitReply(commentId, replyContent);
+      }
+
+      // Cancel reply button
+      if (e.target.closest('.cancel-reply-btn')) {
+        const btn = e.target.closest('.cancel-reply-btn');
+        const replyForm = btn.closest('.reply-form');
+        replyForm.classList.add('d-none');
+        replyForm.querySelector('textarea').value = '';
+      }
+    });
+  }
+}
+
+// Submit a new comment
+function submitComment(content) {
+  const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+  const documentId = document.getElementById('document-id').value;
+
+  // Optional: get selection information if implementing highlighted text comments
+  const selection = window.getSelection();
+  let selectionData = null;
+
+  if (selection && !selection.isCollapsed && textEditor.contains(selection.anchorNode)) {
+    // Get selection range information for contextual comments
+    // This is a basic implementation; you might need more sophisticated handling
+    selectionData = {
+      start: getNodeOffset(selection.anchorNode, selection.anchorOffset),
+      end: getNodeOffset(selection.focusNode, selection.focusOffset),
+      text: selection.toString()
+    };
+  }
+
+  fetch(`/documents/${documentId}/add-comment/`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrfToken
+    },
+    body: JSON.stringify({
+      content: content,
+      selection_start: selectionData ? selectionData.start : null,
+      selection_end: selectionData ? selectionData.end : null,
+      selected_text: selectionData ? selectionData.text : ''
+    })
+  })
+  .then(response => {
+    if (!response.ok) {
+      throw new Error(`Server error: ${response.status}`);
+    }
+    return response.json();
+  })
+  .then(data => {
+    if (data.success) {
+      // Add comment to UI
+      addCommentToUI(data.comment);
+
+      // Clear textarea
+      document.getElementById('comment-textarea').value = '';
+
+      // Update comment count
+      updateCommentCount(1);
+
+      showNotification('Comment added successfully', 'success');
+    } else {
+      showNotification(`Error: ${data.error}`, 'error');
+    }
+  })
+  .catch(error => {
+    console.error('Error adding comment:', error);
+    showNotification(`Error: ${error.message}`, 'error');
+  });
+}
+
+// Submit a reply to a comment
+function submitReply(parentId, content) {
+  const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+  const documentId = document.getElementById('document-id').value;
+
+  fetch(`/documents/${documentId}/add-comment/`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrfToken
+    },
+    body: JSON.stringify({
+      content: content,
+      parent_id: parentId
+    })
+  })
+  .then(response => {
+    if (!response.ok) {
+      throw new Error(`Server error: ${response.status}`);
+    }
+    return response.json();
+  })
+  .then(data => {
+    if (data.success) {
+      // Add reply to UI
+      addReplyToUI(parentId, data.comment);
+
+      // Hide reply form
+      const replyForm = document.getElementById(`reply-form-${parentId}`);
+      replyForm.classList.add('d-none');
+      replyForm.querySelector('textarea').value = '';
+
+      // Update comment count
+      updateCommentCount(1);
+
+      showNotification('Reply added successfully', 'success');
+    } else {
+      showNotification(`Error: ${data.error}`, 'error');
+    }
+  })
+  .catch(error => {
+    console.error('Error adding reply:', error);
+    showNotification(`Error: ${error.message}`, 'error');
+  });
+}
+
+// Resolve a comment
+function resolveComment(commentId) {
+  const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+  fetch(`/documents/comments/${commentId}/resolve/`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrfToken
+    },
+    body: JSON.stringify({})
+  })
+  .then(response => {
+    if (!response.ok) {
+      throw new Error(`Server error: ${response.status}`);
+    }
+    return response.json();
+  })
+  .then(data => {
+    if (data.success) {
+      // Update comment UI to show resolved state
+      updateCommentResolved(commentId, data.resolved_by, data.resolved_at);
+      showNotification('Comment resolved', 'success');
+    } else {
+      showNotification(`Error: ${data.error}`, 'error');
+    }
+  })
+  .catch(error => {
+    console.error('Error resolving comment:', error);
+    showNotification(`Error: ${error.message}`, 'error');
+  });
+}
+
+// Show reply form for a comment
+function showReplyForm(commentId) {
+  // Hide all other reply forms first
+  document.querySelectorAll('.reply-form').forEach(form => {
+    form.classList.add('d-none');
+  });
+
+  // Show this reply form
+  const replyForm = document.getElementById(`reply-form-${commentId}`);
+  if (replyForm) {
+    replyForm.classList.remove('d-none');
+    replyForm.querySelector('textarea').focus();
+  }
+}
+
+// Add a new comment to the UI
+function addCommentToUI(comment) {
+  const commentsContainer = document.getElementById('comments-container');
+  const noCommentsMessage = commentsContainer.querySelector('.text-center.text-muted');
+
+  if (noCommentsMessage) {
+    commentsContainer.innerHTML = ''; // Remove "No comments yet" message
+  }
+
+  const commentElement = document.createElement('div');
+  commentElement.className = 'comment-item p-3 border-bottom';
+  commentElement.setAttribute('data-comment-id', comment.id);
+
+  const date = new Date(comment.created_at);
+  const formattedDate = date.toLocaleDateString('en-US', {
+    month: 'short', day: 'numeric',
+    hour: 'numeric', minute: '2-digit'
+  });
+
+  commentElement.innerHTML = `
+    <div class="d-flex justify-content-between">
+      <div class="comment-author fw-bold">${comment.author.name}</div>
+      <div class="comment-date small text-muted">${formattedDate}</div>
+    </div>
+    <div class="comment-content mt-1">${comment.content}</div>
+    <div class="comment-actions mt-2">
+      <button type="button" class="btn btn-sm btn-outline-success resolve-comment-btn" data-comment-id="${comment.id}">
+        <i class="fas fa-check me-1"></i> Resolve
+      </button>
+      <button type="button" class="btn btn-sm btn-outline-secondary reply-comment-btn" data-comment-id="${comment.id}">
+        <i class="fas fa-reply me-1"></i> Reply
+      </button>
+    </div>
+    <div class="comment-replies mt-3 ms-3 border-start ps-3"></div>
+    <div class="reply-form mt-2 d-none" id="reply-form-${comment.id}">
+      <textarea class="form-control form-control-sm reply-textarea" rows="2" placeholder="Write a reply..."></textarea>
+      <div class="mt-2">
+        <button type="button" class="btn btn-sm btn-primary submit-reply-btn" data-comment-id="${comment.id}">Submit Reply</button>
+        <button type="button" class="btn btn-sm btn-link cancel-reply-btn">Cancel</button>
+      </div>
+    </div>
+  `;
+
+  commentsContainer.insertBefore(commentElement, commentsContainer.firstChild);
+}
+
+// Add a reply to a comment in the UI
+function addReplyToUI(parentId, reply) {
+  const commentElement = document.querySelector(`.comment-item[data-comment-id="${parentId}"]`);
+  if (!commentElement) return;
+
+  const repliesContainer = commentElement.querySelector('.comment-replies');
+  if (!repliesContainer) return;
+
+  const date = new Date(reply.created_at);
+  const formattedDate = date.toLocaleDateString('en-US', {
+    month: 'short', day: 'numeric',
+    hour: 'numeric', minute: '2-digit'
+  });
+
+  const replyElement = document.createElement('div');
+  replyElement.className = 'reply-item mb-2';
+  replyElement.setAttribute('data-reply-id', reply.id);
+
+  replyElement.innerHTML = `
+    <div class="d-flex justify-content-between">
+      <div class="reply-author small fw-bold">${reply.author.name}</div>
+      <div class="reply-date small text-muted">${formattedDate}</div>
+    </div>
+    <div class="reply-content small">${reply.content}</div>
+  `;
+
+  repliesContainer.appendChild(replyElement);
+}
+
+// Update UI to show comment as resolved
+function updateCommentResolved(commentId, resolvedBy, resolvedAt) {
+  const commentElement = document.querySelector(`.comment-item[data-comment-id="${commentId}"]`);
+  if (!commentElement) return;
+
+  const actionsContainer = commentElement.querySelector('.comment-actions');
+  if (!actionsContainer) return;
+
+  const date = new Date(resolvedAt);
+  const formattedDate = date.toLocaleDateString('en-US', {
+    month: 'short', day: 'numeric',
+    hour: 'numeric', minute: '2-digit'
+  });
+
+  // Replace actions with resolved badge
+  const resolvedBadge = document.createElement('div');
+  resolvedBadge.className = 'resolved-badge mt-2';
+  resolvedBadge.innerHTML = `
+    <span class="badge bg-success">Resolved by ${resolvedBy} on ${formattedDate}</span>
+  `;
+
+  actionsContainer.parentNode.replaceChild(resolvedBadge, actionsContainer);
+}
+
+// Update comment count
+function updateCommentCount(change) {
+  const commentCount = document.getElementById('comment-count');
+  if (commentCount) {
+    const currentCount = parseInt(commentCount.textContent) || 0;
+    commentCount.textContent = currentCount + change;
+  }
+}
+
+// Helper function to get text node position info
+function getNodeOffset(node, offset) {
+  // This is a simplified implementation
+  // In a real app, you'd need to calculate the exact position within the document
+  return {
+    node: node.textContent,
+    offset: offset
+  };
+}
+
+// Initialize comment functionality
+document.addEventListener('DOMContentLoaded', function() {
+  // Your existing code...
+
+  // Initialize comment functionality
+  initializeCommentFunctionality();
+});
 </script>
 {% endblock %}
