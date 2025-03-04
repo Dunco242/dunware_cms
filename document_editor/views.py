@@ -1143,8 +1143,13 @@ def add_document_comment(request, pk):
                     'error': 'You do not have permission to comment on this document.'
                 }, status=403)
 
-        # Get the comment data
-        data = json.loads(request.body)
+        # Parse the JSON data
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            # If JSON parsing fails, try getting from POST
+            data = request.POST
+
         content = data.get('content')
         parent_id = data.get('parent_id')
         selection_start = data.get('selection_start')

@@ -746,45 +746,45 @@
       return colors[Math.abs(hash) % colors.length];
     }
 
-    function showNotification(message, type = 'info') {
-      const notification = document.createElement('div');
-      notification.className = `position-fixed bottom-0 end-0 p-3`;
-      notification.style.zIndex = 1050;
+    // Fix the showNotification function or ensure it's properly defined
+function showNotification(message, type = 'info') {
+  try {
+    const notification = document.createElement('div');
+    notification.className = `position-fixed bottom-0 end-0 p-3`;
+    notification.style.zIndex = 1050;
 
-      notification.innerHTML = `
-        <div class="toast show" role="alert" aria-live="assertive" aria-atomic="true">
-          <div class="toast-header ${
-            type === 'success' ? 'bg-success text-white' :
-            type === 'error' ? 'bg-danger text-white' :
-            'bg-info text-white'
-          }">
-            <strong class="me-auto">${
-              type === 'success' ? 'Success' :
-              type === 'error' ? 'Error' :
-              'Information'
-            }</strong>
-            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
-          </div>
-          <div class="toast-body">
-            ${message}
-          </div>
+    notification.innerHTML = `
+      <div class="toast show" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="toast-header ${
+          type === 'success' ? 'bg-success text-white' :
+          type === 'error' ? 'bg-danger text-white' :
+          'bg-info text-white'
+        }">
+          <strong class="me-auto">${
+            type === 'success' ? 'Success' :
+            type === 'error' ? 'Error' :
+            'Information'
+          }</strong>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
         </div>
-      `;
+        <div class="toast-body">
+          ${message}
+        </div>
+      </div>
+    `;
 
-      document.body.appendChild(notification);
+    document.body.appendChild(notification);
 
-      // Add click listener to close button
-      notification.querySelector('.btn-close').addEventListener('click', function() {
+    // Auto remove after 3 seconds
+    setTimeout(() => {
+      if (document.body.contains(notification)) {
         document.body.removeChild(notification);
-      });
-
-      // Auto remove after 3 seconds
-      setTimeout(() => {
-        if (document.body.contains(notification)) {
-          document.body.removeChild(notification);
-        }
-      }, 3000);
-    }
+      }
+    }, 3000);
+  } catch (e) {
+    console.error("Error showing notification:", e);
+  }
+}
 
     // Initialize WebSocket
     initWebSocket();
@@ -889,32 +889,31 @@ function submitComment(content) {
   const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
   const documentId = document.getElementById('document-id').value;
 
-  // Optional: get selection information if implementing highlighted text comments
-  const selection = window.getSelection();
-  let selectionData = null;
+  // Create a form data object instead of JSON
+  const formData = new FormData();
+  formData.append('content', content);
 
+  // Add selection data if present
+  const selection = window.getSelection();
   if (selection && !selection.isCollapsed && textEditor.contains(selection.anchorNode)) {
-    // Get selection range information for contextual comments
-    // This is a basic implementation; you might need more sophisticated handling
-    selectionData = {
+    const selectionData = {
       start: getNodeOffset(selection.anchorNode, selection.anchorOffset),
       end: getNodeOffset(selection.focusNode, selection.focusOffset),
       text: selection.toString()
     };
+
+    formData.append('selection_start', JSON.stringify(selectionData.start));
+    formData.append('selection_end', JSON.stringify(selectionData.end));
+    formData.append('selected_text', selectionData.text);
   }
 
   fetch(`/documents/${documentId}/add-comment/`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
       'X-CSRFToken': csrfToken
     },
-    body: JSON.stringify({
-      content: content,
-      selection_start: selectionData ? selectionData.start : null,
-      selection_end: selectionData ? selectionData.end : null,
-      selected_text: selectionData ? selectionData.text : ''
-    })
+    body: formData,  // Use FormData instead of JSON
+    credentials: 'same-origin'
   })
   .then(response => {
     if (!response.ok) {
@@ -944,22 +943,25 @@ function submitComment(content) {
   });
 }
 
-// Submit a reply to a comment
+// Similarly, update submitReply function
 function submitReply(parentId, content) {
   const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
   const documentId = document.getElementById('document-id').value;
 
+  const formData = new FormData();
+  formData.append('content', content);
+  formData.append('parent_id', parentId);
+
   fetch(`/documents/${documentId}/add-comment/`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
       'X-CSRFToken': csrfToken
     },
-    body: JSON.stringify({
-      content: content,
-      parent_id: parentId
-    })
+    body: formData,
+    credentials: 'same-origin'
   })
+  // Rest of the function remains the same
+
   .then(response => {
     if (!response.ok) {
       throw new Error(`Server error: ${response.status}`);
