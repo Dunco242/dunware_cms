@@ -884,14 +884,35 @@ function initializeCommentFunctionality() {
   }
 }
 
-// Submit a new comment
+// Submit a new comment - revised to match document save approach
 function submitComment(content) {
   const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
   const documentId = document.getElementById('document-id').value;
+  const canComment = document.getElementById('can-comment').value;
 
-  // Create a form data object - this is the right approach
-  const formData = new FormData();
-  formData.append('content', content);
+  console.log("Submitting comment:", content);
+  console.log("To document:", documentId);
+  console.log("Can comment:", canComment);
+
+  // Create a form instead of using direct fetch with FormData
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = `/documents/${documentId}/add-comment/`;
+  form.style.display = 'none';
+
+  // Add CSRF token
+  const csrfInput = document.createElement('input');
+  csrfInput.type = 'hidden';
+  csrfInput.name = 'csrfmiddlewaretoken';
+  csrfInput.value = csrfToken;
+  form.appendChild(csrfInput);
+
+  // Add content
+  const contentInput = document.createElement('input');
+  contentInput.type = 'hidden';
+  contentInput.name = 'content';
+  contentInput.value = content;
+  form.appendChild(contentInput);
 
   // Add selection data if present
   const selection = window.getSelection();
@@ -902,27 +923,50 @@ function submitComment(content) {
       text: selection.toString()
     };
 
-    formData.append('selection_start', JSON.stringify(selectionData.start));
-    formData.append('selection_end', JSON.stringify(selectionData.end));
-    formData.append('selected_text', selectionData.text);
+    const startInput = document.createElement('input');
+    startInput.type = 'hidden';
+    startInput.name = 'selection_start';
+    startInput.value = JSON.stringify(selectionData.start);
+    form.appendChild(startInput);
+
+    const endInput = document.createElement('input');
+    endInput.type = 'hidden';
+    endInput.name = 'selection_end';
+    endInput.value = JSON.stringify(selectionData.end);
+    form.appendChild(endInput);
+
+    const textInput = document.createElement('input');
+    textInput.type = 'hidden';
+    textInput.name = 'selected_text';
+    textInput.value = selectionData.text;
+    form.appendChild(textInput);
   }
 
-  // Use fetch with FormData (remove Content-Type header - let browser set it)
-  fetch(`/documents/${documentId}/add-comment/`, {
+  // Add form to body
+  document.body.appendChild(form);
+
+  // Convert form to FormData for fetch
+  const formData = new FormData(form);
+
+  // Submit using fetch
+  fetch(form.action, {
     method: 'POST',
-    headers: {
-      'X-CSRFToken': csrfToken
-    },
-    body: formData,  // Use FormData directly - browser will set correct Content-Type
+    body: formData,
     credentials: 'same-origin'
   })
   .then(response => {
+    console.log('Received response:', response);
     if (!response.ok) {
-      throw new Error(`Server error: ${response.status}`);
+      return response.text().then(text => {
+        console.log("Error response text:", text);
+        throw new Error(`Server error: ${response.status}`);
+      });
     }
     return response.json();
   })
   .then(data => {
+    document.body.removeChild(form); // Clean up
+
     if (data.success) {
       // Add comment to UI
       addCommentToUI(data.comment);
@@ -935,15 +979,16 @@ function submitComment(content) {
 
       documentEditorShowNotification('Comment added successfully', 'success');
     } else {
+      console.error('Error adding comment:', data.error);
       documentEditorShowNotification(`Error: ${data.error}`, 'error');
     }
   })
   .catch(error => {
+    document.body.removeChild(form); // Clean up
     console.error('Error adding comment:', error);
     documentEditorShowNotification(`Error: ${error.message}`, 'error');
   });
 }
-
 // Similarly, update submitReply function
 function submitReply(parentId, content) {
   const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
