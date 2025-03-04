@@ -889,7 +889,7 @@ function submitComment(content) {
   const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
   const documentId = document.getElementById('document-id').value;
 
-  // Create a form data object instead of JSON
+  // Create a form data object - this is the right approach
   const formData = new FormData();
   formData.append('content', content);
 
@@ -907,12 +907,13 @@ function submitComment(content) {
     formData.append('selected_text', selectionData.text);
   }
 
+  // Use fetch with FormData (remove Content-Type header - let browser set it)
   fetch(`/documents/${documentId}/add-comment/`, {
     method: 'POST',
     headers: {
       'X-CSRFToken': csrfToken
     },
-    body: formData,  // Use FormData instead of JSON
+    body: formData,  // Use FormData directly - browser will set correct Content-Type
     credentials: 'same-origin'
   })
   .then(response => {
@@ -1042,9 +1043,18 @@ function showReplyForm(commentId) {
 
 // Add a new comment to the UI
 function addCommentToUI(comment) {
-  const commentsContainer = document.getElementById('comments-container');
-  const noCommentsMessage = commentsContainer.querySelector('.text-center.text-muted');
+  if (!comment) {
+    console.error('No comment data provided to addCommentToUI');
+    return;
+  }
 
+  const commentsContainer = document.getElementById('comments-container');
+  if (!commentsContainer) {
+    console.error('Comments container not found');
+    return;
+  }
+
+  const noCommentsMessage = commentsContainer.querySelector('.text-center.text-muted');
   if (noCommentsMessage) {
     commentsContainer.innerHTML = ''; // Remove "No comments yet" message
   }
@@ -1059,9 +1069,12 @@ function addCommentToUI(comment) {
     hour: 'numeric', minute: '2-digit'
   });
 
+  const authorName = comment.author && comment.author.name ?
+    comment.author.name : 'Unknown User';
+
   commentElement.innerHTML = `
     <div class="d-flex justify-content-between">
-      <div class="comment-author fw-bold">${comment.author.name}</div>
+      <div class="comment-author fw-bold">${authorName}</div>
       <div class="comment-date small text-muted">${formattedDate}</div>
     </div>
     <div class="comment-content mt-1">${comment.content}</div>
