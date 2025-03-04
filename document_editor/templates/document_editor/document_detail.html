@@ -602,7 +602,7 @@
 </div>
 
 <!-- Cancel Workflow Confirmation Modal -->
-{% if document.approval_workflow and document.approval_workflow.status == 'pending' %}
+{% if document.approval_workflow and document.approval_workflow.id and document.approval_workflow.status == 'pending' %}
 <div class="modal fade" id="cancelWorkflowModal" tabindex="-1" aria-labelledby="cancelWorkflowModalLabel" aria-hidden="true">
   <div class="modal-dialog">
     <div class="modal-content">
@@ -625,99 +625,91 @@
 
 <script>
   document.addEventListener('DOMContentLoaded', function() {
-    const updateStatusForm = document.getElementById('update-status-form');
-    if (updateStatusForm) {
-      updateStatusForm.addEventListener('submit', function(e) {
-        e.preventDefault();
+      const updateStatusForm = document.getElementById('update-status-form');
+      if (updateStatusForm) {
+          updateStatusForm.addEventListener('submit', function(e) {
+              e.preventDefault();
+              const status = document.getElementById('status').value;
+              fetch("{% url 'document_editor:update_document_status' document.id %}", {
+                  method: 'POST',
+                  headers: {
+                      'Content-Type': 'application/json',
+                      'X-CSRFToken': '{{ csrf_token }}'
+                  },
+                  body: JSON.stringify({ status: status })
+              })
+              .then(response => response.json())
+              .then(data => {
+                  if (data.success) {
+                      window.location.reload();
+                  } else {
+                      alert('Error updating status: ' + data.error);
+                  }
+              })
+              .catch(error => {
+                  console.error('Error updating status:', error);
+                  alert('Error updating status. Please try again.');
+              });
+          });
+      }
 
-        const status = document.getElementById('status').value;
+      const addCollaboratorForm = document.getElementById('add-collaborator-form');
+      if (addCollaboratorForm) {
+          addCollaboratorForm.addEventListener('submit', function(e) {
+              e.preventDefault();
+              const employeeId = document.getElementById('employee_id').value;
+              const permission = document.getElementById('permission').value;
+              if (!employeeId) {
+                  alert('Please select an employee');
+                  return;
+              }
+              fetch("{% url 'document_editor:add_collaborator' document.id %}", {
+                  method: 'POST',
+                  headers: {
+                      'Content-Type': 'application/json',
+                      'X-CSRFToken': '{{ csrf_token }}'
+                  },
+                  body: JSON.stringify({ employee_id: employeeId, permission: permission })
+              })
+              .then(response => response.json())
+              .then(data => {
+                  if (data.success) {
+                      window.location.reload();
+                  } else {
+                      alert('Error adding collaborator: ' + data.error);
+                  }
+              })
+              .catch(error => {
+                  console.error('Error adding collaborator:', error);
+                  alert('Error adding collaborator. Please try again.');
+              });
+          });
+      }
 
-        fetch("{% url 'document_editor:update_document_status' document.id %}", {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': '{{ csrf_token }}'
-          },
-          body: JSON.stringify({ status })
-        })
-        .then(response => response.json())
-        .then(data => {
-          if (data.success) {
-            // Reload the page to show the updated status
-            window.location.reload();
-          } else {
-            alert('Error updating status: ' + data.error);
-          }
-        })
-        .catch(error => {
-          console.error('Error updating status:', error);
-          alert('Error updating status. Please try again.');
-        });
-      });
-    }
-
-    const addCollaboratorForm = document.getElementById('add-collaborator-form');
-    if (addCollaboratorForm) {
-      addCollaboratorForm.addEventListener('submit', function(e) {
-        e.preventDefault();
-
-        const employeeId = document.getElementById('employee_id').value;
-        const permission = document.getElementById('permission').value;
-
-        if (!employeeId) {
-          alert('Please select an employee');
-          return;
-        }
-
-        fetch("{% url 'document_editor:add_collaborator' document.id %}", {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': '{{ csrf_token }}'
-          },
-          body: JSON.stringify({ employee_id: employeeId, permission })
-        })
-        .then(response => response.json())
-        .then(data => {
-          if (data.success) {
-            // Reload the page to show the new collaborator
-            window.location.reload();
-          } else {
-            alert('Error adding collaborator: ' + data.error);
-          }
-        })
-        .catch(error => {
-          console.error('Error adding collaborator:', error);
-          alert('Error adding collaborator. Please try again.');
-        });
-      });
-    }
-
-    // Cancel workflow confirmation button
-    const confirmCancelWorkflow = document.getElementById('confirmCancelWorkflow');
-    if (confirmCancelWorkflow) {
-      confirmCancelWorkflow.addEventListener('click', function() {
-        fetch("{% url 'document_editor:cancel_approval_workflow' document.approval_workflow.id %}", {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': '{{ csrf_token }}'
-          }
-        })
-        .then(response => response.json())
-        .then(data => {
-          if (data.success) {
-            window.location.reload();
-          } else {
-            alert('Error cancelling workflow: ' + data.error);
-          }
-        })
-        .catch(error => {
-          console.error('Error cancelling workflow:', error);
-          alert('Error cancelling workflow. Please try again.');
-        });
-      });
-    }
+      const confirmCancelWorkflow = document.getElementById('confirmCancelWorkflow');
+      if (confirmCancelWorkflow) {
+          confirmCancelWorkflow.addEventListener('click', function() {
+              fetch("{% url 'document_editor:cancel_approval_workflow' document.approval_workflow.id %}", {
+                  method: 'POST',
+                  headers: {
+                      'Content-Type': 'application/json',
+                      'X-CSRFToken': '{{ csrf_token }}'
+                  }
+              })
+              .then(response => response.json())
+              .then(data => {
+                  if (data.success) {
+                      window.location.reload();
+                  } else {
+                      alert('Error cancelling workflow: ' + data.error);
+                  }
+              })
+              .catch(error => {
+                  console.error('Error cancelling workflow:', error);
+                  alert('Error cancelling workflow. Please try again.');
+              });
+          });
+      }
   });
-</script>
+  </script>
 {% endblock %}
