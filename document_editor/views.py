@@ -1118,11 +1118,11 @@ def get_document_content(request, pk):
 
 @login_required
 @require_POST
-def add_document_comment(request, pk):
+def add_document_comment(request, document_id):
     """AJAX endpoint to add a comment to a document"""
     try:
         # Get the document
-        document = get_object_or_404(Document, pk=pk)
+        document = get_object_or_404(Document, pk=document_id)
         employee = request.user.employee_profile
 
         # Check permissions

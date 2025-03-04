@@ -41,7 +41,7 @@ urlpatterns = [
          views.update_collaborator_permission, name='update_collaborator_permission'),
 
     # Comments management
-    path('<int:pk>/add-comment/', views.add_document_comment, name='add_document_comment'),
+    path('<int:document_id>/add-comment/', views.add_document_comment, name='add_document_comment'),
     path('comments/<int:comment_id>/resolve/', views.resolve_document_comment, name='resolve_document_comment'),
 
      # DEBUG
