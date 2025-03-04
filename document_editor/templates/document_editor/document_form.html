@@ -3,7 +3,7 @@
 {% load form_filters %}
 
 {% block title %}
-  {% if is_update %}
+  {% if document %}
     Edit {{ document.title }}
   {% else %}
     New Document
@@ -17,7 +17,7 @@
     <ol class="breadcrumb">
       <li class="breadcrumb-item"><a href="{% url 'document_editor:document_list' %}">Documents</a></li>
       <li class="breadcrumb-item active">
-        {% if is_update %}
+        {% if document %}
           Edit {{ document.title }}
         {% else %}
           New Document
@@ -30,14 +30,14 @@
   <div class="row mb-4">
     <div class="col-12">
       <h1 class="h3">
-        {% if is_update %}
+        {% if document %}
           Edit Document
         {% else %}
           New Document
         {% endif %}
       </h1>
       <p class="text-muted">
-        {% if is_update %}
+        {% if document %}
           Update document information
         {% else %}
           Create a new document
@@ -49,7 +49,7 @@
   <!-- Form Card -->
   <div class="card mb-4">
     <div class="card-body">
-      <form method="post" action="{% if is_update %}{% url 'document_editor:update_document' document.pk %}{% else %}{% url 'document_editor:create_document' %}{% endif %}">
+      <form method="post" action="{% if document %}{% url 'document_editor:update_document' document.pk %}{% else %}{% url 'document_editor:create_document' %}{% endif %}">
         {% csrf_token %}
 
         {% if form.non_field_errors %}
@@ -194,7 +194,7 @@
             Cancel
           </a>
           <button type="submit" class="btn btn-primary">
-            {% if is_update %}
+            {% if document %}
               Update Document
             {% else %}
               Create Document

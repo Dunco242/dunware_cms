@@ -1,0 +1,101 @@
+{# approval_workflow_form.html #}
+{% extends 'core/base.html' %}
+{% block title %}Setup Approval Workflow{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="h3 mb-0">Setup Approval Workflow</h1>
+      <p class="text-muted">Document: {{ document.title }}</p>
+    </div>
+    <div>
+      <a href="{% url 'document_editor:document_detail' document.id %}" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left"></i> Back to Document
+      </a>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-lg-8">
+      <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white">
+          <h5 class="card-title mb-0">Workflow Details</h5>
+        </div>
+        <div class="card-body">
+          <form method="post">
+            {% csrf_token %}
+
+            {% if form.non_field_errors %}
+              <div class="alert alert-danger">
+                {{ form.non_field_errors }}
+              </div>
+            {% endif %}
+
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label for="{{ form.status.id_for_label }}" class="form-label">Initial Status</label>
+                {{ form.status }}
+                {% if form.status.errors %}
+                  <div class="invalid-feedback d-block">{{ form.status.errors }}</div>
+                {% endif %}
+                <div class="form-text">
+                  Set to "Draft" while setting up the workflow. Status will change to "Pending Approval" when the workflow starts.
+                </div>
+              </div>
+            </div>
+
+            <div class="alert alert-info">
+              <div class="d-flex">
+                <div class="me-3">
+                  <i class="fas fa-info-circle fa-2x"></i>
+                </div>
+                <div>
+                  <h6 class="alert-heading">Next Step: Add Approval Steps</h6>
+                  <p class="mb-0">
+                    After creating the workflow, you'll need to add one or more approval steps to define who needs to approve this document and in what order.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-4">
+              <button type="submit" class="btn btn-primary">Create Workflow</button>
+              <a href="{% url 'document_editor:document_detail' document.id %}" class="btn btn-outline-secondary">Cancel</a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <div class="card shadow-sm">
+        <div class="card-header bg-white">
+          <h5 class="card-title mb-0">About Approval Workflows</h5>
+        </div>
+        <div class="card-body">
+          <p>An approval workflow allows you to route your document through a series of approvers before it's finalized.</p>
+
+          <h6 class="mt-3">Approval Process</h6>
+          <ol class="small">
+            <li>Create the workflow</li>
+            <li>Add approval steps in the desired order</li>
+            <li>Start the workflow to notify the first approver</li>
+            <li>Each approver reviews and approves or rejects the document</li>
+            <li>When all approvers have approved, the document is marked as approved</li>
+          </ol>
+
+          <h6 class="mt-3">Document Status</h6>
+          <ul class="small">
+            <li><strong>Draft</strong> - Initial workflow setup</li>
+            <li><strong>Pending Approval</strong> - Workflow started, awaiting approvals</li>
+            <li><strong>Approved</strong> - All approvers have approved</li>
+            <li><strong>Rejected</strong> - An approver has rejected the document</li>
+            <li><strong>Canceled</strong> - Workflow canceled by creator</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

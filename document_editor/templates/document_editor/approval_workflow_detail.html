@@ -1,0 +1,368 @@
+{# approval_workflow_detail.html #}
+{% extends 'core/base.html' %}
+{% block title %}Approval Workflow - {{ document.title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="h3 mb-0">Document Approval Workflow</h1>
+      <p class="text-muted">Document: {{ document.title }}</p>
+    </div>
+    <div>
+      <a href="{% url 'document_editor:document_detail' document.id %}" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left"></i> Back to Document
+      </a>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-lg-8">
+      <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+          <h5 class="card-title mb-0">Approval Steps</h5>
+          <a href="{% url 'document_editor:approval_step_create' workflow.id %}" class="btn btn-sm btn-primary">
+            <i class="fas fa-plus"></i> Add Step
+          </a>
+        </div>
+        <div class="card-body p-0">
+          {% if steps %}
+            <div class="table-responsive">
+              <table class="table table-hover mb-0">
+                <thead>
+                  <tr>
+                    <th style="width: 10%;">Order</th>
+                    <th style="width: 40%;">Approver</th>
+                    <th style="width: 25%;">Requirements</th>
+                    <th style="width: 25%;">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for step in steps %}
+                    <tr>
+                      <td class="align-middle">{{ step.order }}</td>
+                      <td class="align-middle">
+                        <div class="d-flex align-items-center">
+                          {% if step.approver.profile_picture %}
+                            <img src="{{ step.approver.profile_picture.url }}" class="rounded-circle me-2" alt="Profile" width="32" height="32">
+                          {% else %}
+                            <div class="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center me-2" style="width: 32px; height: 32px;">
+                              {{ step.approver.get_full_name|first }}
+                            </div>
+                          {% endif %}
+                          <div>
+                            <div class="fw-bold">{{ step.approver.get_full_name }}</div>
+                            <div class="small text-muted">{{ step.approver.position }} - {{ step.approver.department }}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td class="align-middle">
+                        {% if step.department_required or step.position_required %}
+                          <div class="small">
+                            {% if step.department_required %}
+                              <span class="badge bg-info">{{ step.get_department_required_display }}</span>
+                            {% endif %}
+                            {% if step.position_required %}
+                              <span class="badge bg-secondary">{{ step.get_position_required_display }}</span>
+                            {% endif %}
+                          </div>
+                        {% else %}
+                          <span class="text-muted small">No specific requirements</span>
+                        {% endif %}
+                      </td>
+                      <td class="align-middle">
+                        <div class="btn-group btn-group-sm">
+                          <a href="{% url 'document_editor:approval_step_update' step.id %}" class="btn btn-outline-primary">
+                            <i class="fas fa-edit"></i>
+                          </a>
+                          <a href="{% url 'document_editor:approval_step_delete' step.id %}" class="btn btn-outline-danger">
+                            <i class="fas fa-trash"></i>
+                          </a>
+                        </div>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="text-center text-muted py-5">
+              <i class="fas fa-user-check fa-3x mb-3"></i>
+              <p class="mb-0">No approval steps defined yet.</p>
+              <p class="small mb-0">Add approval steps to define who needs to approve this document.</p>
+              <div class="mt-3">
+                <a href="{% url 'document_editor:approval_step_create' workflow.id %}" class="btn btn-outline-primary">
+                  <i class="fas fa-plus"></i> Add First Step
+                </a>
+              </div>
+            </div>
+          {% endif %}
+        </div>
+        {% if steps %}
+          <div class="card-footer bg-light">
+            <div class="d-flex justify-content-between align-items-center">
+              <div>
+                <span class="badge bg-{{ workflow.status|yesno:'success,warning,secondary' }}">{{ workflow.get_status_display }}</span>
+                {% if workflow.progress_percentage > 0 %}
+                  <span class="ms-2">Progress: {{ workflow.progress_percentage }}%</span>
+                {% endif %}
+              </div>
+              <div>
+                {% if workflow.status == 'draft' %}
+                  <a href="{% url 'document_editor:start_approval_workflow' workflow.id %}" class="btn btn-success">
+                    <i class="fas fa-play"></i> Start Approval Process
+                  </a>
+                {% elif workflow.status == 'pending' %}
+                  <button type="button" class="btn btn-danger cancel-workflow-btn" data-workflow-id="{{ workflow.id }}">
+                    <i class="fas fa-times"></i> Cancel Workflow
+                  </button>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+
+      {% if requests %}
+        <div class="card shadow-sm mb-4">
+          <div class="card-header bg-white">
+            <h5 class="card-title mb-0">Approval History</h5>
+          </div>
+          <div class="card-body p-0">
+            <div class="list-group list-group-flush">
+              {% for req in requests %}
+                <div class="list-group-item">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                      <div class="d-flex align-items-center">
+                        <div class="me-3">
+                          {% if req.status == 'pending' %}
+                            <span class="badge bg-warning p-2"><i class="fas fa-clock"></i></span>
+                          {% elif req.status == 'approved' %}
+                            <span class="badge bg-success p-2"><i class="fas fa-check"></i></span>
+                          {% elif req.status == 'rejected' %}
+                            <span class="badge bg-danger p-2"><i class="fas fa-times"></i></span>
+                          {% else %}
+                            <span class="badge bg-secondary p-2"><i class="fas fa-ban"></i></span>
+                          {% endif %}
+                        </div>
+                        <div>
+                          <div class="fw-bold">{{ req.approver.get_full_name }}</div>
+                          <div class="small">
+                            <span class="text-muted">Status:</span>
+                            <span class="text-{{ req.status|yesno:'success,warning,danger,secondary' }}">
+                              {{ req.get_status_display }}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="text-end">
+                      <div class="small text-muted">Requested: {{ req.request_date|date:"M j, Y" }}</div>
+                      {% if req.response_date %}
+                        <div class="small text-muted">Responded: {{ req.response_date|date:"M j, Y" }}</div>
+                      {% endif %}
+                    </div>
+                  </div>
+                  {% if req.comments %}
+                    <div class="mt-2 small">
+                      <div class="fw-bold">Comments:</div>
+                      <div class="fst-italic">{{ req.comments }}</div>
+                    </div>
+                  {% endif %}
+                </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="col-lg-4">
+      <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white">
+          <h5 class="card-title mb-0">Workflow Status</h5>
+        </div>
+        <div class="card-body">
+          <div class="d-flex align-items-center mb-3">
+            <div class="me-3">
+              {% if workflow.status == 'draft' %}
+                <span class="badge bg-secondary p-2"><i class="fas fa-pencil-alt"></i></span>
+              {% elif workflow.status == 'pending' %}
+                <span class="badge bg-warning p-2"><i class="fas fa-clock"></i></span>
+              {% elif workflow.status == 'approved' %}
+                <span class="badge bg-success p-2"><i class="fas fa-check"></i></span>
+              {% elif workflow.status == 'rejected' %}
+                <span class="badge bg-danger p-2"><i class="fas fa-times"></i></span>
+              {% elif workflow.status == 'canceled' %}
+                <span class="badge bg-secondary p-2"><i class="fas fa-ban"></i></span>
+              {% endif %}
+            </div>
+            <div>
+              <div class="fw-bold">{{ workflow.get_status_display }}</div>
+              <div class="small text-muted">
+                {% if workflow.status == 'draft' %}
+                  Workflow setup in progress
+                {% elif workflow.status == 'pending' %}
+                  Awaiting approval from {{ workflow.current_approver.get_full_name }}
+                {% elif workflow.status == 'approved' %}
+                  All approvers have approved this document
+                {% elif workflow.status == 'rejected' %}
+                  Document rejected by {{ workflow.current_approver.get_full_name }}
+                {% elif workflow.status == 'canceled' %}
+                  Workflow canceled by document author
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
+          {% if workflow.status == 'pending' %}
+            <div class="progress mb-3" style="height: 20px;">
+              <div class="progress-bar bg-success" role="progressbar" style="width: {{ workflow.progress_percentage }}%"
+                   aria-valuenow="{{ workflow.progress_percentage }}" aria-valuemin="0" aria-valuemax="100">
+                {{ workflow.progress_percentage }}%
+              </div>
+            </div>
+          {% endif %}
+
+          <div class="mb-3">
+            <div class="small text-muted">Created: {{ workflow.created_at|date:"M j, Y" }}</div>
+            {% if workflow.started_at %}
+              <div class="small text-muted">Started: {{ workflow.started_at|date:"M j, Y" }}</div>
+            {% endif %}
+            {% if workflow.completed_at %}
+              <div class="small text-muted">Completed: {{ workflow.completed_at|date:"M j, Y" }}</div>
+            {% endif %}
+          </div>
+
+          {% if workflow.rejection_reason %}
+            <div class="alert alert-danger small">
+              <div class="fw-bold">Rejection Reason:</div>
+              <div>{{ workflow.rejection_reason }}</div>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="card shadow-sm">
+        <div class="card-header bg-white">
+          <h5 class="card-title mb-0">Document Details</h5>
+        </div>
+        <div class="card-body">
+          <div class="mb-3">
+            <label class="form-label small text-muted">Title</label>
+            <div>{{ document.title }}</div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label small text-muted">Type</label>
+            <div>{{ document.get_document_type_display }}</div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label small text-muted">Status</label>
+            <div>
+              <span class="badge bg-{{ document.status|yesno:'success,warning,info,secondary' }}">
+                {{ document.get_status_display }}
+              </span>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label small text-muted">Author</label>
+            <div>{{ document.author.get_full_name }}</div>
+          </div>
+
+          {% if document.customer %}
+            <div class="mb-3">
+              <label class="form-label small text-muted">Customer</label>
+              <div>{{ document.customer.company_name }}</div>
+            </div>
+          {% endif %}
+
+          <div class="mb-3">
+            <label class="form-label small text-muted">Created</label>
+            <div>{{ document.created_at|date:"M j, Y" }}</div>
+          </div>
+
+          <div class="mt-3">
+            <a href="{% url 'document_editor:edit_document' document.id %}" class="btn btn-sm btn-outline-primary">
+              <i class="fas fa-edit"></i> Edit Document
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Cancel Workflow Confirmation Modal -->
+<div class="modal fade" id="cancelWorkflowModal" tabindex="-1" aria-labelledby="cancelWorkflowModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="cancelWorkflowModalLabel">Confirm Cancellation</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p>Are you sure you want to cancel this approval workflow?</p>
+        <p class="small text-muted">This action cannot be undone. The document will return to draft status.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-danger" id="confirmCancelWorkflow">Cancel Workflow</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Cancel workflow button handler
+    const cancelButtons = document.querySelectorAll('.cancel-workflow-btn');
+    const modal = new bootstrap.Modal(document.getElementById('cancelWorkflowModal'));
+    const confirmBtn = document.getElementById('confirmCancelWorkflow');
+
+    let workflowId = null;
+
+    cancelButtons.forEach(button => {
+      button.addEventListener('click', function() {
+        workflowId = this.getAttribute('data-workflow-id');
+        modal.show();
+      });
+    });
+
+    confirmBtn.addEventListener('click', function() {
+      if (!workflowId) return;
+
+      // Send request to cancel workflow
+      fetch(`/documents/workflows/${workflowId}/cancel/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify({})
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          // Reload page to show updated status
+          window.location.reload();
+        } else {
+          alert(data.error || 'Failed to cancel workflow');
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while canceling the workflow');
+      })
+      .finally(() => {
+        modal.hide();
+      });
+    });
+  });
+</script>
+{% endblock %}

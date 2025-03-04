@@ -9,12 +9,13 @@ from django.contrib.auth.decorators import login_required
 from django.urls import reverse_lazy, reverse
 from django.db.models import Q
 from django.core.exceptions import PermissionDenied
-from django.db import transaction
+from django.db import transaction, models
 from django.contrib import messages
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST, require_http_methods
 import json
+from django import forms
 import logging
 import re
 import traceback
@@ -25,10 +26,12 @@ from core.models import Employee, Customer
 from core.mixins import EmployeeRequiredMixin
 
 from .models import (
-    Document, DocumentCollaborator, DocumentComment, DocumentTemplate, DocumentVersion
+    Document, DocumentCollaborator, DocumentComment, DocumentTemplate, DocumentVersion, DocumentTemplateVariable, DocumentApprovalWorkflow, DocumentApprovalStep,
+    DocumentApprovalRequest, process_template_variables
 )
 from .forms import (
-    DocumentForm, DocumentTemplateForm, DocumentCollaboratorForm, DocumentCommentForm
+    DocumentForm, DocumentTemplateForm, DocumentCollaboratorForm, DocumentCommentForm, DocumentTemplateVariableForm, DocumentTemplateFormWithVariables, ApplyTemplateForm,
+    DocumentApprovalWorkflowForm, DocumentApprovalStepForm, ApprovalResponseForm, preview_with_variables
 )
 
 logger = logging.getLogger(__name__)
@@ -319,6 +322,10 @@ class UpdateDocumentView(LoginRequiredMixin, EmployeeRequiredMixin, UpdateView):
         messages.success(self.request, f"Document '{form.instance.title}' updated successfully.")
         return response
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['document'] = self.object  # This ensures 'document' is in the context
+        return context
 
 class DeleteDocumentView(LoginRequiredMixin, EmployeeRequiredMixin, DeleteView):
     """View to delete a document"""
@@ -1488,3 +1495,546 @@ def debug_save_document(request, pk):
             'success': False,
             'error': str(e)
         }, status=500)
+
+
+# Template Variable Views
+class TemplateVariableListView(LoginRequiredMixin, ListView):
+    """View for listing template variables"""
+    model = DocumentTemplateVariable
+    template_name = 'document_editor/template_variable_list.html'
+    context_object_name = 'variables'
+
+    def get_queryset(self):
+        template_id = self.kwargs.get('template_id')
+        if not template_id:
+            raise Http404("Template not found")
+
+        self.template = get_object_or_404(DocumentTemplate, pk=template_id)
+        return DocumentTemplateVariable.objects.filter(template=self.template)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['template'] = self.template
+        return context
+
+
+class TemplateVariableCreateView(LoginRequiredMixin, CreateView):
+    """View for creating a new template variable"""
+    model = DocumentTemplateVariable
+    form_class = DocumentTemplateVariableForm
+    template_name = 'document_editor/template_variable_form.html'
+
+    def get_template(self):
+        template_id = self.kwargs.get('template_id')
+        return get_object_or_404(DocumentTemplate, pk=template_id)
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['template'] = self.get_template()
+        return kwargs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['template'] = self.get_template()
+        context['title'] = 'Add Variable'
+        return context
+
+    def get_success_url(self):
+        template = self.get_template()
+        return reverse('document_editor:template_variable_list', kwargs={'template_id': template.id})
+
+    def form_valid(self, form):
+        messages.success(self.request, 'Variable added successfully.')
+        return super().form_valid(form)
+
+
+class TemplateVariableUpdateView(LoginRequiredMixin, UpdateView):
+    """View for updating a template variable"""
+    model = DocumentTemplateVariable
+    form_class = DocumentTemplateVariableForm
+    template_name = 'document_editor/template_variable_form.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['template'] = self.object.template
+        context['title'] = 'Edit Variable'
+        return context
+
+    def get_success_url(self):
+        return reverse('document_editor:template_variable_list',
+                      kwargs={'template_id': self.object.template.id})
+
+    def form_valid(self, form):
+        messages.success(self.request, 'Variable updated successfully.')
+        return super().form_valid(form)
+
+
+class TemplateVariableDeleteView(LoginRequiredMixin, DeleteView):
+    """View for deleting a template variable"""
+    model = DocumentTemplateVariable
+    template_name = 'document_editor/template_variable_confirm_delete.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['template'] = self.object.template
+        return context
+
+    def get_success_url(self):
+        return reverse('document_editor:template_variable_list',
+                      kwargs={'template_id': self.object.template.id})
+
+    def delete(self, request, *args, **kwargs):
+        template_id = self.get_object().template.id
+        messages.success(request, 'Variable deleted successfully.')
+        return super().delete(request, *args, **kwargs)
+
+
+# Template with Variables Views
+class DocumentTemplateDetailView(LoginRequiredMixin, DetailView):
+    """Enhanced view for document template details including variables"""
+    model = DocumentTemplate
+    template_name = 'document_editor/template_detail.html'
+    context_object_name = 'template'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['variables'] = self.object.variables.all()
+        return context
+
+
+class ApplyTemplateView(LoginRequiredMixin, FormView):
+    """View for applying a template with variables to create a document"""
+    form_class = ApplyTemplateForm
+    template_name = 'document_editor/apply_template_form.html'
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        template_id = self.kwargs.get('template_id')
+        if template_id:
+            kwargs['template_id'] = template_id
+        return kwargs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        template_id = self.kwargs.get('template_id')
+        if template_id:
+            template = get_object_or_404(DocumentTemplate, pk=template_id)
+            context['template'] = template
+            context['title'] = f'Create Document from {template.name}'
+        else:
+            context['title'] = 'Create Document from Template'
+        return context
+
+    def form_valid(self, form):
+        with transaction.atomic():
+            template = form.cleaned_data['template']
+
+            # Create new document
+            document = Document(
+                title=form.cleaned_data['title'],
+                document_type=form.cleaned_data['document_type'],
+                author=self.request.user.employee_profile,
+                customer=form.cleaned_data.get('customer'),
+                content=template.content,  # Start with template content
+                status='draft',
+                is_template=False,
+                version=1,
+                is_latest_version=True
+            )
+
+            # Process template variables
+            variable_values = form.get_variable_values()
+            if template.content and variable_values:
+                document.content = process_template_variables(document, variable_values)
+
+            document.save()
+
+            # Extract plain text for search
+            document.plain_text = document.extract_plain_text()
+            document.save(update_fields=['plain_text'])
+
+            messages.success(self.request, f'Document "{document.title}" created successfully from template.')
+            return redirect('document_editor:edit_document', pk=document.pk)
+
+        return super().form_valid(form)
+
+
+# Document Approval Workflow Views
+class DocumentApprovalWorkflowCreateView(LoginRequiredMixin, CreateView):
+    """View for creating a document approval workflow"""
+    model = DocumentApprovalWorkflow
+    form_class = DocumentApprovalWorkflowForm
+    template_name = 'document_editor/approval_workflow_form.html'
+
+    def get_document(self):
+        document_id = self.kwargs.get('document_id')
+        return get_object_or_404(Document, pk=document_id)
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['document'] = self.get_document()
+        return kwargs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        document = self.get_document()
+        context['document'] = document
+        context['title'] = f'Create Approval Workflow for "{document.title}"'
+        return context
+
+    def form_valid(self, form):
+        with transaction.atomic():
+            workflow = form.save()
+            messages.success(self.request, 'Approval workflow created successfully. Add approval steps to continue.')
+            return redirect('document_editor:approval_step_create', workflow_id=workflow.id)
+
+
+class DocumentApprovalStepCreateView(LoginRequiredMixin, CreateView):
+    """View for adding steps to an approval workflow"""
+    model = DocumentApprovalStep
+    form_class = DocumentApprovalStepForm
+    template_name = 'document_editor/approval_step_form.html'
+
+    def get_workflow(self):
+        workflow_id = self.kwargs.get('workflow_id')
+        return get_object_or_404(DocumentApprovalWorkflow, pk=workflow_id)
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['workflow'] = self.get_workflow()
+        return kwargs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        workflow = self.get_workflow()
+        context['workflow'] = workflow
+        context['document'] = workflow.document
+        context['existing_steps'] = workflow.steps.all().order_by('order')
+        context['title'] = 'Add Approval Step'
+        return context
+
+    def form_valid(self, form):
+        step = form.save()
+        workflow = self.get_workflow()
+
+        # Reorder steps if necessary
+        if step.order <= workflow.steps.count():
+            # Shift higher steps up
+            with transaction.atomic():
+                workflow.steps.filter(
+                    order__gte=step.order
+                ).exclude(
+                    id=step.id
+                ).update(
+                    order=models.F('order') + 1
+                )
+
+        messages.success(self.request, 'Approval step added successfully.')
+
+        # Redirect based on "add another" parameter
+        if 'add_another' in self.request.POST:
+            return redirect('document_editor:approval_step_create', workflow_id=workflow.id)
+
+        return redirect('document_editor:approval_workflow_detail', pk=workflow.id)
+
+
+class DocumentApprovalWorkflowDetailView(LoginRequiredMixin, DetailView):
+    """View for reviewing the approval workflow details"""
+    model = DocumentApprovalWorkflow
+    template_name = 'document_editor/approval_workflow_detail.html'
+    context_object_name = 'workflow'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['document'] = self.object.document
+        context['steps'] = self.object.steps.all().order_by('order')
+        context['requests'] = self.object.requests.all().order_by('-request_date')
+        return context
+
+
+class DocumentApprovalStepUpdateView(LoginRequiredMixin, UpdateView):
+    """View for updating an approval step"""
+    model = DocumentApprovalStep
+    form_class = DocumentApprovalStepForm
+    template_name = 'document_editor/approval_step_form.html'
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['workflow'] = self.object.workflow
+        return kwargs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['workflow'] = self.object.workflow
+        context['document'] = self.object.workflow.document
+        context['title'] = 'Edit Approval Step'
+        return context
+
+    def form_valid(self, form):
+        old_order = self.object.order
+        new_order = form.cleaned_data['order']
+        step = form.save(commit=False)
+
+        # Handle order changes
+        if old_order != new_order:
+            with transaction.atomic():
+                if new_order > old_order:
+                    # Moving down - shift steps in between up
+                    self.object.workflow.steps.filter(
+                        order__gt=old_order,
+                        order__lte=new_order
+                    ).update(
+                        order=models.F('order') - 1
+                    )
+                else:
+                    # Moving up - shift steps in between down
+                    self.object.workflow.steps.filter(
+                        order__lt=old_order,
+                        order__gte=new_order
+                    ).update(
+                        order=models.F('order') + 1
+                    )
+
+        step.save()
+        messages.success(self.request, 'Approval step updated successfully.')
+        return redirect('document_editor:approval_workflow_detail', pk=self.object.workflow.id)
+
+
+class DocumentApprovalStepDeleteView(LoginRequiredMixin, DeleteView):
+    """View for deleting an approval step"""
+    model = DocumentApprovalStep
+    template_name = 'document_editor/approval_step_confirm_delete.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['workflow'] = self.object.workflow
+        context['document'] = self.object.workflow.document
+        return context
+
+    def delete(self, request, *args, **kwargs):
+        workflow_id = self.get_object().workflow.id
+        with transaction.atomic():
+            # Get the order before deleting
+            step = self.get_object()
+            order = step.order
+
+            # Delete the step
+            response = super().delete(request, *args, **kwargs)
+
+            # Reorder remaining steps
+            DocumentApprovalStep.objects.filter(
+                workflow_id=workflow_id,
+                order__gt=order
+            ).update(
+                order=models.F('order') - 1
+            )
+
+            messages.success(request, 'Approval step deleted successfully.')
+            return response
+
+    def get_success_url(self):
+        return reverse('document_editor:approval_workflow_detail',
+                      kwargs={'pk': self.object.workflow.id})
+
+
+class StartApprovalWorkflowView(LoginRequiredMixin, FormView):
+    """View to start the approval workflow"""
+    template_name = 'document_editor/start_approval_workflow.html'
+    form_class = forms.Form  # Empty form, just for confirmation
+
+    def get_workflow(self):
+        workflow_id = self.kwargs.get('workflow_id')
+        workflow = get_object_or_404(DocumentApprovalWorkflow, pk=workflow_id)
+
+        # Ensure user has permission (document author or admin)
+        if workflow.document.author != self.request.user.employee_profile:
+            raise PermissionDenied("You don't have permission to start this workflow")
+
+        return workflow
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        workflow = self.get_workflow()
+        context['workflow'] = workflow
+        context['document'] = workflow.document
+        context['steps'] = workflow.steps.all().order_by('order')
+        return context
+
+    def form_valid(self, form):
+        workflow = self.get_workflow()
+
+        # Check if steps exist
+        if workflow.steps.count() == 0:
+            messages.error(self.request, 'Cannot start workflow without approval steps.')
+            return redirect('document_editor:approval_workflow_detail', pk=workflow.id)
+
+        # Start the workflow
+        if workflow.start_workflow():
+            # Update document status
+            document = workflow.document
+            document.status = 'review'
+            document.save()
+
+            messages.success(self.request, 'Approval workflow started successfully.')
+            return redirect('document_editor:document_detail', pk=document.id)
+        else:
+            messages.error(self.request, 'Failed to start workflow.')
+            return redirect('document_editor:approval_workflow_detail', pk=workflow.id)
+
+
+class ApprovalRequestResponseView(LoginRequiredMixin, FormView):
+    """View to respond to an approval request"""
+    template_name = 'document_editor/approval_response_form.html'
+    form_class = ApprovalResponseForm
+
+    def get_approval_request(self):
+        request_id = self.kwargs.get('request_id')
+        approval_request = get_object_or_404(DocumentApprovalRequest, pk=request_id)
+
+        # Ensure user is the assigned approver
+        if approval_request.approver != self.request.user.employee_profile:
+            raise PermissionDenied("You are not authorized to respond to this request")
+
+        # Ensure request is still pending
+        if approval_request.status != 'pending':
+            messages.error(self.request, 'This approval request has already been processed.')
+            return None
+
+        return approval_request
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        approval_request = self.get_approval_request()
+
+        if not approval_request:
+            return context
+
+        context['approval_request'] = approval_request
+        context['document'] = approval_request.workflow.document
+        context['workflow'] = approval_request.workflow
+        return context
+
+    def form_valid(self, form):
+        approval_request = self.get_approval_request()
+
+        if not approval_request:
+            return redirect('document_editor:dashboard')
+
+        response = form.cleaned_data['response']
+        comments = form.cleaned_data['comments']
+        workflow = approval_request.workflow
+
+        if response == 'approve':
+            # Approve the current step
+            if workflow.approve_current_step(comments):
+                messages.success(self.request, 'Document approved successfully.')
+            else:
+                messages.error(self.request, 'Error processing approval.')
+        else:
+            # Reject the document
+            rejection_reason = form.cleaned_data['rejection_reason']
+            if workflow.reject(rejection_reason):
+                messages.success(self.request, 'Document has been rejected.')
+            else:
+                messages.error(self.request, 'Error processing rejection.')
+
+        return redirect('document_editor:document_detail', pk=workflow.document.id)
+
+
+@login_required
+def preview_document_with_variables(request, template_id):
+    """AJAX endpoint to preview a document with variables filled in"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+    try:
+        template = get_object_or_404(DocumentTemplate, pk=template_id)
+        data = json.loads(request.body)
+        variable_values = data.get('variables', {})
+
+        # Process the template with variables
+        preview_content = preview_with_variables(template, variable_values)
+
+        return JsonResponse({
+            'success': True,
+            'content': preview_content
+        })
+    except Exception as e:
+        logger.error(f"Error generating preview: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=400)
+
+
+@login_required
+def cancel_approval_workflow(request, workflow_id):
+    """View to cancel an approval workflow"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+    workflow = get_object_or_404(DocumentApprovalWorkflow, pk=workflow_id)
+
+    # Check permissions - only document author can cancel
+    if workflow.document.author != request.user.employee_profile:
+        return JsonResponse({
+            'success': False,
+            'error': 'You do not have permission to cancel this workflow'
+        }, status=403)
+
+    try:
+        workflow.cancel()
+
+        # Update document status
+        document = workflow.document
+        document.status = 'draft'
+        document.save()
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Approval workflow cancelled successfully'
+        })
+    except Exception as e:
+        logger.error(f"Error cancelling workflow: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+class DocumentApprovalDashboardView(LoginRequiredMixin, TemplateView):
+    """Dashboard view for document approvals"""
+    template_name = 'document_editor/approval_dashboard.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        employee = self.request.user.employee_profile
+
+        # Get pending approval requests for this user
+        context['pending_approvals'] = DocumentApprovalRequest.objects.filter(
+            approver=employee,
+            status='pending'
+        ).select_related(
+            'workflow__document',
+            'step'
+        ).order_by('request_date')
+
+        # Get documents submitted for approval by this user
+        context['submitted_documents'] = Document.objects.filter(
+            author=employee,
+            approval_workflow__isnull=False
+        ).exclude(
+            approval_workflow__status__in=['draft', 'canceled']
+        ).select_related(
+            'approval_workflow'
+        ).order_by('-approval_workflow__updated_at')
+
+        # Get recently approved/rejected documents for this user
+        context['completed_approvals'] = DocumentApprovalRequest.objects.filter(
+            approver=employee,
+            status__in=['approved', 'rejected']
+        ).select_related(
+            'workflow__document'
+        ).order_by('-response_date')[:10]
+
+        return context

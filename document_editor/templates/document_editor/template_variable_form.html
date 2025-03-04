@@ -1,0 +1,222 @@
+{# template_variable_form.html #}
+{% extends 'core/base.html' %}
+{% block title %}{{ title }} - {{ template.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+  .conditional-field {
+    display: none;
+  }
+  .conditional-field.show {
+    display: block;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="h3 mb-0">{{ title }}</h1>
+      <p class="text-muted">Template: {{ template.name }}</p>
+    </div>
+    <div>
+      <a href="{% url 'document_editor:template_variable_list' template.id %}" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left"></i> Back to Variables
+      </a>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-md-8">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <form method="post">
+            {% csrf_token %}
+
+            {% if form.non_field_errors %}
+              <div class="alert alert-danger">
+                {{ form.non_field_errors }}
+              </div>
+            {% endif %}
+
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label for="{{ form.name.id_for_label }}" class="form-label">Variable Name</label>
+                {{ form.name }}
+                {% if form.name.errors %}
+                  <div class="invalid-feedback d-block">{{ form.name.errors }}</div>
+                {% endif %}
+                {% if form.name.help_text %}
+                  <div class="form-text">{{ form.name.help_text }}</div>
+                {% endif %}
+              </div>
+
+              <div class="col-md-6">
+                <label for="{{ form.display_name.id_for_label }}" class="form-label">Display Name</label>
+                {{ form.display_name }}
+                {% if form.display_name.errors %}
+                  <div class="invalid-feedback d-block">{{ form.display_name.errors }}</div>
+                {% endif %}
+                {% if form.display_name.help_text %}
+                  <div class="form-text">{{ form.display_name.help_text }}</div>
+                {% endif %}
+              </div>
+            </div>
+
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label for="{{ form.variable_type.id_for_label }}" class="form-label">Variable Type</label>
+                {{ form.variable_type }}
+                {% if form.variable_type.errors %}
+                  <div class="invalid-feedback d-block">{{ form.variable_type.errors }}</div>
+                {% endif %}
+              </div>
+
+              <div class="col-md-6">
+                <div class="form-check mt-4">
+                  {{ form.required }}
+                  <label for="{{ form.required.id_for_label }}" class="form-check-label">Required</label>
+                </div>
+                {% if form.required.errors %}
+                  <div class="invalid-feedback d-block">{{ form.required.errors }}</div>
+                {% endif %}
+              </div>
+            </div>
+
+            <div class="mb-3 conditional-field" data-show-for="customer,project,employee">
+              <label for="{{ form.field_mapping.id_for_label }}" class="form-label">Field Mapping</label>
+              {{ form.field_mapping }}
+              {% if form.field_mapping.errors %}
+                <div class="invalid-feedback d-block">{{ form.field_mapping.errors }}</div>
+              {% endif %}
+              {% if form.field_mapping.help_text %}
+                <div class="form-text">{{ form.field_mapping.help_text }}</div>
+              {% endif %}
+            </div>
+
+            <div class="mb-3">
+              <label for="{{ form.default_value.id_for_label }}" class="form-label">Default Value</label>
+              {{ form.default_value }}
+              {% if form.default_value.errors %}
+                <div class="invalid-feedback d-block">{{ form.default_value.errors }}</div>
+              {% endif %}
+            </div>
+
+            <div class="mb-3">
+              <label for="{{ form.description.id_for_label }}" class="form-label">Description</label>
+              {{ form.description }}
+              {% if form.description.errors %}
+                <div class="invalid-feedback d-block">{{ form.description.errors }}</div>
+              {% endif %}
+            </div>
+
+            <div class="row">
+              <div class="col-md-6 conditional-field" data-show-for="date">
+                <label for="{{ form.date_format.id_for_label }}" class="form-label">Date Format</label>
+                {{ form.date_format }}
+                {% if form.date_format.errors %}
+                  <div class="invalid-feedback d-block">{{ form.date_format.errors }}</div>
+                {% endif %}
+                {% if form.date_format.help_text %}
+                  <div class="form-text">{{ form.date_format.help_text }}</div>
+                {% endif %}
+              </div>
+
+              <div class="col-md-6 conditional-field" data-show-for="number,currency">
+                <label for="{{ form.number_format.id_for_label }}" class="form-label">Number Format</label>
+                {{ form.number_format }}
+                {% if form.number_format.errors %}
+                  <div class="invalid-feedback d-block">{{ form.number_format.errors }}</div>
+                {% endif %}
+                {% if form.number_format.help_text %}
+                  <div class="form-text">{{ form.number_format.help_text }}</div>
+                {% endif %}
+              </div>
+            </div>
+
+            <div class="mt-4">
+              <button type="submit" class="btn btn-primary">Save Variable</button>
+              <a href="{% url 'document_editor:template_variable_list' template.id %}" class="btn btn-outline-secondary">Cancel</a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-4">
+      <div class="card shadow-sm">
+        <div class="card-header bg-white">
+          <h5 class="card-title mb-0">Variable Types</h5>
+        </div>
+        <div class="card-body">
+          <ul class="list-group list-group-flush">
+            <li class="list-group-item">
+              <h6 class="mb-1">Text</h6>
+              <p class="small text-muted mb-0">Standard text value</p>
+            </li>
+            <li class="list-group-item">
+              <h6 class="mb-1">Number</h6>
+              <p class="small text-muted mb-0">Numeric value with optional formatting</p>
+            </li>
+            <li class="list-group-item">
+              <h6 class="mb-1">Date</h6>
+              <p class="small text-muted mb-0">Date value with optional formatting</p>
+            </li>
+            <li class="list-group-item">
+              <h6 class="mb-1">Currency</h6>
+              <p class="small text-muted mb-0">Money value with currency formatting</p>
+            </li>
+            <li class="list-group-item">
+              <h6 class="mb-1">Yes/No</h6>
+              <p class="small text-muted mb-0">Boolean value displayed as Yes or No</p>
+            </li>
+            <li class="list-group-item">
+              <h6 class="mb-1">Customer Field</h6>
+              <p class="small text-muted mb-0">Value from a customer record</p>
+            </li>
+          </ul>
+        </div>
+        <div class="card-footer bg-light">
+          <h6 class="mb-2">Placeholder Format</h6>
+          <p class="small text-muted mb-1">Variables will appear in documents as:</p>
+          <div class="bg-white p-2 border rounded">
+            <code>{{ '{{variable_name}}' }}</code>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Function to handle conditional fields based on variable type
+    function handleConditionalFields() {
+      const typeField = document.getElementById('{{ form.variable_type.id_for_label }}');
+      const selectedType = typeField.value;
+
+      // Hide all conditional fields
+      document.querySelectorAll('.conditional-field').forEach(field => {
+        field.classList.remove('show');
+      });
+
+      // Show relevant fields based on selected type
+      document.querySelectorAll('.conditional-field').forEach(field => {
+        const showForAttribute = field.getAttribute('data-show-for');
+        if (showForAttribute && showForAttribute.split(',').includes(selectedType)) {
+          field.classList.add('show');
+        }
+      });
+    }
+
+    // Initialize conditional fields
+    handleConditionalFields();
+
+    // Listen for changes on the variable type dropdown
+    document.getElementById('{{ form.variable_type.id_for_label }}').addEventListener('change', handleConditionalFields);
+  });
+</script>
+{% endblock %}

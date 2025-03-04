@@ -1,0 +1,190 @@
+{# approval_step_form.html #}
+{% extends 'core/base.html' %}
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="h3 mb-0">{{ title }}</h1>
+      <p class="text-muted">Document: {{ document.title }}</p>
+    </div>
+    <div>
+      <a href="{% url 'document_editor:approval_workflow_detail' workflow.id %}" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left"></i> Back to Workflow
+      </a>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-lg-8">
+      <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white">
+          <h5 class="card-title mb-0">Approval Step Details</h5>
+        </div>
+        <div class="card-body">
+          <form method="post">
+            {% csrf_token %}
+
+            {% if form.non_field_errors %}
+              <div class="alert alert-danger">
+                {{ form.non_field_errors }}
+              </div>
+            {% endif %}
+
+            <div class="row mb-3">
+              <div class="col-md-8">
+                <label for="{{ form.approver.id_for_label }}" class="form-label">Approver</label>
+                {{ form.approver }}
+                {% if form.approver.errors %}
+                  <div class="invalid-feedback d-block">{{ form.approver.errors }}</div>
+                {% endif %}
+                <div class="form-text">
+                  The employee who will review and approve this document
+                </div>
+              </div>
+
+              <div class="col-md-4">
+                <label for="{{ form.order.id_for_label }}" class="form-label">Order</label>
+                {{ form.order }}
+                {% if form.order.errors %}
+                  <div class="invalid-feedback d-block">{{ form.order.errors }}</div>
+                {% endif %}
+                <div class="form-text">
+                  The sequence of this approval step
+                </div>
+              </div>
+            </div>
+
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label for="{{ form.department_required.id_for_label }}" class="form-label">Required Department</label>
+                {{ form.department_required }}
+                {% if form.department_required.errors %}
+                  <div class="invalid-feedback d-block">{{ form.department_required.errors }}</div>
+                {% endif %}
+                <div class="form-text">
+                  Optional: Require approver to be from a specific department
+                </div>
+              </div>
+
+              <div class="col-md-6">
+                <label for="{{ form.position_required.id_for_label }}" class="form-label">Required Position</label>
+                {{ form.position_required }}
+                {% if form.position_required.errors %}
+                  <div class="invalid-feedback d-block">{{ form.position_required.errors }}</div>
+                {% endif %}
+                <div class="form-text">
+                  Optional: Require approver to have a specific position
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-4">
+              <button type="submit" class="btn btn-primary">Save Step</button>
+              <button type="submit" name="add_another" value="true" class="btn btn-outline-primary">Save and Add Another</button>
+              <a href="{% url 'document_editor:approval_workflow_detail' workflow.id %}" class="btn btn-outline-secondary">Cancel</a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <div class="card shadow-sm">
+        <div class="card-header bg-white">
+          <h5 class="card-title mb-0">Existing Approval Steps</h5>
+        </div>
+        <div class="card-body p-0">
+          {% if existing_steps %}
+            <div class="list-group list-group-flush">
+              {% for step in existing_steps %}
+                <div class="list-group-item">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                      <div class="fw-bold">{{ step.order }}. {{ step.approver.get_full_name }}</div>
+                      <div class="small text-muted">
+                        {% if step.department_required %}Dept: {{ step.get_department_required_display }}{% endif %}
+                        {% if step.position_required %}{{ step.get_position_required_display }}{% endif %}
+                      </div>
+                    </div>
+                    <div>
+                      <a href="{% url 'document_editor:approval_step_update' step.id %}" class="btn btn-sm btn-outline-secondary">
+                        <i class="fas fa-edit"></i>
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="text-center text-muted py-4">
+              <p>No approval steps defined yet.</p>
+              <p class="small">The steps you add will appear here.</p>
+            </div>
+          {% endif %}
+        </div>
+        <div class="card-footer bg-light">
+          <div class="d-flex justify-content-between align-items-center">
+            <span class="small text-muted">Total steps: {{ existing_steps|length }}</span>
+            {% if existing_steps %}
+              <a href="{% url 'document_editor:start_approval_workflow' workflow.id %}" class="btn btn-sm btn-outline-success">
+                Start Workflow
+              </a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Initialize Select2 for dropdown fields
+    $('.select2').select2({
+      theme: 'bootstrap',
+      width: '100%'
+    });
+
+    // Filter approvers based on department/position selection
+    const departmentField = document.getElementById('{{ form.department_required.id_for_label }}');
+    const positionField = document.getElementById('{{ form.position_required.id_for_label }}');
+    const approverField = document.getElementById('{{ form.approver.id_for_label }}');
+
+    function filterApprovers() {
+      const department = departmentField.value;
+      const position = positionField.value;
+
+      // Reset Select2
+      $(approverField).empty();
+
+      // Send AJAX request to get filtered approvers
+      fetch(`/documents/api/approvers/?department=${department}&position=${position}`)
+        .then(response => response.json())
+        .then(data => {
+          // Populate approver dropdown
+          data.forEach(approver => {
+            const option = new Option(approver.name, approver.id);
+            $(approverField).append(option);
+          });
+
+          // Refresh Select2
+          $(approverField).trigger('change');
+        })
+        .catch(error => console.error('Error fetching approvers:', error));
+    }
+
+    // Attach change event handlers
+    departmentField.addEventListener('change', filterApprovers);
+    positionField.addEventListener('change', filterApprovers);
+  });
+</script>
+{% endblock %}

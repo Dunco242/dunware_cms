@@ -44,6 +44,50 @@ urlpatterns = [
     path('<int:document_id>/add-comment/', views.add_document_comment, name='add_document_comment'),
     path('comments/<int:comment_id>/resolve/', views.resolve_document_comment, name='resolve_document_comment'),
 
+     # Document Approval Workflow
+     # Approval dashboard
+    path('approvals/', views.DocumentApprovalDashboardView.as_view(), name='approval_dashboard'),
+
+    # Create approval workflow for a document
+    path('documents/<int:document_id>/approval/create/',
+         views.DocumentApprovalWorkflowCreateView.as_view(),
+         name='create_approval_workflow'),
+
+    # Approval workflow detail
+    path('approval-workflows/<int:pk>/',
+         views.DocumentApprovalWorkflowDetailView.as_view(),
+         name='approval_workflow_detail'),
+
+    # Add approval step to workflow
+    path('approval-workflows/<int:workflow_id>/steps/add/',
+         views.DocumentApprovalStepCreateView.as_view(),
+         name='approval_step_create'),
+
+    # Update approval step
+    path('approval-steps/<int:pk>/edit/',
+         views.DocumentApprovalStepUpdateView.as_view(),
+         name='approval_step_update'),
+
+    # Delete approval step
+    path('approval-steps/<int:pk>/delete/',
+         views.DocumentApprovalStepDeleteView.as_view(),
+         name='approval_step_delete'),
+
+    # Start approval workflow
+    path('approval-workflows/<int:workflow_id>/start/',
+         views.StartApprovalWorkflowView.as_view(),
+         name='start_approval_workflow'),
+
+    # Respond to approval request
+    path('approval-requests/<int:request_id>/respond/',
+         views.ApprovalRequestResponseView.as_view(),
+         name='respond_to_approval'),
+
+    # Cancel approval workflow (AJAX endpoint)
+    path('approval-workflows/<int:workflow_id>/cancel/',
+         views.cancel_approval_workflow,
+         name='cancel_approval_workflow'),
+
      # DEBUG
      path('<int:pk>/save/', views.debug_save_document, name='save_document_content'),
 ]
