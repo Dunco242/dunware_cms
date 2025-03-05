@@ -795,7 +795,7 @@ document.addEventListener('DOMContentLoaded', function() {
   // Add this function inside your comment functionality DOMContentLoaded event handler
 function loadExistingComments() {
   // Fetch existing comments from the server
-  fetch(`/${documentId}/comments/`, {
+  fetch(`${documentId}/comments/`, {
     method: 'GET',
     credentials: 'same-origin'
   })
