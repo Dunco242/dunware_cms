@@ -792,6 +792,65 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
+  // Add this function inside your comment functionality DOMContentLoaded event handler
+function loadExistingComments() {
+  // Fetch existing comments from the server
+  fetch(`/documents/${documentId}/comments/`, {
+    method: 'GET',
+    credentials: 'same-origin'
+  })
+  .then(response => {
+    if (!response.ok) {
+      throw new Error(`Server error: ${response.status}`);
+    }
+    return response.json();
+  })
+  .then(data => {
+    if (data.comments && data.comments.length > 0) {
+      // Clear any "no comments" message
+      commentsContainer.innerHTML = '';
+
+      // Add each comment to the UI
+      data.comments.forEach(comment => {
+        // Add top-level comment
+        addCommentToUI(comment);
+
+        // Add any replies
+        if (comment.replies && comment.replies.length > 0) {
+          comment.replies.forEach(reply => {
+            addReplyToUI(comment.id, reply);
+          });
+        }
+
+        // If comment is resolved, update UI to show resolved state
+        if (comment.is_resolved) {
+          updateCommentResolved(comment.id, comment.resolved_by, comment.resolved_at);
+        }
+      });
+
+      // Update comment count
+      if (commentCount) {
+        commentCount.textContent = data.comments.length;
+      }
+    } else {
+      // Show "no comments" message
+      commentsContainer.innerHTML = `
+        <div class="text-center text-muted py-4">
+          <i class="fas fa-comments fa-2x mb-2"></i>
+          <p>No comments yet</p>
+        </div>
+      `;
+    }
+  })
+  .catch(error => {
+    console.error('Error loading comments:', error);
+    showNotification(`Error loading comments: ${error.message}`, 'error');
+  });
+}
+
+// Call this function at the end of your comment initialization
+loadExistingComments();
+
   // Submit a new comment
   function submitComment(content) {
     console.log("Submitting comment:", content);
