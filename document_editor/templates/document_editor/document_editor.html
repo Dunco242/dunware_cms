@@ -639,7 +639,7 @@
       return colors[Math.abs(hash) % colors.length];
     }
 
-    function documentEditorShowNotification()(message, type = 'info') {
+    function documentEditorShowNotification(message, type = 'info') {
       const notification = document.createElement('div');
       notification.className = `position-fixed bottom-0 end-0 p-3`;
       notification.style.zIndex = 1050;
