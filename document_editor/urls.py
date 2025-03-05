@@ -43,7 +43,7 @@ urlpatterns = [
     # Comments management
     path('<int:document_id>/add-comment/', views.add_document_comment, name='add_document_comment'),
     path('comments/<int:comment_id>/resolve/', views.resolve_document_comment, name='resolve_document_comment'),
-
+    path('<int:document_id>/comments/', views.get_document_comments, name='get_document_comments'),
      # Document Approval Workflow
      # Approval dashboard
     path('approvals/', views.DocumentApprovalDashboardView.as_view(), name='approval_dashboard'),

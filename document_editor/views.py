@@ -1417,6 +1417,92 @@ class DocumentCreateView(LoginRequiredMixin, EmployeeRequiredMixin, CreateView):
 
 
 @login_required
+def get_document_comments(request, document_id):
+    """API endpoint to retrieve comments for a document"""
+    try:
+        # Get the document
+        document = get_object_or_404(Document, pk=document_id)
+        employee = request.user.employee_profile
+
+        # Check permissions
+        is_author = document.author == employee
+        has_permission = False
+
+        if not is_author:
+            try:
+                collaborator = DocumentCollaborator.objects.get(
+                    document=document,
+                    employee=employee
+                )
+                has_permission = collaborator.permission in ['view', 'comment', 'edit', 'manage']
+            except DocumentCollaborator.DoesNotExist:
+                has_permission = False
+        else:
+            has_permission = True
+
+        if not has_permission:
+            return JsonResponse({
+                'success': False,
+                'error': 'You do not have permission to view comments on this document.'
+            }, status=403)
+
+        # Get top-level comments for this document
+        comments = DocumentComment.objects.filter(
+            document=document,
+            parent_comment=None
+        ).order_by('-created_at')
+
+        # Prepare the comments data
+        comments_data = []
+        for comment in comments:
+            # Get replies for this comment
+            replies = comment.replies.all().order_by('created_at')
+            replies_data = []
+
+            for reply in replies:
+                replies_data.append({
+                    'id': reply.id,
+                    'content': reply.content,
+                    'author': {
+                        'id': reply.author.id,
+                        'name': reply.author.get_full_name()
+                    },
+                    'created_at': reply.created_at.isoformat()
+                })
+
+            comments_data.append({
+                'id': comment.id,
+                'content': comment.content,
+                'author': {
+                    'id': comment.author.id,
+                    'name': comment.author.get_full_name()
+                },
+                'created_at': comment.created_at.isoformat(),
+                'is_resolved': comment.is_resolved,
+                'resolved_by': comment.resolved_by.get_full_name() if comment.resolved_by else None,
+                'resolved_at': comment.resolved_at.isoformat() if comment.resolved_at else None,
+                'selected_text': comment.selected_text,
+                'selection_start': comment.selection_start,
+                'selection_end': comment.selection_end,
+                'replies': replies_data
+            })
+
+        return JsonResponse({
+            'success': True,
+            'comments': comments_data
+        })
+
+    except Exception as e:
+        import traceback
+        print(f"Error getting comments: {str(e)}")
+        print(traceback.format_exc())
+        return JsonResponse({
+            'success': False,
+            'error': f"Server error: {str(e)}"
+        }, status=500)
+
+
+@login_required
 @require_POST
 def debug_save_document(request, pk):
     """Debug view that logs everything and helps identify the issue."""
