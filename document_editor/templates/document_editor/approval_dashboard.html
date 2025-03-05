@@ -1,0 +1,220 @@
+{% extends 'core/base.html' %}
+{% block title %}Document Approvals Dashboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="h3 mb-0">Document Approvals Dashboard</h1>
+      <p class="text-muted">Manage document approval workflows</p>
+    </div>
+    <div>
+      <a href="{% url 'document_editor:document_list' %}" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left me-1"></i> Back to Documents
+      </a>
+    </div>
+  </div>
+
+  <div class="row">
+    <!-- Pending Approvals Card -->
+    <div class="col-lg-6 mb-4">
+      <div class="card shadow-sm h-100">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+          <h5 class="card-title mb-0">Pending Approvals</h5>
+          <span class="badge bg-primary rounded-pill">{{ pending_approvals.count }}</span>
+        </div>
+        <div class="card-body p-0">
+          {% if pending_approvals %}
+            <div class="list-group list-group-flush">
+              {% for approval in pending_approvals %}
+                <div class="list-group-item p-3">
+                  <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                      <h6 class="mb-1">{{ approval.workflow.document.title }}</h6>
+                      <p class="mb-1 small text-muted">
+                        <span class="badge bg-secondary me-1">{{ approval.workflow.document.get_document_type_display }}</span>
+                        <span>Author: {{ approval.workflow.document.author.get_full_name }}</span>
+                      </p>
+                      <p class="mb-1 small">
+                        <strong>Step {{ approval.step.order }}:</strong> {{ approval.step.get_action_display|default:"Review" }}
+                        <span class="text-muted">(Requested: {{ approval.request_date|date:"M j, Y" }})</span>
+                      </p>
+                    </div>
+                    <span class="badge bg-warning text-dark">Awaiting your review</span>
+                  </div>
+                  <div class="mt-2 d-flex justify-content-between align-items-center">
+                    <div>
+                      <a href="{% url 'document_editor:document_detail' approval.workflow.document.id %}" class="btn btn-sm btn-outline-secondary me-2">
+                        <i class="fas fa-eye me-1"></i> View Document
+                      </a>
+                      <a href="{% url 'document_editor:approval_workflow_detail' approval.workflow.id %}" class="btn btn-sm btn-outline-info">
+                        <i class="fas fa-info-circle me-1"></i> Workflow Details
+                      </a>
+                    </div>
+                    <a href="{% url 'document_editor:respond_to_approval' request_id=approval.id %}" class="btn btn-sm btn-primary">
+                      <i class="fas fa-check-circle me-1"></i> Respond
+                    </a>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="text-center py-5">
+              <i class="fas fa-check-circle fa-3x text-muted mb-3"></i>
+              <p class="mb-0">You have no pending approval requests</p>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Submitted Documents Card -->
+    <div class="col-lg-6 mb-4">
+      <div class="card shadow-sm h-100">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+          <h5 class="card-title mb-0">Your Submitted Documents</h5>
+          <span class="badge bg-secondary rounded-pill">{{ submitted_documents.count }}</span>
+        </div>
+        <div class="card-body p-0">
+          {% if submitted_documents %}
+            <div class="list-group list-group-flush">
+              {% for document in submitted_documents %}
+                <div class="list-group-item p-3">
+                  <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                      <h6 class="mb-1">{{ document.title }}</h6>
+                      <p class="mb-1 small text-muted">
+                        <span class="badge bg-secondary me-1">{{ document.get_document_type_display }}</span>
+                        <span>Updated: {{ document.updated_at|date:"M j, Y" }}</span>
+                      </p>
+                    </div>
+                    {% if document.approval_workflow.status == 'pending' %}
+                      <span class="badge bg-info text-white">In Review</span>
+                    {% elif document.approval_workflow.status == 'approved' %}
+                      <span class="badge bg-success">Approved</span>
+                    {% elif document.approval_workflow.status == 'rejected' %}
+                      <span class="badge bg-danger">Rejected</span>
+                    {% else %}
+                      <span class="badge bg-secondary">{{ document.approval_workflow.get_status_display }}</span>
+                    {% endif %}
+                  </div>
+                  <div class="progress mt-2" style="height: 5px;">
+                    {% with progress=document.approval_workflow.progress_percentage %}
+                      <div class="progress-bar
+                        {% if document.approval_workflow.status == 'approved' %}
+                          bg-success
+                        {% elif document.approval_workflow.status == 'rejected' %}
+                          bg-danger
+                        {% else %}
+                          bg-info
+                        {% endif %}"
+                        role="progressbar"
+                        style="width: {{ progress }}%"
+                        aria-valuenow="{{ progress }}"
+                        aria-valuemin="0"
+                        aria-valuemax="100">
+                      </div>
+                    {% endwith %}
+                  </div>
+                  <div class="mt-2 d-flex justify-content-between align-items-center">
+                    <small class="text-muted">
+                      {% with steps=document.approval_workflow.steps.all %}
+                        {% with completed=document.approval_workflow.requests.filter.count %}
+                          Progress: {{ completed }} of {{ steps.count }} steps completed
+                        {% endwith %}
+                      {% endwith %}
+                    </small>
+                    <div>
+                      <a href="{% url 'document_editor:document_detail' document.id %}" class="btn btn-sm btn-outline-secondary me-1">
+                        <i class="fas fa-eye me-1"></i> View
+                      </a>
+                      <a href="{% url 'document_editor:approval_workflow_detail' document.approval_workflow.id %}" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-info-circle me-1"></i> Details
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="text-center py-5">
+              <i class="fas fa-file-alt fa-3x text-muted mb-3"></i>
+              <p class="mb-0">You haven't submitted any documents for approval</p>
+              <a href="{% url 'document_editor:document_list' %}" class="btn btn-sm btn-primary mt-2">
+                <i class="fas fa-plus me-1"></i> Create Document
+              </a>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Recently Completed Approvals Card -->
+    <div class="col-12">
+      <div class="card shadow-sm">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+          <h5 class="card-title mb-0">Your Recent Approval Activity</h5>
+          <span class="badge bg-secondary rounded-pill">{{ completed_approvals.count }}</span>
+        </div>
+        <div class="card-body p-0">
+          {% if completed_approvals %}
+            <div class="table-responsive">
+              <table class="table table-hover">
+                <thead class="table-light">
+                  <tr>
+                    <th>Document</th>
+                    <th>Step</th>
+                    <th>Response</th>
+                    <th>Date</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for approval in completed_approvals %}
+                    <tr>
+                      <td>
+                        <div>
+                          <span class="fw-medium">{{ approval.workflow.document.title }}</span>
+                          <small class="d-block text-muted">{{ approval.workflow.document.get_document_type_display }}</small>
+                        </div>
+                      </td>
+                      <td>
+                        <span>Step {{ approval.step.order }}</span>
+                      </td>
+                      <td>
+                        {% if approval.status == 'approved' %}
+                          <span class="badge bg-success">Approved</span>
+                        {% elif approval.status == 'rejected' %}
+                          <span class="badge bg-danger">Rejected</span>
+                        {% else %}
+                          <span class="badge bg-secondary">{{ approval.get_status_display }}</span>
+                        {% endif %}
+                      </td>
+                      <td>{{ approval.response_date|date:"M j, Y" }}</td>
+                      <td>
+                        <a href="{% url 'document_editor:document_detail' approval.workflow.document.id %}"
+                           class="btn btn-sm btn-outline-secondary">
+                          <i class="fas fa-eye"></i>
+                        </a>
+                        <a href="{% url 'document_editor:approval_workflow_detail' approval.workflow.id %}"
+                           class="btn btn-sm btn-outline-info">
+                          <i class="fas fa-info-circle"></i>
+                        </a>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="text-center py-5">
+              <i class="fas fa-tasks fa-3x text-muted mb-3"></i>
+              <p class="mb-0">No recent approval activity</p>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
