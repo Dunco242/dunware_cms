@@ -682,5 +682,188 @@
       clearInterval(pingInterval);
     });
   });
+  // Add this code at the end of your existing script (before the closing script tag)
+
+document.addEventListener('DOMContentLoaded', function() {
+  // Reference to comments container
+  const commentsContainer = document.getElementById('comments-container');
+  const canComment = document.getElementById('can-comment').value === 'True';
+
+  // Only add comment functionality if user has permission to comment
+  if (canComment) {
+    // Clear the "No comments yet" message
+    commentsContainer.innerHTML = '';
+
+    // Create add comment button and form
+    const commentFormHTML = `
+      <div class="mb-3">
+        <button id="add-comment-btn" class="btn btn-primary btn-sm w-100 mb-3">
+          <i class="fas fa-plus me-1"></i> Add Comment
+        </button>
+        <div id="comment-form-container" class="d-none">
+          <form id="comment-form">
+            <div class="form-group">
+              <textarea id="comment-text" class="form-control mb-2" rows="3" placeholder="Write your comment here..." required></textarea>
+            </div>
+            <div class="d-flex justify-content-between">
+              <button type="button" id="cancel-comment" class="btn btn-outline-secondary btn-sm">Cancel</button>
+              <button type="submit" class="btn btn-primary btn-sm">Submit</button>
+            </div>
+          </form>
+        </div>
+      </div>
+      <div id="comments-list">
+        <p class="text-muted">No comments yet</p>
+      </div>
+    `;
+
+    // Add the HTML to the container
+    commentsContainer.innerHTML = commentFormHTML;
+
+    // Get references to new elements
+    const addCommentBtn = document.getElementById('add-comment-btn');
+    const commentFormContainer = document.getElementById('comment-form-container');
+    const commentForm = document.getElementById('comment-form');
+    const commentText = document.getElementById('comment-text');
+    const cancelCommentBtn = document.getElementById('cancel-comment');
+    const commentsList = document.getElementById('comments-list');
+
+    // Add comment button event
+    addCommentBtn.addEventListener('click', function() {
+      addCommentBtn.classList.add('d-none');
+      commentFormContainer.classList.remove('d-none');
+      commentText.focus();
+    });
+
+    // Cancel button event
+    cancelCommentBtn.addEventListener('click', function() {
+      commentFormContainer.classList.add('d-none');
+      addCommentBtn.classList.remove('d-none');
+      commentText.value = '';
+    });
+
+    // Submit form event
+    commentForm.addEventListener('submit', function(e) {
+      e.preventDefault();
+
+      if (!commentText.value.trim()) {
+        return;
+      }
+
+      // Create a comment object
+      const comment = {
+        id: Date.now(), // Temporary ID until saved to server
+        text: commentText.value.trim(),
+        created_at: new Date().toISOString(),
+        user_name: 'Current User' // This should be replaced with actual user data
+      };
+
+      // Add comment to the list
+      addCommentToList(comment);
+
+      // Reset the form
+      commentFormContainer.classList.add('d-none');
+      addCommentBtn.classList.remove('d-none');
+      commentText.value = '';
+
+      // Here you would typically send the comment to the server
+      // For demonstration, we're just adding it to the list
+
+      // Optional: Notify via WebSocket if available
+      if (typeof socket !== 'undefined' && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({
+          type: 'comment_added',
+          comment: comment
+        }));
+      }
+    });
+
+    // Function to add a comment to the list
+    function addCommentToList(comment) {
+      // Remove "No comments yet" message if it exists
+      const noCommentsMsg = commentsList.querySelector('.text-muted');
+      if (noCommentsMsg) {
+        commentsList.removeChild(noCommentsMsg);
+      }
+
+      const commentDate = new Date(comment.created_at).toLocaleString();
+
+      const commentHTML = `
+        <div class="card mb-3 comment-card" data-comment-id="${comment.id}">
+          <div class="card-header bg-light py-2">
+            <div class="d-flex justify-content-between align-items-center">
+              <span class="fw-bold">${comment.user_name}</span>
+              <small class="text-muted">${commentDate}</small>
+            </div>
+          </div>
+          <div class="card-body py-2">
+            <p class="card-text mb-2">${comment.text}</p>
+          </div>
+          <div class="card-footer py-1 bg-white text-end">
+            <button class="btn btn-sm text-danger delete-comment"
+              data-comment-id="${comment.id}" title="Delete comment">
+              <i class="fas fa-trash-alt"></i>
+            </button>
+          </div>
+        </div>
+      `;
+
+      commentsList.insertAdjacentHTML('afterbegin', commentHTML);
+
+      // Add delete functionality
+      const deleteBtn = commentsList.querySelector(`.delete-comment[data-comment-id="${comment.id}"]`);
+      if (deleteBtn) {
+        deleteBtn.addEventListener('click', function() {
+          if (confirm('Are you sure you want to delete this comment?')) {
+            const commentCard = this.closest('.comment-card');
+            if (commentCard) {
+              commentsList.removeChild(commentCard);
+
+              // If no more comments, show "No comments yet" message
+              if (commentsList.children.length === 0) {
+                commentsList.innerHTML = '<p class="text-muted">No comments yet</p>';
+              }
+
+              // Optional: Notify via WebSocket if available
+              if (typeof socket !== 'undefined' && socket.readyState === WebSocket.OPEN) {
+                socket.send(JSON.stringify({
+                  type: 'comment_deleted',
+                  comment_id: comment.id
+                }));
+              }
+            }
+          }
+        });
+      }
+    }
+
+    // Enhance the existing WebSocket handler if it exists
+    if (typeof handleWebSocketMessage !== 'undefined') {
+      const originalHandler = handleWebSocketMessage;
+
+      handleWebSocketMessage = function(data) {
+        originalHandler(data);
+
+        // Handle comment-specific messages
+        if (data.type === 'comment_added' && data.comment) {
+          addCommentToList(data.comment);
+          showNotification(`${data.comment.user_name} added a comment`, 'info');
+        }
+        else if (data.type === 'comment_deleted' && data.comment_id) {
+          const commentCard = commentsList.querySelector(`.comment-card[data-comment-id="${data.comment_id}"]`);
+          if (commentCard) {
+            commentsList.removeChild(commentCard);
+
+            if (commentsList.children.length === 0) {
+              commentsList.innerHTML = '<p class="text-muted">No comments yet</p>';
+            }
+
+            showNotification('A comment was deleted', 'info');
+          }
+        }
+      };
+    }
+  }
+});
 </script>
 {% endblock %}
