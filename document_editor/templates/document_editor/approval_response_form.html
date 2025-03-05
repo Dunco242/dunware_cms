@@ -6,7 +6,9 @@
   <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
       <h1 class="h3 mb-0">Respond to Approval Request</h1>
-      <p class="text-muted">Document: {{ document.title }}</p>
+      {% if document and document.title %}
+        <p class="text-muted">Document: {{ document.title }}</p>
+      {% endif %}
     </div>
     <div>
       <a href="{% url 'document_editor:approval_dashboard' %}" class="btn btn-outline-secondary">
@@ -22,98 +24,93 @@
           <h5 class="card-title mb-0">Document Review</h5>
         </div>
         <div class="card-body">
-          <div class="d-flex justify-content-between mb-4">
-            <div>
-              <h4>{{ document.title }}</h4>
-              <div class="d-flex gap-2 mb-3">
-                <span class="badge bg-primary">{{ document.get_document_type_display }}</span>
-                <span class="badge bg-secondary">Version {{ document.version }}</span>
+          {% if document and document.id %}
+            <div class="d-flex justify-content-between mb-4">
+              <div>
+                <h4>{{ document.title }}</h4>
+                <div class="d-flex gap-2 mb-3">
+                  <span class="badge bg-primary">{{ document.get_document_type_display }}</span>
+                  <span class="badge bg-secondary">Version {{ document.version }}</span>
+                </div>
+                <p class="mb-1"><strong>Author:</strong> {{ document.author.get_full_name }}</p>
+                <p class="mb-1"><strong>Created:</strong> {{ document.created_at|date:"F j, Y" }}</p>
+                <p><strong>Last Updated:</strong> {{ document.updated_at|date:"F j, Y" }}</p>
               </div>
-              <p class="mb-1"><strong>Author:</strong> {{ document.author.get_full_name }}</p>
-              <p class="mb-1"><strong>Created:</strong> {{ document.created_at|date:"F j, Y" }}</p>
-              <p><strong>Last Updated:</strong> {{ document.updated_at|date:"F j, Y" }}</p>
-            </div>
-            <div class="text-end">
-              <div class="mb-3">
-                <span class="d-block text-muted mb-1">Approval Step</span>
-                <span class="badge bg-info fs-6">Step {{ approval_request.step.order }} of {{ workflow.steps.count }}</span>
+              <div class="text-end">
+                <div class="mb-3">
+                  <span class="d-block text-muted mb-1">Approval Step</span>
+                  <span class="badge bg-info fs-6">Step {{ approval_request.step.order }} of {{ workflow.steps.count }}</span>
+                </div>
+                <a href="{% url 'document_editor:document_detail' document.id %}" class="btn btn-primary mb-2" target="_blank">
+                  <i class="fas fa-eye me-1"></i> View Full Document
+                </a>
               </div>
-              <a href="{% url 'document_editor:document_detail' document.id %}" class="btn btn-primary mb-2" target="_blank">
-                <i class="fas fa-eye me-1"></i> View Full Document
-              </a>
-              {% if document and document.id %}
-<a href="{% url 'document_editor:document_detail' document.id %}" class="btn btn-primary mb-2" target="_blank">
-    <i class="fas fa-eye me-1"></i> View Full Document
-</a>
-{% else %}
-<button class="btn btn-primary mb-2" disabled>
-    <i class="fas fa-eye me-1"></i> View Full Document
-</button>
-{% endif %}
             </div>
-          </div>
 
-          {% if document.content %}
-            <div class="card mb-4">
-              <div class="card-header bg-light">
-                <h6 class="card-title mb-0">Document Preview</h6>
-              </div>
-              <div class="card-body p-4" style="max-height: 300px; overflow-y: auto;">
-                {% comment %}
-                This is a simplified preview. In a real application, you would render the document content properly.
-                {% endcomment %}
-                <div class="document-preview">
-                  {% for node in document.content.children %}
-                    {% if node.type == 'paragraph' %}
-                      <p>
-                        {% for child in node.children %}
-                          {% if child.text %}
-                            {% if child.bold %}<strong>{% endif %}
-                            {% if child.italic %}<em>{% endif %}
-                            {% if child.underline %}<u>{% endif %}
+            {% if document.content %}
+              <div class="card mb-4">
+                <div class="card-header bg-light">
+                  <h6 class="card-title mb-0">Document Preview</h6>
+                </div>
+                <div class="card-body p-4" style="max-height: 300px; overflow-y: auto;">
+                  <div class="document-preview">
+                    {% for node in document.content.children %}
+                      {% if node.type == 'paragraph' %}
+                        <p>
+                          {% for child in node.children %}
+                            {% if child.text %}
+                              {% if child.bold %}<strong>{% endif %}
+                              {% if child.italic %}<em>{% endif %}
+                              {% if child.underline %}<u>{% endif %}
+                              {{ child.text }}
+                              {% if child.underline %}</u>{% endif %}
+                              {% if child.italic %}</em>{% endif %}
+                              {% if child.bold %}</strong>{% endif %}
+                            {% endif %}
+                          {% endfor %}
+                        </p>
+                      {% elif node.type == 'heading-one' %}
+                        <h1>
+                          {% for child in node.children %}
                             {{ child.text }}
-                            {% if child.underline %}</u>{% endif %}
-                            {% if child.italic %}</em>{% endif %}
-                            {% if child.bold %}</strong>{% endif %}
-                          {% endif %}
-                        {% endfor %}
-                      </p>
-                    {% elif node.type == 'heading-one' %}
-                      <h1>
-                        {% for child in node.children %}
-                          {{ child.text }}
-                        {% endfor %}
-                      </h1>
-                    {% elif node.type == 'heading-two' %}
-                      <h2>
-                        {% for child in node.children %}
-                          {{ child.text }}
-                        {% endfor %}
-                      </h2>
-                    {% elif node.type == 'bulleted-list' %}
-                      <ul>
-                        {% for item in node.children %}
-                          <li>
-                            {% for child in item.children %}
-                              {{ child.text }}
-                            {% endfor %}
-                          </li>
-                        {% endfor %}
-                      </ul>
-                    {% elif node.type == 'numbered-list' %}
-                      <ol>
-                        {% for item in node.children %}
-                          <li>
-                            {% for child in item.children %}
-                              {{ child.text }}
-                            {% endfor %}
-                          </li>
-                        {% endfor %}
-                      </ol>
-                    {% endif %}
-                  {% endfor %}
+                          {% endfor %}
+                        </h1>
+                      {% elif node.type == 'heading-two' %}
+                        <h2>
+                          {% for child in node.children %}
+                            {{ child.text }}
+                          {% endfor %}
+                        </h2>
+                      {% elif node.type == 'bulleted-list' %}
+                        <ul>
+                          {% for item in node.children %}
+                            <li>
+                              {% for child in item.children %}
+                                {{ child.text }}
+                              {% endfor %}
+                            </li>
+                          {% endfor %}
+                        </ul>
+                      {% elif node.type == 'numbered-list' %}
+                        <ol>
+                          {% for item in node.children %}
+                            <li>
+                              {% for child in item.children %}
+                                {{ child.text }}
+                              {% endfor %}
+                            </li>
+                          {% endfor %}
+                        </ol>
+                      {% endif %}
+                    {% endfor %}
+                  </div>
                 </div>
               </div>
+            {% endif %}
+          {% else %}
+            <div class="alert alert-warning">
+              <i class="fas fa-exclamation-triangle me-2"></i>
+              Document information not available. This could be because the document has been deleted or you don't have permission to view it.
             </div>
           {% endif %}
 
@@ -181,7 +178,7 @@
                 <div>
                   <h6 class="alert-heading">Approval Information</h6>
                   <p class="mb-0">
-                    {% if workflow.steps.count > approval_request.step.order %}
+                    {% if workflow and approval_request and workflow.steps.count > approval_request.step.order %}
                       Approving this document will move it to the next approval step.
                     {% else %}
                       Approving this document will complete the approval workflow and change the document status to "Approved".
@@ -206,50 +203,56 @@
           <h5 class="card-title mb-0">Approval Workflow</h5>
         </div>
         <div class="card-body">
-          <div class="workflow-timeline mb-3">
-            {% for step in workflow.steps.all %}
-              <div class="timeline-item d-flex mb-3 position-relative">
-                <div class="timeline-marker rounded-circle {% if step.order < approval_request.step.order %}bg-success{% elif step.order == approval_request.step.order %}bg-primary{% else %}bg-secondary{% endif %} me-3" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; color: white;">
-                  {% if step.order < approval_request.step.order %}
-                    <i class="fas fa-check small"></i>
-                  {% else %}
-                    {{ step.order }}
-                  {% endif %}
-                </div>
-                <div class="timeline-content">
-                  <div class="d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0">{{ step.approver.get_full_name }}</h6>
+          {% if workflow and workflow.steps.exists %}
+            <div class="workflow-timeline mb-3">
+              {% for step in workflow.steps.all %}
+                <div class="timeline-item d-flex mb-3 position-relative">
+                  <div class="timeline-marker rounded-circle {% if step.order < approval_request.step.order %}bg-success{% elif step.order == approval_request.step.order %}bg-primary{% else %}bg-secondary{% endif %} me-3" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; color: white;">
                     {% if step.order < approval_request.step.order %}
-                      <span class="badge bg-success">Approved</span>
-                    {% elif step.order == approval_request.step.order %}
-                      <span class="badge bg-warning text-dark">Current</span>
+                      <i class="fas fa-check small"></i>
                     {% else %}
-                      <span class="badge bg-secondary">Pending</span>
+                      {{ step.order }}
                     {% endif %}
                   </div>
-                  <p class="text-muted small mb-0">{{ step.approver.get_department_display|default:"" }} {% if step.approver.get_department_display and step.approver.get_position_display %} • {% endif %} {{ step.approver.get_position_display|default:"" }}</p>
+                  <div class="timeline-content">
+                    <div class="d-flex justify-content-between align-items-center">
+                      <h6 class="mb-0">{{ step.approver.get_full_name }}</h6>
+                      {% if step.order < approval_request.step.order %}
+                        <span class="badge bg-success">Approved</span>
+                      {% elif step.order == approval_request.step.order %}
+                        <span class="badge bg-warning text-dark">Current</span>
+                      {% else %}
+                        <span class="badge bg-secondary">Pending</span>
+                      {% endif %}
+                    </div>
+                    <p class="text-muted small mb-0">{{ step.approver.get_department_display|default:"" }} {% if step.approver.get_department_display and step.approver.get_position_display %} • {% endif %} {{ step.approver.get_position_display|default:"" }}</p>
+                  </div>
                 </div>
-              </div>
-              {% if not forloop.last %}
-                <div class="timeline-connector" style="width: 2px; background-color: #dee2e6; height: 20px; margin-left: 12px;"></div>
-              {% endif %}
-            {% endfor %}
-          </div>
+                {% if not forloop.last %}
+                  <div class="timeline-connector" style="width: 2px; background-color: #dee2e6; height: 20px; margin-left: 12px;"></div>
+                {% endif %}
+              {% endfor %}
+            </div>
 
-          <div class="progress mt-3 mb-2" style="height: 8px;">
-            {% with progress=workflow.progress_percentage %}
-              <div class="progress-bar bg-primary" role="progressbar" style="width: {{ progress }}%" aria-valuenow="{{ progress }}" aria-valuemin="0" aria-valuemax="100"></div>
-            {% endwith %}
-          </div>
-          <p class="text-center text-muted small">
-            {% with approved=workflow.requests.filter.count %}
-              {{ approved }} of {{ workflow.steps.count }} steps completed
-            {% endwith %}
-          </p>
+            <div class="progress mt-3 mb-2" style="height: 8px;">
+              {% with progress=workflow.progress_percentage %}
+                <div class="progress-bar bg-primary" role="progressbar" style="width: {{ progress }}%" aria-valuenow="{{ progress }}" aria-valuemin="0" aria-valuemax="100"></div>
+              {% endwith %}
+            </div>
+            <p class="text-center text-muted small">
+              {% with approved=workflow.requests.filter.count %}
+                {{ approved }} of {{ workflow.steps.count }} steps completed
+              {% endwith %}
+            </p>
+          {% else %}
+            <div class="text-center py-3">
+              <p class="text-muted mb-0">Workflow information not available</p>
+            </div>
+          {% endif %}
         </div>
       </div>
 
-      {% if workflow.requests.exists %}
+      {% if workflow and workflow.requests.exists %}
         <div class="card shadow-sm">
           <div class="card-header bg-white">
             <h5 class="card-title mb-0">Previous Responses</h5>
