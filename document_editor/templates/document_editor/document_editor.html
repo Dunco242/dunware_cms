@@ -793,9 +793,15 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   // Add this function inside your comment functionality DOMContentLoaded event handler
-function loadExistingComments() {
-  // Fetch existing comments from the server
-  fetch(`${documentId}/comments/`, {
+  function loadExistingComments() {
+  const documentId = document.getElementById('document-id').value;
+
+  // Use the exact URL pattern that works when accessed directly
+  const commentsUrl = `/documents/${documentId}/comments/`;
+
+  console.log("Fetching comments from:", commentsUrl);
+
+  fetch(commentsUrl, {
     method: 'GET',
     credentials: 'same-origin'
   })
@@ -806,13 +812,15 @@ function loadExistingComments() {
     return response.json();
   })
   .then(data => {
-    if (data.comments && data.comments.length > 0) {
+    console.log("Received comments data:", data);
+
+    if (data.success && data.comments && data.comments.length > 0) {
       // Clear any "no comments" message
       commentsContainer.innerHTML = '';
 
       // Add each comment to the UI
       data.comments.forEach(comment => {
-        // Add top-level comment
+        // Add the comment to UI
         addCommentToUI(comment);
 
         // Add any replies
@@ -847,7 +855,6 @@ function loadExistingComments() {
     documentEditorShowNotification(`Error loading comments: ${error.message}`, 'error');
   });
 }
-
 // Call this function at the end of your comment initialization
 loadExistingComments();
 
