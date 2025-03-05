@@ -194,7 +194,8 @@ class DocumentDetailView(LoginRequiredMixin, EmployeeRequiredMixin, DetailView):
         employee = self.request.user.employee_profile
         return Document.objects.filter(
             Q(author=employee) |
-            Q(collaborators__employee=employee)
+            Q(collaborators__employee=employee) |
+            Q(customer__assigned_to=employee)
         ).distinct()
 
     def get_context_data(self, **kwargs):
