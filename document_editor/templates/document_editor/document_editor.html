@@ -142,94 +142,13 @@
 
     <div class="col-md-3 d-none d-md-block">
       <div class="card shadow-sm">
-        <div class="card-header d-flex justify-content-between align-items-center">
+        <div class="card-header">
           <h5 class="card-title mb-0">Comments</h5>
-          <span class="badge bg-primary" id="comment-count">{{ comments|length }}</span>
         </div>
-        <div class="card-body p-0">
-          <div id="comments-container" class="comments-list">
-            {% if comments %}
-              {% for comment in comments %}
-                <div class="comment-item p-3 border-bottom" data-comment-id="{{ comment.id }}">
-                  <div class="d-flex justify-content-between">
-                    <div class="comment-author fw-bold">{{ comment.author.get_full_name }}</div>
-                    <div class="comment-date small text-muted">{{ comment.created_at|date:"M j, g:i a" }}</div>
-                  </div>
-                  <div class="comment-content mt-1">{{ comment.content }}</div>
-                  {% if not comment.is_resolved %}
-                    <div class="comment-actions mt-2">
-                      <button type="button" class="btn btn-sm btn-outline-success resolve-comment-btn" data-comment-id="{{ comment.id }}">
-                        <i class="fas fa-check me-1"></i> Resolve
-                      </button>
-                      <button type="button" class="btn btn-sm btn-outline-secondary reply-comment-btn" data-comment-id="{{ comment.id }}">
-                        <i class="fas fa-reply me-1"></i> Reply
-                      </button>
-                    </div>
-                  {% else %}
-                    <div class="resolved-badge mt-2">
-                      <span class="badge bg-success">Resolved by {{ comment.resolved_by.get_full_name }} on {{ comment.resolved_at|date:"M j, g:i a" }}</span>
-                    </div>
-                  {% endif %}
-
-                  {% if comment.replies.count > 0 %}
-                    <div class="comment-replies mt-3 ms-3 border-start ps-3">
-                      {% for reply in comment.replies.all %}
-                        <div class="reply-item mb-2" data-reply-id="{{ reply.id }}">
-                          <div class="d-flex justify-content-between">
-                            <div class="reply-author small fw-bold">{{ reply.author.get_full_name }}</div>
-                            <div class="reply-date small text-muted">{{ reply.created_at|date:"M j, g:i a" }}</div>
-                          </div>
-                          <div class="reply-content small">{{ reply.content }}</div>
-                        </div>
-                      {% endfor %}
-                    </div>
-                  {% endif %}
-
-                  <div class="reply-form mt-2 d-none" id="reply-form-{{ comment.id }}">
-                    <textarea class="form-control form-control-sm reply-textarea" rows="2" placeholder="Write a reply..."></textarea>
-                    <div class="mt-2">
-                      <button type="button" class="btn btn-sm btn-primary submit-reply-btn" data-comment-id="{{ comment.id }}">Submit Reply</button>
-                      <button type="button" class="btn btn-sm btn-link cancel-reply-btn">Cancel</button>
-                    </div>
-                  </div>
-                </div>
-              {% endfor %}
-            {% else %}
-              <div class="text-center text-muted py-4">
-                <i class="fas fa-comments fa-2x mb-2"></i>
-                <p>No comments yet</p>
-              </div>
-            {% endif %}
-          </div>
-        </div>
-        <div class="card-footer">
-          <form id="comment-form" class="mt-2">
-            <div class="mb-2">
-              <label for="comment-textarea" class="form-label">Add a comment</label>
-              <textarea id="comment-textarea" class="form-control" rows="3" placeholder="Write your comment here..."></textarea>
-            </div>
-            <button type="submit" id="add-comment-btn" class="btn btn-primary">
-              <i class="fas fa-comment me-1"></i> Add Comment
-            </button>
-          </form>
+        <div class="card-body" id="comments-container">
+          <p class="text-muted">No comments yet</p>
         </div>
       </div>
-
-      <style>
-        .comments-list {
-          max-height: 500px;
-          overflow-y: auto;
-        }
-        .comment-item {
-          background-color: #f8f9fa;
-        }
-        .comment-item:hover {
-          background-color: #f1f3f5;
-        }
-        .resolved-badge {
-          opacity: 0.8;
-        }
-      </style>
     </div>
   </div>
 </div>
@@ -341,208 +260,233 @@
 
     // Save document function with improved text extraction
     function saveDocument(createVersion = false) {
+      // Create a clean container to extract HTML content
+      const tempContainer = document.createElement('div');
+      tempContainer.innerHTML = textEditor.innerHTML;
 
-    // Create a clean container to extract HTML content
-  const tempContainer = document.createElement('div');
-  tempContainer.innerHTML = textEditor.innerHTML;
-
-  // Remove any DOCTYPE or HTML comments - using DOM traversal instead of querySelector
-  let child = tempContainer.firstChild;
-  while (child) {
-    // Check if it's a doctype node and remove it
-    if (child.nodeType === Node.DOCUMENT_TYPE_NODE) {
-      const toRemove = child;
-      child = child.nextSibling;
-      tempContainer.removeChild(toRemove);
-    } else {
-      child = child.nextSibling;
-    }
-  }
-
-  // Get the cleaned HTML content
-  const cleanHtml = tempContainer.innerHTML;
-  console.log("Cleaned HTML to convert:", cleanHtml);
-
-  // Extract main content elements
-  const paragraphs = [];
-
-  // Helper function to extract text with formatting
-  function extractTextWithFormatting(element) {
-    const result = [];
-
-    // Process text nodes and formatted spans
-    Array.from(element.childNodes).forEach(node => {
-      if (node.nodeType === Node.TEXT_NODE) {
-        // Plain text node - only add if it has content
-        const textContent = node.textContent;
-        if (textContent && textContent.trim()) {
-          result.push({ text: textContent });
-        } else if (textContent) {
-          // Preserve whitespace but avoid empty nodes
-          result.push({ text: textContent });
+      // Remove any DOCTYPE or HTML comments - using DOM traversal instead of querySelector
+      let child = tempContainer.firstChild;
+      while (child) {
+        // Check if it's a doctype node and remove it
+        if (child.nodeType === Node.DOCUMENT_TYPE_NODE) {
+          const toRemove = child;
+          child = child.nextSibling;
+          tempContainer.removeChild(toRemove);
+        } else {
+          child = child.nextSibling;
         }
-      } else if (node.nodeType === Node.ELEMENT_NODE) {
-        // Element node (e.g., <strong>, <em>, etc.)
-        const textContent = node.textContent;
-
-        // Skip empty nodes
-        if (!textContent && !textContent.trim()) {
-          return;
-        }
-
-        const textObj = { text: textContent };
-
-        if (node.tagName === 'STRONG' || node.tagName === 'B') {
-          textObj.bold = true;
-        }
-        if (node.tagName === 'EM' || node.tagName === 'I') {
-          textObj.italic = true;
-        }
-        if (node.tagName === 'U') {
-          textObj.underline = true;
-        }
-
-        result.push(textObj);
       }
-    });
 
-    // If no content, add an empty text node
-    if (result.length === 0) {
-      result.push({ text: '' });
-    }
+      // Get the cleaned HTML content
+      const cleanHtml = tempContainer.innerHTML;
+      console.log("Cleaned HTML to convert:", cleanHtml);
 
-    return result;
-  }
+      // Extract main content elements
+      const paragraphs = [];
 
-  // Process top-level elements
-  Array.from(tempContainer.children).forEach(element => {
-    if (element.tagName === 'P') {
-      paragraphs.push({
-        type: 'paragraph',
-        children: extractTextWithFormatting(element)
-      });
-    } else if (element.tagName === 'H1') {
-      paragraphs.push({
-        type: 'heading-one',
-        children: extractTextWithFormatting(element)
-      });
-    } else if (element.tagName === 'H2') {
-      paragraphs.push({
-        type: 'heading-two',
-        children: extractTextWithFormatting(element)
-      });
-    } else if (element.tagName === 'UL') {
-      const listItems = Array.from(element.querySelectorAll('li')).map(li => ({
-        type: 'list-item',
-        children: extractTextWithFormatting(li)
-      }));
+      // Helper function to extract text with formatting
+      function extractTextWithFormatting(element) {
+        const result = [];
 
-      paragraphs.push({
-        type: 'bulleted-list',
-        children: listItems
-      });
-    } else if (element.tagName === 'OL') {
-      const listItems = Array.from(element.querySelectorAll('li')).map(li => ({
-        type: 'list-item',
-        children: extractTextWithFormatting(li)
-      }));
+        // Process text nodes and formatted spans
+        Array.from(element.childNodes).forEach(node => {
+          if (node.nodeType === Node.TEXT_NODE) {
+            // Plain text node - only add if it has content
+            const textContent = node.textContent;
+            if (textContent && textContent.trim()) {
+              result.push({ text: textContent });
+            } else if (textContent) {
+              // Preserve whitespace but avoid empty nodes
+              result.push({ text: textContent });
+            }
+          } else if (node.nodeType === Node.ELEMENT_NODE) {
+            // Element node (e.g., <strong>, <em>, etc.)
+            const textContent = node.textContent;
 
-      paragraphs.push({
-        type: 'numbered-list',
-        children: listItems
-      });
-    } else {
-      // Fallback for any other element types
-      paragraphs.push({
-        type: 'paragraph',
-        children: extractTextWithFormatting(element)
-      });
-    }
-  });
+            // Skip empty nodes
+            if (!textContent && !textContent.trim()) {
+              return;
+            }
 
-  // If no paragraphs found, add a default empty paragraph
-  if (paragraphs.length === 0) {
-    paragraphs.push({
-      type: 'paragraph',
-      children: [{ text: '' }]
-    });
-  }
+            const textObj = { text: textContent };
 
-  // Create the final Slate-like content structure
-  const slateContent = {
-    children: paragraphs
-  };
+            if (node.tagName === 'STRONG' || node.tagName === 'B') {
+              textObj.bold = true;
+            }
+            if (node.tagName === 'EM' || node.tagName === 'I') {
+              textObj.italic = true;
+            }
+            if (node.tagName === 'U') {
+              textObj.underline = true;
+            }
 
-  // Extract plain text for the server-side (this is what was missing before)
-  let plainText = '';
-  paragraphs.forEach(p => {
-    if (p.children) {
-      p.children.forEach(child => {
-        if (typeof child === 'object' && 'text' in child) {
-          plainText += child.text + ' ';
-        } else if (typeof child === 'object' && child.children) {
-          child.children.forEach(c => {
-            if (c.text) plainText += c.text + ' ';
+            result.push(textObj);
+          }
+        });
+
+        // If no content, add an empty text node
+        if (result.length === 0) {
+          result.push({ text: '' });
+        }
+
+        return result;
+      }
+
+      // Process top-level elements
+      Array.from(tempContainer.children).forEach(element => {
+        if (element.tagName === 'P') {
+          paragraphs.push({
+            type: 'paragraph',
+            children: extractTextWithFormatting(element)
+          });
+        } else if (element.tagName === 'H1') {
+          paragraphs.push({
+            type: 'heading-one',
+            children: extractTextWithFormatting(element)
+          });
+        } else if (element.tagName === 'H2') {
+          paragraphs.push({
+            type: 'heading-two',
+            children: extractTextWithFormatting(element)
+          });
+        } else if (element.tagName === 'UL') {
+          const listItems = Array.from(element.querySelectorAll('li')).map(li => ({
+            type: 'list-item',
+            children: extractTextWithFormatting(li)
+          }));
+
+          paragraphs.push({
+            type: 'bulleted-list',
+            children: listItems
+          });
+        } else if (element.tagName === 'OL') {
+          const listItems = Array.from(element.querySelectorAll('li')).map(li => ({
+            type: 'list-item',
+            children: extractTextWithFormatting(li)
+          }));
+
+          paragraphs.push({
+            type: 'numbered-list',
+            children: listItems
+          });
+        } else {
+          // Fallback for any other element types
+          paragraphs.push({
+            type: 'paragraph',
+            children: extractTextWithFormatting(element)
           });
         }
       });
-      plainText += '\n';
-    }
-  });
-  plainText = plainText.trim();
-  console.log("Extracted text for plain_text:", plainText);
 
-  // Update hidden field with the JSON content
-  documentContent.value = JSON.stringify(slateContent);
-
-  // Log for debugging
-  console.log('Saving content:', slateContent);
-
-  // Use the existing form instead of creating a new one
-  const formData = new FormData(documentForm);
-
-  // Add/update the create_version parameter
-  formData.set('create_version', createVersion ? 'true' : 'false');
-
-  // Add plain text for debugging
-  formData.append('plain_text_debug', plainText);
-
-  // Submit using fetch with FormData
-  fetch(documentForm.action, {
-    method: 'POST',
-    body: formData,
-    credentials: 'same-origin'
-  })
-  .then(response => {
-    console.log('Received response:', response);
-    if (!response.ok) {
-      throw new Error(`Server error: ${response.status} - ${response.statusText}`);
-    }
-    return response.json();
-  })
-  .then(data => {
-    if (data.success) {
-      hasUnsavedChanges = false;
-
-      const successMsg = createVersion
-        ? `Created new version ${data.version}`
-        : 'Document saved successfully';
-
-      documentEditorShowNotification()(successMsg, 'success');
-
-      if (data.updated_at) {
-        saveStatus.innerText = `Last saved: ${new Date(data.updated_at).toLocaleString()}`;
+      // If no paragraphs found, add a default empty paragraph
+      if (paragraphs.length === 0) {
+        paragraphs.push({
+          type: 'paragraph',
+          children: [{ text: '' }]
+        });
       }
-    } else {
-      console.error('Error saving document:', data.error);
-      documentEditorShowNotification()('Error saving document: ' + data.error, 'error');
+
+      // Create the final Slate-like content structure
+      const slateContent = {
+        children: paragraphs
+      };
+
+      // For debugging: extract text from the structure to confirm it's being captured
+      const extractedText = paragraphs.map(p => {
+        if (p.children) {
+          return p.children.map(child => {
+            if (typeof child === 'object' && 'text' in child) {
+              return child.text;
+            } else if (typeof child === 'object' && child.children) {
+              return child.children.map(c => c.text || '').join(' ');
+            }
+            return '';
+          }).join(' ');
+        }
+        return '';
+      }).join(' ');
+
+      console.log("Extracted text for plain_text:", extractedText);
+
+      // Update hidden field with the JSON content
+      documentContent.value = JSON.stringify(slateContent);
+
+      // Log for debugging
+      console.log('Saving content:', slateContent);
+
+      // Instead of using fetch with X-CSRFToken header, we will submit the form directly
+      // This ensures that Django's CSRF protection works correctly
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = `/documents/${documentId}/save/`;
+      form.style.display = 'none';
+
+      // Add CSRF token
+      const csrfInput = document.createElement('input');
+      csrfInput.type = 'hidden';
+      csrfInput.name = 'csrfmiddlewaretoken';
+      csrfInput.value = document.querySelector('[name=csrfmiddlewaretoken]').value;
+      form.appendChild(csrfInput);
+
+      // Add content
+      const contentInput = document.createElement('input');
+      contentInput.type = 'hidden';
+      contentInput.name = 'content';
+      contentInput.value = JSON.stringify(slateContent);
+      form.appendChild(contentInput);
+
+      // Add create_version flag
+      const versionInput = document.createElement('input');
+      versionInput.type = 'hidden';
+      versionInput.name = 'create_version';
+      versionInput.value = createVersion;
+      form.appendChild(versionInput);
+
+      // Add form to body and submit
+      document.body.appendChild(form);
+
+      // Use fetch with FormData instead of JSON
+      const formData = new FormData(form);
+
+      fetch(form.action, {
+        method: 'POST',
+        body: formData,
+        credentials: 'same-origin'
+      })
+      .then(response => {
+        console.log('Received response:', response);
+        if (!response.ok) {
+          throw new Error(`Server error: ${response.status} - ${response.statusText}`);
+        }
+        return response.json();
+      })
+      .then(data => {
+        document.body.removeChild(form); // Clean up
+
+        if (data.success) {
+          hasUnsavedChanges = false;
+
+          const successMsg = createVersion
+            ? `Created new version ${data.version}`
+            : 'Document saved successfully';
+
+          showNotification(successMsg, 'success');
+
+          if (data.updated_at) {
+            saveStatus.innerText = `Last saved: ${new Date(data.updated_at).toLocaleString()}`;
+          }
+        } else {
+          console.error('Error saving document:', data.error);
+          showNotification('Error saving document: ' + data.error, 'error');
+        }
+      })
+      .catch(error => {
+        document.body.removeChild(form); // Clean up
+        console.error('Network or server error:', error);
+        showNotification('Network or server error: ' + error.message, 'error');
+      });
     }
-  })
-  .catch(error => {
-    console.error('Network or server error:', error);
-    documentEditorShowNotification()('Network or server error: ' + error.message, 'error');
-  });
-}
+
     // Save button click handlers
     saveButton.addEventListener('click', function() {
       saveDocument(false);
@@ -642,14 +586,14 @@
           ? `Created new version ${data.version}`
           : 'Document saved successfully';
 
-        documentEditordocumentEditorShowNotification()(successMsg, 'success');
+        showNotification(successMsg, 'success');
 
         if (data.updated_at) {
           saveStatus.innerText = `Last saved: ${new Date(data.updated_at).toLocaleString()}`;
         }
       } else {
         console.error('Error saving document:', data.error);
-        documentEditordocumentEditorShowNotification()('Error saving document: ' + data.error, 'error');
+        showNotification('Error saving document: ' + data.error, 'error');
       }
     }
 
@@ -675,7 +619,7 @@
 
       updateActiveUsersUI();
 
-      documentEditordocumentEditorShowNotification()(`${data.user_name} joined the document`, 'info');
+      showNotification(`${data.user_name} joined the document`, 'info');
     }
 
     function handleUserLeft(data) {
@@ -683,11 +627,11 @@
 
       updateActiveUsersUI();
 
-      documentEditordocumentEditorShowNotification()(`${data.user_name} left the document`, 'info');
+      showNotification(`${data.user_name} left the document`, 'info');
     }
 
     function handleDocumentSaved(data) {
-      documentEditordocumentEditorShowNotification()(`${data.user_name} saved the document`, 'info');
+      showNotification(`${data.user_name} saved the document`, 'info');
     }
 
     function updateActiveUsersUI() {
@@ -721,45 +665,45 @@
       return colors[Math.abs(hash) % colors.length];
     }
 
-    // Fix the documentEditordocumentEditorShowNotification() function or ensure it's properly defined
-    function documentEditorShowNotification(message, type = 'info') {
-  try {
-    const notification = document.createElement('div');
-    notification.className = `position-fixed bottom-0 end-0 p-3`;
-    notification.style.zIndex = 1050;
+    function showNotification(message, type = 'info') {
+      const notification = document.createElement('div');
+      notification.className = `position-fixed bottom-0 end-0 p-3`;
+      notification.style.zIndex = 1050;
 
-    notification.innerHTML = `
-      <div class="toast show" role="alert" aria-live="assertive" aria-atomic="true">
-        <div class="toast-header ${
-          type === 'success' ? 'bg-success text-white' :
-          type === 'error' ? 'bg-danger text-white' :
-          'bg-info text-white'
-        }">
-          <strong class="me-auto">${
-            type === 'success' ? 'Success' :
-            type === 'error' ? 'Error' :
-            'Information'
-          }</strong>
-          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
+      notification.innerHTML = `
+        <div class="toast show" role="alert" aria-live="assertive" aria-atomic="true">
+          <div class="toast-header ${
+            type === 'success' ? 'bg-success text-white' :
+            type === 'error' ? 'bg-danger text-white' :
+            'bg-info text-white'
+          }">
+            <strong class="me-auto">${
+              type === 'success' ? 'Success' :
+              type === 'error' ? 'Error' :
+              'Information'
+            }</strong>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
+          </div>
+          <div class="toast-body">
+            ${message}
+          </div>
         </div>
-        <div class="toast-body">
-          ${message}
-        </div>
-      </div>
-    `;
+      `;
 
-    document.body.appendChild(notification);
+      document.body.appendChild(notification);
 
-    // Auto remove after 3 seconds
-    setTimeout(() => {
-      if (document.body.contains(notification)) {
+      // Add click listener to close button
+      notification.querySelector('.btn-close').addEventListener('click', function() {
         document.body.removeChild(notification);
-      }
-    }, 3000);
-  } catch (e) {
-    console.error("Error showing notification:", e);
-  }
-}
+      });
+
+      // Auto remove after 3 seconds
+      setTimeout(() => {
+        if (document.body.contains(notification)) {
+          document.body.removeChild(notification);
+        }
+      }, 3000);
+    }
 
     // Initialize WebSocket
     initWebSocket();
@@ -792,411 +736,5 @@
       clearInterval(pingInterval);
     });
   });
-  // Add these functions to your existing script section, after the initialization code
-
-// Comment functionality
-function initializeCommentFunctionality() {
-  const commentForm = document.getElementById('comment-form');
-  const commentTextarea = document.getElementById('comment-textarea');
-  const commentsContainer = document.getElementById('comments-container');
-  const commentCount = document.getElementById('comment-count');
-
-  // Add comment form submission
-  if (commentForm) {
-    commentForm.addEventListener('submit', function(e) {
-      e.preventDefault();
-
-      const commentContent = commentTextarea.value.trim();
-      if (!commentContent) {
-        documentEditordocumentEditorShowNotification()('Comment cannot be empty', 'error');
-        return;
-      }
-
-      submitComment(commentContent);
-    });
-  }
-
-  // Delegate event listeners for comment actions
-  if (commentsContainer) {
-    commentsContainer.addEventListener('click', function(e) {
-      // Resolve comment button
-      if (e.target.closest('.resolve-comment-btn')) {
-        const btn = e.target.closest('.resolve-comment-btn');
-        const commentId = btn.getAttribute('data-comment-id');
-        resolveComment(commentId);
-      }
-
-      // Reply button
-      if (e.target.closest('.reply-comment-btn')) {
-        const btn = e.target.closest('.reply-comment-btn');
-        const commentId = btn.getAttribute('data-comment-id');
-        showReplyForm(commentId);
-      }
-
-      // Submit reply button
-      if (e.target.closest('.submit-reply-btn')) {
-        const btn = e.target.closest('.submit-reply-btn');
-        const commentId = btn.getAttribute('data-comment-id');
-        const replyForm = document.getElementById(`reply-form-${commentId}`);
-        const replyContent = replyForm.querySelector('.reply-textarea').value.trim();
-
-        if (!replyContent) {
-          documentEditordocumentEditorShowNotification()('Reply cannot be empty', 'error');
-          return;
-        }
-
-        submitReply(commentId, replyContent);
-      }
-
-      // Cancel reply button
-      if (e.target.closest('.cancel-reply-btn')) {
-        const btn = e.target.closest('.cancel-reply-btn');
-        const replyForm = btn.closest('.reply-form');
-        replyForm.classList.add('d-none');
-        replyForm.querySelector('textarea').value = '';
-      }
-    });
-  }
-}
-
-// Submit a new comment - revised to match document save approach
-function submitComment(content) {
-  const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-  const documentId = document.getElementById('document-id').value;
-  const canComment = document.getElementById('can-comment').value;
-
-  console.log("Submitting comment:", content);
-  console.log("To document:", documentId);
-  console.log("Can comment:", canComment);
-
-  // Create a form instead of using direct fetch with FormData
-  const form = document.createElement('form');
-  form.method = 'POST';
-  form.action = `/documents/${documentId}/add-comment/`;
-  form.style.display = 'none';
-
-  // Add CSRF token
-  const csrfInput = document.createElement('input');
-  csrfInput.type = 'hidden';
-  csrfInput.name = 'csrfmiddlewaretoken';
-  csrfInput.value = csrfToken;
-  form.appendChild(csrfInput);
-
-  // Add content
-  const contentInput = document.createElement('input');
-  contentInput.type = 'hidden';
-  contentInput.name = 'content';
-  contentInput.value = content;
-  form.appendChild(contentInput);
-
-  // Add selection data if present
-  const selection = window.getSelection();
-  if (selection && !selection.isCollapsed && textEditor.contains(selection.anchorNode)) {
-    const selectionData = {
-      start: getNodeOffset(selection.anchorNode, selection.anchorOffset),
-      end: getNodeOffset(selection.focusNode, selection.focusOffset),
-      text: selection.toString()
-    };
-
-    const startInput = document.createElement('input');
-    startInput.type = 'hidden';
-    startInput.name = 'selection_start';
-    startInput.value = JSON.stringify(selectionData.start);
-    form.appendChild(startInput);
-
-    const endInput = document.createElement('input');
-    endInput.type = 'hidden';
-    endInput.name = 'selection_end';
-    endInput.value = JSON.stringify(selectionData.end);
-    form.appendChild(endInput);
-
-    const textInput = document.createElement('input');
-    textInput.type = 'hidden';
-    textInput.name = 'selected_text';
-    textInput.value = selectionData.text;
-    form.appendChild(textInput);
-  }
-
-  // Add form to body
-  document.body.appendChild(form);
-
-  // Convert form to FormData for fetch
-  const formData = new FormData(form);
-
-  // Submit using fetch
-  fetch(form.action, {
-    method: 'POST',
-    body: formData,
-    credentials: 'same-origin'
-  })
-  .then(response => {
-    console.log('Received response:', response);
-    if (!response.ok) {
-      return response.text().then(text => {
-        console.log("Error response text:", text);
-        throw new Error(`Server error: ${response.status}`);
-      });
-    }
-    return response.json();
-  })
-  .then(data => {
-    document.body.removeChild(form); // Clean up
-
-    if (data.success) {
-      // Add comment to UI
-      addCommentToUI(data.comment);
-
-      // Clear textarea
-      document.getElementById('comment-textarea').value = '';
-
-      // Update comment count
-      updateCommentCount(1);
-
-      documentEditordocumentEditorShowNotification()('Comment added successfully', 'success');
-    } else {
-      console.error('Error adding comment:', data.error);
-      documentEditordocumentEditorShowNotification()(`Error: ${data.error}`, 'error');
-    }
-  })
-  .catch(error => {
-    document.body.removeChild(form); // Clean up
-    console.error('Error adding comment:', error);
-    documentEditordocumentEditorShowNotification()(`Error: ${error.message}`, 'error');
-  });
-}
-// Similarly, update submitReply function
-function submitReply(parentId, content) {
-  const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-  const documentId = document.getElementById('document-id').value;
-
-  const formData = new FormData();
-  formData.append('content', content);
-  formData.append('parent_id', parentId);
-
-  fetch(`/documents/${documentId}/add-comment/`, {
-    method: 'POST',
-    headers: {
-      'X-CSRFToken': csrfToken
-    },
-    body: formData,
-    credentials: 'same-origin'
-  })
-  // Rest of the function remains the same
-
-  .then(response => {
-    if (!response.ok) {
-      throw new Error(`Server error: ${response.status}`);
-    }
-    return response.json();
-  })
-  .then(data => {
-    if (data.success) {
-      // Add reply to UI
-      addReplyToUI(parentId, data.comment);
-
-      // Hide reply form
-      const replyForm = document.getElementById(`reply-form-${parentId}`);
-      replyForm.classList.add('d-none');
-      replyForm.querySelector('textarea').value = '';
-
-      // Update comment count
-      updateCommentCount(1);
-
-      documentEditordocumentEditorShowNotification()('Reply added successfully', 'success');
-    } else {
-      documentEditordocumentEditorShowNotification()(`Error: ${data.error}`, 'error');
-    }
-  })
-  .catch(error => {
-    console.error('Error adding reply:', error);
-    documentEditordocumentEditorShowNotification()(`Error: ${error.message}`, 'error');
-  });
-}
-
-// Resolve a comment
-function resolveComment(commentId) {
-  const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-
-  fetch(`/documents/comments/${commentId}/resolve/`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRFToken': csrfToken
-    },
-    body: JSON.stringify({})
-  })
-  .then(response => {
-    if (!response.ok) {
-      throw new Error(`Server error: ${response.status}`);
-    }
-    return response.json();
-  })
-  .then(data => {
-    if (data.success) {
-      // Update comment UI to show resolved state
-      updateCommentResolved(commentId, data.resolved_by, data.resolved_at);
-      documentEditordocumentEditorShowNotification()('Comment resolved', 'success');
-    } else {
-      documentEditordocumentEditorShowNotification()(`Error: ${data.error}`, 'error');
-    }
-  })
-  .catch(error => {
-    console.error('Error resolving comment:', error);
-    documentEditordocumentEditorShowNotification()(`Error: ${error.message}`, 'error');
-  });
-}
-
-// Show reply form for a comment
-function showReplyForm(commentId) {
-  // Hide all other reply forms first
-  document.querySelectorAll('.reply-form').forEach(form => {
-    form.classList.add('d-none');
-  });
-
-  // Show this reply form
-  const replyForm = document.getElementById(`reply-form-${commentId}`);
-  if (replyForm) {
-    replyForm.classList.remove('d-none');
-    replyForm.querySelector('textarea').focus();
-  }
-}
-
-// Add a new comment to the UI
-function addCommentToUI(comment) {
-  if (!comment) {
-    console.error('No comment data provided to addCommentToUI');
-    return;
-  }
-
-  const commentsContainer = document.getElementById('comments-container');
-  if (!commentsContainer) {
-    console.error('Comments container not found');
-    return;
-  }
-
-  const noCommentsMessage = commentsContainer.querySelector('.text-center.text-muted');
-  if (noCommentsMessage) {
-    commentsContainer.innerHTML = ''; // Remove "No comments yet" message
-  }
-
-  const commentElement = document.createElement('div');
-  commentElement.className = 'comment-item p-3 border-bottom';
-  commentElement.setAttribute('data-comment-id', comment.id);
-
-  const date = new Date(comment.created_at);
-  const formattedDate = date.toLocaleDateString('en-US', {
-    month: 'short', day: 'numeric',
-    hour: 'numeric', minute: '2-digit'
-  });
-
-  const authorName = comment.author && comment.author.name ?
-    comment.author.name : 'Unknown User';
-
-  commentElement.innerHTML = `
-    <div class="d-flex justify-content-between">
-      <div class="comment-author fw-bold">${authorName}</div>
-      <div class="comment-date small text-muted">${formattedDate}</div>
-    </div>
-    <div class="comment-content mt-1">${comment.content}</div>
-    <div class="comment-actions mt-2">
-      <button type="button" class="btn btn-sm btn-outline-success resolve-comment-btn" data-comment-id="${comment.id}">
-        <i class="fas fa-check me-1"></i> Resolve
-      </button>
-      <button type="button" class="btn btn-sm btn-outline-secondary reply-comment-btn" data-comment-id="${comment.id}">
-        <i class="fas fa-reply me-1"></i> Reply
-      </button>
-    </div>
-    <div class="comment-replies mt-3 ms-3 border-start ps-3"></div>
-    <div class="reply-form mt-2 d-none" id="reply-form-${comment.id}">
-      <textarea class="form-control form-control-sm reply-textarea" rows="2" placeholder="Write a reply..."></textarea>
-      <div class="mt-2">
-        <button type="button" class="btn btn-sm btn-primary submit-reply-btn" data-comment-id="${comment.id}">Submit Reply</button>
-        <button type="button" class="btn btn-sm btn-link cancel-reply-btn">Cancel</button>
-      </div>
-    </div>
-  `;
-
-  commentsContainer.insertBefore(commentElement, commentsContainer.firstChild);
-}
-
-// Add a reply to a comment in the UI
-function addReplyToUI(parentId, reply) {
-  const commentElement = document.querySelector(`.comment-item[data-comment-id="${parentId}"]`);
-  if (!commentElement) return;
-
-  const repliesContainer = commentElement.querySelector('.comment-replies');
-  if (!repliesContainer) return;
-
-  const date = new Date(reply.created_at);
-  const formattedDate = date.toLocaleDateString('en-US', {
-    month: 'short', day: 'numeric',
-    hour: 'numeric', minute: '2-digit'
-  });
-
-  const replyElement = document.createElement('div');
-  replyElement.className = 'reply-item mb-2';
-  replyElement.setAttribute('data-reply-id', reply.id);
-
-  replyElement.innerHTML = `
-    <div class="d-flex justify-content-between">
-      <div class="reply-author small fw-bold">${reply.author.name}</div>
-      <div class="reply-date small text-muted">${formattedDate}</div>
-    </div>
-    <div class="reply-content small">${reply.content}</div>
-  `;
-
-  repliesContainer.appendChild(replyElement);
-}
-
-// Update UI to show comment as resolved
-function updateCommentResolved(commentId, resolvedBy, resolvedAt) {
-  const commentElement = document.querySelector(`.comment-item[data-comment-id="${commentId}"]`);
-  if (!commentElement) return;
-
-  const actionsContainer = commentElement.querySelector('.comment-actions');
-  if (!actionsContainer) return;
-
-  const date = new Date(resolvedAt);
-  const formattedDate = date.toLocaleDateString('en-US', {
-    month: 'short', day: 'numeric',
-    hour: 'numeric', minute: '2-digit'
-  });
-
-  // Replace actions with resolved badge
-  const resolvedBadge = document.createElement('div');
-  resolvedBadge.className = 'resolved-badge mt-2';
-  resolvedBadge.innerHTML = `
-    <span class="badge bg-success">Resolved by ${resolvedBy} on ${formattedDate}</span>
-  `;
-
-  actionsContainer.parentNode.replaceChild(resolvedBadge, actionsContainer);
-}
-
-// Update comment count
-function updateCommentCount(change) {
-  const commentCount = document.getElementById('comment-count');
-  if (commentCount) {
-    const currentCount = parseInt(commentCount.textContent) || 0;
-    commentCount.textContent = currentCount + change;
-  }
-}
-
-// Helper function to get text node position info
-function getNodeOffset(node, offset) {
-  // This is a simplified implementation
-  // In a real app, you'd need to calculate the exact position within the document
-  return {
-    node: node.textContent,
-    offset: offset
-  };
-}
-
-// Initialize comment functionality
-document.addEventListener('DOMContentLoaded', function() {
-  // Your existing code...
-
-  // Initialize comment functionality
-  initializeCommentFunctionality();
-});
 </script>
 {% endblock %}
