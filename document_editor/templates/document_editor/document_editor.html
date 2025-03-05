@@ -341,7 +341,8 @@
 
     // Save document function with improved text extraction
     function saveDocument(createVersion = false) {
-  // Create a clean container to extract HTML content
+
+    // Create a clean container to extract HTML content
   const tempContainer = document.createElement('div');
   tempContainer.innerHTML = textEditor.innerHTML;
 
