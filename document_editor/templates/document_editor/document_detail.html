@@ -573,23 +573,29 @@
         </div>
       {% endif %}
 
-      <!-- Document Status -->
-      <div class="row mb-3">
-        <div class="col-md-6">
-            <h6 class="fw-bold">Current Status</h6>
-            <span class="badge bg-{{ document.status|default:'secondary' }} fs-6">
+<!-- Document Status (Fixed) -->
+<div class="row mb-3">
+  <div class="col-md-6">
+      <h6 class="fw-bold">Current Status</h6>
+      {% if document.approval_workflow %}
+          <span class="badge bg-{{ document.approval_workflow.status|default:'secondary' }} fs-6">
               {{ document.approval_workflow.get_status_display }}
-            </span>
-            <p class="text-muted small mt-1">Status is automatically updated by the approval workflow system.</p>
-        </div>
-        <div class="col-md-6">
-            <h6 class="fw-bold">Last Update</h6>
-            <p>{{ document.updated_at|date:"F j, Y, g:i a" }}</p>
-            <p class="text-muted small mt-1">
-                By {{ document.updated_by.get_full_name|default:"System" }}
-            </p>
-        </div>
-    </div>
+          </span>
+      {% else %}
+          <span class="badge bg-{{ document.status|default:'secondary' }} fs-6">
+              {{ document.get_status_display }}
+          </span>
+      {% endif %}
+      <p class="text-muted small mt-1">Status is automatically updated by the approval workflow system.</p>
+  </div>
+  <div class="col-md-6">
+      <h6 class="fw-bold">Last Update</h6>
+      <p>{{ document.updated_at|date:"F j, Y, g:i a" }}</p>
+      <p class="text-muted small mt-1">
+          By {{ document.updated_by.get_full_name|default:"System" }}
+      </p>
+  </div>
+</div>
 
 <!-- Cancel Workflow Confirmation Modal -->
 {% if document.approval_workflow and document.approval_workflow.id and document.approval_workflow.status == 'pending' %}
