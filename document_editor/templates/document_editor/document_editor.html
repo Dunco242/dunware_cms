@@ -445,19 +445,19 @@
         ? `Created new version ${data.version}`
         : 'Document saved successfully';
 
-      documentEditorShowNotification()(successMsg, 'success');
+      showNotification(successMsg, 'success');
 
       if (data.updated_at) {
         saveStatus.innerText = `Last saved: ${new Date(data.updated_at).toLocaleString()}`;
       }
     } else {
       console.error('Error saving document:', data.error);
-      documentEditorShowNotification()('Error saving document: ' + data.error, 'error');
+      showNotification('Error saving document: ' + data.error, 'error');
     }
   })
   .catch(error => {
     console.error('Network or server error:', error);
-    documentEditorShowNotification()('Network or server error: ' + error.message, 'error');
+    showNotification('Network or server error: ' + error.message, 'error');
   });
 }
 
@@ -560,14 +560,14 @@
           ? `Created new version ${data.version}`
           : 'Document saved successfully';
 
-        documentEditorShowNotification()(successMsg, 'success');
+        showNotification(successMsg, 'success');
 
         if (data.updated_at) {
           saveStatus.innerText = `Last saved: ${new Date(data.updated_at).toLocaleString()}`;
         }
       } else {
         console.error('Error saving document:', data.error);
-        documentEditorShowNotification()('Error saving document: ' + data.error, 'error');
+        showNotification('Error saving document: ' + data.error, 'error');
       }
     }
 
@@ -593,7 +593,7 @@
 
       updateActiveUsersUI();
 
-      documentEditorShowNotification()(`${data.user_name} joined the document`, 'info');
+      showNotification(`${data.user_name} joined the document`, 'info');
     }
 
     function handleUserLeft(data) {
@@ -601,11 +601,11 @@
 
       updateActiveUsersUI();
 
-      documentEditorShowNotification()(`${data.user_name} left the document`, 'info');
+      showNotification(`${data.user_name} left the document`, 'info');
     }
 
     function handleDocumentSaved(data) {
-      documentEditorShowNotification()(`${data.user_name} saved the document`, 'info');
+      showNotification(`${data.user_name} saved the document`, 'info');
     }
 
     function updateActiveUsersUI() {
@@ -639,7 +639,7 @@
       return colors[Math.abs(hash) % colors.length];
     }
 
-    function documentEditorShowNotification(message, type = 'info') {
+    function showNotification(message, type = 'info') {
       const notification = document.createElement('div');
       notification.className = `position-fixed bottom-0 end-0 p-3`;
       notification.style.zIndex = 1050;
@@ -732,7 +732,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const commentContent = commentTextarea.value.trim();
         if (!commentContent) {
-          documentEditorShowNotification()('Comment cannot be empty', 'error');
+          showNotification('Comment cannot be empty', 'error');
           return;
         }
 
@@ -765,7 +765,7 @@ document.addEventListener('DOMContentLoaded', function() {
           const replyContent = replyForm.querySelector('.reply-textarea').value.trim();
 
           if (!replyContent) {
-            documentEditorShowNotification()('Reply cannot be empty', 'error');
+            showNotification('Reply cannot be empty', 'error');
             return;
           }
 
@@ -795,7 +795,7 @@ document.addEventListener('DOMContentLoaded', function() {
   // Add this function inside your comment functionality DOMContentLoaded event handler
 function loadExistingComments() {
   // Fetch existing comments from the server
-  fetch(`/document_editor/documents/${documentId}/comments/`, {
+  fetch(`/${documentId}/comments/`, {
     method: 'GET',
     credentials: 'same-origin'
   })
@@ -844,7 +844,7 @@ function loadExistingComments() {
   })
   .catch(error => {
     console.error('Error loading comments:', error);
-    documentEditorShowNotification()(`Error loading comments: ${error.message}`, 'error');
+    showNotification(`Error loading comments: ${error.message}`, 'error');
   });
 }
 
@@ -901,7 +901,7 @@ loadExistingComments();
         // Update comment count
         updateCommentCount(1);
 
-        documentEditorShowNotification()('Comment added successfully', 'success');
+        showNotification('Comment added successfully', 'success');
 
         // Send WebSocket notification if available
         if (typeof socket !== 'undefined' && socket.readyState === WebSocket.OPEN) {
@@ -913,12 +913,12 @@ loadExistingComments();
         }
       } else {
         console.error('Error adding comment:', data.error);
-        documentEditorShowNotification()(`Error: ${data.error}`, 'error');
+        showNotification(`Error: ${data.error}`, 'error');
       }
     })
     .catch(error => {
       console.error('Error adding comment:', error);
-      documentEditorShowNotification()(`Error: ${error.message}`, 'error');
+      showNotification(`Error: ${error.message}`, 'error');
     });
   }
 
@@ -953,7 +953,7 @@ loadExistingComments();
         // Update comment count
         updateCommentCount(1);
 
-        documentEditorShowNotification()('Reply added successfully', 'success');
+        showNotification('Reply added successfully', 'success');
 
         // Send WebSocket notification if available
         if (typeof socket !== 'undefined' && socket.readyState === WebSocket.OPEN) {
@@ -965,12 +965,12 @@ loadExistingComments();
           }));
         }
       } else {
-        documentEditorShowNotification()(`Error: ${data.error}`, 'error');
+        showNotification(`Error: ${data.error}`, 'error');
       }
     })
     .catch(error => {
       console.error('Error adding reply:', error);
-      documentEditorShowNotification()(`Error: ${error.message}`, 'error');
+      showNotification(`Error: ${error.message}`, 'error');
     });
   }
 
@@ -994,7 +994,7 @@ loadExistingComments();
       if (data.success) {
         // Update comment UI to show resolved state
         updateCommentResolved(commentId, data.resolved_by, data.resolved_at);
-        documentEditorShowNotification()('Comment resolved', 'success');
+        showNotification('Comment resolved', 'success');
 
         // Send WebSocket notification if available
         if (typeof socket !== 'undefined' && socket.readyState === WebSocket.OPEN) {
@@ -1004,12 +1004,12 @@ loadExistingComments();
           }));
         }
       } else {
-        documentEditorShowNotification()(`Error: ${data.error}`, 'error');
+        showNotification(`Error: ${data.error}`, 'error');
       }
     })
     .catch(error => {
       console.error('Error resolving comment:', error);
-      documentEditorShowNotification()(`Error: ${error.message}`, 'error');
+      showNotification(`Error: ${error.message}`, 'error');
     });
   }
 
@@ -1050,7 +1050,7 @@ loadExistingComments();
           }
         }
 
-        documentEditorShowNotification()('Comment deleted', 'success');
+        showNotification('Comment deleted', 'success');
 
         // Send WebSocket notification if available
         if (typeof socket !== 'undefined' && socket.readyState === WebSocket.OPEN) {
@@ -1060,12 +1060,12 @@ loadExistingComments();
           }));
         }
       } else {
-        documentEditorShowNotification()(`Error: ${data.error}`, 'error');
+        showNotification(`Error: ${data.error}`, 'error');
       }
     })
     .catch(error => {
       console.error('Error deleting comment:', error);
-      documentEditorShowNotification()(`Error: ${error.message}`, 'error');
+      showNotification(`Error: ${error.message}`, 'error');
     });
   }
 
@@ -1239,14 +1239,14 @@ loadExistingComments();
               addCommentToUI(data.comment);
             }
             updateCommentCount(1);
-            documentEditorShowNotification()(`${data.comment.author.name} added a comment`, 'info');
+            showNotification(`${data.comment.author.name} added a comment`, 'info');
           }
           break;
 
         case 'comment_resolved':
           if (data.comment_id) {
             updateCommentResolved(data.comment_id, data.resolved_by, data.resolved_at);
-            documentEditorShowNotification()('A comment was resolved', 'info');
+            showNotification('A comment was resolved', 'info');
           }
           break;
 
@@ -1266,7 +1266,7 @@ loadExistingComments();
                 `;
               }
 
-              documentEditorShowNotification()('A comment was deleted', 'info');
+              showNotification('A comment was deleted', 'info');
             }
           }
           break;
