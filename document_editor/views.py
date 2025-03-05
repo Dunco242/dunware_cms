@@ -373,7 +373,7 @@ def save_document_content(request, document_id):
                         'success': False,
                         'error': 'You do not have permission to edit this document'
                     }, status=403)
-            except DocumentCollaborator.DoesNotExist:
+            except Exception:
                 return JsonResponse({
                     'success': False,
                     'error': 'You do not have permission to edit this document'
@@ -398,37 +398,43 @@ def save_document_content(request, document_id):
                 'error': f'Invalid JSON content: {str(e)}'
             }, status=400)
 
-        # Extract plain text using a recursion-based approach
-        def extract_text_recursive(node):
-            if isinstance(node, dict):
-                if 'text' in node and node['text'] is not None:
-                    return node['text']
-                if 'children' in node and isinstance(node['children'], list):
-                    return ' '.join(extract_text_recursive(child) for child in node['children'])
-                return ''
-            elif isinstance(node, list):
-                return ' '.join(extract_text_recursive(item) for item in node)
-            return ''
+        # Extract plain text using a direct approach
+        plain_text = ""
 
-        # Extract text from the content
-        plain_text = extract_text_recursive(content)
+        def extract_all_text(obj):
+            nonlocal plain_text
+            if isinstance(obj, dict):
+                # Get text from this node if it exists
+                if 'text' in obj and obj['text']:
+                    plain_text += obj['text'] + " "
+
+                # Process all fields that could contain nested content
+                for key, value in obj.items():
+                    if isinstance(value, (dict, list)):
+                        extract_all_text(value)
+            elif isinstance(obj, list):
+                for item in obj:
+                    extract_all_text(item)
+
+        extract_all_text(content)
 
         # Clean up the plain text
         plain_text = plain_text.strip()
+
         # Normalize whitespace
+        import re
         plain_text = re.sub(r'\s+', ' ', plain_text)
 
-        # Log the extracted plain text for debugging
+        # Log extracted plain text for debugging
         print(f"Extracted plain_text ({len(plain_text)} chars): {plain_text[:100]}...")
 
-        # Update document with content and plain_text using ORM
+        # Update document content and plain_text
         document.content = content
         document.plain_text = plain_text
         document.updated_by = employee
         document.updated_at = timezone.now()
 
         # Create version if requested
-        version = None
         if create_version:
             # Get the next version number
             try:
@@ -450,8 +456,26 @@ def save_document_content(request, document_id):
             if hasattr(document, 'version'):
                 document.version = version
 
-        # Save the document using Django ORM
-        document.save()
+        # Save the document using a direct update to ensure both fields are updated
+        from django.db import connection
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                UPDATE document_editor_document
+                SET content = %s, plain_text = %s, updated_at = %s, updated_by_id = %s
+                WHERE id = %s
+                """,
+                [
+                    json.dumps(content),
+                    plain_text,
+                    timezone.now(),
+                    employee.id,
+                    document.id
+                ]
+            )
+
+        # Refresh from database to ensure we have the latest values
+        document.refresh_from_db()
 
         # Log after save for debugging
         print(f"After save - Document ID: {document.id}")
@@ -479,7 +503,7 @@ def save_document_content(request, document_id):
             'success': True,
             'updated_at': document.updated_at.isoformat(),
             'plain_text_length': len(document.plain_text),
-            'version': version if version else (document.version if hasattr(document, 'version') else 1)
+            'version': version if create_version else document.version
         })
 
     except Exception as e:
