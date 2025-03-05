@@ -578,7 +578,7 @@
         <div class="col-md-6">
             <h6 class="fw-bold">Current Status</h6>
             <span class="badge bg-{{ document.status|default:'secondary' }} fs-6">
-                {{ document.get_status_display }}
+              {{ document.approval_workflow.get_status_display }}
             </span>
             <p class="text-muted small mt-1">Status is automatically updated by the approval workflow system.</p>
         </div>
