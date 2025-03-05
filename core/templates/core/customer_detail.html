@@ -71,6 +71,11 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link" data-bs-toggle="tab" href="#documents">
+                            <i class="fas fa-file-alt"></i> Documents
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" data-bs-toggle="tab" href="#tasks">
                             <i class="fas fa-tasks"></i> Tasks
                         </a>
@@ -134,6 +139,52 @@
                         {% endif %}
                     </div>
 
+                    <!-- Documents Section -->
+                    <div class="tab-pane fade" id="documents">
+                        <div class="d-flex justify-content-end mb-3">
+                            <a href="{% url 'document_editor:create_document' %}?customer={{ customer.id }}" class="btn btn-primary">
+                                <i class="fas fa-plus"></i> Add Document
+                            </a>
+                        </div>
+                        {% if customer.documents.exists %}
+                            <div class="list-group">
+                                {% for document in customer.documents.all %}
+                                    <div class="list-group-item">
+                                        <div class="d-flex w-100 justify-content-between align-items-center">
+                                            <div>
+                                                <h5 class="mb-1">
+                                                    <a href="{% url 'document_editor:document_detail' document.pk %}" class="text-decoration-none">
+                                                        {{ document.title }}
+                                                    </a>
+                                                </h5>
+                                                <p class="mb-1 text-muted">{{ document.plain_text|truncatechars:100 }}</p>
+                                                <small>
+                                                    Created: {{ document.created_at|date:"M d, Y" }} |
+                                                    Author: {{ document.author.get_full_name }}
+                                                </small>
+                                            </div>
+                                            <div class="text-end">
+                                                <span class="badge bg-{{ document.status }} mb-2 d-block">
+                                                    {{ document.get_status_display }}
+                                                </span>
+                                                <a href="{% url 'document_editor:edit_document' document.pk %}" class="btn btn-sm btn-outline-primary">
+                                                    <i class="fas fa-edit"></i> Edit
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <p class="text-center text-muted">No documents found</p>
+                        {% endif %}
+
+                        <div class="text-center mt-3">
+                            <a href="{% url 'document_editor:document_list' %}?customer={{ customer.id }}" class="btn btn-outline-primary">
+                                <i class="fas fa-list"></i> View All Documents
+                            </a>
+                        </div>
+                    </div>
                     <!-- Tasks Section -->
                     <div class="tab-pane fade" id="tasks">
                         <div class="d-flex justify-content-end mb-3">
