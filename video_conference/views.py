@@ -232,3 +232,154 @@ def create_video_meeting(request):
    return render(request, 'video/create_video_meeting.html', {
        'customers': customers
    })
+
+
+# Add these functions to your video_conference/views.py file
+
+@login_required
+def join_meeting_form(request):
+    """
+    View that displays the form to join a meeting by ID
+    """
+    # Get recent meetings if user is logged in
+    recent_meetings = None
+    if request.user.is_authenticated:
+        recent_meetings = VideoConference.objects.filter(
+            host_user=request.user,
+            is_active=True
+        ).order_by('-created_at')[:5]
+
+    if request.method == 'POST':
+        meeting_id = request.POST.get('meeting_id', '').strip()
+        display_name = request.POST.get('display_name', '').strip()
+
+        if not meeting_id:
+            return render(request, 'video/join_meeting.html', {
+                'error': 'Meeting ID is required',
+                'recent_meetings': recent_meetings
+            })
+
+        if not display_name:
+            display_name = request.user.get_full_name() or request.user.username
+
+        # Store display name in session
+        request.session['meeting_display_name'] = display_name
+
+        # Check if the provided ID is a UUID
+        try:
+            import uuid
+            # If it's a valid UUID, use it directly
+            meeting_uuid = uuid.UUID(meeting_id)
+
+            # Redirect to the meeting room
+            return redirect('video_meetings:join_meeting_room', meeting_id=meeting_uuid)
+        except ValueError:
+            # Not a valid UUID format
+            try:
+                # Check if it's a channel name
+                conference = VideoConference.objects.get(channel_name=meeting_id)
+                return redirect('video_meetings:join_meeting_room', meeting_id=conference.id)
+            except VideoConference.DoesNotExist:
+                return render(request, 'video/join_meeting.html', {
+                    'error': 'Invalid meeting ID. Please check and try again.',
+                    'recent_meetings': recent_meetings
+                })
+
+    return render(request, 'video/join_meeting.html', {
+        'recent_meetings': recent_meetings
+    })
+
+# Update your join_meeting_room view to use the display name from session if available
+
+def join_meeting_room(request, meeting_id):
+    """Handle a user joining a meeting via a unique link"""
+    # Get the conference
+    conference = get_object_or_404(VideoConference, id=meeting_id)
+
+    # Override is_expired for immediate meetings
+    # This prevents newly created meetings from showing as expired
+    if conference.created_at > timezone.now() - datetime.timedelta(minutes=5):
+        is_expired = False
+    else:
+        is_expired = conference.is_expired()
+
+    # Check if conference is active/valid
+    if is_expired:
+        return render(request, 'video/meeting_ended.html', {'meeting': conference})
+
+    # Check for passcode if required
+    if conference.passcode and request.method == 'GET':
+        return render(request, 'video/meeting_passcode.html', {'meeting': conference})
+
+    if conference.passcode and request.method == 'POST':
+        entered_passcode = request.POST.get('passcode', '')
+        if entered_passcode != conference.passcode:
+            return render(request, 'video/meeting_passcode.html', {
+                'meeting': conference,
+                'error': 'Invalid passcode. Please try again.'
+            })
+
+    # Generate a unique ID for the user
+    uid = random.randint(1, 2**32 - 1)
+
+    # Get user info
+    is_host = False
+    display_name = request.session.get('meeting_display_name', "Guest")
+    customer_name = None
+
+    if request.user.is_authenticated:
+        try:
+            employee = request.user.employee_profile
+            if not display_name or display_name == "Guest":
+                display_name = employee.get_full_name() or request.user.username
+        except Employee.DoesNotExist:
+            if not display_name or display_name == "Guest":
+                display_name = request.user.get_full_name() or request.user.username
+
+        is_host = (conference.host_user == request.user)
+    else:
+        # For unauthenticated users (guests)
+        display_name = request.POST.get('display_name', f"Guest-{uid}")
+
+    # Get customer name if stored in session
+    customer_name = request.session.get('meeting_customer_name')
+
+    # Get meeting title from session or extract from channel name
+    meeting_title = request.session.get('meeting_title')
+    if not meeting_title:
+        # Try to extract a readable title from the channel name
+        parts = conference.channel_name.split('_')
+        if len(parts) > 0:
+            meeting_title = parts[0].capitalize()
+        else:
+            meeting_title = "Video Meeting"
+
+    # If we have a customer, use that in the title
+    if customer_name:
+        meeting_title = f"Meeting with {customer_name}"
+
+    # Format meeting date for display
+    if conference.scheduled_for:
+        meeting_date = conference.scheduled_for.strftime("%A, %B %d, %Y")
+    else:
+        meeting_date = timezone.now().strftime("%A, %B %d, %Y")
+
+    # Generate Agora token
+    token = generate_agora_token(conference.channel_name, uid)
+
+    context = {
+        'app_id': settings.AGORA_APP_ID,
+        'channel_name': conference.channel_name,
+        'token': token,
+        'uid': uid,
+        'display_name': display_name,
+        'customer_name': customer_name,
+        'is_host': is_host,
+        'meeting': conference,
+        'meeting_title': meeting_title,
+        'meeting_date': meeting_date,
+        'passcode': conference.passcode if is_host else None,
+        'leave_url': request.build_absolute_uri('/') if not is_host else request.build_absolute_uri('/meetings/')
+    }
+
+    return render(request, 'video/meeting_room.html', context)

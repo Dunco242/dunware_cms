@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+
+{% block title %}Join Video Meeting{% endblock %}
+
+{% block extra_css %}
+<style>
+    .join-meeting-card {
+        max-width: 500px;
+        margin: 50px auto;
+        border-radius: 10px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    }
+
+    .card-header {
+        background-color: #f8f9fa;
+        border-bottom: 1px solid #e9ecef;
+        padding: 15px 20px;
+    }
+
+    .form-control {
+        padding: 10px 15px;
+        border-radius: 5px;
+        border: 1px solid #ced4da;
+        margin-bottom: 15px;
+    }
+
+    .btn-primary {
+        padding: 10px 20px;
+    }
+
+    .recent-meetings {
+        margin-top: 30px;
+    }
+
+    .recent-meetings-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    .recent-meetings-list li {
+        padding: 8px 0;
+        border-bottom: 1px solid #eee;
+    }
+
+    .recent-meetings-list li:last-child {
+        border-bottom: none;
+    }
+
+    .recent-meetings-list a {
+        display: block;
+        padding: 5px 0;
+        text-decoration: none;
+        color: #0d6efd;
+    }
+
+    .recent-meetings-list a:hover {
+        text-decoration: underline;
+    }
+
+    .meeting-info {
+        color: #6c757d;
+        font-size: 0.875rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="join-meeting-card card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0"><i class="fas fa-video me-2"></i>Join a Video Meeting</h5>
+                </div>
+                <div class="card-body">
+                    {% if error %}
+                    <div class="alert alert-danger">
+                        {{ error }}
+                    </div>
+                    {% endif %}
+
+                    <form method="POST" action="{% url 'video_meetings:join_meeting_form' %}">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label for="meeting_id" class="form-label">Meeting ID or URL</label>
+                            <input type="text" class="form-control" id="meeting_id" name="meeting_id"
+                                   placeholder="Enter meeting ID or full meeting URL" required>
+                            <div class="form-text">
+                                Enter the meeting ID or the full meeting URL
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="display_name" class="form-label">Your Name</label>
+                            <input type="text" class="form-control" id="display_name" name="display_name"
+                                   placeholder="Enter your name" value="{{ request.user.get_full_name|default:request.user.username }}" required>
+                        </div>
+
+                        <div class="text-end">
+                            <a href="{% url 'dashboard' %}" class="btn btn-secondary me-2">
+                                <i class="fas fa-times"></i> Cancel
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-sign-in-alt me-2"></i>Join Meeting
+                            </button>
+                        </div>
+                    </form>
+
+                    <div class="mt-4 text-center">
+                        <span class="separator">OR</span>
+                    </div>
+
+                    <div class="mt-4 text-center">
+                        <a href="{% url 'video_meetings:create_video_meeting' %}" class="btn btn-success">
+                            <i class="fas fa-plus-circle me-2"></i>Create New Meeting
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            {% if recent_meetings %}
+            <div class="recent-meetings join-meeting-card card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0"><i class="fas fa-history me-2"></i>Recent Meetings</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="recent-meetings-list">
+                        {% for meeting in recent_meetings %}
+                        <li>
+                            <a href="{% url 'video_meetings:join_meeting_room' meeting_id=meeting.id %}">
+                                {{ meeting.channel_name|title }}
+                                <div class="meeting-info">
+                                    <i class="fas fa-calendar-alt me-1"></i> {{ meeting.created_at|date:"F j, Y" }}
+                                    <i class="fas fa-clock ms-2 me-1"></i> {{ meeting.created_at|time:"g:i A" }}
+                                </div>
+                            </a>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const meetingIdInput = document.getElementById('meeting_id');
+
+        // Extract meeting ID from pasted URL
+        meetingIdInput.addEventListener('input', function(e) {
+            const value = e.target.value;
+
+            // Check if this is a URL with a meeting ID
+            if (value.includes('/meetings/join/') || value.includes('/video-meetings/join/')) {
+                try {
+                    // Extract the UUID from the URL
+                    const urlParts = value.split('/');
+                    // Find the part after "join"
+                    for (let i = 0; i < urlParts.length; i++) {
+                        if (urlParts[i] === 'join' && i + 1 < urlParts.length) {
+                            // This should be the meeting ID - extract it
+                            const meetingId = urlParts[i + 1];
+                            if (meetingId && meetingId.length > 10) {
+                                // Looks like a UUID, replace the full URL with just the ID
+                                e.target.value = meetingId;
+                                break;
+                            }
+                        }
+                    }
+                } catch (err) {
+                    console.error("Error parsing meeting URL", err);
+                    // Keep the original value if we can't parse it
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}
