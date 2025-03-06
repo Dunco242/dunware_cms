@@ -338,12 +338,18 @@
             <h3>Share Meeting Invitation</h3>
             <p>Share this link with people you want to invite:</p>
             <div class="invite-url">
-                <input type="text" id="invite-url" readonly value="{{ request.build_absolute_uri }}">
+                <input type="text" id="invite-url" readonly>
                 <button id="copy-url">Copy</button>
             </div>
             {% if passcode %}
             <p>Meeting passcode: <strong>{{ passcode }}</strong></p>
             {% endif %}
+            <div class="mt-3">
+                <p>Send this information to your customer to join the meeting.</p>
+                <button id="email-link" class="btn btn-outline-primary mt-2">
+                    <i class="fas fa-envelope me-2"></i>Send via Email
+                </button>
+            </div>
         </div>
     </div>
     {% endif %}
@@ -388,29 +394,84 @@
         const closeModal = document.querySelector('.close');
         const copyUrlBtn = document.getElementById('copy-url');
         const inviteUrl = document.getElementById('invite-url');
+        const emailLinkBtn = document.getElementById('email-link');
 
-        shareBtn.onclick = function() {
+        // Generate the shareable meeting link
+        function generateMeetingLink() {
+            // Get the current URL but ensure it points to the join endpoint
+            const baseUrl = window.location.origin;
+            return `${baseUrl}/meetings/join/{{ meeting.id }}/`;
+        }
+
+        shareBtn.addEventListener('click', function() {
+            // Set the invite URL field with the current meeting link
+            inviteUrl.value = generateMeetingLink();
             shareModal.style.display = "block";
-        }
+        });
 
-        closeModal.onclick = function() {
+        closeModal.addEventListener('click', function() {
             shareModal.style.display = "none";
-        }
+        });
 
-        window.onclick = function(event) {
+        window.addEventListener('click', function(event) {
             if (event.target == shareModal) {
                 shareModal.style.display = "none";
             }
-        }
+        });
 
-        copyUrlBtn.onclick = function() {
+        copyUrlBtn.addEventListener('click', function() {
             inviteUrl.select();
-            document.execCommand("copy");
-            copyUrlBtn.innerText = "Copied!";
-            setTimeout(() => {
-                copyUrlBtn.innerText = "Copy";
-            }, 2000);
-        }
+
+            // Use modern clipboard API if available
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(inviteUrl.value)
+                    .then(function() {
+                        copyUrlBtn.innerText = "Copied!";
+                        setTimeout(function() {
+                            copyUrlBtn.innerText = "Copy";
+                        }, 2000);
+                    })
+                    .catch(function(err) {
+                        console.error('Clipboard error:', err);
+                        // Fallback to older method
+                        document.execCommand("copy");
+                        copyUrlBtn.innerText = "Copied!";
+                        setTimeout(function() {
+                            copyUrlBtn.innerText = "Copy";
+                        }, 2000);
+                    });
+            } else {
+                // Fallback for older browsers
+                document.execCommand("copy");
+                copyUrlBtn.innerText = "Copied!";
+                setTimeout(function() {
+                    copyUrlBtn.innerText = "Copy";
+                }, 2000);
+            }
+        });
+
+        // Handle email link button
+        emailLinkBtn.addEventListener('click', function() {
+            const meetingLink = inviteUrl.value;
+            const subject = encodeURIComponent(`Join me in a video meeting - ${DISPLAY_NAME}`);
+
+            let body = encodeURIComponent(`Hello,
+
+I've invited you to join a video meeting on DunWare CRM.
+
+Meeting link: ${meetingLink}`);
+
+            {% if passcode %}
+            body = encodeURIComponent(`Hello,
+
+I've invited you to join a video meeting on DunWare CRM.
+
+Meeting link: ${meetingLink}
+Passcode: {{ passcode }}`);
+            {% endif %}
+
+            window.open(`mailto:?subject=${subject}&body=${body}`);
+        });
         {% endif %}
 
         // Update meeting duration timer
@@ -542,7 +603,7 @@
         }
 
         // Toggle microphone
-        micBtn.addEventListener('click', async () => {
+        micBtn.addEventListener('click', async function() {
             if (localTracks[0].muted) {
                 await localTracks[0].setMuted(false);
                 micBtn.innerHTML = '<i class="fas fa-microphone"></i>';
@@ -555,7 +616,7 @@
         });
 
         // Toggle camera
-        cameraBtn.addEventListener('click', async () => {
+        cameraBtn.addEventListener('click', async function() {
             if (localTracks[1].muted) {
                 await localTracks[1].setMuted(false);
                 cameraBtn.innerHTML = '<i class="fas fa-video"></i>';
@@ -568,7 +629,7 @@
         });
 
         // Leave meeting
-        leaveBtn.addEventListener('click', async () => {
+        leaveBtn.addEventListener('click', async function() {
             // Confirm before leaving
             if (confirm('Are you sure you want to leave this meeting?')) {
                 // Stop the meeting timer
@@ -589,14 +650,16 @@
         });
 
         // Handle page reload/close
-        window.addEventListener('beforeunload', async (e) => {
+        window.addEventListener('beforeunload', async function(e) {
             e.preventDefault();
             e.returnValue = '';
 
             // Cleanup resources
             for (let track of localTracks) {
-                track.stop();
-                track.close();
+                if (track) {
+                    track.stop();
+                    track.close();
+                }
             }
 
             await client.leave();
