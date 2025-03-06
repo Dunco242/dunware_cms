@@ -1,6 +1,8 @@
 from django.urls import path
 from . import views
 
+namespace = 'video_meetings'
+
 urlpatterns = [
     path('join/<uuid:meeting_id>/', views.join_meeting_room, name='join_meeting_room'),
     path('link/<uuid:meeting_id>/', views.create_meeting_link, name='create_meeting_link'),

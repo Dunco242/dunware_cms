@@ -14,7 +14,7 @@ urlpatterns = [
     path('', include('core.urls')),
     path('customer-projects/', include('customer_projects.urls', namespace="customer_projects")),
     path('documents/', include('document_editor.urls', namespace='document_editor')),
-    path('meetings/', include('video_conference.urls')),
+    path('meetings/', include('video_conference.urls', namespace='video_meetings')),
 
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
