@@ -207,12 +207,12 @@ def create_video_meeting(request):
 
         except Exception as e:
             # Handle any errors
-            return render(request, 'video/create_meeting.html', {
+            return render(request, 'video/create_video_meeting.html', {
                 'customers': customers,
                 'error': f'Error creating meeting: {str(e)}'
             })
 
     # Display the form
-    return render(request, 'video/create_meeting.html', {
+    return render(request, 'video/create_video_meeting.html', {
         'customers': customers
     })
