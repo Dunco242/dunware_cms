@@ -72,7 +72,11 @@ from .views import (
     compose_email,
     SentMailView,
     DeletedMailView,
-    EmailThreadView
+    EmailThreadView,
+
+    # Notification
+    notifications_list, mark_notification_read,
+    mark_all_read, dismiss_notification, get_notifications_json
 )
 
 urlpatterns = [
@@ -246,6 +250,14 @@ urlpatterns = [
     path('email-accounts/<int:pk>/delete/', email_account_delete, name='email_account_delete'),
 
     path('email/activate/', activate_email_account, name='activate_email_account'),
+
+
+    #Notification URLs
+    path('notifications/', notifications_list, name='notifications_list'),
+    path('notifications/json/', get_notifications_json, name='get_notifications_json'),
+    path('notifications/<int:notification_id>/read/', mark_notification_read, name='mark_notification_read'),
+    path('notifications/mark-all-read/', mark_all_read, name='mark_all_read'),
+    path('notifications/<int:notification_id>/dismiss/', dismiss_notification, name='dismiss_notification'),
 
     # Debugging URLs
     path('websocket-test/', views.websocket_test, name='websocket_test'),

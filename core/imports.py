@@ -120,7 +120,8 @@ from .models import (
     EmailFolder,
     EmailFolderMessage,
     EmailTracker,
-    EmailProvider
+    EmailProvider,
+    GeneralNotifier
 )
 
 from customer_projects.models import (

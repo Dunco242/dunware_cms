@@ -1,0 +1,73 @@
+{% comment %}
+    Add this as a template include: core/templates/includes/notification_item.html
+{% endcomment %}
+
+<div class="notification-item border-bottom {% if urgency_class == 'immediate' %}pulse{% endif %}"
+     data-notification-id="{{ notification.id }}"
+     data-notification-type="{{ notification.notification_type }}">
+    <a href="{{ notification.action_url }}" class="text-decoration-none text-dark">
+        <div class="d-flex p-2">
+            {% if notification.notification_type == 'meeting' %}
+                <div class="notification-icon bg-primary text-white rounded-circle p-2 me-2">
+                    <i class="fas fa-video"></i>
+                </div>
+            {% elif notification.notification_type == 'task' %}
+                <div class="notification-icon bg-success text-white rounded-circle p-2 me-2">
+                    <i class="fas fa-tasks"></i>
+                </div>
+            {% elif notification.notification_type == 'event' %}
+                <div class="notification-icon bg-info text-white rounded-circle p-2 me-2">
+                    <i class="fas fa-calendar-alt"></i>
+                </div>
+            {% elif notification.notification_type == 'document' %}
+                <div class="notification-icon bg-secondary text-white rounded-circle p-2 me-2">
+                    <i class="fas fa-file-alt"></i>
+                </div>
+            {% elif notification.notification_type == 'video_conference' %}
+                <div class="notification-icon bg-danger text-white rounded-circle p-2 me-2">
+                    <i class="fas fa-video"></i>
+                </div>
+            {% elif notification.notification_type == 'deadline' %}
+                <div class="notification-icon bg-warning text-dark rounded-circle p-2 me-2">
+                    <i class="fas fa-clock"></i>
+                </div>
+            {% else %}
+                <div class="notification-icon bg-dark text-white rounded-circle p-2 me-2">
+                    <i class="fas fa-bell"></i>
+                </div>
+            {% endif %}
+
+            <div class="notification-content">
+                <div class="notification-title fw-bold">{{ notification.title }}</div>
+                <div class="notification-message small text-muted">{{ notification.message }}</div>
+                <div class="notification-meta mt-1">
+                    <small class="text-muted">
+                        {% if notification.event_datetime > now %}
+                            {% if notification.time_until_event <= 5 %}
+                                <span class="text-danger"><i class="fas fa-exclamation-circle"></i> In less than 5 minutes</span>
+                            {% elif notification.time_until_event <= 30 %}
+                                <span class="text-warning"><i class="fas fa-exclamation-triangle"></i> In less than 30 minutes</span>
+                            {% elif notification.time_until_event <= 60 %}
+                                <span class="text-primary"><i class="fas fa-clock"></i> In less than an hour</span>
+                            {% elif notification.time_until_event <= 1440 %}
+                                <span><i class="fas fa-clock"></i> Today at {{ notification.event_datetime|time:"g:i A" }}</span>
+                            {% else %}
+                                <span><i class="fas fa-calendar"></i> {{ notification.event_datetime|date:"M d, g:i A" }}</span>
+                            {% endif %}
+                        {% else %}
+                            <span class="text-danger"><i class="fas fa-exclamation-circle"></i> Now</span>
+                        {% endif %}
+                    </small>
+                </div>
+            </div>
+        </div>
+    </a>
+    <div class="notification-actions position-absolute top-0 end-0 p-1">
+        <form action="{% url 'mark_notification_read' notification.id %}" method="POST" class="d-inline">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-link text-muted p-1">
+                <i class="fas fa-check"></i>
+            </button>
+        </form>
+    </div>
+</div>

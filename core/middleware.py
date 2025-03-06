@@ -3,7 +3,7 @@ from django.shortcuts import redirect
 from django.utils import timezone
 from django.core.cache import cache
 from django.conf import settings
-from .models import IPAccess, PrivacyPolicyAcceptance, LegalDocument
+from .models import IPAccess, PrivacyPolicyAcceptance, LegalDocument, GeneralNotifier
 import logging
 from functools import lru_cache
 
@@ -76,3 +76,74 @@ class PrivacyPolicyMiddleware:
                     return redirect('privacy_policy')
 
         return self.get_response(request)
+
+class NotificationMiddleware:
+    """
+    Middleware to process notifications for each request
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        """
+        Process notifications before view execution
+        """
+        if request.user.is_authenticated:
+            # Add notifications to the request context
+            active_notifications = self.get_active_notifications(request.user)
+            request.notifications = active_notifications
+
+            # Add notification counts to the request context
+            request.notification_counts = {
+                'total': active_notifications.count(),
+                'upcoming': self.get_upcoming_notifications_count(request.user),
+                'urgent': self.get_urgent_notifications_count(request.user),
+            }
+
+        # Process the request and get the response
+        response = self.get_response(request)
+        return response
+
+    def get_active_notifications(self, user):
+        """
+        Get active notifications for a user
+        """
+        return GeneralNotifier.objects.filter(
+            user=user,
+            is_read=False,
+            is_dismissed=False
+        ).order_by('event_datetime')
+
+    def get_upcoming_notifications_count(self, user):
+        """
+        Get count of upcoming notifications (events in the next 24 hours)
+        """
+        now = timezone.now()
+        tomorrow = now + timezone.timedelta(days=1)
+
+        return GeneralNotifier.objects.filter(
+            user=user,
+            is_read=False,
+            is_dismissed=False,
+            event_datetime__gt=now,
+            event_datetime__lt=tomorrow
+        ).count()
+
+    def get_urgent_notifications_count(self, user):
+        """
+        Get count of urgent notifications (high priority or very soon)
+        """
+        now = timezone.now()
+        soon = now + timezone.timedelta(minutes=30)
+
+        return GeneralNotifier.objects.filter(
+            user=user,
+            is_read=False,
+            is_dismissed=False
+        ).filter(
+            # High priority items
+            (priority='high') |
+            # Items happening very soon
+            (event_datetime__gt=now, event_datetime__lt=soon)
+        ).count()

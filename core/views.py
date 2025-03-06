@@ -4362,3 +4362,146 @@ def leave_chat(request, session_id):
             "success": False,
             "error": f"An error occurred: {str(e)}"
         })
+
+
+@login_required
+def notifications_list(request):
+    """
+    View for displaying all notifications
+    """
+    # Get notifications for the current user
+    notifications = GeneralNotifier.objects.filter(
+        user=request.user
+    ).order_by('-event_datetime')
+
+    # Group by read status
+    unread_notifications = notifications.filter(is_read=False, is_dismissed=False)
+    read_notifications = notifications.filter(is_read=True, is_dismissed=False)
+    dismissed_notifications = notifications.filter(is_dismissed=True)
+
+    return render(request, 'core/notifications_list.html', {
+        'unread_notifications': unread_notifications,
+        'read_notifications': read_notifications,
+        'dismissed_notifications': dismissed_notifications
+    })
+
+@login_required
+@require_POST
+def mark_notification_read(request, notification_id):
+    """
+    Mark a single notification as read
+    """
+    notification = get_object_or_404(GeneralNotifier, id=notification_id, user=request.user)
+    notification.mark_as_read()
+
+    if request.is_ajax():
+        return JsonResponse({'status': 'success'})
+
+    return redirect('notifications_list')
+
+@login_required
+@require_POST
+def mark_all_read(request):
+    """
+    Mark all notifications as read
+    """
+    GeneralNotifier.objects.filter(
+        user=request.user,
+        is_read=False
+    ).update(
+        is_read=True,
+        read_at=timezone.now()
+    )
+
+    if request.is_ajax():
+        return JsonResponse({'status': 'success'})
+
+    return redirect('notifications_list')
+
+@login_required
+@require_POST
+def dismiss_notification(request, notification_id):
+    """
+    Dismiss a notification
+    """
+    notification = get_object_or_404(GeneralNotifier, id=notification_id, user=request.user)
+    notification.dismiss()
+
+    if request.is_ajax():
+        return JsonResponse({'status': 'success'})
+
+    return redirect('notifications_list')
+
+@login_required
+def get_notifications_json(request):
+    """
+    Get notifications as JSON for AJAX updates
+    """
+    unread_notifications = GeneralNotifier.objects.filter(
+        user=request.user,
+        is_read=False,
+        is_dismissed=False
+    ).order_by('event_datetime')
+
+    # Convert notifications to JSON-serializable format
+    notifications_data = []
+    for notification in unread_notifications:
+        # Calculate time left until event
+        time_left = None
+        urgency_class = ''
+
+        if notification.event_datetime > timezone.now():
+            delta = notification.event_datetime - timezone.now()
+            minutes = delta.total_seconds() / 60
+
+            if minutes <= 5:
+                time_left = "In less than 5 minutes"
+                urgency_class = 'immediate'
+            elif minutes <= 30:
+                time_left = "In less than 30 minutes"
+                urgency_class = 'very-soon'
+            elif minutes <= 60:
+                time_left = "In less than an hour"
+                urgency_class = 'soon'
+            elif minutes <= 1440:  # 24 hours
+                hours = round(minutes / 60)
+                time_left = f"In about {hours} hour{'s' if hours != 1 else ''}"
+                urgency_class = 'today'
+            else:
+                days = round(minutes / 1440)
+                time_left = f"In about {days} day{'s' if days != 1 else ''}"
+                urgency_class = 'upcoming'
+        else:
+            time_left = "Now"
+            urgency_class = 'immediate'
+
+        notifications_data.append({
+            'id': notification.id,
+            'title': notification.title,
+            'message': notification.message,
+            'type': notification.notification_type,
+            'priority': notification.priority,
+            'time_left': time_left,
+            'urgency_class': urgency_class,
+            'action_url': notification.action_url
+        })
+
+    # Calculate notification counts by type and urgency
+    notification_counts = {
+        'total': unread_notifications.count(),
+        'meeting': unread_notifications.filter(notification_type='meeting').count(),
+        'task': unread_notifications.filter(notification_type='task').count(),
+        'event': unread_notifications.filter(notification_type='event').count(),
+        'document': unread_notifications.filter(notification_type='document').count(),
+        'video_conference': unread_notifications.filter(notification_type='video_conference').count(),
+        'deadline': unread_notifications.filter(notification_type='deadline').count(),
+        'other': unread_notifications.filter(notification_type='other').count(),
+        'immediate': sum(1 for n in notifications_data if n['urgency_class'] == 'immediate'),
+        'very_soon': sum(1 for n in notifications_data if n['urgency_class'] == 'very-soon'),
+        'soon': sum(1 for n in notifications_data if n['urgency_class'] == 'soon'),
+    }
+
+    return JsonResponse({
+        'notifications': notifications_data,
+        'counts': notification_counts
+    })

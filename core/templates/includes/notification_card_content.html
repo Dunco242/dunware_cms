@@ -1,0 +1,96 @@
+{% comment %}
+    Add this as a template include: core/templates/includes/notification_card_content.html
+{% endcomment %}
+
+<div class="card-body">
+    <div class="d-flex align-items-start">
+        <!-- Icon based on notification type -->
+        {% if notification.notification_type == 'meeting' %}
+            <div class="rounded-circle bg-primary p-3 text-white me-3">
+                <i class="fas fa-video"></i>
+            </div>
+        {% elif notification.notification_type == 'task' %}
+            <div class="rounded-circle bg-success p-3 text-white me-3">
+                <i class="fas fa-tasks"></i>
+            </div>
+        {% elif notification.notification_type == 'event' %}
+            <div class="rounded-circle bg-info p-3 text-white me-3">
+                <i class="fas fa-calendar-alt"></i>
+            </div>
+        {% elif notification.notification_type == 'document' %}
+            <div class="rounded-circle bg-secondary p-3 text-white me-3">
+                <i class="fas fa-file-alt"></i>
+            </div>
+        {% elif notification.notification_type == 'video_conference' %}
+            <div class="rounded-circle bg-danger p-3 text-white me-3">
+                <i class="fas fa-video"></i>
+            </div>
+        {% elif notification.notification_type == 'deadline' %}
+            <div class="rounded-circle bg-warning p-3 text-dark me-3">
+                <i class="fas fa-clock"></i>
+            </div>
+        {% else %}
+            <div class="rounded-circle bg-dark p-3 text-white me-3">
+                <i class="fas fa-bell"></i>
+            </div>
+        {% endif %}
+
+        <div class="flex-grow-1">
+            <h5 class="card-title">{{ notification.title }}</h5>
+            <p class="card-text">{{ notification.message }}</p>
+
+            <div class="d-flex justify-content-between align-items-center mt-3">
+                <!-- Time indicator -->
+                <div>
+                    {% if notification.event_datetime > now %}
+                        {% if notification.time_until_event <= 5 %}
+                            <span class="badge bg-danger"><i class="fas fa-exclamation-circle"></i> In less than 5 minutes</span>
+                        {% elif notification.time_until_event <= 30 %}
+                            <span class="badge bg-warning text-dark"><i class="fas fa-exclamation-triangle"></i> In less than 30 minutes</span>
+                        {% elif notification.time_until_event <= 60 %}
+                            <span class="badge bg-primary"><i class="fas fa-clock"></i> In less than an hour</span>
+                        {% elif notification.time_until_event <= 1440 %}
+                            <span class="badge bg-info"><i class="fas fa-clock"></i> Today at {{ notification.event_datetime|time:"g:i A" }}</span>
+                        {% else %}
+                            <span class="badge bg-secondary"><i class="fas fa-calendar"></i> {{ notification.event_datetime|date:"M d, g:i A" }}</span>
+                        {% endif %}
+                    {% else %}
+                        <span class="badge bg-danger"><i class="fas fa-exclamation-circle"></i> Now</span>
+                    {% endif %}
+
+                    <!-- Priority indicator -->
+                    {% if notification.priority == 'high' %}
+                        <span class="badge bg-danger ms-1">High Priority</span>
+                    {% elif notification.priority == 'urgent' %}
+                        <span class="badge bg-danger ms-1">Urgent</span>
+                    {% endif %}
+                </div>
+
+                <!-- Action buttons -->
+                <div>
+                    {% if notification.action_url and not is_dismissed %}
+                        <a href="{{ notification.action_url }}" class="btn btn-sm btn-primary">View</a>
+                    {% endif %}
+
+                    {% if not is_dismissed and not notification.is_read %}
+                        <form action="{% url 'mark_notification_read' notification.id %}" method="POST" class="d-inline">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-outline-secondary">
+                                Mark as read
+                            </button>
+                        </form>
+                    {% endif %}
+
+                    {% if not is_dismissed %}
+                        <form action="{% url 'dismiss_notification' notification.id %}" method="POST" class="d-inline">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-outline-secondary">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </form>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

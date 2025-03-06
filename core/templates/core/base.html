@@ -34,6 +34,56 @@
             transform: translate(25%, -25%);
             font-size: 0.6rem;
         }
+
+        /* Notification dropdown styles */
+        .notification-dropdown {
+            width: 350px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .notification-item {
+            position: relative;
+            transition: all 0.2s ease;
+        }
+
+        .notification-item:hover {
+            background-color: rgba(0, 0, 0, 0.05);
+        }
+
+        .notification-icon {
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .notification-actions {
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+
+        .notification-item:hover .notification-actions {
+            opacity: 1;
+        }
+
+        /* Item highlight styles */
+        .nav-item.pulse a {
+            position: relative;
+            z-index: 1;
+        }
+
+        .nav-item.pulse::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            border-radius: 4px;
+            z-index: 0;
+        }
     </style>
 </head>
 <body>
@@ -83,12 +133,12 @@
                            href="{% url 'meeting-list' %}">
                             <i class="fas fa-video"></i> Meetings
                         </a>
-                        <li class="nav-item">
-                            <a class="nav-link {% if 'video-meetings' in request.resolver_match.url_name %}active{% endif %}"
-                               href="{% url 'video_meetings:create_video_meeting' %}">
-                                <i class="fas fa-video"></i> Video Meetings
-                            </a>
-                        </li>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if 'video-meetings' in request.resolver_match.url_name %}active{% endif %}"
+                           href="{% url 'video_meetings:create_video_meeting' %}">
+                           <i class="fas fa-video"></i> Video Meetings
+                        </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link {% if 'calendar' in request.resolver_match.url_name %}active{% endif %}"
@@ -103,14 +153,10 @@
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {% if 'billing' in request.resolver_match.url_name %}active{% endif %}" href="#" id="billingDropdown" role="button" data-bs-toggle="dropdown">Billing</a>
-                        <ul class="dropdown-menu" aria-labelledby="billingDropdown">
-                            <li><a class="dropdown-item" href="{% url 'integrated-billing-dashboard' %}"><i class="fa-solid fa-calculator"></i>Billing Dashboard</a></li>
-                            <!-- <li><a class="dropdown-item" href="{% url 'invoice-list' %}">All Invoices</a></li>
-                            <li><a class="dropdown-item" href="{% url 'payment-list' %}">Payments</a></li>
-                            <li><a class="dropdown-item" href="{% url 'subscription-list' %}">Subscriptions</a></li>
-                            <li><a class="dropdown-item" href="{% url 'paid-invoices' %}">Paid Invoices</a></li> -->
-                        </ul>
+                        <a class="nav-link {% if 'billing' in request.resolver_match.url_name %}active{% endif %}"
+                           href="{% url 'integrated-billing-dashboard' %}">
+                            <i class="fas fa-calculator"></i> Billing
+                        </a>
                     </li>
                     <!-- 🆕 Add Payments Tab -->
                     <li class="nav-item">
@@ -120,7 +166,8 @@
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{% url 'customer_projects:project-list' %}"><i class="fa-solid fa-file"></i>Projects
+                        <a class="nav-link" href="{% url 'customer_projects:project-list' %}">
+                            <i class="fas fa-file"></i> Projects
                         </a>
                     </li>
                     <li class="nav-item">
@@ -140,29 +187,127 @@
                     </li>
                 </ul>
 
+                <ul class="navbar-nav ms-auto">
+                    <!-- Notification Dropdown -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle position-relative" href="#" id="notificationDropdown"
+                           role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-bell"></i>
 
-                    <ul class="navbar-nav ms-auto">
-                        <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown"
-                               role="button" data-bs-toggle="dropdown">
-                                <i class="fas fa-user-circle"></i>
-                                {{ user.get_full_name|default:user.username }}
-                            </a>
-                            <ul class="dropdown-menu dropdown-menu-end">
-                                <li>
-                                    <a class="dropdown-item" href="{% url 'profile' %}">
-                                        <i class="fas fa-user-cog"></i> Profile
-                                    </a>
-                                </li>
-                                <li><hr class="dropdown-divider"></li>
-                                <li>
-                                    <a class="dropdown-item" href="{% url 'account_logout' %}">
-                                        <i class="fas fa-sign-out-alt"></i> Logout
-                                    </a>
-                                </li>
-                            </ul>
-                        </li>
-                    </ul>
+                            {% if notification_counts.total > 0 %}
+                            <span id="notificationCountBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                                {{ notification_counts.total }}
+                            </span>
+                            {% endif %}
+                        </a>
+
+                        <div class="dropdown-menu dropdown-menu-end notification-dropdown p-0" aria-labelledby="notificationDropdown">
+                            <div class="d-flex justify-content-between align-items-center bg-light p-2 border-bottom">
+                                <h6 class="mb-0">Notifications</h6>
+                                <div>
+                                    {% if notification_counts.total > 0 %}
+                                    <form action="{% url 'mark_all_read' %}" method="POST" class="d-inline">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-sm btn-link text-decoration-none">Mark all read</button>
+                                    </form>
+                                    {% endif %}
+                                    <a href="{% url 'notifications_list' %}" class="btn btn-sm btn-link text-decoration-none">View all</a>
+                                </div>
+                            </div>
+
+                            {% if notification_counts.total > 0 %}
+                                {% if notification_counts.immediate > 0 %}
+                                    <div class="notification-group immediate-group">
+                                        <div class="bg-danger text-white px-3 py-1">
+                                            <small><strong>Immediate Attention Required</strong></small>
+                                        </div>
+                                        {% for notification in grouped_notifications.immediate %}
+                                            {% include "includes/notification_item.html" with notification=notification urgency_class="immediate" %}
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+
+                                {% if notification_counts.very_soon > 0 %}
+                                    <div class="notification-group very-soon-group">
+                                        <div class="bg-warning text-dark px-3 py-1">
+                                            <small><strong>Coming up very soon</strong></small>
+                                        </div>
+                                        {% for notification in grouped_notifications.very_soon %}
+                                            {% include "includes/notification_item.html" with notification=notification urgency_class="very-soon" %}
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+
+                                {% if notification_counts.soon > 0 %}
+                                    <div class="notification-group soon-group">
+                                        <div class="bg-info text-white px-3 py-1">
+                                            <small><strong>Coming up soon</strong></small>
+                                        </div>
+                                        {% for notification in grouped_notifications.soon %}
+                                            {% include "includes/notification_item.html" with notification=notification urgency_class="soon" %}
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+
+                                {% if notification_counts.today > 0 %}
+                                    <div class="notification-group today-group">
+                                        <div class="bg-primary text-white px-3 py-1">
+                                            <small><strong>Later today</strong></small>
+                                        </div>
+                                        {% for notification in grouped_notifications.today %}
+                                            {% include "includes/notification_item.html" with notification=notification urgency_class="today" %}
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+
+                                {% if notification_counts.upcoming > 0 %}
+                                    <div class="notification-group upcoming-group">
+                                        <div class="bg-secondary text-white px-3 py-1">
+                                            <small><strong>Upcoming</strong></small>
+                                        </div>
+                                        {% for notification in grouped_notifications.upcoming|slice:":5" %}
+                                            {% include "includes/notification_item.html" with notification=notification urgency_class="upcoming" %}
+                                        {% endfor %}
+
+                                        {% if grouped_notifications.upcoming.count > 5 %}
+                                            <div class="text-center py-2">
+                                                <a href="{% url 'notifications_list' %}" class="text-decoration-none">
+                                                    <small>See {{ grouped_notifications.upcoming.count|add:"-5" }} more...</small>
+                                                </a>
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                {% endif %}
+                            {% else %}
+                                <div class="text-center py-4">
+                                    <i class="fas fa-bell-slash fa-2x text-muted mb-2"></i>
+                                    <p class="mb-0 text-muted">No new notifications</p>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </li>
+
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown"
+                           role="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-user-circle"></i>
+                            {{ user.get_full_name|default:user.username }}
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li>
+                                <a class="dropdown-item" href="{% url 'profile' %}">
+                                    <i class="fas fa-user-cog"></i> Profile
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item" href="{% url 'account_logout' %}">
+                                    <i class="fas fa-sign-out-alt"></i> Logout
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                </ul>
                 {% else %}
                     <ul class="navbar-nav ms-auto">
                         <li class="nav-item">
@@ -201,6 +346,95 @@
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="{% static 'js/main.js' %}"></script>
     <script src="{% static 'js/chat.js' %}"></script>
+    <script src="{% static 'js/notifications.js' %}"></script>
     {% block extra_js %}{% endblock %}
+
+    <script>
+        // Simple notification system to highlight nav items
+        document.addEventListener('DOMContentLoaded', function() {
+            // Function to check for urgent notifications and highlight appropriate nav items
+            function checkUrgentNotifications() {
+                // Get all notification items that are immediate (happening in less than 5 minutes)
+                const immediateNotifications = document.querySelectorAll('.notification-item.pulse');
+
+                // Reset all nav item highlights
+                document.querySelectorAll('.nav-item').forEach(item => {
+                    if (!item.querySelector('#chatNavIcon')) { // Don't remove pulse from chat notifications
+                        item.classList.remove('pulse');
+                    }
+                });
+
+                // Process each notification to highlight relevant nav items
+                immediateNotifications.forEach(notification => {
+                    const notificationType = notification.getAttribute('data-notification-type');
+
+                    // Find the related nav item based on notification type
+                    let selector;
+                    switch(notificationType) {
+                        case 'meeting':
+                            selector = '.nav-link[href*="meeting"]';
+                            break;
+                        case 'task':
+                            selector = '.nav-link[href*="task"]';
+                            break;
+                        case 'event':
+                            selector = '.nav-link[href*="calendar"]';
+                            break;
+                        case 'document':
+                            selector = '.nav-link[href*="document"]';
+                            break;
+                        case 'video_conference':
+                            selector = '.nav-link[href*="video"]';
+                            break;
+                        case 'deadline':
+                            selector = '.nav-link[href*="project"]';
+                            break;
+                    }
+
+                    if (selector) {
+                        const navItems = document.querySelectorAll(selector);
+                        navItems.forEach(navItem => {
+                            const parent = navItem.closest('.nav-item');
+                            if (parent) {
+                                parent.classList.add('pulse');
+                            }
+                        });
+                    }
+                });
+            }
+
+            // Initial check
+            checkUrgentNotifications();
+
+            // Check every 30 seconds
+            setInterval(checkUrgentNotifications, 30000);
+
+            // Auto-refresh notifications
+            function refreshNotifications() {
+                fetch('/notifications/json/')
+                    .then(response => response.json())
+                    .then(data => {
+                        // Update notification badge
+                        const badge = document.getElementById('notificationCountBadge');
+                        if (data.counts.total > 0) {
+                            badge.textContent = data.counts.total;
+                            badge.classList.remove('d-none');
+                        } else {
+                            badge.classList.add('d-none');
+                        }
+
+                        // If there are significant changes in notifications, reload the page
+                        const currentCount = parseInt(badge.textContent || '0');
+                        if (Math.abs(data.counts.total - currentCount) > 2) {
+                            window.location.reload();
+                        }
+                    })
+                    .catch(error => console.error('Error fetching notifications:', error));
+            }
+
+            // Refresh notifications every 60 seconds
+            setInterval(refreshNotifications, 60000);
+        });
+    </script>
 </body>
 </html>

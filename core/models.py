@@ -18,6 +18,8 @@ from dateutil.rrule import rrulestr
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator, EmailValidator, URLValidator,  MinLengthValidator
 import pytz
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
 from typing import Optional, List, Dict
 import random
 import logging
@@ -2602,3 +2604,109 @@ class EmailTracker(models.Model):
 
     def __str__(self):
         return f"Tracker for {self.email.subject} - {self.recipient_email}"
+
+
+# Add this to your core/models.py file
+
+class GeneralNotifier(models.Model):
+    """
+    Model for storing notifications for various CRM entities like meetings, tasks, etc.
+    """
+    NOTIFICATION_TYPES = [
+        ('meeting', 'Meeting'),
+        ('task', 'Task'),
+        ('project', 'Project'),
+        ('event', 'Event'),
+        ('document', 'Document'),
+        ('video_conference', 'Video Conference'),
+        ('deadline', 'Deadline'),
+        ('reminder', 'Reminder'),
+        ('other', 'Other')
+    ]
+
+    PRIORITY_LEVELS = [
+        ('low', 'Low'),
+        ('medium', 'Medium'),
+        ('high', 'High'),
+        ('urgent', 'Urgent')
+    ]
+
+    title = models.CharField(max_length=255)
+    message = models.TextField()
+    notification_type = models.CharField(max_length=20, choices=NOTIFICATION_TYPES)
+    priority = models.CharField(max_length=10, choices=PRIORITY_LEVELS, default='medium')
+
+    # Link to relevant objects via generic foreign key
+    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE, null=True, blank=True)
+    object_id = models.PositiveIntegerField(null=True, blank=True)
+    content_object = GenericForeignKey('content_type', 'object_id')
+
+    # Target user(s)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='notifications')
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    event_datetime = models.DateTimeField(help_text="When the event is happening or due")
+    read_at = models.DateTimeField(null=True, blank=True)
+
+    # Status flags
+    is_read = models.BooleanField(default=False)
+    is_dismissed = models.BooleanField(default=False)
+
+    # Action URL - where to direct the user when they click the notification
+    action_url = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        ordering = ['-event_datetime', '-created_at']
+        indexes = [
+            models.Index(fields=['user', 'is_read']),
+            models.Index(fields=['notification_type']),
+            models.Index(fields=['event_datetime']),
+        ]
+
+    def __str__(self):
+        return f"{self.title} - {self.user.username}"
+
+    def mark_as_read(self):
+        """Mark notification as read"""
+        if not self.is_read:
+            self.is_read = True
+            self.read_at = timezone.now()
+            self.save(update_fields=['is_read', 'read_at'])
+
+    def dismiss(self):
+        """Dismiss the notification"""
+        self.is_dismissed = True
+        self.save(update_fields=['is_dismissed'])
+
+    @property
+    def is_upcoming(self):
+        """Check if this notification is for an upcoming event"""
+        return self.event_datetime > timezone.now()
+
+    @property
+    def time_until_event(self):
+        """Get time until the event in minutes"""
+        if not self.is_upcoming:
+            return 0
+
+        delta = self.event_datetime - timezone.now()
+        return int(delta.total_seconds() / 60)
+
+    @property
+    def urgency_level(self):
+        """Calculate urgency level based on proximity to event time"""
+        minutes_until = self.time_until_event
+
+        if minutes_until <= 5:
+            return 'immediate'  # Within 5 minutes
+        elif minutes_until <= 30:
+            return 'very_soon'  # Within 30 minutes
+        elif minutes_until <= 60:
+            return 'soon'       # Within an hour
+        elif minutes_until <= 1440:
+            return 'today'      # Within 24 hours
+        elif minutes_until <= 10080:
+            return 'week'       # Within a week
+        else:
+            return 'future'     # More than a week away
