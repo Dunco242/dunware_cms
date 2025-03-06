@@ -9,6 +9,7 @@ import random
 import time
 import re
 import traceback
+import datetime
 
 from core.models import Customer, Employee, Lead
 from video_conference.models import VideoConference
@@ -46,8 +47,15 @@ def join_meeting_room(request, meeting_id):
    # Get the conference
    conference = get_object_or_404(VideoConference, id=meeting_id)
 
+   # Override is_expired for immediate meetings
+   # This prevents newly created meetings from showing as expired
+   if conference.created_at > timezone.now() - datetime.timedelta(minutes=5):
+       is_expired = False
+   else:
+       is_expired = conference.is_expired()
+
    # Check if conference is active/valid
-   if conference.is_expired():
+   if is_expired:
        return render(request, 'video/meeting_ended.html', {'meeting': conference})
 
    # Check for passcode if required
@@ -85,6 +93,20 @@ def join_meeting_room(request, meeting_id):
    # Get customer name if stored in session
    customer_name = request.session.get('meeting_customer_name')
 
+   # Get meeting title from session or extract from channel name
+   meeting_title = request.session.get('meeting_title')
+   if not meeting_title:
+       # Try to extract a readable title from the channel name
+       parts = conference.channel_name.split('_')
+       if len(parts) > 0:
+           meeting_title = parts[0].capitalize()
+       else:
+           meeting_title = "Video Meeting"
+
+   # If we have a customer, use that in the title
+   if customer_name:
+       meeting_title = f"Meeting with {customer_name}"
+
    # Format meeting date for display
    if conference.scheduled_for:
        meeting_date = conference.scheduled_for.strftime("%A, %B %d, %Y")
@@ -103,7 +125,7 @@ def join_meeting_room(request, meeting_id):
        'customer_name': customer_name,
        'is_host': is_host,
        'meeting': conference,
-       'meeting_title': f"Meeting with {customer_name}" if customer_name else "Video Meeting",
+       'meeting_title': meeting_title,
        'meeting_date': meeting_date,
        'passcode': conference.passcode if is_host else None,
        'leave_url': request.build_absolute_uri('/') if not is_host else request.build_absolute_uri('/meetings/')
@@ -170,15 +192,20 @@ def create_video_meeting(request):
            channel_name = re.sub(r'[^a-zA-Z0-9]', '', title.lower())
            channel_name = f"{channel_name}_{int(timezone.now().timestamp())}"
 
+           # Set scheduled time slightly in the future to avoid expiry issues
+           scheduled_time = timezone.now() + datetime.timedelta(minutes=duration)
+
            # Create a new video conference
            conference = VideoConference.objects.create(
                channel_name=channel_name,
                host_user=request.user,
-               scheduled_for=timezone.now(),  # Schedule for now (immediate meeting)
+               scheduled_for=scheduled_time,  # Schedule for the future based on duration
                is_active=True
            )
 
-           # Store customer information in session if needed
+           # Store customer information and title in session
+           request.session['meeting_title'] = title
+
            if customer_id:
                try:
                    customer = Customer.objects.get(id=customer_id)

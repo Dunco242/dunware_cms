@@ -26,7 +26,8 @@ class VideoConference(models.Model):
 
     def is_expired(self):
         # Check if meeting has passed or been inactive for 24 hours
-        if self.scheduled_for and self.scheduled_for < timezone.now():
+        if self.scheduled_for and self.scheduled_for < timezone.now() - datetime.timedelta(minutes=5):
+            # Only consider it expired if it was scheduled more than 5 minutes ago
             return True
         if self.created_at < timezone.now() - datetime.timedelta(hours=24):
             return True
