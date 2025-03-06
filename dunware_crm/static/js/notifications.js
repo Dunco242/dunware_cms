@@ -1,7 +1,7 @@
-// Add this to your static/js/notifications.js file
+// notifications.js - Updated with WebSocket support
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialize notification refresh
+    // Initialize notification system
     initNotifications();
 
     // Set up notification item flashing based on urgency
@@ -17,24 +17,145 @@ let notificationData = {
     counts: {}
 };
 
+// WebSocket connection and state
+let socket = null;
+let isConnected = false;
+let reconnectAttempts = 0;
+const maxReconnectAttempts = 5;
+
 /**
  * Initialize notification system
  */
 function initNotifications() {
-    // Fetch notifications on page load
-    fetchNotifications();
+    // Get the employee ID
+    const userInfo = document.getElementById('userInfo');
+    if (userInfo) {
+        const employeeId = userInfo.dataset.employeeId;
+        if (employeeId) {
+            // Connect to WebSocket
+            connectWebSocket(employeeId);
+        }
+    }
 
-    // Set up automatic refresh every 60 seconds
-    setInterval(fetchNotifications, 60000);
+    // As a fallback, fetch notifications via HTTP once initially
+    fetchNotifications();
 
     // Flash the appropriate tab items based on urgency
     highlightUrgentItems();
 }
 
 /**
- * Fetch notifications data from the server
+ * Connect to the notification WebSocket
+ * @param {string} employeeId - The employee ID to connect with
+ */
+function connectWebSocket(employeeId) {
+    // Create WebSocket URL (using wss:// for HTTPS sites, ws:// otherwise)
+    const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+    const wsUrl = `${protocol}${window.location.host}/wss/notifications/${employeeId}/`;
+
+    try {
+        console.log('Connecting to notification WebSocket...');
+        socket = new WebSocket(wsUrl);
+
+        socket.onopen = function() {
+            console.log('Notification WebSocket connected!');
+            isConnected = true;
+            reconnectAttempts = 0;
+
+            // Request current notifications
+            sendWebSocketMessage({
+                type: 'get_notifications'
+            });
+        };
+
+        socket.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+
+            // Handle different message types
+            if (data.type === 'notification_update') {
+                notificationData.notifications = data.notifications;
+                notificationData.counts = data.counts;
+                updateNotificationUI();
+            } else if (data.type === 'notification_created') {
+                // Handle new notification (maybe play a sound)
+                playNotificationSound(data.notification);
+
+                // Request a full update
+                sendWebSocketMessage({
+                    type: 'get_notifications'
+                });
+            }
+        };
+
+        socket.onclose = function(event) {
+            console.log('Notification WebSocket closed:', event.code, event.reason);
+            isConnected = false;
+
+            // Try to reconnect with exponential backoff
+            if (reconnectAttempts < maxReconnectAttempts) {
+                reconnectAttempts++;
+                const delay = Math.min(3000 * reconnectAttempts, 15000);
+                console.log(`Attempting to reconnect in ${delay}ms (attempt ${reconnectAttempts})`);
+
+                setTimeout(function() {
+                    connectWebSocket(employeeId);
+                }, delay);
+            } else {
+                console.log('Max reconnect attempts reached, falling back to HTTP polling');
+                // Fall back to regular HTTP polling
+                setInterval(fetchNotifications, 60000);
+            }
+        };
+
+        socket.onerror = function(error) {
+            console.error('Notification WebSocket error:', error);
+            // The socket will close automatically after an error
+        };
+    } catch (error) {
+        console.error('Error creating WebSocket:', error);
+
+        // Fall back to HTTP polling if WebSocket fails
+        setInterval(fetchNotifications, 60000);
+    }
+}
+
+/**
+ * Send a message through the WebSocket
+ * @param {Object} data - The message to send
+ */
+function sendWebSocketMessage(data) {
+    if (!socket || !isConnected) {
+        console.log('WebSocket not connected, cannot send message');
+        return false;
+    }
+
+    socket.send(JSON.stringify(data));
+    return true;
+}
+
+/**
+ * Play a sound for important notifications
+ * @param {Object} notification - The notification object
+ */
+function playNotificationSound(notification) {
+    // Only play for immediate urgency
+    if (notification.urgency_class === 'immediate') {
+        try {
+            const sound = new Audio('/static/sounds/notification.mp3');
+            sound.play().catch(e => console.log('Could not play notification sound', e));
+        } catch (e) {
+            console.log('Error playing notification sound', e);
+        }
+    }
+}
+
+/**
+ * Fetch notifications data from the server (HTTP fallback)
  */
 function fetchNotifications() {
+    // Skip HTTP fetch if WebSocket is connected
+    if (isConnected) return;
+
     fetch('/notifications/json/')
         .then(response => response.json())
         .then(data => {
@@ -65,7 +186,7 @@ function updateNotificationBadge() {
     const badge = document.getElementById('notificationCountBadge');
     if (!badge) return;
 
-    if (notificationData.counts.total > 0) {
+    if (notificationData.counts && notificationData.counts.total > 0) {
         badge.textContent = notificationData.counts.total;
         badge.classList.remove('d-none');
     } else {
@@ -84,9 +205,11 @@ function updateNotificationDropdown() {
     // For simplicity, we'll just reload the page if the dropdown is open
     // and there are new notifications
 
-    if (dropdown.classList.contains('show') &&
-        notificationData.counts.total > parseInt(document.getElementById('notificationBadge').textContent || '0')) {
-        location.reload();
+    if (dropdown.classList.contains('show')) {
+        const currentCount = parseInt(document.getElementById('notificationCountBadge').textContent || '0');
+        if (notificationData.counts && Math.abs(notificationData.counts.total - currentCount) > 2) {
+            location.reload();
+        }
     }
 }
 
@@ -102,11 +225,11 @@ function highlightUrgentItems() {
     });
 
     // Add pulse class to the related nav items for immediate notifications
-    if (notificationData.counts && notificationData.counts.immediate > 0) {
+    if (notificationData.notifications && notificationData.notifications.length > 0) {
         // Highlight items based on notification types
         notificationData.notifications.forEach(notification => {
             if (notification.urgency_class === 'immediate') {
-                highlightNavItem(notification.type);
+                highlightNavItem(notification.notification_type);
             }
         });
     }
@@ -170,6 +293,16 @@ function setupNotificationActions() {
             e.preventDefault();
             const notificationId = this.dataset.notificationId;
 
+            // Try to use WebSocket first
+            if (sendWebSocketMessage({
+                type: 'mark_read',
+                notification_id: notificationId
+            })) {
+                // If sent via WebSocket, we're done
+                return;
+            }
+
+            // Fallback to HTTP
             fetch(`/notifications/${notificationId}/read/`, {
                 method: 'POST',
                 headers: {
@@ -197,6 +330,15 @@ function setupNotificationActions() {
         markAllButton.addEventListener('click', function(e) {
             e.preventDefault();
 
+            // Try to use WebSocket first
+            if (sendWebSocketMessage({
+                type: 'mark_all_read'
+            })) {
+                // If sent via WebSocket, we're done
+                return;
+            }
+
+            // Fallback to HTTP
             fetch('/notifications/mark-all-read/', {
                 method: 'POST',
                 headers: {
@@ -240,6 +382,16 @@ function setupNotificationActions() {
             e.preventDefault();
             const notificationId = this.dataset.notificationId;
 
+            // Try to use WebSocket first
+            if (sendWebSocketMessage({
+                type: 'dismiss',
+                notification_id: notificationId
+            })) {
+                // If sent via WebSocket, we're done
+                return;
+            }
+
+            // Fallback to HTTP
             fetch(`/notifications/${notificationId}/dismiss/`, {
                 method: 'POST',
                 headers: {
