@@ -83,6 +83,12 @@
                            href="{% url 'meeting-list' %}">
                             <i class="fas fa-video"></i> Meetings
                         </a>
+                        <li class="nav-item">
+                            <a class="nav-link {% if 'video-meetings' in request.resolver_match.url_name %}active{% endif %}"
+                               href="{% url 'video_meetings:join_meeting_room' meeting_id=None %}">
+                                <i class="fas fa-video"></i> Video Meetings
+                            </a>
+                        </li>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link {% if 'calendar' in request.resolver_match.url_name %}active{% endif %}"

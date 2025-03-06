@@ -70,6 +70,7 @@ INSTALLED_APPS = [
     'customer_projects.apps.CustomerProjectsConfig',
     'dunware_crm',
     'document_editor.apps.DocumentEditorConfig',
+    'video_conference.apps.VideoConferenceConfig',
 ]
 
 MIDDLEWARE = [
@@ -347,3 +348,9 @@ LOGGING = {
         },
     },
 }
+
+
+
+# Agora credentials
+AGORA_APP_ID = os.getenv('AGORA_APP_ID')
+AGORA_APP_CERTIFICATE = os.getenv('AGORA_APP_CERTIFICATE')
