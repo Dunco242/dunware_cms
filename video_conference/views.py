@@ -155,7 +155,6 @@ def create_video_meeting(request):
     View for creating a new video meeting
     """
     from core.models import Customer
-    from django.db import models
 
     # Get list of customers for the dropdown
     customers = Customer.objects.filter(status='active')
@@ -177,17 +176,17 @@ def create_video_meeting(request):
             # Get the employee profile
             employee = request.user.employee_profile
 
-            # Create a new meeting with a small time offset to ensure it's in the future
+            # Create a new meeting with a small time offset
             now = timezone.now() + timezone.timedelta(seconds=10)
             end_time = now + timezone.timedelta(minutes=duration)
 
-            # Create the meeting using Manager.create() which bypasses model validation
+            # IMPORTANT: Use a different meeting_type to avoid triggering Zoom logic
             meeting = Meeting.objects.create(
                 title=title,
                 description=description,
                 start_time=now,
                 end_time=end_time,
-                meeting_type='zoom',  # Using 'zoom' as type since we're using 'zoom_meeting_id' field
+                meeting_type='other',  # Use 'other' instead of 'zoom'
                 status='scheduled',
                 organizer=employee
             )
@@ -200,7 +199,7 @@ def create_video_meeting(request):
                 except Customer.DoesNotExist:
                     pass
 
-            # Generate unique meeting ID for Agora
+            # Set a custom meeting ID for Agora without triggering Zoom logic
             meeting.zoom_meeting_id = f"agora_{meeting.id}"
             meeting.save(update_fields=['zoom_meeting_id'])
 
@@ -208,7 +207,7 @@ def create_video_meeting(request):
             return redirect('video_meetings:join_meeting_room', meeting_id=meeting.id)
 
         except Exception as e:
-            # Handle any errors with more detailed messaging
+            # Handle any errors
             import traceback
             error_message = f"Error creating meeting: {str(e)}"
             print(error_message)
