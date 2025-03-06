@@ -400,7 +400,7 @@
         function generateMeetingLink() {
             // Get the current URL but ensure it points to the join endpoint
             const baseUrl = window.location.origin;
-            return `${baseUrl}/meetings/join/{{ meeting.id }}/`;
+            return `${baseUrl}/video_meetings/join/{{ meeting.id }}/`;
         }
 
         shareBtn.addEventListener('click', function() {
