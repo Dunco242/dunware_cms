@@ -3,6 +3,7 @@ from django.shortcuts import redirect
 from django.utils import timezone
 from django.core.cache import cache
 from django.conf import settings
+from django.db.models import Q
 from .models import IPAccess, PrivacyPolicyAcceptance, LegalDocument, GeneralNotifier
 import logging
 from functools import lru_cache
@@ -142,8 +143,7 @@ class NotificationMiddleware:
             is_read=False,
             is_dismissed=False
         ).filter(
-            # High priority items
-            (priority='high') |
-            # Items happening very soon
-            (event_datetime__gt=now, event_datetime__lt=soon)
+            # High priority items or items happening very soon
+            Q(priority='high') |
+            Q(event_datetime__gt=now, event_datetime__lt=soon)
         ).count()
