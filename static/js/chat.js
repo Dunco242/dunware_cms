@@ -29,8 +29,8 @@ class ChatManager {
                            !window.location.hostname.startsWith('127.0.0.1');
 
         // Use correct path based on environment
-        const wsPath = isProduction ? 'wss' : 'ws';
-        this.wsUrl = `${wsBaseUrl}/${wsPath}/chat/${sessionId}/`;
+        const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+this.wsUrl = `${protocol}${window.location.host}/ws/chat/${sessionId}/`;
 
         // Initialize the connection
         this.connect();

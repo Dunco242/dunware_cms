@@ -1,27 +1,11 @@
+# core/routing.py
 from django.urls import re_path
 from . import consumers
-import os
-from document_editor.routing import document_websocket_urlpatterns
 
-# Determine if we're in production
-use_wss = os.getenv("DJANGO_ENV", "development") == "production"
-
-# Core WebSocket patterns
-core_websocket_urlpatterns = [
-    re_path(r'wss/chat/(?P<session_id>\d+)/$', consumers.ChatConsumer.as_asgi()) if use_wss else
+websocket_urlpatterns = [
+    # Use consistent paths without protocol prefixes
     re_path(r'ws/chat/(?P<session_id>\d+)/$', consumers.ChatConsumer.as_asgi()),
-
-    re_path(r'wss/notifications/(?P<employee_id>\w+)/$', consumers.NotificationConsumer.as_asgi()) if use_wss else
     re_path(r'ws/notifications/(?P<employee_id>\w+)/$', consumers.NotificationConsumer.as_asgi()),
-
-    # Add User to Chat
-    re_path(r'wss/chat/add-user/(?P<session_id>\d+)/$', consumers.AddUserConsumer.as_asgi()) if use_wss else
     re_path(r'ws/chat/add-user/(?P<session_id>\d+)/$', consumers.AddUserConsumer.as_asgi()),
-
-    # Debug WebSocket endpoint
-    re_path(r'wss/debug/$', consumers.DebugConsumer.as_asgi()) if use_wss else
     re_path(r'ws/debug/$', consumers.DebugConsumer.as_asgi()),
 ]
-
-# Combine all WebSocket patterns
-websocket_urlpatterns = core_websocket_urlpatterns + document_websocket_urlpatterns
