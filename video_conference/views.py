@@ -167,7 +167,7 @@ def create_video_meeting(request):
         duration = int(request.POST.get('duration', 30))
 
         if not title:
-            return render(request, 'video/create_meeting.html', {
+            return render(request, 'video/create_video_meeting.html', {
                 'customers': customers,
                 'error': 'Meeting title is required'
             })
