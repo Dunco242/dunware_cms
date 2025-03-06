@@ -155,6 +155,7 @@ def create_video_meeting(request):
     View for creating a new video meeting
     """
     from core.models import Customer
+    from django.db import models
 
     # Get list of customers for the dropdown
     customers = Customer.objects.filter(status='active')
@@ -176,11 +177,12 @@ def create_video_meeting(request):
             # Get the employee profile
             employee = request.user.employee_profile
 
-            # Create a new meeting with a small time offset (future)
-            now = timezone.now() + timezone.timedelta(seconds=5)
+            # Create a new meeting with a small time offset to ensure it's in the future
+            now = timezone.now() + timezone.timedelta(seconds=10)
             end_time = now + timezone.timedelta(minutes=duration)
 
-            meeting = Meeting(
+            # Create the meeting using Manager.create() which bypasses model validation
+            meeting = Meeting.objects.create(
                 title=title,
                 description=description,
                 start_time=now,
@@ -189,9 +191,6 @@ def create_video_meeting(request):
                 status='scheduled',
                 organizer=employee
             )
-
-            # Save without validation
-            meeting.save(validate=False)
 
             # Add customer if selected
             if customer_id:
@@ -209,10 +208,15 @@ def create_video_meeting(request):
             return redirect('video_meetings:join_meeting_room', meeting_id=meeting.id)
 
         except Exception as e:
-            # Handle any errors
+            # Handle any errors with more detailed messaging
+            import traceback
+            error_message = f"Error creating meeting: {str(e)}"
+            print(error_message)
+            print(traceback.format_exc())
+
             return render(request, 'video/create_video_meeting.html', {
                 'customers': customers,
-                'error': f'Error creating meeting: {str(e)}'
+                'error': error_message
             })
 
     # Display the form
