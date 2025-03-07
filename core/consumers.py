@@ -1,7 +1,8 @@
 import json
 import logging
 from channels.generic.websocket import AsyncWebsocketConsumer, AsyncJsonWebsocketConsumer
-from channels.db import database_sync_to_async
+from channels.db import
+import asyncio
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
