@@ -203,11 +203,12 @@ function updateNotificationDropdown() {
 
     // If dropdown is open, check for significant changes
     if (dropdown.classList.contains('show')) {
-        const badge = document.getElementById('notificationCountBadge');
+        const badge = document.getElementById('notificationCountBadge'); // Correct ID
         if (!badge) return; // Exit if badge doesn't exist
 
         const currentCount = parseInt(badge.textContent || '0');
-        if (notificationData.counts && Math.abs(notificationData.counts.total - currentCount) > 2) {
+        if (notificationData.counts &&
+            notificationData.counts.total > currentCount) {
             location.reload();
         }
     }
