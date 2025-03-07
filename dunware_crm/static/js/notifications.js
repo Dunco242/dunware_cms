@@ -201,12 +201,12 @@ function updateNotificationDropdown() {
     const dropdown = document.querySelector('.notification-dropdown');
     if (!dropdown) return;
 
-    // This would typically involve a more complex template rendering
-    // For simplicity, we'll just reload the page if the dropdown is open
-    // and there are new notifications
-
+    // If dropdown is open, check for significant changes
     if (dropdown.classList.contains('show')) {
-        const currentCount = parseInt(document.getElementById('notificationCountBadge').textContent || '0');
+        const badge = document.getElementById('notificationCountBadge');
+        if (!badge) return; // Exit if badge doesn't exist
+
+        const currentCount = parseInt(badge.textContent || '0');
         if (notificationData.counts && Math.abs(notificationData.counts.total - currentCount) > 2) {
             location.reload();
         }
@@ -226,7 +226,7 @@ function highlightUrgentItems() {
 
     // Add pulse class to the related nav items for immediate notifications
     if (notificationData.notifications && notificationData.notifications.length > 0) {
-        // Highlight items based on notification types
+        // Only iterate if there are actually notifications to process
         notificationData.notifications.forEach(notification => {
             if (notification.urgency_class === 'immediate') {
                 highlightNavItem(notification.notification_type);
