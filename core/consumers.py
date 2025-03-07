@@ -3,6 +3,7 @@ import logging
 from channels.generic.websocket import AsyncWebsocketConsumer, AsyncJsonWebsocketConsumer
 from channels.db import database_sync_to_async
 import asyncio
+from core.models import Employee, GeneralNotifier
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
