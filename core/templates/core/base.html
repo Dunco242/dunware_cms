@@ -14,8 +14,12 @@
     <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.2/css/all.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" rel="stylesheet">
     <link href="{% static 'css/style.css' %}" rel="stylesheet">
-    <link rel="icon" href="{% static 'img/favicon.ico' %}" type="image/x-icon">
-    <link rel="shortcut icon" href="{% static 'img/favicon.ico' %}" type="image/x-icon">
+    <link rel="icon" href="{% static 'img/favicon.ico' %}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{% static 'img/apple-touch-icon.png' %}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'img/favicon-32x32.png' %}">
+    <link rel="icon" type="image/png" sizes="16x16" href="{% static 'img/favicon-16x16.png' %}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{% static 'img/apple-touch-icon.png' %}">
+    <link rel="manifest" href="{% static 'img/site.webmanifest' %}">
     {% block extra_css %}{% endblock %}
 
     <style>
@@ -353,90 +357,121 @@
 
     <script>
         // Simple notification system to highlight nav items
-        document.addEventListener('DOMContentLoaded', function() {
-            // Function to check for urgent notifications and highlight appropriate nav items
-            function checkUrgentNotifications() {
-                // Get all notification items that are immediate (happening in less than 5 minutes)
-                const immediateNotifications = document.querySelectorAll('.notification-item.pulse');
+document.addEventListener('DOMContentLoaded', function() {
+    // Function to check for urgent notifications and highlight appropriate nav items
+    function checkUrgentNotifications() {
+        try {
+            // Get all notification items that are immediate (happening in less than 5 minutes)
+            const immediateNotifications = document.querySelectorAll('.notification-item.pulse');
+            if (!immediateNotifications) return;
 
-                // Reset all nav item highlights
-                document.querySelectorAll('.nav-item').forEach(item => {
-                    if (!item.querySelector('#chatNavIcon')) { // Don't remove pulse from chat notifications
-                        item.classList.remove('pulse');
-                    }
-                });
+            // Reset all nav item highlights
+            const navItems = document.querySelectorAll('.nav-item');
+            if (!navItems || navItems.length === 0) return;
 
-                // Process each notification to highlight relevant nav items
-                immediateNotifications.forEach(notification => {
-                    const notificationType = notification.getAttribute('data-notification-type');
+            navItems.forEach(item => {
+                if (item && (!item.querySelector('#chatNavIcon'))) { // Don't remove pulse from chat notifications
+                    item.classList.remove('pulse');
+                }
+            });
 
-                    // Find the related nav item based on notification type
-                    let selector;
-                    switch(notificationType) {
-                        case 'meeting':
-                            selector = '.nav-link[href*="meeting"]';
-                            break;
-                        case 'task':
-                            selector = '.nav-link[href*="task"]';
-                            break;
-                        case 'event':
-                            selector = '.nav-link[href*="calendar"]';
-                            break;
-                        case 'document':
-                            selector = '.nav-link[href*="document"]';
-                            break;
-                        case 'video_conference':
-                            selector = '.nav-link[href*="video"]';
-                            break;
-                        case 'deadline':
-                            selector = '.nav-link[href*="project"]';
-                            break;
-                    }
+            // Process each notification to highlight relevant nav items
+            immediateNotifications.forEach(notification => {
+                if (!notification) return;
 
-                    if (selector) {
-                        const navItems = document.querySelectorAll(selector);
-                        navItems.forEach(navItem => {
-                            const parent = navItem.closest('.nav-item');
-                            if (parent) {
-                                parent.classList.add('pulse');
-                            }
-                        });
-                    }
-                });
-            }
+                const notificationType = notification.getAttribute('data-notification-type');
+                if (!notificationType) return;
 
-            // Initial check
-            checkUrgentNotifications();
+                // Find the related nav item based on notification type
+                let selector;
+                switch(notificationType) {
+                    case 'meeting':
+                        selector = '.nav-link[href*="meeting"]';
+                        break;
+                    case 'task':
+                        selector = '.nav-link[href*="task"]';
+                        break;
+                    case 'event':
+                        selector = '.nav-link[href*="calendar"]';
+                        break;
+                    case 'document':
+                        selector = '.nav-link[href*="document"]';
+                        break;
+                    case 'video_conference':
+                        selector = '.nav-link[href*="video"]';
+                        break;
+                    case 'deadline':
+                        selector = '.nav-link[href*="project"]';
+                        break;
+                    default:
+                        selector = null;
+                }
 
-            // Check every 30 seconds
-            setInterval(checkUrgentNotifications, 30000);
+                if (selector) {
+                    const matchingNavItems = document.querySelectorAll(selector);
+                    if (!matchingNavItems || matchingNavItems.length === 0) return;
 
-            // Auto-refresh notifications
-            function refreshNotifications() {
-                fetch('/notifications/json/')
-                    .then(response => response.json())
-                    .then(data => {
-                        // Update notification badge
-                        const badge = document.getElementById('notificationCountBadge');
-                        if (data.counts.total > 0) {
-                            badge.textContent = data.counts.total;
-                            badge.classList.remove('d-none');
-                        } else {
-                            badge.classList.add('d-none');
+                    matchingNavItems.forEach(navItem => {
+                        if (!navItem) return;
+
+                        const parent = navItem.closest('.nav-item');
+                        if (parent) {
+                            parent.classList.add('pulse');
                         }
+                    });
+                }
+            });
+        } catch (error) {
+            console.error('Error in checkUrgentNotifications:', error);
+        }
+    }
 
-                        // If there are significant changes in notifications, reload the page
+    // Initial check
+    checkUrgentNotifications();
+
+    // Check every 30 seconds
+    setInterval(checkUrgentNotifications, 30000);
+
+    // Auto-refresh notifications
+    function refreshNotifications() {
+        try {
+            fetch('/notifications/json/')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // Update notification badge
+                    const badge = document.getElementById('notificationCountBadge');
+                    if (!badge) return; // Skip if badge doesn't exist
+
+                    if (data.counts && data.counts.total > 0) {
+                        badge.textContent = data.counts.total;
+                        badge.classList.remove('d-none');
+                    } else {
+                        badge.classList.add('d-none');
+                    }
+
+                    // If there are significant changes in notifications, reload the page
+                    // Only attempt this if badge exists and has content
+                    if (badge) {
                         const currentCount = parseInt(badge.textContent || '0');
-                        if (Math.abs(data.counts.total - currentCount) > 2) {
+                        if (data.counts && Math.abs(data.counts.total - currentCount) > 2) {
                             window.location.reload();
                         }
-                    })
-                    .catch(error => console.error('Error fetching notifications:', error));
-            }
+                    }
+                })
+                .catch(error => console.error('Error fetching notifications:', error));
+        } catch (error) {
+            console.error('Error in refreshNotifications:', error);
+        }
+    }
 
-            // Refresh notifications every 60 seconds
-            setInterval(refreshNotifications, 60000);
-        });
+    // Refresh notifications every 60 seconds
+    setInterval(refreshNotifications, 60000);
+});
     </script>
 </body>
 </html>
