@@ -299,9 +299,19 @@ this.wsUrl = `${protocol}${window.location.host}/ws/chat/${sessionId}/`;
 }
 
 /**
+/**
  * Set up notification WebSocket for real-time chat notifications
  */
 function setupNotifications() {
+    // Check if notification WebSocket is already initialized elsewhere
+    if (window.notificationSocketInitialized) {
+        console.log('Notification WebSocket already initialized elsewhere');
+        return;
+    }
+
+    // Mark as initialized
+    window.notificationSocketInitialized = true;
+
     const userInfo = document.getElementById('userInfo');
     if (userInfo && userInfo.dataset.employeeId) {
         setupNotificationSocket(userInfo.dataset.employeeId);

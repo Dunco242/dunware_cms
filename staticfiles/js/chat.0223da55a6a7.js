@@ -299,9 +299,19 @@ this.wsUrl = `${protocol}${window.location.host}/ws/chat/${sessionId}/`;
 }
 
 /**
+/**
  * Set up notification WebSocket for real-time chat notifications
  */
 function setupNotifications() {
+    // Check if notification WebSocket is already initialized elsewhere
+    if (window.notificationSocketInitialized) {
+        console.log('Notification WebSocket already initialized elsewhere');
+        return;
+    }
+
+    // Mark as initialized
+    window.notificationSocketInitialized = true;
+
     const userInfo = document.getElementById('userInfo');
     if (userInfo && userInfo.dataset.employeeId) {
         setupNotificationSocket(userInfo.dataset.employeeId);
@@ -340,20 +350,28 @@ function setupNotificationSocket(employeeId) {
             };
 
             socket.onmessage = function(event) {
-                const data = JSON.parse(event.data);
-                console.log('Notification received:', data);
+                try {
+                    const data = JSON.parse(event.data);
+                    console.log('Notification received:', data);
 
-                if (data.type === 'new_message') {
-                    // Update notification badge
-                    updateNotificationBadge();
+                    if (data.type === 'new_message') {
+                        // Update notification badge
+                        updateNotificationBadge();
 
-                    // Show notification if not in the chat session already
-                    const currentPath = window.location.pathname;
-                    const chatSessionPath = `/chat/session/${data.message.session_id}/`;
+                        // Show notification if not in the chat session already
+                        const currentPath = window.location.pathname;
+                        const chatSessionPath = `/chat/session/${data.message.session_id}/`;
 
-                    if (!currentPath.startsWith(chatSessionPath)) {
-                        showNotification(data.message);
+                        if (!currentPath.startsWith(chatSessionPath)) {
+                            showNotification(data.message);
+                        }
                     }
+                    else if (data.type === 'notification_update') {
+                        // Just log it for now - no need to take action on these updates
+                        console.log('Received notification update, counts:', data.counts);
+                    }
+                } catch (error) {
+                    console.error('Error processing WebSocket message:', error);
                 }
             };
 

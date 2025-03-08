@@ -357,133 +357,150 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-    // Determine WebSocket protocol based on page protocol
-    const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+            // NEW: Check if notification WebSocket is already initialized elsewhere
+            if (window.notificationSocketInitialized) {
+                console.log('Notification WebSocket already initialized elsewhere');
+                return;
+            }
+            // NEW: Mark as initialized
+            window.notificationSocketInitialized = true;
 
-    // WebSocket connection for notifications
-    let notificationSocket = null;
+            // Determine WebSocket protocol based on page protocol
+            const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
 
-    function connectNotificationSocket() {
-        notificationSocket = new WebSocket(
-            protocol + window.location.host + '/wss/notifications/' +
-            'EMP0002/'
-        );
+            // WebSocket connection for notifications
+            let notificationSocket = null;
 
-        // Setup event handlers
-        setupNotificationSocket();
-    }
+            function connectNotificationSocket() {
+                notificationSocket = new WebSocket(
+                    protocol + window.location.host + '/wss/notifications/' +
+                    '{{ request.user.employee_profile.employee_id }}/'
+                );
 
-    function setupNotificationSocket() {
-        notificationSocket.onopen = function() {
-            console.log('Notification WebSocket connected');
-        };
+                // Setup event handlers
+                setupNotificationSocket();
+            }
 
-        notificationSocket.onmessage = function(e) {
-            try {
-                const data = JSON.parse(e.data);
+            function setupNotificationSocket() {
+                notificationSocket.onopen = function() {
+                    console.log('Notification WebSocket connected');
+                };
 
-                if (data.type === 'new_message') {
-                    updateChatPreview(data.session_id, data.message);
-                    updateUnreadCount(data.session_id);
+                notificationSocket.onmessage = function(e) {
+                    try {
+                        const data = JSON.parse(e.data);
+
+                        // NEW: Handle notification_update message type
+                        if (data.type === 'notification_update') {
+                            console.log('Received notification update, counts:', data.counts);
+                            // No action needed here as it's handled by notifications.js
+                        }
+                        else if (data.type === 'new_message') {
+                            updateChatPreview(data.session_id, data.message);
+                            updateUnreadCount(data.session_id);
+                        }
+                    } catch (error) {
+                        console.error('Error processing notification message:', error);
+                    }
+                };
+
+                notificationSocket.onclose = function(e) {
+                    console.log('Notification WebSocket closed. Reconnecting in 3 seconds...');
+                    setTimeout(connectNotificationSocket, 3000);
+                };
+
+                notificationSocket.onerror = function(error) {
+                    console.error('Notification WebSocket error:', error);
+                };
+            }
+
+            // Function to update chat preview
+            function updateChatPreview(sessionId, message) {
+                const chatPreview = document.querySelector(`[data-session-id="${sessionId}"]`);
+                if (chatPreview) {
+                    // Update last message preview
+                    const messagePreview = chatPreview.querySelector('.text-muted');
+                    if (messagePreview) {
+                        messagePreview.textContent = message.content.substring(0, 50) +
+                            (message.content.length > 50 ? '...' : '');
+                    }
+
+                    // Update timestamp
+                    const timestamp = chatPreview.querySelector('.timestamp');
+                    if (timestamp) {
+                        timestamp.textContent = 'Just now';
+                    }
+
+                    // Move chat to top of list
+                    const chatList = chatPreview.parentElement;
+                    chatList.insertBefore(chatPreview, chatList.firstChild);
+                } else {
+                    // If chat preview doesn't exist, refresh the list
+                    loadChatList();
                 }
-            } catch (error) {
-                console.error('Error processing notification message:', error);
-            }
-        };
-
-        notificationSocket.onclose = function(e) {
-            console.log('Notification WebSocket closed. Reconnecting in 3 seconds...');
-            setTimeout(connectNotificationSocket, 3000);
-        };
-
-        notificationSocket.onerror = function(error) {
-            console.error('Notification WebSocket error:', error);
-        };
-    } // <-- Missing closing brace for setupNotificationSocket
-
-    // Function to update chat preview
-    function updateChatPreview(sessionId, message) {
-        const chatPreview = document.querySelector(`[data-session-id="${sessionId}"]`);
-        if (chatPreview) {
-            // Update last message preview
-            const messagePreview = chatPreview.querySelector('.text-muted');
-            if (messagePreview) {
-                messagePreview.textContent = message.content.substring(0, 50) +
-                    (message.content.length > 50 ? '...' : '');
             }
 
-            // Update timestamp
-            const timestamp = chatPreview.querySelector('.timestamp');
-            if (timestamp) {
-                timestamp.textContent = 'Just now';
-            }
-
-            // Move chat to top of list
-            const chatList = chatPreview.parentElement;
-            chatList.insertBefore(chatPreview, chatList.firstChild);
-        } else {
-            // If chat preview doesn't exist, refresh the list
-            loadChatList();
-        }
-    }
-
-    // Function to update unread count
-    function updateUnreadCount(sessionId) {
-        const chatPreview = document.querySelector(`[data-session-id="${sessionId}"]`);
-        if (chatPreview) {
-            let badge = chatPreview.querySelector('.unread-badge');
-            if (!badge) {
-                // Create new badge if it doesn't exist
-                badge = document.createElement('span');
-                badge.className = 'badge bg-primary unread-badge mt-1';
-                chatPreview.querySelector('.d-flex.flex-column').appendChild(badge);
-            }
-            const currentCount = parseInt(badge.textContent || '0');
-            badge.textContent = currentCount + 1;
-        }
-    }
-
-    // Function to load chat list via AJAX
-    function loadChatList() {
-        fetch('/chat/api/sessions/')
-            .then(response => response.json())
-            .then(data => {
-                const chatList = document.querySelector('.chat-list');
-                // Update chat list HTML
-                if (chatList) {
-                    chatList.innerHTML = data.html;
+            // Function to update unread count
+            function updateUnreadCount(sessionId) {
+                const chatPreview = document.querySelector(`[data-session-id="${sessionId}"]`);
+                if (chatPreview) {
+                    let badge = chatPreview.querySelector('.unread-badge');
+                    if (!badge) {
+                        // Create new badge if it doesn't exist
+                        badge = document.createElement('span');
+                        badge.className = 'badge bg-primary unread-badge mt-1';
+                        // NEW: Add null check for parent element
+                        const parent = chatPreview.querySelector('.d-flex.flex-column');
+                        if (parent) {
+                            parent.appendChild(badge);
+                        }
+                    }
+                    const currentCount = parseInt(badge.textContent || '0');
+                    badge.textContent = currentCount + 1;
                 }
-            })
-            .catch(error => {
-                console.error('Error loading chat list:', error);
-            });
-    }
+            }
 
-    // Initialize the notification socket
-    connectNotificationSocket();
+            // Function to load chat list via AJAX
+            function loadChatList() {
+                fetch('/chat/api/sessions/')
+                    .then(response => response.json())
+                    .then(data => {
+                        const chatList = document.querySelector('.chat-list');
+                        // Update chat list HTML
+                        if (chatList) {
+                            chatList.innerHTML = data.html;
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error loading chat list:', error);
+                    });
+            }
 
-    // Periodically update timestamps
-    setInterval(() => {
-        document.querySelectorAll('.timestamp').forEach(timestamp => {
-            const time = timestamp.getAttribute('data-time');
-            if (time) {
-                timestamp.textContent = getTimeAgo(time);
+            // Initialize the notification socket
+            connectNotificationSocket();
+
+            // Periodically update timestamps
+            setInterval(() => {
+                document.querySelectorAll('.timestamp').forEach(timestamp => {
+                    const time = timestamp.getAttribute('data-time');
+                    if (time) {
+                        timestamp.textContent = getTimeAgo(time);
+                    }
+                });
+            }, 60000); // Update every minute
+
+            // Helper function to format time ago
+            function getTimeAgo(timestamp) {
+                const now = new Date();
+                const time = new Date(timestamp);
+                const diff = Math.floor((now - time) / 1000); // diff in seconds
+
+                if (diff < 60) return 'Just now';
+                if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+                if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+                return `${Math.floor(diff / 86400)}d ago`;
             }
         });
-    }, 60000); // Update every minute
-
-    // Helper function to format time ago
-    function getTimeAgo(timestamp) {
-        const now = new Date();
-        const time = new Date(timestamp);
-        const diff = Math.floor((now - time) / 1000); // diff in seconds
-
-        if (diff < 60) return 'Just now';
-        if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-        if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-        return `${Math.floor(diff / 86400)}d ago`;
-    }
-});
-</script>
+    </script>
 </body>
 </html>

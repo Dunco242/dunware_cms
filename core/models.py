@@ -1008,7 +1008,11 @@ class Meeting(models.Model):
     @property
     def is_past(self) -> bool:
         """Check if meeting is in the past"""
-        return self.end_time < timezone.now()
+        # Print for debugging
+        now = timezone.now()
+        meeting_time = self.end_time
+        print(f"Now: {now}, Meeting end time: {meeting_time}, Is past: {meeting_time < now}")
+        return meeting_time < now
 
     @property
     def can_be_cancelled(self) -> bool:
