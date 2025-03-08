@@ -361,16 +361,19 @@ document.addEventListener('DOMContentLoaded', function() {
     // Function to check for urgent notifications and highlight appropriate nav items
     function checkUrgentNotifications() {
         try {
-            // Get all notification items that are immediate (happening in less than 5 minutes)
+            // Get all notification items that are immediate
             const immediateNotifications = document.querySelectorAll('.notification-item.pulse');
-            if (!immediateNotifications) return;
+            if (!immediateNotifications || immediateNotifications.length === 0) return;
 
-            // Reset all nav item highlights
+            // Reset all nav item highlights EXCEPT chat and those already highlighted by other systems
             const navItems = document.querySelectorAll('.nav-item');
             if (!navItems || navItems.length === 0) return;
 
             navItems.forEach(item => {
-                if (item && (!item.querySelector('#chatNavIcon'))) { // Don't remove pulse from chat notifications
+                // Skip chat nav icon and any items marked with data-preserve-pulse
+                if (item &&
+                   !item.querySelector('#chatNavIcon') &&
+                   !item.hasAttribute('data-preserve-pulse')) {
                     item.classList.remove('pulse');
                 }
             });
@@ -417,6 +420,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         const parent = navItem.closest('.nav-item');
                         if (parent) {
                             parent.classList.add('pulse');
+                            // Mark this item so it's not cleared by other systems
+                            parent.setAttribute('data-preserve-pulse', 'true');
                         }
                     });
                 }
