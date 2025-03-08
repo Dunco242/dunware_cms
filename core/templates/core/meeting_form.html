@@ -50,6 +50,8 @@
 
             <form method="post" id="meetingForm">
                 {% csrf_token %}
+                <!-- Add an explicit CSRF token to ensure it's included -->
+                <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
 
                 <div class="row g-3">
                     <!-- Title and Meeting Type -->
@@ -157,9 +159,17 @@
                     </div>
                 </div>
 
+                <!-- Debug information - add this temporarily to troubleshoot -->
+                <div class="mt-3 p-2 border rounded bg-light d-none">
+                    <h6>Form Debug Info</h6>
+                    <p>Start Time: {{ form.start_time.value|date:"Y-m-d H:i:s" }}</p>
+                    <p>End Time: {{ form.end_time.value|date:"Y-m-d H:i:s" }}</p>
+                    <p>Meeting Type: {{ form.meeting_type.value }}</p>
+                </div>
+
                 <!-- Form Buttons -->
                 <div class="mt-4">
-                    <button type="submit" class="btn btn-success">
+                    <button type="submit" class="btn btn-success" id="submitButton">
                         <i class="fas fa-save"></i>
                         {% if form.instance.pk %}
                             Update Meeting
@@ -170,6 +180,10 @@
                     <a href="{% url 'meeting-list' %}" class="btn btn-outline-secondary">
                         <i class="fas fa-times"></i> Cancel
                     </a>
+                    <!-- Add a test direct submit button for debugging -->
+                    <button type="submit" class="btn btn-outline-info d-none" name="test_direct_submit" value="true">
+                        Direct Submit (Debug)
+                    </button>
                 </div>
             </form>
         </div>
@@ -182,24 +196,37 @@
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script>
 $(document).ready(function() {
-    // Initialize datetime pickers
+    console.log("Page initialized");
+
+    // Initialize datetime pickers with timezone handling
     flatpickr("#id_start_time", {
         enableTime: true,
         dateFormat: "Y-m-d H:i",
         minDate: "today",
-        time_24hr: false
+        time_24hr: false,
+        altInput: true,
+        altFormat: "F j, Y at h:i K",
+        onChange: function(selectedDates, dateStr, instance) {
+            console.log("Start time changed:", dateStr);
+        }
     });
 
     flatpickr("#id_end_time", {
         enableTime: true,
         dateFormat: "Y-m-d H:i",
         minDate: "today",
-        time_24hr: false
+        time_24hr: false,
+        altInput: true,
+        altFormat: "F j, Y at h:i K",
+        onChange: function(selectedDates, dateStr, instance) {
+            console.log("End time changed:", dateStr);
+        }
     });
 
     // Show/hide location field based on meeting type
     $('#id_meeting_type').change(function() {
         const meetingType = $(this).val();
+        console.log("Meeting type changed:", meetingType);
         if (meetingType === 'in_person') {
             $('#locationField').show();
         } else {
@@ -207,14 +234,54 @@ $(document).ready(function() {
         }
     }).trigger('change');
 
-    // Form validation
-    $('#meetingForm').submit(function(e) {
-        const startTime = new Date($('#id_start_time').val());
-        const endTime = new Date($('#id_end_time').val());
+    // Form validation with improved error handling
+    $('#meetingForm').on('submit', function(e) {
+        console.log("Form submission started");
 
-        if (endTime <= startTime) {
+        const startTimeStr = $('#id_start_time').val();
+        const endTimeStr = $('#id_end_time').val();
+
+        console.log("Form values:", {
+            title: $('#id_title').val(),
+            meeting_type: $('#id_meeting_type').val(),
+            start_time: startTimeStr,
+            end_time: endTimeStr
+        });
+
+        if (!startTimeStr || !endTimeStr) {
             e.preventDefault();
-            alert('End time must be after start time');
+            alert('Both start time and end time are required');
+            console.log("Form submission blocked: Missing time values");
+            return false;
+        }
+
+        try {
+            const startTime = new Date(startTimeStr);
+            const endTime = new Date(endTimeStr);
+
+            console.log("Parsed dates:", {
+                startTime: startTime,
+                endTime: endTime
+            });
+
+            if (isNaN(startTime.getTime()) || isNaN(endTime.getTime())) {
+                e.preventDefault();
+                alert('Invalid date format. Please use the date picker to select dates.');
+                console.log("Form submission blocked: Invalid date format");
+                return false;
+            }
+
+            if (endTime <= startTime) {
+                e.preventDefault();
+                alert('End time must be after start time');
+                console.log("Form submission blocked: End time ≤ start time");
+                return false;
+            }
+        } catch (error) {
+            console.error("Date parsing error:", error);
+            e.preventDefault();
+            alert('Error processing dates. Please select dates using the date picker.');
+            return false;
         }
 
         // Check if location is required for in-person meetings
@@ -224,8 +291,18 @@ $(document).ready(function() {
             if (!location) {
                 e.preventDefault();
                 alert('Location is required for in-person meetings');
+                console.log("Form submission blocked: Missing location");
+                return false;
             }
         }
+
+        console.log("Form validation passed, submitting form");
+        return true;
+    });
+
+    // Add direct click handler to submit button to verify it's working
+    $('#submitButton').on('click', function(e) {
+        console.log("Submit button clicked directly");
     });
 });
 </script>
