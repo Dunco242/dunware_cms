@@ -1005,14 +1005,25 @@ class Meeting(models.Model):
         now = timezone.now()
         return self.start_time <= now <= self.end_time
 
-    @property
-    def is_past(self) -> bool:
-        """Check if meeting is in the past"""
-        # Print for debugging
-        now = timezone.now()
-        meeting_time = self.end_time
-        print(f"Now: {now}, Meeting end time: {meeting_time}, Is past: {meeting_time < now}")
-        return meeting_time < now
+   @property
+def is_past(self) -> bool:
+    """Check if meeting is in the past"""
+    now = timezone.now()
+
+    # Use end_time for determining if a meeting is past
+    # A meeting is only considered past when it's completely over
+    meeting_time = self.end_time
+
+    # Both times must be timezone-aware for correct comparison
+    if not timezone.is_aware(meeting_time):
+        meeting_time = timezone.make_aware(meeting_time)
+
+    is_past = meeting_time < now
+
+    # Debug logging to help trace issues
+    logger.debug(f"Meeting '{self.title}' (ID: {self.id}): Now={now}, End={meeting_time}, Is Past={is_past}")
+
+    return is_past
 
     @property
     def can_be_cancelled(self) -> bool:

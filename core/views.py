@@ -817,94 +817,123 @@ class MeetingDetailView(LoginRequiredMixin, DetailView):
 logger = logging.getLogger(__name__)
 
 class MeetingCreateView(LoginRequiredMixin, CreateView):
-   model = Meeting
-   form_class = MeetingForm
-   template_name = 'core/meeting_form.html'
-   success_url = reverse_lazy('meeting-list')
+    model = Meeting
+    form_class = MeetingForm
+    template_name = 'core/meeting_form.html'
+    success_url = reverse_lazy('meeting-list')
 
-   def get_initial(self):
-       """Set initial values for the form"""
-       initial = super().get_initial()
-       try:
-           employee = Employee.objects.get(user=self.request.user)
-           initial['organizer'] = employee
-           current_time = timezone.now()
-           initial['start_time'] = current_time.replace(
-               minute=(current_time.minute // 15) * 15,
-               second=0,
-               microsecond=0
-           )
-           initial['end_time'] = initial['start_time'] + timezone.timedelta(hours=1)
-       except Employee.DoesNotExist:
-           logger.error(f"Employee profile not found for user {self.request.user.id}")
-       except Exception as e:
-           logger.error(f"Error setting initial meeting values: {str(e)}")
-       return initial
+    def get_initial(self):
+        """Set initial values for the form"""
+        initial = super().get_initial()
+        try:
+            employee = Employee.objects.get(user=self.request.user)
+            initial['organizer'] = employee
 
-   def get_form_kwargs(self):
-       kwargs = super().get_form_kwargs()
-       if 'initial' not in kwargs:
-           kwargs['initial'] = {}
-       try:
-           kwargs['initial']['organizer'] = self.request.user.employee_profile
-       except Employee.DoesNotExist:
-           logger.error(f"Employee profile not found for user {self.request.user.id}")
-       return kwargs
+            # Ensure we're using timezone-aware datetime
+            current_time = timezone.now()
 
-   def form_valid(self, form):
-       try:
-           employee = Employee.objects.get(user=self.request.user)
+            # Round minutes to nearest 15
+            initial['start_time'] = current_time.replace(
+                minute=(current_time.minute // 15) * 15,
+                second=0,
+                microsecond=0
+            )
+            initial['end_time'] = initial['start_time'] + timezone.timedelta(hours=1)
 
-           with transaction.atomic():
-               form.instance.organizer = employee
+            # Log initial times for debugging
+            logger.debug(f"Initial start time: {initial['start_time']}, Initial end time: {initial['end_time']}")
 
-               scheduling_service = SchedulingService(self.request.user)
-               scheduling_service.employee = employee
+        except Employee.DoesNotExist:
+            logger.error(f"Employee profile not found for user {self.request.user.id}")
+        except Exception as e:
+            logger.error(f"Error setting initial meeting values: {str(e)}")
+        return initial
 
-               duration = (form.cleaned_data['end_time'] -
-                         form.cleaned_data['start_time']).total_seconds() / 60
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        if 'initial' not in kwargs:
+            kwargs['initial'] = {}
+        try:
+            kwargs['initial']['organizer'] = self.request.user.employee_profile
+        except Employee.DoesNotExist:
+            logger.error(f"Employee profile not found for user {self.request.user.id}")
+        return kwargs
 
-               is_available = scheduling_service.check_availability(
-                   form.cleaned_data['start_time'],
-                   form.cleaned_data['end_time'],
-                   duration
-               )
+    def form_valid(self, form):
+        try:
+            employee = Employee.objects.get(user=self.request.user)
 
-               if not is_available:
-                   form.add_error(None, "Selected time slot is not available")
-                   return self.form_invalid(form)
+            with transaction.atomic():
+                form.instance.organizer = employee
 
-               response = super().form_valid(form)
+                # Ensure datetime objects are timezone-aware
+                start_time = form.cleaned_data['start_time']
+                end_time = form.cleaned_data['end_time']
 
-               if form.instance.meeting_type == 'zoom':
-                   try:
-                       form.instance.create_zoom_meeting()
-                   except Exception as e:
-                       logger.error(f"Failed to create Zoom meeting: {str(e)}")
-                       messages.warning(
-                           self.request,
-                           "Meeting scheduled, but Zoom meeting creation failed. "
-                           "Please set up the Zoom meeting manually."
-                       )
+                if not timezone.is_aware(start_time):
+                    start_time = timezone.make_aware(start_time)
+                    form.instance.start_time = start_time
 
-               messages.success(
-                   self.request,
-                   f"Meeting '{form.instance.title}' scheduled successfully"
-               )
-               return response
+                if not timezone.is_aware(end_time):
+                    end_time = timezone.make_aware(end_time)
+                    form.instance.end_time = end_time
 
-       except Employee.DoesNotExist:
-           form.add_error(None, "Employee profile not found")
-           return self.form_invalid(form)
-       except Exception as e:
-           logger.error(f"Error creating meeting: {str(e)}")
-           form.add_error(None, "An error occurred while scheduling the meeting")
-           return self.form_invalid(form)
+                # Log actual times being saved
+                logger.debug(f"Saving meeting with start time: {start_time}, end time: {end_time}")
 
-   def get_success_url(self):
-       if 'create_another' in self.request.POST:
-           return reverse_lazy('meeting-create')
-       return self.success_url
+                scheduling_service = SchedulingService(self.request.user)
+                scheduling_service.employee = employee
+
+                duration = (end_time - start_time).total_seconds() / 60
+
+                is_available = scheduling_service.check_availability(
+                    start_time,
+                    end_time,
+                    duration
+                )
+
+                if not is_available:
+                    form.add_error(None, "Selected time slot is not available")
+                    return self.form_invalid(form)
+
+                # Set status based on meeting time relative to now
+                now = timezone.now()
+                if start_time > now:
+                    form.instance.status = 'scheduled'
+                else:
+                    form.instance.status = 'in_progress'
+
+                response = super().form_valid(form)
+
+                if form.instance.meeting_type == 'zoom':
+                    try:
+                        form.instance.create_zoom_meeting()
+                    except Exception as e:
+                        logger.error(f"Failed to create Zoom meeting: {str(e)}")
+                        messages.warning(
+                            self.request,
+                            "Meeting scheduled, but Zoom meeting creation failed. "
+                            "Please set up the Zoom meeting manually."
+                        )
+
+                messages.success(
+                    self.request,
+                    f"Meeting '{form.instance.title}' scheduled successfully"
+                )
+                return response
+
+        except Employee.DoesNotExist:
+            form.add_error(None, "Employee profile not found")
+            return self.form_invalid(form)
+        except Exception as e:
+            logger.error(f"Error creating meeting: {str(e)}")
+            form.add_error(None, "An error occurred while scheduling the meeting")
+            return self.form_invalid(form)
+
+    def get_success_url(self):
+        if 'create_another' in self.request.POST:
+            return reverse_lazy('meeting-create')
+        return self.success_url
 
 
 class MeetingUpdateView(LoginRequiredMixin, UpdateView):
@@ -921,9 +950,21 @@ class MeetingUpdateView(LoginRequiredMixin, UpdateView):
             messages.error(self.request, "You must have an employee profile to update meetings.")
             return self.form_invalid(form)
 
-        # Get start and end times from the form
+        # Get start and end times from the form and ensure they're timezone-aware
         start_time = form.cleaned_data.get('start_time')
         end_time = form.cleaned_data.get('end_time')
+
+        if not timezone.is_aware(start_time):
+            start_time = timezone.make_aware(start_time)
+            form.instance.start_time = start_time
+
+        if not timezone.is_aware(end_time):
+            end_time = timezone.make_aware(end_time)
+            form.instance.end_time = end_time
+
+        # Log times for debugging
+        logger.debug(f"Updating meeting with start: {start_time}, end: {end_time}")
+        logger.debug(f"Current time: {timezone.now()}")
 
         # Create scheduling service for the current user
         scheduling_service = SchedulingService(self.request.user)
@@ -950,6 +991,15 @@ class MeetingUpdateView(LoginRequiredMixin, UpdateView):
             else:
                 messages.error(self.request, "No available time slots found.")
                 return self.form_invalid(form)
+
+        # Update status based on meeting time relative to now
+        now = timezone.now()
+        if start_time > now:
+            form.instance.status = 'scheduled'
+        elif start_time <= now and end_time > now:
+            form.instance.status = 'in_progress'
+        else:
+            form.instance.status = 'completed'
 
         # Store the previous meeting type
         previous_type = self.get_object().meeting_type
