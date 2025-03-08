@@ -2340,7 +2340,9 @@ def customer_calendar(request, customer_id):
 
 @login_required
 def user_calendar_events(request):
+    """Retrieve events for displaying on the user's calendar"""
     try:
+        # Get the employee profile of the current user
         employee = request.user.employee_profile
         events_list = []
 
@@ -2417,11 +2419,11 @@ def user_calendar_events(request):
                 }
             })
 
-        # Add meetings - Fixed select_related
+        # Add meetings - Now with distinct() to prevent duplicates
         meetings = Meeting.objects.filter(
             Q(organizer=employee) |
             Q(attendees=employee)
-        ).select_related('organizer').prefetch_related('customers')
+        ).distinct().select_related('organizer').prefetch_related('customers')
 
         for meeting in meetings:
             events_list.append({
@@ -2437,6 +2439,8 @@ def user_calendar_events(request):
                     'type': 'meeting',
                     'status': meeting.status,
                     'customer': meeting.customers.first().company_name if meeting.customers.exists() else None,
+                    'meeting_type': meeting.get_meeting_type_display(),
+                    'organizer': meeting.organizer.user.get_full_name(),
                 }
             })
 
@@ -2444,7 +2448,7 @@ def user_calendar_events(request):
         events = Event.objects.filter(
             Q(created_by=employee) |
             Q(attendees=employee)
-        ).select_related('created_by', 'customer')
+        ).distinct().select_related('created_by', 'customer')
 
         for event in events:
             events_list.append({
@@ -2458,7 +2462,9 @@ def user_calendar_events(request):
                 'url': reverse('event-detail', args=[event.id]),
                 'extendedProps': {
                     'type': 'event',
-                    'customer': event.customer.company_name if event.customer else None
+                    'customer': event.customer.company_name if event.customer else None,
+                    'location': event.location or '',
+                    'created_by': event.created_by.user.get_full_name() if event.created_by else None
                 }
             })
 
