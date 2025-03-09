@@ -406,6 +406,7 @@ function setupNotificationSocket(employeeId) {
  * @param {Object} counts - Notification counts from server
  */
 function updateNotificationCountFromData(counts) {
+    // Update general notification badge
     const badge = document.getElementById('notificationCountBadge');
     if (badge) {
         if (counts.total > 0) {
@@ -419,7 +420,8 @@ function updateNotificationCountFromData(counts) {
     // Update chat notification counter if it exists
     const chatBadge = document.getElementById('notificationBadge');
     if (chatBadge) {
-        const chatCount = counts.types && counts.types.chat ? counts.types.chat : 0;
+        // Check if counts.types exists and if it has a chat property
+        const chatCount = (counts.types && counts.types.chat) ? counts.types.chat : 0;
         if (chatCount > 0) {
             chatBadge.textContent = chatCount;
             chatBadge.classList.remove('d-none');
@@ -428,12 +430,14 @@ function updateNotificationCountFromData(counts) {
         }
     }
 
-    // You can also update other notification indicators here
+    // Add pulse effect to chat icon when there are new chat messages
     const navItem = document.getElementById('chatNavIcon');
-    if (navItem && counts.types && counts.types.chat > 0) {
-        navItem.classList.add('pulse');
-    } else if (navItem) {
-        navItem.classList.remove('pulse');
+    if (navItem) {
+        if (counts.types && counts.types.chat > 0) {
+            navItem.classList.add('pulse');
+        } else {
+            navItem.classList.remove('pulse');
+        }
     }
 }
 
