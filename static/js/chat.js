@@ -418,15 +418,29 @@ function updateNotificationCountFromData(counts) {
     }
 
     // Update chat notification counter if it exists
-    const chatBadge = document.getElementById('notificationBadge');
+    const chatBadge = document.getElementById('chatNotificationBadge');
     if (chatBadge) {
-        // Check if counts.types exists and if it has a chat property
-        const chatCount = (counts.types && counts.types.chat) ? counts.types.chat : 0;
+        // Check if counts.types exists and if it has any chat-related property
+        const chatCount = counts.types && (
+            counts.types.chat ||
+            counts.types.message ||
+            counts.types.conversation
+        ) ? (
+            (counts.types.chat || 0) +
+            (counts.types.message || 0) +
+            (counts.types.conversation || 0)
+        ) : 0;
+
+        // Update the badge with the chat count
         if (chatCount > 0) {
             chatBadge.textContent = chatCount;
             chatBadge.classList.remove('d-none');
+
+            // For debugging
+            console.log("Chat badge updated with count:", chatCount);
         } else {
             chatBadge.classList.add('d-none');
+            console.log("Chat badge hidden - no messages");
         }
     }
 

@@ -180,7 +180,7 @@
                         <a class="nav-link position-relative {% if 'chat' in request.resolver_match.url_name %}active{% endif %}"
                            href="{% url 'chat_inbox' %}" id="chatNavIcon">
                             <i class="fas fa-comments"></i> Chat
-                            <span id="notificationBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger {% if not unread_count %}d-none{% endif %}">
+                            <span id="chatNotificationBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger {% if not unread_count %}d-none{% endif %}">
                                 {% if unread_count %}{{ unread_count }}{% endif %}
                             </span>
                         </a>
