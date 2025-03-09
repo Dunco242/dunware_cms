@@ -367,8 +367,8 @@ function setupNotificationSocket(employeeId) {
                         }
                     }
                     else if (data.type === 'notification_update') {
-                        // Just log it for now - no need to take action on these updates
-                        console.log('Received notification update, counts:', data.counts);
+                        // Update the notification badge with counts from the server
+                        updateNotificationCountFromData(data.counts);
                     }
                 } catch (error) {
                     console.error('Error processing WebSocket message:', error);
