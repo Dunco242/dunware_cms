@@ -3,7 +3,7 @@ from django.contrib.auth.models import User
 from django.dispatch import receiver
 from django.utils.timezone import now
 import logging
-from .models import Meeting, GeneralNotifier
+from .models import Meeting, GeneralNotifier, ChatMessage
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
@@ -86,3 +86,18 @@ def create_meeting_notification(sender, instance, created, **kwargs):
                 action_url=f"/meetings/{instance.id}/",
                 reference_id=instance.id
             )
+
+
+@receiver(post_save, sender=ChatMessage)
+def create_chat_notification(sender, instance, created, **kwargs):
+    """Create notification for unread chat messages"""
+    if created and instance.receiver != instance.sender:
+        GeneralNotifier.objects.create(
+            user=instance.receiver.user,
+            notification_type='chat',
+            title=f'New message from {instance.sender.get_full_name()}',
+            message=instance.content[:50] + ('...' if len(instance.content) > 50 else ''),
+            priority='normal',
+            action_url=f'/chat/session/{instance.session.id}/',
+            reference_id=instance.id
+        )

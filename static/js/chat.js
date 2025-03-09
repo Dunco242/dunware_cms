@@ -407,43 +407,28 @@ function setupNotificationSocket(employeeId) {
  */
 function updateNotificationCountFromData(counts) {
     // Update general notification badge
-    const badge = document.getElementById('notificationCountBadge');
-    if (badge) {
-        if (counts.total > 0) {
-            badge.textContent = counts.total;
-            badge.classList.remove('d-none');
+    const notificationBadge = document.getElementById('notificationCountBadge');
+    if (notificationBadge) {
+        const totalCount = counts.total || 0;
+        if (totalCount > 0) {
+            notificationBadge.textContent = totalCount;
+            notificationBadge.classList.remove('d-none');
         } else {
-            badge.classList.add('d-none');
+            notificationBadge.classList.add('d-none');
         }
     }
 
-    // Update chat notification counter if it exists
-    const chatBadge = document.getElementById('chatNotificationBadge');
-    if (chatBadge) {
-        // Check if counts.types exists and if it has any chat-related property
-        const chatCount = counts.types && (
-            counts.types.chat ||
-            counts.types.message ||
-            counts.types.conversation
-        ) ? (
-            (counts.types.chat || 0) +
-            (counts.types.message || 0) +
-            (counts.types.conversation || 0)
-        ) : 0;
-
-        // Update the badge with the chat count
+    // Update chat-specific notification badge
+    const chatBadge = document.getElementById('notificationBadge');
+    if (chatBadge && counts.types) {
+        const chatCount = counts.types.chat || 0;
         if (chatCount > 0) {
             chatBadge.textContent = chatCount;
             chatBadge.classList.remove('d-none');
-
-            // For debugging
-            console.log("Chat badge updated with count:", chatCount);
         } else {
             chatBadge.classList.add('d-none');
-            console.log("Chat badge hidden - no messages");
         }
     }
-
     // Add pulse effect to chat icon when there are new chat messages
     const navItem = document.getElementById('chatNavIcon');
     if (navItem) {

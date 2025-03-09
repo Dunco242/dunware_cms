@@ -2630,6 +2630,7 @@ class GeneralNotifier(models.Model):
         ('document', 'Document'),
         ('video_conference', 'Video Conference'),
         ('deadline', 'Deadline'),
+        ('chat', 'Chat Message'),
         ('reminder', 'Reminder'),
         ('other', 'Other')
     ]

@@ -1,7 +1,7 @@
 # Add this to your core/context_processors.py file
 
 from django.utils import timezone
-from .models import GeneralNotifier
+from .models import GeneralNotifier, ChatMessage
 
 def notification_processor(request):
     """
@@ -15,7 +15,8 @@ def notification_processor(request):
                 'upcoming': 0,
                 'urgent': 0,
                 'immediate': 0
-            }
+            },
+            'unread_count': 0
         }
 
     # Get active notifications
@@ -70,8 +71,23 @@ def notification_processor(request):
         'types': notification_types
     }
 
+    # Get unread chat message count for the chat badge
+    unread_count = 0
+    try:
+        if hasattr(request.user, 'employee_profile'):
+            unread_count = ChatMessage.objects.filter(
+                receiver=request.user.employee_profile,
+                is_read=False
+            ).count()
+    except Exception as e:
+        # Log error but don't break page rendering
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error getting unread chat count: {str(e)}")
+
     return {
         'notifications': notifications,
         'grouped_notifications': grouped_notifications,
-        'notification_counts': notification_counts
+        'notification_counts': notification_counts,
+        'unread_count': unread_count
     }
