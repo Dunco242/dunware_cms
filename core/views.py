@@ -4450,7 +4450,7 @@ def mark_notification_read(request, notification_id):
     notification = get_object_or_404(GeneralNotifier, id=notification_id, user=request.user)
     notification.mark_as_read()
 
-    if request.is_ajax():
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         return JsonResponse({'status': 'success'})
 
     return redirect('notifications_list')
@@ -4469,7 +4469,8 @@ def mark_all_read(request):
         read_at=timezone.now()
     )
 
-    if request.is_ajax():
+    # Check if this is an AJAX request (modern way)
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         return JsonResponse({'status': 'success'})
 
     return redirect('notifications_list')
@@ -4483,7 +4484,7 @@ def dismiss_notification(request, notification_id):
     notification = get_object_or_404(GeneralNotifier, id=notification_id, user=request.user)
     notification.dismiss()
 
-    if request.is_ajax():
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         return JsonResponse({'status': 'success'})
 
     return redirect('notifications_list')

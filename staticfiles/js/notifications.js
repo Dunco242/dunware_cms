@@ -343,9 +343,10 @@ function setupNotificationActions() {
             fetch('/notifications/mark-all-read/', {
                 method: 'POST',
                 headers: {
-                    'X-CSRFToken': getCsrfToken(),
-                    'Content-Type': 'application/json'
-                }
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken() // You need a function to get the CSRF token
+                },
             })
             .then(response => response.json())
             .then(data => {
