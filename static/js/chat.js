@@ -402,16 +402,38 @@ function setupNotificationSocket(employeeId) {
 }
 
 /**
- * Update notification badge with new count
+ * Update notification badge with count from server data
+ * @param {Object} counts - Notification counts from server
  */
-function updateNotificationBadge() {
-    const badge = document.getElementById('notificationBadge');
+function updateNotificationCountFromData(counts) {
+    const badge = document.getElementById('notificationCountBadge');
     if (badge) {
-        let count = parseInt(badge.textContent) || 0;
-        count++;
+        if (counts.total > 0) {
+            badge.textContent = counts.total;
+            badge.classList.remove('d-none');
+        } else {
+            badge.classList.add('d-none');
+        }
+    }
 
-        badge.textContent = count;
-        badge.classList.remove('d-none');
+    // Update chat notification counter if it exists
+    const chatBadge = document.getElementById('notificationBadge');
+    if (chatBadge) {
+        const chatCount = counts.types && counts.types.chat ? counts.types.chat : 0;
+        if (chatCount > 0) {
+            chatBadge.textContent = chatCount;
+            chatBadge.classList.remove('d-none');
+        } else {
+            chatBadge.classList.add('d-none');
+        }
+    }
+
+    // You can also update other notification indicators here
+    const navItem = document.getElementById('chatNavIcon');
+    if (navItem && counts.types && counts.types.chat > 0) {
+        navItem.classList.add('pulse');
+    } else if (navItem) {
+        navItem.classList.remove('pulse');
     }
 }
 
