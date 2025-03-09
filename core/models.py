@@ -1010,25 +1010,20 @@ class Meeting(models.Model):
         """Check if meeting is in the past"""
         now = timezone.now()
 
-        # Use end_time for determining if a meeting is past
-        # A meeting is only considered past when it's completely over
-        meeting_time = self.end_time
+        # Compare against start time, not end time
+        meeting_time = self.start_time
 
-        # Both times must be timezone-aware for correct comparison
+        # Ensure both times are timezone-aware for proper comparison
         if not timezone.is_aware(meeting_time):
             meeting_time = timezone.make_aware(meeting_time)
 
         is_past = meeting_time < now
-
-        # Debug logging to help trace issues
-        logger.debug(f"Meeting '{self.title}' (ID: {self.id}): Now={now}, End={meeting_time}, Is Past={is_past}")
-
+        print(f"Now: {now}, Meeting start time: {meeting_time}, Is past: {is_past}")
         return is_past
-
-    @property
-    def can_be_cancelled(self) -> bool:
-        """Check if meeting can be cancelled"""
-        return self.status in ['scheduled', 'rescheduled'] and self.start_time > timezone.now()
+        @property
+        def can_be_cancelled(self) -> bool:
+            """Check if meeting can be cancelled"""
+            return self.status in ['scheduled', 'rescheduled'] and self.start_time > timezone.now()
 
 
 # core/models.py (Invoice model updates)
@@ -2650,6 +2645,7 @@ class GeneralNotifier(models.Model):
     message = models.TextField()
     notification_type = models.CharField(max_length=20, choices=NOTIFICATION_TYPES)
     priority = models.CharField(max_length=10, choices=PRIORITY_LEVELS, default='medium')
+    reference_id = models.IntegerField(null=True, blank=True, help_text="ID of the referenced object (meeting, task, event)")
 
     # Link to relevant objects via generic foreign key
     content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE, null=True, blank=True)
