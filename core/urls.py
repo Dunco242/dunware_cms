@@ -255,6 +255,10 @@ urlpatterns = [
     path('notifications/mark-all-read/', mark_all_read, name='mark_all_read'),
     path('notifications/<int:notification_id>/dismiss/', dismiss_notification, name='dismiss_notification'),
 
+    # Cookie and Privacy Policy URLs
+    path('cookie-policy/', views.cookie_policy, name='cookie_policy'),
+    path('privacy-policy/', views.privacy_policy, name='privacy_policy'),
+
     # Debugging URLs
     path('websocket-test/', views.websocket_test, name='websocket_test'),
 ]

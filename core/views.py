@@ -4499,3 +4499,10 @@ def get_notifications_json(request):
         'notifications': notifications_data,
         'counts': notification_counts
     })
+
+
+def cookie_policy(request):
+    return render(request, 'cookie_policy.html')
+
+def privacy_policy(request):
+    return render(request, 'privacy_policy.html')
