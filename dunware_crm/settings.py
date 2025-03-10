@@ -83,7 +83,6 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'allauth.account.middleware.AccountMiddleware',
     'core.middleware.IPTrackingMiddleware',
-    'core.middleware.PrivacyPolicyMiddleware',
 
 ]
 
@@ -279,22 +278,6 @@ Q_CLUSTER = {
 WEASYPRINT_TEMP_DIR = os.path.join(tempfile.gettempdir(), "weasyprint")
 os.makedirs(WEASYPRINT_TEMP_DIR, exist_ok=True)
 
-
-PRIVACY_POLICY = {
-    'CURRENT_VERSION': '1.0.0',
-    'LAST_UPDATED': '2025-02-08',
-    'EXEMPT_PATHS': [
-        '/privacy-policy/',
-        '/accept-privacy-policy/',
-        '/logout/',
-        '/admin/',
-        '/static/',
-        '/media/',
-    ],
-}
-
-
-PRIVACY_POLICY_PATH = os.path.join(BASE_DIR, 'legal_docs', 'privacy_policy.md')
 
 
 MESSAGE_STORAGE = 'django.contrib.messages.storage.session.SessionStorage'

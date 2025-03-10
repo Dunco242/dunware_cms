@@ -2,7 +2,7 @@ from django.contrib import admin
 from .models import (
     Employee, Customer, Lead, Service,
     Note, Task, Meeting, Invoice, Payment,
-    Subscription, Transaction, ServiceSubscription, IPAccess, PrivacyPolicyAcceptance, LegalDocument, ScheduleRule, ScheduleException,
+    Subscription, Transaction, ServiceSubscription, IPAccess, ScheduleRule, ScheduleException,
     ChatSession, ChatMessage, ChatNotification, EmailMessage, EmailFolder, EmailAttachment, EmailTemplate, EmailFolderMessage, EmailAccount
 )
 from django.contrib import admin
@@ -90,33 +90,6 @@ class IPAccessAdmin(admin.ModelAdmin):
 
     def has_add_permission(self, request):
         return False  # Prevent manual creation
-
-@admin.register(PrivacyPolicyAcceptance)
-class PrivacyPolicyAcceptanceAdmin(admin.ModelAdmin):
-    list_display = ['user', 'policy_version', 'accepted_at', 'ip_address']
-    list_filter = ['policy_version', 'accepted_at']
-    search_fields = ['user__username', 'user__email', 'ip_address']
-    readonly_fields = ['accepted_at', 'ip_address', 'user_agent']
-    date_hierarchy = 'accepted_at'
-
-    def has_add_permission(self, request):
-        return False  # Prevent manual creation
-
-    def has_change_permission(self, request, obj=None):
-        return False  # Make it read-only
-
-
-@admin.register(LegalDocument)
-class LegalDocumentAdmin(admin.ModelAdmin):
-    list_display = ('type', 'version', 'created_at', 'is_current')
-    list_filter = ('type', 'is_current')
-
-    def save_model(self, request, obj, form, change):
-        # Automatically set is_current when creating a new version
-        if not change:
-            obj.is_current = True
-        super().save_model(request, obj, form, change)
-
 
 @admin.register(ScheduleRule)
 class ScheduleRuleAdmin(admin.ModelAdmin):

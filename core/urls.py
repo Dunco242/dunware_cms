@@ -206,10 +206,6 @@ urlpatterns = [
     path('api/meetings/check-availability/', views.check_meeting_availability, name='api-check-meeting-availability'),
     path('api/meetings/schedule/', views.schedule_meeting, name='api-schedule-meeting'),
 
-    # Privacy and Statistics URLs
-    path('ip-statistics/', IPStatisticsView.as_view(), name='ip_statistics'),
-    path('privacy-policy/', views.privacy_policy_view, name='privacy_policy'),
-    path('accept-privacy-policy/', views.accept_privacy_policy, name='accept_privacy_policy'),
 
    # Chat UI Routes
     path('chat/', views.chat_inbox, name='chat_inbox'),

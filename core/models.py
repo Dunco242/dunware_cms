@@ -1921,57 +1921,6 @@ class IPAccess(models.Model):
 
 
 
-class PrivacyPolicyAcceptance(models.Model):
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    policy_version = models.CharField(max_length=10)
-    accepted_at = models.DateTimeField(auto_now_add=True)
-    ip_address = models.GenericIPAddressField()
-    user_agent = models.TextField()
-
-    class Meta:
-        unique_together = ['user', 'policy_version']
-        ordering = ['-accepted_at']
-        indexes = [
-            models.Index(fields=['user', 'policy_version']),
-            models.Index(fields=['accepted_at']),
-        ]
-
-    def __str__(self):
-        return f"{self.user.username} - v{self.policy_version} - {self.accepted_at}"
-
-
-class LegalDocument(models.Model):
-    DOCUMENT_TYPES = (
-        ('privacy_policy', 'Privacy Policy'),
-        ('terms_of_service', 'Terms of Service'),
-    )
-
-    type = models.CharField(max_length=50, choices=DOCUMENT_TYPES)
-    version = models.CharField(max_length=10)
-    content = models.TextField()
-    created_at = models.DateTimeField(auto_now_add=True)
-    is_current = models.BooleanField(default=False)
-
-    def save(self, *args, **kwargs):
-        # Ensure only one current version exists
-        if self.is_current:
-            LegalDocument.objects.filter(
-                type=self.type,
-                is_current=True
-            ).update(is_current=False)
-
-        super().save(*args, **kwargs)
-
-    @classmethod
-    def get_current_policy(cls):
-        return cls.objects.filter(
-            type='privacy_policy',
-            is_current=True
-        ).first()
-
-
-
-
 class ScheduleException(models.Model):
     """
     Allows marking specific dates as unavailable or having special rules

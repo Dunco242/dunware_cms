@@ -2712,69 +2712,6 @@ def get_client_ip(request):
         ip = request.META.get('REMOTE_ADDR')
     return ip
 
-def privacy_policy_view(request):
-    CURRENT_POLICY_VERSION = "1.0.0"  # Update this when policy changes
-
-    context = {
-        'policy_version': CURRENT_POLICY_VERSION,
-        'last_updated': "February 8, 2025",
-        'already_accepted': False,
-        'acceptance_date': None
-    }
-
-    if request.user.is_authenticated:
-        acceptance = PrivacyPolicyAcceptance.objects.filter(
-            user=request.user,
-            policy_version=CURRENT_POLICY_VERSION
-        ).first()
-
-        if acceptance:
-            context['already_accepted'] = True
-            context['acceptance_date'] = acceptance.accepted_at
-
-    return render(request, 'privacy_policy.html', context)
-
-@login_required
-def accept_privacy_policy(request):
-    if request.method == 'POST':
-        policy_version = request.POST.get('policy_version', '1.0.0')  # Set a default version if missing
-
-        # Check if already accepted
-        if not PrivacyPolicyAcceptance.objects.filter(
-            user=request.user,
-            policy_version=policy_version
-        ).exists():
-            # Create acceptance record
-            PrivacyPolicyAcceptance.objects.create(
-                user=request.user,
-                policy_version=policy_version,
-                ip_address=get_client_ip(request),
-                user_agent=request.META.get('HTTP_USER_AGENT', '')
-            )
-
-            messages.success(request, 'Privacy Policy accepted successfully.')
-
-        # Redirect to the page they came from, or home
-        next_url = request.POST.get('next') or '/'
-        return redirect(next_url)
-
-    return redirect('privacy_policy')
-
-
-
-def privacy_policy_view(request):
-    context = {
-        'policy_version': '1.0.0',
-        'last_updated': timezone.now(),
-        'policy_content': get_privacy_policy_content(),
-        'already_accepted': PrivacyPolicyAcceptance.objects.filter(
-            user=request.user,
-            policy_version='1.0.0'
-        ).exists() if request.user.is_authenticated else False
-    }
-    return render(request, 'core/privacy_policy.html', context)
-
-
 class ScheduleRuleListView(LoginRequiredMixin, ListView):
     model = ScheduleRule
     template_name = 'core/schedule_rule_list.html'

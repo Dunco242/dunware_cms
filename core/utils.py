@@ -7,16 +7,6 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
 
-def get_privacy_policy_content():
-    # Option 1: From a template
-    return render_to_string('legal/privacy_policy_content.html')
-
-    # Option 2: From a markdown file
-    markdown_path = os.path.join(settings.BASE_DIR, 'legal_docs', 'privacy_policy.md')
-    with open(markdown_path, 'r') as file:
-        return file.read()
-
-
 def send_email_message(email_message):
     """Send an email using the configured SMTP settings"""
     email_account = email_message.account

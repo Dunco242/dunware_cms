@@ -49,7 +49,6 @@ from django.views.decorators.csrf import csrf_protect
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_POST
 from django.utils.decorators import method_decorator
-from .utils import get_privacy_policy_content
 from core.services.scheduling import SchedulingService
 from django.contrib.auth.models import User
 
@@ -109,7 +108,6 @@ from .models import (
     UploadedICSFile,  # If this is a model
     Event,
     IPAccess,
-    PrivacyPolicyAcceptance,
     ScheduleRule,
     ChatMessage,
     ChatSession,

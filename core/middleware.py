@@ -4,7 +4,7 @@ from django.utils import timezone
 from django.core.cache import cache
 from django.conf import settings
 from django.db.models import Q
-from .models import IPAccess, PrivacyPolicyAcceptance, LegalDocument, GeneralNotifier
+from .models import IPAccess, GeneralNotifier
 import logging
 from functools import lru_cache
 
@@ -47,36 +47,6 @@ class IPTrackingMiddleware:
                 logger.error(f"Error in IPTrackingMiddleware: {str(e)}", exc_info=True)
 
         return response
-
-class PrivacyPolicyMiddleware:
-    def __init__(self, get_response):
-        self.get_response = get_response
-
-    def __call__(self, request):
-        if request.user.is_authenticated:
-            # Paths that don't require policy acceptance
-            exempt_paths = [
-                '/privacy-policy/',
-                '/accept-privacy-policy/',
-                '/logout/',
-                '/admin/',
-            ]
-
-            # Check if current path is exempt
-            if not any(request.path.startswith(path) for path in exempt_paths):
-                # Check if user has accepted current policy
-                current_version = "1.0.0"  # Consider making this configurable
-                if not PrivacyPolicyAcceptance.objects.filter(
-                    user=request.user,
-                    policy_version=current_version
-                ).exists():
-                    messages.warning(
-                        request,
-                        'Please accept our Privacy Policy to continue.'
-                    )
-                    return redirect('privacy_policy')
-
-        return self.get_response(request)
 
 class NotificationMiddleware:
     """
