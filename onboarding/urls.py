@@ -35,4 +35,5 @@ urlpatterns = [
 
     # Generate Report
     path('customer-onboardings/<int:pk>/generate-report/', views.generate_onboarding_report, name='generate_report'),
+    path('customer-onboardings/<int:pk>/html-report/', views.generate_html_report, name='generate_html_report'),
 ]

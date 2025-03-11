@@ -1,9 +1,19 @@
 from django.shortcuts import render, redirect, get_object_or_404
+from django.template.loader import render_to_string
 from django.views.generic import (
     ListView, DetailView, CreateView, UpdateView, TemplateView, FormView, View
 )
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
+from reportlab.lib import colors
+from reportlab.graphics.shapes import Drawing
+from reportlab.graphics.charts.piecharts import Pie
+from reportlab.graphics.charts.barcharts import VerticalBarChart
+from reportlab.lib.colors import HexColor
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
+from io import BytesIO
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.decorators import login_required
 from django.urls import reverse, reverse_lazy
@@ -12,7 +22,7 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt  # Only use if needed
 from django.db import transaction
 from django.http import JsonResponse, HttpResponseRedirect, Http404, HttpResponse
-
+from weasyprint import HTML
 from core.models import Customer, Employee
 from core.mixins import EmployeeRequiredMixin
 from .models import (
@@ -786,58 +796,224 @@ class OnboardingAnalyticsView(LoginRequiredMixin, EmployeeRequiredMixin, Templat
 
         return context
 
-@login_required  # Ensure user is logged in
+@login_required
 def generate_onboarding_report(request, pk):
-    """Generate a PDF report for a customer onboarding"""
+    """Generate a stylish PDF report for a customer onboarding with progress chart"""
     onboarding = get_object_or_404(CustomerOnboarding, pk=pk)
 
-    # If you need additional permission checks, add them here
-    # For example, check if the user is assigned to this onboarding
-    # if onboarding.assigned_to != request.user.employee_profile and not request.user.is_staff:
-    #     return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
+    # Create response object
+    response = HttpResponse(content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="onboarding_report_{pk}.pdf"'
 
-    # Create a file-like buffer to receive PDF data
-    buffer = io.BytesIO()
+    # Create the PDF document
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=letter,
+        rightMargin=72,
+        leftMargin=72,
+        topMargin=72,
+        bottomMargin=72
+    )
 
-    # Create the PDF object, using the buffer as its "file"
-    p = canvas.Canvas(buffer, pagesize=letter)
+    # Container for elements to be added to the PDF
+    elements = []
 
-    # Draw things on the PDF
-    p.setFont("Helvetica-Bold", 16)
-    p.drawString(100, 750, f"Onboarding Report: {onboarding.customer.company_name}")
+    # Define styles
+    styles = getSampleStyleSheet()
+    title_style = styles['Heading1']
+    title_style.alignment = 1  # Center alignment
+    title_style.textColor = colors.darkblue
 
-    p.setFont("Helvetica", 12)
-    p.drawString(100, 720, f"Plan: {onboarding.plan.name}")
-    p.drawString(100, 700, f"Status: {onboarding.get_status_display()}")
-    p.drawString(100, 680, f"Progress: {onboarding.progress_percentage}%")
+    subtitle_style = styles['Heading2']
+    subtitle_style.textColor = colors.darkblue
 
-    # Add more content to the report
-    y_position = 640
-    p.setFont("Helvetica-Bold", 14)
-    p.drawString(100, y_position, "Completed Steps")
-    y_position -= 20
+    section_title_style = styles['Heading3']
+    section_title_style.textColor = colors.darkblue
+
+    normal_style = styles['Normal']
+
+    # Title
+    elements.append(Paragraph(f"Onboarding Report", title_style))
+    elements.append(Spacer(1, 12))
+    elements.append(Paragraph(f"{onboarding.customer.company_name}", subtitle_style))
+    elements.append(Spacer(1, 20))
+
+    # Customer Information
+    elements.append(Paragraph("Customer Information", section_title_style))
+
+    customer_data = [
+        ["Company Name:", onboarding.customer.company_name],
+        ["Contact Person:", onboarding.customer.contact_person],
+        ["Email:", onboarding.customer.email],
+        ["Phone:", onboarding.customer.phone]
+    ]
+
+    customer_table = Table(customer_data, colWidths=[150, 300])
+    customer_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (0, -1), colors.lightgrey),
+        ('TEXTCOLOR', (0, 0), (0, -1), colors.darkblue),
+        ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (0, -1), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('BACKGROUND', (1, 0), (1, -1), colors.white),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+    ]))
+    elements.append(customer_table)
+    elements.append(Spacer(1, 20))
+
+    # Onboarding Overview
+    elements.append(Paragraph("Onboarding Overview", section_title_style))
+
+    overview_data = [
+        ["Plan:", onboarding.plan.name],
+        ["Status:", onboarding.get_status_display()],
+        ["Progress:", f"{onboarding.progress_percentage}%"],
+        ["Start Date:", onboarding.start_date.strftime("%Y-%m-%d") if onboarding.start_date else "Not Started"],
+        ["Completed Date:", onboarding.completed_date.strftime("%Y-%m-%d") if onboarding.completed_date else "Not Completed"],
+    ]
+
+    if onboarding.assigned_to:
+        overview_data.append(["Assigned To:", onboarding.assigned_to.get_full_name()])
+
+    overview_table = Table(overview_data, colWidths=[150, 300])
+    overview_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (0, -1), colors.lightgrey),
+        ('TEXTCOLOR', (0, 0), (0, -1), colors.darkblue),
+        ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (0, -1), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('BACKGROUND', (1, 0), (1, -1), colors.white),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+    ]))
+    elements.append(overview_table)
+    elements.append(Spacer(1, 20))
+
+    # Progress Chart
+    elements.append(Paragraph("Onboarding Progress", section_title_style))
+
+    # Create drawing for pie chart
+    drawing = Drawing(400, 200)
+    progress_pie = Pie()
+    progress_pie.x = 150
+    progress_pie.y = 50
+    progress_pie.width = 100
+    progress_pie.height = 100
+    progress_pie.data = [onboarding.progress_percentage, 100-onboarding.progress_percentage]
+    progress_pie.labels = [f"{onboarding.progress_percentage}% Complete", f"{100-onboarding.progress_percentage}% Remaining"]
+
+    # Colors for the pie chart
+    progress_pie.slices[0].fillColor = HexColor('#007bff')  # Blue for completed (Bootstrap primary)
+    progress_pie.slices[1].fillColor = HexColor('#e9ecef')  # Light gray for remaining
+
+    drawing.add(progress_pie)
+    elements.append(drawing)
+    elements.append(Spacer(1, 20))
+
+    # Completed Steps
+    elements.append(Paragraph("Completed Steps", section_title_style))
+
+    # Header row for steps table
+    steps_data = [["Step", "Type", "Completion Date", "Completed By"]]
 
     for completion in onboarding.step_completions.filter(is_completed=True):
-        p.setFont("Helvetica", 12)
-        p.drawString(120, y_position, f"• {completion.step.name}")
-        if completion.completed_date:
-            p.drawString(350, y_position, f"Completed on: {completion.completed_date.strftime('%Y-%m-%d')}")
-        y_position -= 20
+        completed_by = completion.completed_by.get_full_name() if completion.completed_by else "N/A"
+        completed_date = completion.completed_date.strftime("%Y-%m-%d") if completion.completed_date else "N/A"
 
-        if y_position < 100:
-            # Start a new page if we're running out of space
-            p.showPage()
-            p.setFont("Helvetica-Bold", 16)
-            p.drawString(100, 750, f"Onboarding Report: {onboarding.customer.company_name} (continued)")
-            y_position = 720
+        steps_data.append([
+            completion.step.name,
+            completion.step.get_step_type_display(),
+            completed_date,
+            completed_by
+        ])
 
-    # Close the PDF object cleanly, and return the PDF file
-    p.showPage()
-    p.save()
+    if len(steps_data) == 1:  # Only header row, no data
+        elements.append(Paragraph("No steps have been completed yet.", normal_style))
+    else:
+        steps_table = Table(steps_data, colWidths=[200, 100, 100, 100])
+        steps_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.darkblue),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('ALIGN', (1, 1), (-1, -1), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.white),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.whitesmoke, colors.white]),
+        ]))
+        elements.append(steps_table)
 
-    # File response
-    buffer.seek(0)
-    response = HttpResponse(buffer, content_type='application/pdf')
+    elements.append(Spacer(1, 30))
+
+    # Pending Steps (if any)
+    pending_steps = onboarding.step_completions.filter(is_completed=False)
+    if pending_steps.exists():
+        elements.append(Paragraph("Pending Steps", section_title_style))
+
+        pending_data = [["Step", "Type", "Required", "Est. Time (min)"]]
+
+        for completion in pending_steps:
+            step = completion.step
+            pending_data.append([
+                step.name,
+                step.get_step_type_display(),
+                "Yes" if step.is_required else "No",
+                str(step.estimated_minutes)
+            ])
+
+        pending_table = Table(pending_data, colWidths=[200, 100, 100, 100])
+        pending_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.darkblue),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('ALIGN', (1, 1), (-1, -1), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.white),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.whitesmoke, colors.white]),
+        ]))
+        elements.append(pending_table)
+        elements.append(Spacer(1, 30))
+
+    # Footer with date
+    report_date = timezone.now().strftime("%Y-%m-%d %H:%M:%S")
+    elements.append(Paragraph(f"Report generated on: {report_date}", normal_style))
+
+    # Build the PDF
+    doc.build(elements)
+
+    # Get the value of the BytesIO buffer and write it to the response
+    pdf = buffer.getvalue()
+    buffer.close()
+    response.write(pdf)
+
+    return response
+
+@login_required
+def generate_html_report(request, pk):
+    """Generate a PDF report from HTML template"""
+    onboarding = get_object_or_404(CustomerOnboarding, pk=pk)
+
+    # Render HTML template with context
+    html_string = render_to_string('onboarding/report_template.html', {
+        'onboarding': onboarding,
+        'report_date': timezone.now()
+    })
+
+    # Create PDF from HTML
+    html = HTML(string=html_string)
+    pdf = html.write_pdf()
+
+    # Create response
+    response = HttpResponse(pdf, content_type='application/pdf')
     response['Content-Disposition'] = f'attachment; filename="onboarding_report_{pk}.pdf"'
 
     return response

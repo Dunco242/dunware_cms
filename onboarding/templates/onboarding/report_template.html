@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Onboarding Report - {{ onboarding.customer.company_name }}</title>
+    <style>
+        @page {
+            size: letter portrait;
+            margin: 2cm;
+        }
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            color: #333;
+            line-height: 1.5;
+            margin: 0;
+            padding: 0;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .title {
+            color: #0d6efd;
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+        .subtitle {
+            color: #0d6efd;
+            font-size: 18px;
+            margin-top: 0;
+        }
+        .section-title {
+            color: #0d6efd;
+            font-size: 16px;
+            border-bottom: 1px solid #dee2e6;
+            padding-bottom: 5px;
+            margin-top: 20px;
+        }
+        .info-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        .info-table th {
+            background-color: #f8f9fa;
+            text-align: left;
+            padding: 8px;
+            width: 30%;
+            color: #0d6efd;
+            border: 1px solid #dee2e6;
+        }
+        .info-table td {
+            padding: 8px;
+            border: 1px solid #dee2e6;
+        }
+        .steps-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        .steps-table th {
+            background-color: #0d6efd;
+            color: white;
+            text-align: center;
+            padding: 8px;
+            border: 1px solid #dee2e6;
+        }
+        .steps-table td {
+            padding: 8px;
+            border: 1px solid #dee2e6;
+            text-align: center;
+        }
+        .steps-table tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+        .progress-container {
+            width: 100%;
+            text-align: center;
+            margin: 20px 0;
+        }
+        .progress-chart {
+            width: 150px;
+            height: 150px;
+            margin: 0 auto;
+            position: relative;
+        }
+        .progress-chart .progress-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+            font-weight: bold;
+            color: #0d6efd;
+        }
+        .footer {
+            margin-top: 30px;
+            text-align: center;
+            font-size: 12px;
+            color: #6c757d;
+        }
+        .no-data {
+            text-align: center;
+            color: #6c757d;
+            font-style: italic;
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1 class="title">Onboarding Report</h1>
+        <h2 class="subtitle">{{ onboarding.customer.company_name }}</h2>
+    </div>
+
+    <h3 class="section-title">Customer Information</h3>
+    <table class="info-table">
+        <tr>
+            <th>Company Name</th>
+            <td>{{ onboarding.customer.company_name }}</td>
+        </tr>
+        <tr>
+            <th>Contact Person</th>
+            <td>{{ onboarding.customer.contact_person }}</td>
+        </tr>
+        <tr>
+            <th>Email</th>
+            <td>{{ onboarding.customer.email }}</td>
+        </tr>
+        <tr>
+            <th>Phone</th>
+            <td>{{ onboarding.customer.phone }}</td>
+        </tr>
+    </table>
+
+    <h3 class="section-title">Onboarding Overview</h3>
+    <table class="info-table">
+        <tr>
+            <th>Plan</th>
+            <td>{{ onboarding.plan.name }}</td>
+        </tr>
+        <tr>
+            <th>Status</th>
+            <td>{{ onboarding.get_status_display }}</td>
+        </tr>
+        <tr>
+            <th>Progress</th>
+            <td>{{ onboarding.progress_percentage }}%</td>
+        </tr>
+        <tr>
+            <th>Start Date</th>
+            <td>
+                {% if onboarding.start_date %}
+                    {{ onboarding.start_date|date:"M d, Y" }}
+                {% else %}
+                    Not Started
+                {% endif %}
+            </td>
+        </tr>
+        <tr>
+            <th>Completed Date</th>
+            <td>
+                {% if onboarding.completed_date %}
+                    {{ onboarding.completed_date|date:"M d, Y" }}
+                {% else %}
+                    Not Completed
+                {% endif %}
+            </td>
+        </tr>
+        {% if onboarding.assigned_to %}
+        <tr>
+            <th>Assigned To</th>
+            <td>{{ onboarding.assigned_to.get_full_name }}</td>
+        </tr>
+        {% endif %}
+    </table>
+
+    <h3 class="section-title">Onboarding Progress</h3>
+    <div class="progress-container">
+        <div class="progress-chart">
+            <!-- For HTML-to-PDF, you might need to use an actual chart library or SVG -->
+            <svg width="150" height="150" viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="45" fill="transparent" stroke="#e9ecef" stroke-width="10"></circle>
+                <circle cx="50" cy="50" r="45" fill="transparent" stroke="#0d6efd" stroke-width="10"
+                        stroke-dasharray="calc({{ onboarding.progress_percentage }} * 2.83) 283"
+                        transform="rotate(-90 50 50)"></circle>
+            </svg>
+            <div class="progress-text">{{ onboarding.progress_percentage }}%</div>
+        </div>
+    </div>
+
+    <h3 class="section-title">Completed Steps</h3>
+    {% with completed_steps=onboarding.step_completions.filter(is_completed=True) %}
+        {% if completed_steps %}
+            <table class="steps-table">
+                <thead>
+                    <tr>
+                        <th>Step</th>
+                        <th>Type</th>
+                        <th>Completion Date</th>
+                        <th>Completed By</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for completion in completed_steps %}
+                        <tr>
+                            <td>{{ completion.step.name }}</td>
+                            <td>{{ completion.step.get_step_type_display }}</td>
+                            <td>
+                                {% if completion.completed_date %}
+                                    {{ completion.completed_date|date:"M d, Y" }}
+                                {% else %}
+                                    N/A
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if completion.completed_by %}
+                                    {{ completion.completed_by.get_full_name }}
+                                {% else %}
+                                    N/A
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <div class="no-data">No steps have been completed yet.</div>
+        {% endif %}
+    {% endwith %}
+
+    <h3 class="section-title">Pending Steps</h3>
+    {% with pending_steps=onboarding.step_completions.filter(is_completed=False) %}
+        {% if pending_steps %}
+            <table class="steps-table">
+                <thead>
+                    <tr>
+                        <th>Step</th>
+                        <th>Type</th>
+                        <th>Required</th>
+                        <th>Est. Time (min)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for completion in pending_steps %}
+                        <tr>
+                            <td>{{ completion.step.name }}</td>
+                            <td>{{ completion.step.get_step_type_display }}</td>
+                            <td>{% if completion.step.is_required %}Yes{% else %}No{% endif %}</td>
+                            <td>{{ completion.step.estimated_minutes }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <div class="no-data">All steps have been completed.</div>
+        {% endif %}
+    {% endwith %}
+
+    <div class="footer">
+        <p>Report generated on: {{ report_date|date:"F d, Y H:i:s" }}</p>
+    </div>
+</body>
+</html>
