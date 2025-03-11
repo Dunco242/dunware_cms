@@ -534,7 +534,7 @@
     this.disabled = true;
 
     // Use a direct GET request instead of fetch
-    window.location.href = "{% url 'onboarding:generate_report' pk=onboarding.id %}";
+    window.location.href = "{% url 'onboarding:html-report' pk=onboarding.id %}";
 
     // Reset button after a delay
     setTimeout(() => {

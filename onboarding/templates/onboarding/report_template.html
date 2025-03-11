@@ -16,9 +16,25 @@
             margin: 0;
             padding: 0;
         }
+        .logo-container {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .logo {
+            width: 80px;
+            height: auto;
+        }
+        .company-name {
+            font-size: 20px;
+            font-weight: bold;
+            color: #0d6efd;
+            margin: 5px 0;
+        }
         .header {
             text-align: center;
             margin-bottom: 20px;
+            border-bottom: 2px solid #0d6efd;
+            padding-bottom: 15px;
         }
         .title {
             color: #0d6efd;
@@ -99,6 +115,8 @@
             text-align: center;
             font-size: 12px;
             color: #6c757d;
+            border-top: 1px solid #dee2e6;
+            padding-top: 10px;
         }
         .no-data {
             text-align: center;
@@ -110,6 +128,11 @@
 </head>
 <body>
     <div class="header">
+        <div class="logo-container">
+            <!-- Logo image - replace with actual path to your logo -->
+            <img src="data:image/png;base64,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" alt="DunWare CRM Logo" class="logo">
+            <div class="company-name">DunWare Solutions</div>
+        </div>
         <h1 class="title">Onboarding Report</h1>
         <h2 class="subtitle">{{ onboarding.customer.company_name }}</h2>
     </div>
@@ -255,6 +278,7 @@
 
     <div class="footer">
         <p>Report generated on: {{ report_date|date:"F d, Y H:i:s" }}</p>
+        <p>© {% now "Y" %} DunWare Solutions. All rights reserved.</p>
     </div>
 </body>
 </html>
