@@ -1,0 +1,343 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Onboarding Dashboard{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.css">
+<style>
+  .status-card {
+    transition: all 0.3s ease;
+  }
+  .status-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+  }
+  .progress-bar {
+    height: 10px;
+    border-radius: 5px;
+  }
+  .onboarding-table tr {
+    transition: all 0.2s ease;
+  }
+  .onboarding-table tr:hover {
+    background-color: rgba(13, 110, 253, 0.05);
+  }
+  .attention-item {
+    border-left: 4px solid #dc3545;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3">Customer Onboarding Dashboard</h1>
+    <a href="{% url 'onboarding:create_customer_onboarding' %}" class="btn btn-primary">
+      <i class="fas fa-plus"></i> New Onboarding
+    </a>
+  </div>
+
+  <!-- Status Overview Cards -->
+  <div class="row mb-4">
+    <div class="col-md-3">
+      <div class="card status-card bg-light h-100">
+        <div class="card-body">
+          <h5 class="card-title text-primary">In Progress</h5>
+          <h2 class="display-4">{{ analytics.status_counts.in_progress }}</h2>
+          <p class="text-muted">Active onboarding processes</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card status-card bg-light h-100">
+        <div class="card-body">
+          <h5 class="card-title text-success">Completed</h5>
+          <h2 class="display-4">{{ analytics.status_counts.completed }}</h2>
+          <p class="text-muted">Successfully completed</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card status-card bg-light h-100">
+        <div class="card-body">
+          <h5 class="card-title text-warning">Not Started</h5>
+          <h2 class="display-4">{{ analytics.status_counts.not_started }}</h2>
+          <p class="text-muted">Pending onboarding processes</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card status-card bg-light h-100">
+        <div class="card-body">
+          <h5 class="card-title text-info">Average Time</h5>
+          <h2 class="display-4">{{ analytics.avg_completion_days }}</h2>
+          <p class="text-muted">Days to complete onboarding</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Content Area -->
+  <div class="row">
+    <!-- Active Onboardings -->
+    <div class="col-lg-8">
+      <div class="card mb-4">
+        <div class="card-header bg-white">
+          <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Active Onboarding Processes</h5>
+            <div class="btn-group">
+              <a href="?assigned=me" class="btn btn-sm btn-outline-primary {% if request.GET.assigned == 'me' %}active{% endif %}">Assigned to Me</a>
+              <a href="?assigned=all" class="btn btn-sm btn-outline-primary {% if request.GET.assigned != 'me' %}active{% endif %}">All Onboardings</a>
+            </div>
+          </div>
+        </div>
+        <div class="card-body p-0">
+          {% if active_onboardings %}
+            <div class="table-responsive">
+              <table class="table table-hover onboarding-table mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th>Customer</th>
+                    <th>Plan</th>
+                    <th>Progress</th>
+                    <th>Current Step</th>
+                    <th>Started</th>
+                    <th>Assigned To</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for onboarding in active_onboardings %}
+                    <tr>
+                      <td>
+                        <a href="{% url 'onboarding:customer_onboarding_detail' pk=onboarding.id %}" class="fw-bold text-decoration-none">
+                          {{ onboarding.customer.company_name }}
+                        </a>
+                      </td>
+                      <td>{{ onboarding.plan.name }}</td>
+                      <td>
+                        <div class="d-flex align-items-center">
+                          <div class="progress flex-grow-1 me-2" style="height: 8px;">
+                            <div class="progress-bar bg-primary" role="progressbar" style="width: {{ onboarding.progress_percentage }}%"></div>
+                          </div>
+                          <span>{{ onboarding.progress_percentage }}%</span>
+                        </div>
+                      </td>
+                      <td>
+                        {% if onboarding.current_step %}
+                          <span class="badge bg-primary-subtle text-primary">{{ onboarding.current_step.name }}</span>
+                        {% else %}
+                          <span class="badge bg-light text-muted">Not Started</span>
+                        {% endif %}
+                      </td>
+                      <td>
+                        {% if onboarding.start_date %}
+                          <span title="{{ onboarding.start_date|date:'Y-m-d H:i' }}">{{ onboarding.start_date|date:'M d, Y' }}</span>
+                        {% else %}
+                          <span class="text-muted">—</span>
+                        {% endif %}
+                      </td>
+                      <td>
+                        {% if onboarding.assigned_to %}
+                          <span>{{ onboarding.assigned_to.get_full_name }}</span>
+                        {% else %}
+                          <span class="text-muted">Unassigned</span>
+                        {% endif %}
+                      </td>
+                      <td>
+                        <a href="{% url 'onboarding:customer_onboarding_detail' pk=onboarding.id %}" class="btn btn-sm btn-outline-primary">
+                          <i class="fas fa-chevron-right"></i>
+                        </a>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="text-center py-5">
+              <div class="mb-3">
+                <i class="fas fa-clipboard-check fa-3x text-muted"></i>
+              </div>
+              <h5 class="text-muted">No active onboarding processes</h5>
+              <p>Start a new onboarding for a customer to get things moving.</p>
+              <a href="{% url 'onboarding:create_customer_onboarding' %}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> New Onboarding
+              </a>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Needs Attention -->
+      {% if needs_attention.stuck or needs_attention.delayed %}
+        <div class="card mb-4">
+          <div class="card-header bg-white d-flex align-items-center">
+            <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+            <h5 class="mb-0">Needs Attention</h5>
+          </div>
+          <div class="card-body p-0">
+            <div class="list-group list-group-flush">
+              {% for onboarding in needs_attention.stuck %}
+                <div class="list-group-item attention-item py-3">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                      <h6 class="mb-1">
+                        <a href="{% url 'onboarding:customer_onboarding_detail' pk=onboarding.id %}">
+                          {{ onboarding.customer.company_name }}
+                        </a>
+                      </h6>
+                      <p class="text-muted mb-0 small">No activity for {{ onboarding.last_activity_date|timesince }}</p>
+                    </div>
+                    <a href="{% url 'onboarding:customer_onboarding_detail' pk=onboarding.id %}" class="btn btn-sm btn-outline-primary">Resume</a>
+                  </div>
+                </div>
+              {% endfor %}
+
+              {% for onboarding in needs_attention.delayed %}
+                <div class="list-group-item attention-item py-3">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                      <h6 class="mb-1">
+                        <a href="{% url 'onboarding:customer_onboarding_detail' pk=onboarding.id %}">
+                          {{ onboarding.customer.company_name }}
+                        </a>
+                      </h6>
+                      <p class="text-muted mb-0 small">Created {{ onboarding.created_at|timesince }} ago but not started</p>
+                    </div>
+                    <a href="{% url 'onboarding:customer_onboarding_detail' pk=onboarding.id %}" class="btn btn-sm btn-outline-primary">Start</a>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- Right Sidebar -->
+    <div class="col-lg-4">
+      <!-- Recent Completions -->
+      <div class="card mb-4">
+        <div class="card-header bg-white">
+          <h5 class="mb-0">Recent Completions</h5>
+        </div>
+        <div class="card-body p-0">
+          {% if recent_completions %}
+            <div class="list-group list-group-flush">
+              {% for completion in recent_completions %}
+                <div class="list-group-item py-3">
+                  <div class="d-flex align-items-center">
+                    <div class="me-3">
+                      <span class="badge rounded-pill bg-success">
+                        <i class="fas fa-check"></i>
+                      </span>
+                    </div>
+                    <div>
+                      <p class="mb-0">
+                        <span class="fw-bold">{{ completion.step.name }}</span> completed for
+                        <a href="{% url 'onboarding:customer_onboarding_detail' pk=completion.customer_onboarding.id %}">
+                          {{ completion.customer_onboarding.customer.company_name }}
+                        </a>
+                      </p>
+                      <small class="text-muted">{{ completion.completed_date|timesince }} ago</small>
+                    </div>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="text-center py-4">
+              <p class="text-muted">No recent completions</p>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Satisfaction Metrics -->
+      <div class="card mb-4">
+        <div class="card-header bg-white">
+          <h5 class="mb-0">Customer Satisfaction</h5>
+        </div>
+        <div class="card-body">
+          {% if analytics.satisfaction.overall_avg %}
+            <div class="text-center mb-3">
+              <h2 class="display-3 mb-0">{{ analytics.satisfaction.overall_avg|floatformat:1 }}</h2>
+              <p class="text-muted">Average Rating (1-5)</p>
+            </div>
+            <canvas id="satisfactionChart" height="150"></canvas>
+          {% else %}
+            <div class="text-center py-4">
+              <i class="fas fa-star fa-2x text-muted mb-2"></i>
+              <p class="text-muted">No feedback collected yet</p>
+            </div>
+          {% endif %}
+          <div class="text-center mt-3">
+            <a href="{% url 'onboarding:analytics' %}" class="btn btn-sm btn-outline-primary">View All Analytics</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Satisfaction distribution chart
+    const satisfactionCtx = document.getElementById('satisfactionChart')?.getContext('2d');
+    if (satisfactionCtx) {
+      new Chart(satisfactionCtx, {
+        type: 'bar',
+        data: {
+          labels: ['1★', '2★', '3★', '4★', '5★'],
+          datasets: [{
+            label: 'Ratings Distribution',
+            data: [
+              {{ analytics.satisfaction.distribution.1 }},
+              {{ analytics.satisfaction.distribution.2 }},
+              {{ analytics.satisfaction.distribution.3 }},
+              {{ analytics.satisfaction.distribution.4 }},
+              {{ analytics.satisfaction.distribution.5 }}
+            ],
+            backgroundColor: [
+              'rgba(220, 53, 69, 0.7)',   // 1 star - red
+              'rgba(255, 193, 7, 0.7)',   // 2 stars - yellow
+              'rgba(13, 202, 240, 0.7)',  // 3 stars - info
+              'rgba(13, 110, 253, 0.7)',  // 4 stars - primary
+              'rgba(25, 135, 84, 0.7)'    // 5 stars - success
+            ],
+            borderColor: [
+              'rgb(220, 53, 69)',
+              'rgb(255, 193, 7)',
+              'rgb(13, 202, 240)',
+              'rgb(13, 110, 253)',
+              'rgb(25, 135, 84)'
+            ],
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: {
+              display: false
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                precision: 0
+              }
+            }
+          }
+        }
+      });
+    }
+  });
+</script>
+{% endblock %}

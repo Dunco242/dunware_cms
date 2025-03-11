@@ -1,0 +1,280 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Welcome to DunWare CRM{% endblock %}
+
+{% block extra_css %}
+<style>
+  .welcome-container {
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  .welcome-header {
+    background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);
+    color: white;
+    border-radius: 1rem;
+    padding: 3rem;
+    margin-bottom: 3rem;
+  }
+
+  .step-card {
+    height: 100%;
+    border-radius: 0.5rem;
+    overflow: hidden;
+    transition: all 0.3s ease;
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+  }
+
+  .step-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.175);
+  }
+
+  .step-number {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    background-color: #0d6efd;
+    color: white;
+    border-radius: 50%;
+    margin-right: 1rem;
+  }
+
+  .step-header {
+    background-color: #f8f9fa;
+    padding: 1rem;
+    border-bottom: 1px solid #dee2e6;
+  }
+
+  .step-content {
+    padding: 1.5rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="welcome-container">
+  <!-- Welcome Header -->
+  <div class="welcome-header text-center">
+    <h1 class="display-4 fw-bold mb-4">Welcome to DunWare CRM!</h1>
+    <p class="lead mb-4">
+      We're excited to have you on board. Let's get you set up and running with your new CRM system.
+    </p>
+    {% if onboarding %}
+      <a href="{% url 'onboarding:customer_dashboard' %}" class="btn btn-light btn-lg px-4 py-2">
+        <i class="fas fa-arrow-right me-2"></i> Start Your Onboarding
+      </a>
+    {% else %}
+      <a href="#get-started" class="btn btn-light btn-lg px-4 py-2">
+        <i class="fas fa-arrow-right me-2"></i> See How to Get Started
+      </a>
+    {% endif %}
+  </div>
+
+  <!-- Welcome Content -->
+  <div class="mb-5">
+    <h2 class="mb-4">Your Personalized Onboarding Journey</h2>
+    <p class="lead">
+      We've designed a step-by-step onboarding process to help you get the most out of DunWare CRM.
+      Our goal is to ensure you're successful with our platform from day one.
+    </p>
+  </div>
+
+  <!-- Onboarding Steps Overview -->
+  <div class="row row-cols-1 row-cols-md-2 g-4 mb-5" id="get-started">
+    <div class="col">
+      <div class="step-card card">
+        <div class="step-header">
+          <div class="d-flex align-items-center">
+            <div class="step-number">1</div>
+            <h5 class="mb-0">Set Up Your Account</h5>
+          </div>
+        </div>
+        <div class="step-content">
+          <p>
+            The first step is setting up your account with all the necessary information.
+            This helps personalize your CRM experience.
+          </p>
+          <ul>
+            <li>Complete your profile information</li>
+            <li>Configure basic settings</li>
+            <li>Set up team members (if applicable)</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="step-card card">
+        <div class="step-header">
+          <div class="d-flex align-items-center">
+            <div class="step-number">2</div>
+            <h5 class="mb-0">Import Your Data</h5>
+          </div>
+        </div>
+        <div class="step-content">
+          <p>
+            Bring your existing customer data into DunWare CRM to get up and running quickly.
+            We support imports from CSV, Excel, and other popular CRM systems.
+          </p>
+          <ul>
+            <li>Import customers and contacts</li>
+            <li>Import leads and opportunities</li>
+            <li>Import products or services</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="step-card card">
+        <div class="step-header">
+          <div class="d-flex align-items-center">
+            <div class="step-number">3</div>
+            <h5 class="mb-0">Learn Key Features</h5>
+          </div>
+        </div>
+        <div class="step-content">
+          <p>
+            Explore the core features of DunWare CRM through guided tutorials and walkthroughs
+            designed to help you understand the platform.
+          </p>
+          <ul>
+            <li>Customer management</li>
+            <li>Lead tracking and conversion</li>
+            <li>Task and meeting scheduling</li>
+            <li>Projects and document management</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="step-card card">
+        <div class="step-header">
+          <div class="d-flex align-items-center">
+            <div class="step-number">4</div>
+            <h5 class="mb-0">Start Using DunWare CRM</h5>
+          </div>
+        </div>
+        <div class="step-content">
+          <p>
+            Apply what you've learned and start using DunWare CRM for your daily business operations.
+            We'll be there to support you every step of the way.
+          </p>
+          <ul>
+            <li>Create your first customer record</li>
+            <li>Schedule and track customer interactions</li>
+            <li>Generate your first reports</li>
+            <li>Set up customized workflows</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- What to Expect -->
+  <div class="card mb-5">
+    <div class="card-header bg-light">
+      <h3 class="mb-0">What to Expect During Onboarding</h3>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-6">
+          <h5><i class="fas fa-user-friends text-primary me-2"></i> Dedicated Support</h5>
+          <p>
+            Your dedicated onboarding specialist will guide you through the entire process,
+            answer your questions, and ensure your success.
+          </p>
+
+          <h5><i class="fas fa-graduation-cap text-primary me-2"></i> Training Resources</h5>
+          <p>
+            Access comprehensive training materials including videos, documentation,
+            and step-by-step guides tailored to your needs.
+          </p>
+        </div>
+
+        <div class="col-md-6">
+          <h5><i class="fas fa-check-circle text-primary me-2"></i> Progress Tracking</h5>
+          <p>
+            Track your onboarding progress with a simple dashboard that shows completed
+            steps and what's next in your journey.
+          </p>
+
+          <h5><i class="fas fa-calendar-check text-primary me-2"></i> Flexible Timeline</h5>
+          <p>
+            Complete the onboarding at your own pace. We recommend setting aside
+            1-2 hours per day for the best results.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Call to Action -->
+  <div class="text-center mb-5">
+    {% if onboarding %}
+      <h3 class="mb-4">Ready to begin?</h3>
+      <a href="{% url 'onboarding:customer_dashboard' %}" class="btn btn-primary btn-lg px-5">
+        <i class="fas fa-arrow-right me-2"></i> Start Your Onboarding
+      </a>
+    {% elif next_step %}
+      <h3 class="mb-4">Continue your onboarding journey</h3>
+      <a href="{% url 'onboarding:customer_step' step_id=next_step.id %}" class="btn btn-primary btn-lg px-5">
+        <i class="fas fa-arrow-right me-2"></i> Continue to Next Step
+      </a>
+    {% else %}
+      <h3 class="mb-4">Need to set up your onboarding?</h3>
+      <a href="#" class="btn btn-primary btn-lg px-5">
+        <i class="fas fa-headset me-2"></i> Contact Your Account Manager
+      </a>
+    {% endif %}
+  </div>
+
+  <!-- Additional Resources -->
+  <div class="row row-cols-1 row-cols-md-3 g-4 mb-5">
+    <div class="col">
+      <div class="card h-100">
+        <div class="card-body text-center">
+          <div class="mb-3">
+            <i class="fas fa-book fa-3x text-primary"></i>
+          </div>
+          <h5 class="card-title">Knowledge Base</h5>
+          <p class="card-text">Browse our comprehensive documentation and guides.</p>
+          <a href="#" class="btn btn-outline-primary">Visit Knowledge Base</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="card h-100">
+        <div class="card-body text-center">
+          <div class="mb-3">
+            <i class="fas fa-video fa-3x text-primary"></i>
+          </div>
+          <h5 class="card-title">Video Tutorials</h5>
+          <p class="card-text">Watch step-by-step video guides for DunWare CRM.</p>
+          <a href="#" class="btn btn-outline-primary">Watch Videos</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="card h-100">
+        <div class="card-body text-center">
+          <div class="mb-3">
+            <i class="fas fa-headset fa-3x text-primary"></i>
+          </div>
+          <h5 class="card-title">Support Center</h5>
+          <p class="card-text">Get help from our customer support team whenever you need it.</p>
+          <a href="#" class="btn btn-outline-primary">Contact Support</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

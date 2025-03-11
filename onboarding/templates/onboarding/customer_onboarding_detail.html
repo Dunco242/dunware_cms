@@ -1,0 +1,529 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ onboarding.customer.company_name }} - Onboarding{% endblock %}
+
+{% block extra_css %}
+<style>
+  .step-circle {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    color: white;
+    margin-right: 15px;
+    flex-shrink: 0;
+  }
+
+  .step-circle.completed {
+    background-color: #198754;
+  }
+
+  .step-circle.current {
+    background-color: #0d6efd;
+  }
+
+  .step-circle.pending {
+    background-color: #6c757d;
+  }
+
+  .step-container {
+    position: relative;
+  }
+
+  .step-connector {
+    position: absolute;
+    left: 18px;
+    top: 36px;
+    bottom: 0;
+    width: 2px;
+    background-color: #dee2e6;
+    z-index: 0;
+  }
+
+  .step-connector.completed {
+    background-color: #198754;
+  }
+
+  .step-item {
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+    z-index: 1;
+  }
+
+  .step-item:hover {
+    background-color: rgba(13, 110, 253, 0.05);
+  }
+
+  .step-item.current {
+    background-color: rgba(13, 110, 253, 0.1);
+  }
+
+  .step-date {
+    min-width: 100px;
+  }
+
+  .customer-info-label {
+    width: 110px;
+    color: #6c757d;
+  }
+
+  .status-badge {
+    position: relative;
+    top: -1px;
+  }
+
+  .import-job-card {
+    transition: all 0.2s ease;
+  }
+
+  .import-job-card:hover {
+    box-shadow: 0 .5rem 1rem rgba(0,0,0,.15);
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <!-- Breadcrumb and actions -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'onboarding:dashboard' %}">Onboarding</a></li>
+        <li class="breadcrumb-item active">{{ onboarding.customer.company_name }}</li>
+      </ol>
+    </nav>
+    <div class="d-flex">
+      {% if onboarding.status == 'not_started' %}
+        <form method="post" class="me-2">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="start_onboarding">
+          <button type="submit" class="btn btn-success">
+            <i class="fas fa-play me-1"></i> Start Onboarding
+          </button>
+        </form>
+      {% elif onboarding.status == 'in_progress' %}
+        <form method="post" class="me-2">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="pause_onboarding">
+          <button type="submit" class="btn btn-warning">
+            <i class="fas fa-pause me-1"></i> Pause
+          </button>
+        </form>
+        <form method="post" class="me-2">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="complete_onboarding">
+          <button type="submit" class="btn btn-success" onclick="return confirm('Are you sure you want to mark this onboarding process as completed?')">
+            <i class="fas fa-check me-1"></i> Mark as Completed
+          </button>
+        </form>
+      {% elif onboarding.status == 'paused' %}
+        <form method="post" class="me-2">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="resume_onboarding">
+          <button type="submit" class="btn btn-primary">
+            <i class="fas fa-play me-1"></i> Resume
+          </button>
+        </form>
+      {% endif %}
+
+      {% if not onboarding.assigned_to or onboarding.assigned_to != request.user.employee_profile %}
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="assign_to_me">
+          <button type="submit" class="btn btn-outline-primary">
+            <i class="fas fa-user-check me-1"></i> Assign to me
+          </button>
+        </form>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Customer info and status -->
+  <div class="row mb-4">
+    <div class="col-lg-8">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="d-flex justify-content-between mb-3">
+            <h4 class="card-title">{{ onboarding.customer.company_name }}</h4>
+            <span class="badge {% if onboarding.status == 'completed' %}bg-success{% elif onboarding.status == 'in_progress' %}bg-primary{% elif onboarding.status == 'paused' %}bg-warning{% else %}bg-secondary{% endif %} status-badge">
+              {{ onboarding.get_status_display }}
+            </span>
+          </div>
+
+          <div class="row">
+            <div class="col-md-6">
+              <div class="d-flex mb-2">
+                <div class="customer-info-label">Contact</div>
+                <div class="flex-grow-1">
+                  <strong>{{ onboarding.customer.get_full_name }}</strong>
+                </div>
+              </div>
+              <div class="d-flex mb-2">
+                <div class="customer-info-label">Email</div>
+                <div class="flex-grow-1">
+                  <a href="mailto:{{ onboarding.customer.email }}">{{ onboarding.customer.email }}</a>
+                </div>
+              </div>
+              <div class="d-flex mb-2">
+                <div class="customer-info-label">Phone</div>
+                <div class="flex-grow-1">{{ onboarding.customer.phone }}</div>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="d-flex mb-2">
+                <div class="customer-info-label">Assigned To</div>
+                <div class="flex-grow-1">
+                  {% if onboarding.assigned_to %}
+                    {{ onboarding.assigned_to.get_full_name }}
+                  {% else %}
+                    <span class="text-muted">Unassigned</span>
+                  {% endif %}
+                </div>
+              </div>
+              <div class="d-flex mb-2">
+                <div class="customer-info-label">Start Date</div>
+                <div class="flex-grow-1">
+                  {% if onboarding.start_date %}
+                    {{ onboarding.start_date|date:"M d, Y" }}
+                  {% else %}
+                    <span class="text-muted">Not started</span>
+                  {% endif %}
+                </div>
+              </div>
+              <div class="d-flex mb-2">
+                <div class="customer-info-label">Plan</div>
+                <div class="flex-grow-1">{{ onboarding.plan.name }}</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Progress bar -->
+          <div class="mt-4">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <h6 class="mb-0">Overall Progress</h6>
+              <span>{{ onboarding.progress_percentage }}%</span>
+            </div>
+            <div class="progress" style="height: 10px;">
+              <div class="progress-bar bg-primary" role="progressbar" style="width: {{ onboarding.progress_percentage }}%"></div>
+            </div>
+            <div class="d-flex justify-content-between mt-1">
+              <small class="text-muted">{{ completed_steps }} of {{ total_steps }} steps completed</small>
+              {% if onboarding.start_date and onboarding.status == 'in_progress' %}
+                <small class="text-muted">Started {{ onboarding.start_date|timesince }} ago</small>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <div class="card h-100">
+        <div class="card-header bg-white">
+          <h5 class="mb-0">Current Activity</h5>
+        </div>
+        <div class="card-body">
+          {% if onboarding.current_step %}
+            <h6>{{ onboarding.current_step.name }}</h6>
+            <p class="text-muted">{{ onboarding.current_step.description|truncatechars:120 }}</p>
+            <div class="d-flex align-items-center text-muted mb-3">
+              <i class="far fa-clock me-2"></i>
+              <span>Estimated time: {{ onboarding.current_step.estimated_minutes }} minutes</span>
+            </div>
+            <a href="{% url 'onboarding:step_detail' onboarding_id=onboarding.id step_id=onboarding.current_step.id %}" class="btn btn-primary">
+              <i class="fas fa-arrow-right me-1"></i> Go to Current Step
+            </a>
+          {% else %}
+            {% if onboarding.status == 'completed' %}
+              <div class="text-center py-4">
+                <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+                <h6>Onboarding Complete!</h6>
+                <p class="text-muted">Customer has completed all onboarding steps.</p>
+              </div>
+            {% elif onboarding.status == 'not_started' %}
+              <div class="text-center py-4">
+                <i class="fas fa-hourglass-start fa-3x text-muted mb-3"></i>
+                <h6>Ready to Begin</h6>
+                <p class="text-muted">Click "Start Onboarding" to begin the process.</p>
+              </div>
+            {% else %}
+              <div class="text-center py-4">
+                <i class="fas fa-exclamation-circle fa-3x text-warning mb-3"></i>
+                <h6>No Current Step</h6>
+                <p class="text-muted">There is no active step. Please check the steps below.</p>
+              </div>
+            {% endif %}
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <!-- Onboarding Steps -->
+    <div class="col-lg-8">
+      <div class="card mb-4">
+        <div class="card-header bg-white">
+          <h5 class="mb-0">Onboarding Steps</h5>
+        </div>
+        <div class="card-body p-0">
+          <div class="list-group list-group-flush">
+            {% for step_data in steps_with_status %}
+              {% with step=step_data.step completion=step_data.completion %}
+                <div class="list-group-item p-0">
+                  <div class="step-container">
+                    {% if not forloop.last %}
+                      <div class="step-connector {% if completion and completion.is_completed %}completed{% endif %}"></div>
+                    {% endif %}
+
+                    <div class="step-item p-3 d-flex align-items-center {% if step == onboarding.current_step %}current{% endif %}"
+                         onclick="window.location='{% url 'onboarding:step_detail' onboarding_id=onboarding.id step_id=step.id %}'">
+                      <div class="step-circle {% if completion and completion.is_completed %}completed{% elif step == onboarding.current_step %}current{% else %}pending{% endif %}">
+                        {% if completion and completion.is_completed %}
+                          <i class="fas fa-check"></i>
+                        {% else %}
+                          {{ forloop.counter }}
+                        {% endif %}
+                      </div>
+
+                      <div class="flex-grow-1">
+                        <h6 class="mb-1">{{ step.name }}</h6>
+                        <p class="text-muted mb-1 small">{{ step.description|truncatechars:120 }}</p>
+                        <div class="d-flex align-items-center">
+                          <span class="badge bg-{{ step.step_type|default:'secondary' }}-subtle text-{{ step.step_type|default:'secondary' }} me-2">
+                            {{ step.get_step_type_display }}
+                          </span>
+                          <span class="small text-muted me-2">
+                            <i class="far fa-clock me-1"></i> {{ step.estimated_minutes }} min
+                          </span>
+                          {% if step.is_required %}
+                            <span class="small text-danger me-2">
+                              <i class="fas fa-asterisk me-1" style="font-size: 8px; vertical-align: text-top;"></i> Required
+                            </span>
+                          {% endif %}
+                        </div>
+                      </div>
+
+                      <div class="step-date text-end">
+                        {% if completion and completion.is_completed %}
+                          <span class="badge bg-success-subtle text-success mb-1">Completed</span>
+                          <div class="text-muted small">{{ completion.completed_date|date:"M d, Y" }}</div>
+                        {% elif step == onboarding.current_step %}
+                          <span class="badge bg-primary-subtle text-primary mb-1">Current</span>
+                          <div class="text-muted small">In progress</div>
+                        {% else %}
+                          <span class="badge bg-secondary-subtle text-secondary mb-1">Pending</span>
+                          <div class="text-muted small">—</div>
+                        {% endif %}
+                      </div>
+
+                      <div class="ms-3">
+                        <i class="fas fa-chevron-right text-muted"></i>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              {% endwith %}
+            {% empty %}
+              <div class="text-center py-5">
+                <p class="text-muted">No steps found for this onboarding plan.</p>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <!-- Data Import Jobs -->
+      {% if import_jobs %}
+        <div class="card mb-4">
+          <div class="card-header bg-white">
+            <h5 class="mb-0">Data Imports</h5>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              {% for job in import_jobs %}
+                <div class="col-md-6 mb-3">
+                  <div class="card h-100 import-job-card">
+                    <div class="card-body">
+                      <div class="d-flex justify-content-between mb-2">
+                        <h6 class="card-title mb-0">{{ job.get_import_type_display }}</h6>
+                        <span class="badge
+                          {% if job.status == 'completed' %}bg-success
+                          {% elif job.status == 'processing' %}bg-primary
+                          {% elif job.status == 'failed' %}bg-danger
+                          {% else %}bg-secondary{% endif %}">
+                          {{ job.get_status_display }}
+                        </span>
+                      </div>
+                      <p class="text-muted small mb-2">{{ job.source_name }}</p>
+
+                      <!-- Progress -->
+                      {% if job.status == 'processing' %}
+                        <div class="progress mb-2" style="height: 6px;">
+                          <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar"
+                               style="width: {{ job.progress_percentage }}%"></div>
+                        </div>
+                      {% elif job.status == 'completed' %}
+                        <div class="d-flex justify-content-between small mb-2">
+                          <span>Records: {{ job.records_total }}</span>
+                          <span class="text-success">Succeeded: {{ job.records_succeeded }}</span>
+                          {% if job.records_failed > 0 %}
+                            <span class="text-danger">Failed: {{ job.records_failed }}</span>
+                          {% endif %}
+                        </div>
+                      {% endif %}
+
+                      <div class="text-muted small">
+                        {{ job.created_at|date:"M d, Y H:i" }}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- Right Sidebar -->
+    <div class="col-lg-4">
+      <!-- Feedback Summary -->
+      <div class="card mb-4">
+        <div class="card-header bg-white">
+          <h5 class="mb-0">Customer Feedback</h5>
+        </div>
+        <div class="card-body">
+          {% if feedback %}
+            <div class="mb-3">
+              <div class="d-flex align-items-center mb-2">
+                <h6 class="mb-0 me-2">Overall Rating:</h6>
+                <div class="rating-stars">
+                  {% with overall_rating=feedback.first.overall_rating %}
+                    {% for i in "12345" %}
+                      <i class="fa{% if forloop.counter <= overall_rating %}s text-warning{% else %}r text-muted{% endif %} fa-star"></i>
+                    {% endfor %}
+                  {% endwith %}
+                </div>
+                <span class="ms-2 fw-bold">{{ feedback.first.overall_rating }}/5</span>
+              </div>
+
+              {% if feedback.first.what_worked_well %}
+                <div class="mb-2">
+                  <span class="badge bg-success-subtle text-success mb-1">What Worked Well</span>
+                  <p class="small">{{ feedback.first.what_worked_well }}</p>
+                </div>
+              {% endif %}
+
+              {% if feedback.first.what_could_improve %}
+                <div>
+                  <span class="badge bg-warning-subtle text-warning mb-1">What Could Improve</span>
+                  <p class="small">{{ feedback.first.what_could_improve }}</p>
+                </div>
+              {% endif %}
+
+              <div class="text-end mt-3">
+                <a href="#" class="small">View all feedback</a>
+              </div>
+            </div>
+          {% else %}
+            <div class="text-center py-4">
+              <i class="far fa-comment-dots fa-3x text-muted mb-3"></i>
+              <p>No feedback collected yet</p>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Next Steps -->
+      <div class="card mb-4">
+        <div class="card-header bg-white">
+          <h5 class="mb-0">Action Items</h5>
+        </div>
+        <div class="card-body">
+          {% if onboarding.status == 'in_progress' %}
+            <ul class="list-unstyled">
+              {% if onboarding.current_step %}
+                <li class="mb-3">
+                  <div class="d-flex">
+                    <div class="me-3">
+                      <span class="badge rounded-pill bg-primary">1</span>
+                    </div>
+                    <div>
+                      <p class="mb-1">Continue with current step: <strong>{{ onboarding.current_step.name }}</strong></p>
+                      <a href="{% url 'onboarding:step_detail' onboarding_id=onboarding.id step_id=onboarding.current_step.id %}" class="btn btn-sm btn-primary">
+                        <i class="fas fa-arrow-right me-1"></i> Go to Step
+                      </a>
+                    </div>
+                  </div>
+                </li>
+                <li class="mb-3">
+                  <div class="d-flex">
+                    <div class="me-3">
+                      <span class="badge rounded-pill bg-secondary">2</span>
+                    </div>
+                    <div>
+                      <p class="mb-1">Schedule a follow-up with the customer</p>
+                      <button class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-calendar-plus me-1"></i> Schedule Meeting
+                      </button>
+                    </div>
+                  </div>
+                </li>
+              {% else %}
+                <li class="mb-3">
+                  <div class="d-flex">
+                    <div class="me-3">
+                      <span class="badge rounded-pill bg-warning">!</span>
+                    </div>
+                    <div>
+                      <p class="mb-1">No current step selected</p>
+                      <p class="text-muted small">Please select a step from the list to continue onboarding.</p>
+                    </div>
+                  </div>
+                </li>
+              {% endif %}
+            </ul>
+          {% elif onboarding.status == 'not_started' %}
+            <div class="text-center mb-3">
+              <p>Ready to begin onboarding for {{ onboarding.customer.company_name }}?</p>
+              <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="start_onboarding">
+                <button type="submit" class="btn btn-success">
+                  <i class="fas fa-play me-1"></i> Start Onboarding
+                </button>
+              </form>
+            </div>
+          {% elif onboarding.status == 'completed' %}
+            <div class="text-center">
+              <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+              <p>Onboarding completed on<br>{{ onboarding.completed_date|date:"F d, Y" }}</p>
+
+              <a href="#" class="btn btn-outline-primary">
+                <i class="fas fa-file-alt me-1"></i> Generate Report
+              </a>
+            </div>
+          {% elif onboarding.status == 'paused' %}
+            <div class="text-center mb-3">
+              <p>This onboarding process is currently paused.</p>
+              <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="resume_onboarding">
+                <button type="submit" class="btn btn-primary">
+                  <i class="fas fa-play me-1"></i> Resume Onboarding
+                </button>
+              </form>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

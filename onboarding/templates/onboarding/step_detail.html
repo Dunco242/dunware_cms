@@ -1,0 +1,672 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ step.name }} - Onboarding{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/dropzone@5.9.3/dist/min/dropzone.min.css">
+<style>
+  .checklist-item {
+    padding: 0.75rem;
+    border-bottom: 1px solid #dee2e6;
+    transition: background-color 0.2s;
+  }
+
+  .checklist-item:last-child {
+    border-bottom: none;
+  }
+
+  .checklist-item:hover {
+    background-color: rgba(13, 110, 253, 0.05);
+  }
+
+  .step-container {
+    border: 1px solid #dee2e6;
+    border-radius: 0.5rem;
+    overflow: hidden;
+  }
+
+  .step-header {
+    padding: 1rem;
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+  }
+
+  .step-content {
+    padding: 1.5rem;
+  }
+
+  .step-content h3 {
+    margin-bottom: 1rem;
+  }
+
+  .step-actions {
+    padding: 1rem;
+    background-color: #f8f9fa;
+    border-top: 1px solid #dee2e6;
+  }
+
+  .form-check-input.checklist-checkbox {
+    width: 1.2em;
+    height: 1.2em;
+  }
+
+  .resource-card {
+    transition: all 0.2s;
+  }
+
+  .resource-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+  }
+
+  .video-container {
+    position: relative;
+    padding-bottom: 56.25%;
+    height: 0;
+    overflow: hidden;
+  }
+
+  .video-container iframe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .import-dropzone {
+    border: 2px dashed #dee2e6;
+    border-radius: 0.5rem;
+    padding: 2rem;
+    text-align: center;
+    cursor: pointer;
+    background-color: #f8f9fa;
+    transition: all 0.3s;
+  }
+
+  .import-dropzone:hover, .import-dropzone.dz-drag-hover {
+    background-color: rgba(13, 110, 253, 0.05);
+    border-color: #0d6efd;
+  }
+
+  .nav-item .nav-link.active {
+    font-weight: 600;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <!-- Breadcrumb navigation -->
+  <nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'onboarding:dashboard' %}">Onboarding</a></li>
+      <li class="breadcrumb-item">
+        <a href="{% url 'onboarding:customer_onboarding_detail' pk=onboarding.id %}">
+          {{ onboarding.customer.company_name }}
+        </a>
+      </li>
+      <li class="breadcrumb-item active">{{ step.name }}</li>
+    </ol>
+  </nav>
+
+  <!-- Step navigation -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <span class="badge {% if step_completion.is_completed %}bg-success{% else %}bg-primary{% endif %} me-2">
+        {{ step.get_step_type_display }}
+      </span>
+      <h2 class="d-inline">{{ step.name }}</h2>
+    </div>
+    <div>
+      {% if prev_step %}
+        <a href="{% url 'onboarding:step_detail' onboarding_id=onboarding.id step_id=prev_step.step.id %}" class="btn btn-outline-secondary me-2">
+          <i class="fas fa-arrow-left me-1"></i> Previous Step
+        </a>
+      {% endif %}
+
+      {% if step_completion.is_completed and next_step %}
+        <a href="{% url 'onboarding:step_detail' onboarding_id=onboarding.id step_id=next_step.step.id %}" class="btn btn-primary">
+          Next Step <i class="fas fa-arrow-right ms-1"></i>
+        </a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-lg-8">
+      <!-- Step content -->
+      <div class="card mb-4">
+        <div class="card-body">
+          <!-- Step tab navigation -->
+          <ul class="nav nav-tabs mb-4" id="stepTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview-content" type="button" role="tab" aria-controls="overview-content" aria-selected="true">
+                <i class="fas fa-info-circle me-1"></i> Overview
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="checklist-tab" data-bs-toggle="tab" data-bs-target="#checklist-content" type="button" role="tab" aria-controls="checklist-content" aria-selected="false">
+                <i class="fas fa-tasks me-1"></i> Checklist
+                {% if step_completion.is_completed %}
+                  <i class="fas fa-check-circle text-success ms-1"></i>
+                {% endif %}
+              </button>
+            </li>
+            {% if step.step_type == 'data_import' %}
+              <li class="nav-item" role="presentation">
+                <button class="nav-link" id="import-tab" data-bs-toggle="tab" data-bs-target="#import-content" type="button" role="tab" aria-controls="import-content" aria-selected="false">
+                  <i class="fas fa-file-import me-1"></i> Data Import
+                </button>
+              </li>
+            {% endif %}
+            {% if step.video_url or step.documentation_url %}
+              <li class="nav-item" role="presentation">
+                <button class="nav-link" id="resources-tab" data-bs-toggle="tab" data-bs-target="#resources-content" type="button" role="tab" aria-controls="resources-content" aria-selected="false">
+                  <i class="fas fa-book me-1"></i> Resources
+                </button>
+              </li>
+            {% endif %}
+          </ul>
+
+          <!-- Tab content -->
+          <div class="tab-content" id="stepTabsContent">
+            <!-- Overview -->
+            <div class="tab-pane fade show active" id="overview-content" role="tabpanel" aria-labelledby="overview-tab">
+              <h3>{{ step.name }}</h3>
+              <p class="lead">{{ step.description }}</p>
+
+              <div class="row mt-4">
+                <div class="col-md-4">
+                  <div class="card bg-light mb-3">
+                    <div class="card-body">
+                      <h5 class="card-title">Time Estimate</h5>
+                      <p class="card-text">
+                        <i class="far fa-clock me-1"></i> {{ step.estimated_minutes }} minutes
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <div class="card bg-light mb-3">
+                    <div class="card-body">
+                      <h5 class="card-title">Required</h5>
+                      <p class="card-text">
+                        {% if step.is_required %}
+                          <i class="fas fa-check-circle text-success me-1"></i> Yes
+                        {% else %}
+                          <i class="fas fa-times-circle text-muted me-1"></i> No
+                        {% endif %}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <div class="card bg-light mb-3">
+                    <div class="card-body">
+                      <h5 class="card-title">Status</h5>
+                      <p class="card-text">
+                        {% if step_completion.is_completed %}
+                          <i class="fas fa-check-circle text-success me-1"></i> Completed
+                        {% else %}
+                          <i class="fas fa-circle-notch text-primary me-1"></i> In Progress
+                        {% endif %}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="alert alert-primary mt-4">
+                <h5><i class="fas fa-lightbulb me-2"></i>Goal for This Step</h5>
+                <p class="mb-0">
+                  Complete this step to help {{ onboarding.customer.company_name }} get familiar with the
+                  {{ step.name }} functionality in the CRM system.
+                </p>
+              </div>
+
+              {% if step_completion.is_completed %}
+                <div class="alert alert-success mt-4">
+                  <h5><i class="fas fa-check-circle me-2"></i>Step Completed</h5>
+                  <p class="mb-0">
+                    This step was completed on {{ step_completion.completed_date|date:"F d, Y" }}
+                    {% if step_completion.completed_by %}
+                      by {{ step_completion.completed_by.get_full_name }}
+                    {% endif %}
+                  </p>
+                </div>
+              {% else %}
+                <div class="alert alert-info mt-4">
+                  <h5><i class="fas fa-info-circle me-2"></i>Next Actions</h5>
+                  <p>To complete this step:</p>
+                  <ol class="mb-0">
+                    <li>Review the checklist and mark all required items as completed</li>
+                    {% if step.step_type == 'data_import' %}
+                      <li>Import any required data</li>
+                    {% endif %}
+                    <li>Mark the step as completed when done</li>
+                  </ol>
+                </div>
+              {% endif %}
+            </div>
+
+            <!-- Checklist -->
+            <div class="tab-pane fade" id="checklist-content" role="tabpanel" aria-labelledby="checklist-tab">
+              <h3>Step Checklist</h3>
+              <p>Complete all the items in this checklist to finish this step.</p>
+
+              <div class="card">
+                <div class="list-group list-group-flush">
+                  {% for item in checklist_items %}
+                    <div class="checklist-item">
+                      <div class="form-check d-flex align-items-start">
+                        <input class="form-check-input checklist-checkbox me-2 mt-1" type="checkbox"
+                               id="checklist-item-{{ item.item.id }}"
+                               data-checklist-item-id="{{ item.item.id }}"
+                               {% if item.completion.is_completed %}checked{% endif %}
+                               {% if step_completion.is_completed %}disabled{% endif %}>
+                        <div>
+                          <label class="form-check-label" for="checklist-item-{{ item.item.id }}">
+                            <strong>{{ item.item.text }}</strong>
+                            {% if item.item.is_required %}
+                              <span class="badge bg-danger-subtle text-danger">Required</span>
+                            {% else %}
+                              <span class="badge bg-secondary-subtle text-secondary">Optional</span>
+                            {% endif %}
+                          </label>
+                          {% if item.item.description %}
+                            <p class="text-muted mb-0 small">{{ item.item.description }}</p>
+                          {% endif %}
+                        </div>
+                      </div>
+                    </div>
+                  {% empty %}
+                    <div class="text-center py-4">
+                      <p class="text-muted mb-0">No checklist items for this step.</p>
+                    </div>
+                  {% endfor %}
+                </div>
+              </div>
+
+              {% if not step_completion.is_completed %}
+                <div class="mt-4">
+                  <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="complete_step">
+                    {{ completion_form.notes }}
+
+                    <div class="d-flex justify-content-end mt-3">
+                      <button type="submit" class="btn btn-success" id="complete-step-btn">
+                        <i class="fas fa-check me-1"></i> Mark Step as Completed
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              {% endif %}
+            </div>
+
+            <!-- Data Import (if applicable) -->
+            {% if step.step_type == 'data_import' %}
+              <div class="tab-pane fade" id="import-content" role="tabpanel" aria-labelledby="import-tab">
+                <h3>Data Import</h3>
+                <p>Upload your data files to import them into the system.</p>
+
+                <div class="row mb-4">
+                  <div class="col-md-6">
+                    <div class="card h-100">
+                      <div class="card-body">
+                        <h5 class="card-title">Import Templates</h5>
+                        <p class="card-text">Download a template file to see the required format for importing your data.</p>
+                        <div class="list-group mt-3">
+                          <a href="{% url 'onboarding:generate_import_template' import_type='customers' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                            <div>
+                              <i class="fas fa-users me-2"></i> Customers Template
+                            </div>
+                            <i class="fas fa-download"></i>
+                          </a>
+                          <a href="{% url 'onboarding:generate_import_template' import_type='leads' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                            <div>
+                              <i class="fas fa-user-plus me-2"></i> Leads Template
+                            </div>
+                            <i class="fas fa-download"></i>
+                          </a>
+                          <a href="{% url 'onboarding:generate_import_template' import_type='contacts' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                            <div>
+                              <i class="fas fa-address-book me-2"></i> Contacts Template
+                            </div>
+                            <i class="fas fa-download"></i>
+                          </a>
+                          <a href="{% url 'onboarding:generate_import_template' import_type='products' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                            <div>
+                              <i class="fas fa-box me-2"></i> Products Template
+                            </div>
+                            <i class="fas fa-download"></i>
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="col-md-6">
+                    <div class="card h-100">
+                      <div class="card-body">
+                        <h5 class="card-title">Import Instructions</h5>
+                        <p class="card-text">Follow these steps to successfully import your data.</p>
+                        <ol>
+                          <li>Download the appropriate template</li>
+                          <li>Fill in your data using Excel or another spreadsheet program</li>
+                          <li>Save the file as Excel (.xlsx) or CSV</li>
+                          <li>Upload the file using the form below</li>
+                          <li>Verify the import results</li>
+                        </ol>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="card">
+                  <div class="card-body">
+                    <h5 class="card-title">Upload Data File</h5>
+
+                    <form action="{% url 'onboarding:submit_import_job' onboarding_id=onboarding.id step_id=step.id %}" method="post" enctype="multipart/form-data" class="dropzone" id="importDropzone">
+                      {% csrf_token %}
+                      <div class="fallback">
+                        {{ import_form.import_type }}
+                        {{ import_form.source_name }}
+                        {{ import_form.source_file }}
+                        {{ import_form.notes }}
+                        <button type="submit" class="btn btn-primary">Upload File</button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+
+                <!-- Previous Import Jobs -->
+                {% if import_jobs %}
+                  <div class="mt-4">
+                    <h5>Previous Imports</h5>
+                    <div class="table-responsive">
+                      <table class="table table-hover">
+                        <thead>
+                          <tr>
+                            <th>Source</th>
+                            <th>Type</th>
+                            <th>Status</th>
+                            <th>Records</th>
+                            <th>Date</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {% for job in import_jobs %}
+                            <tr>
+                              <td>{{ job.source_name }}</td>
+                              <td>{{ job.get_import_type_display }}</td>
+                              <td>
+                                <span class="badge
+                                  {% if job.status == 'completed' %}bg-success
+                                  {% elif job.status == 'processing' %}bg-primary
+                                  {% elif job.status == 'failed' %}bg-danger
+                                  {% else %}bg-secondary{% endif %}">
+                                  {{ job.get_status_display }}
+                                </span>
+                              </td>
+                              <td>
+                                {% if job.status == 'completed' %}
+                                  {{ job.records_succeeded }}/{{ job.records_total }}
+                                  {% if job.records_failed > 0 %}
+                                    <span class="text-danger">({{ job.records_failed }} failed)</span>
+                                  {% endif %}
+                                {% else %}
+                                  -
+                                {% endif %}
+                              </td>
+                              <td>{{ job.created_at|date:"M d, Y H:i" }}</td>
+                            </tr>
+                            {% endfor %}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  {% endif %}
+                </div>
+              {% endif %}
+
+              <!-- Resources (if applicable) -->
+              {% if step.video_url or step.documentation_url %}
+                <div class="tab-pane fade" id="resources-content" role="tabpanel" aria-labelledby="resources-tab">
+                  <h3>Step Resources</h3>
+                  <p>Use these resources to help complete this step.</p>
+
+                  <div class="row">
+                    {% if step.video_url %}
+                      <div class="col-md-6 mb-4">
+                        <div class="card resource-card h-100">
+                          <div class="card-header bg-primary text-white">
+                            <h5 class="card-title mb-0">
+                              <i class="fas fa-video me-2"></i> Training Video
+                            </h5>
+                          </div>
+                          <div class="card-body">
+                            <div class="video-container mb-3">
+                              <iframe src="{{ step.video_url }}" frameborder="0" allowfullscreen></iframe>
+                            </div>
+                            <p class="card-text">Watch this video tutorial for a guided walkthrough of this step.</p>
+                          </div>
+                        </div>
+                      </div>
+                    {% endif %}
+
+                    {% if step.documentation_url %}
+                      <div class="col-md-6 mb-4">
+                        <div class="card resource-card h-100">
+                          <div class="card-header bg-info text-white">
+                            <h5 class="card-title mb-0">
+                              <i class="fas fa-book me-2"></i> Documentation
+                            </h5>
+                          </div>
+                          <div class="card-body">
+                            <p class="card-text">
+                              Reference our detailed documentation for more information about this step.
+                            </p>
+                            <a href="{{ step.documentation_url }}" target="_blank" class="btn btn-info text-white">
+                              <i class="fas fa-external-link-alt me-1"></i> View Documentation
+                            </a>
+                          </div>
+                        </div>
+                      </div>
+                    {% endif %}
+
+                    <div class="col-md-6 mb-4">
+                      <div class="card resource-card h-100">
+                        <div class="card-header bg-success text-white">
+                          <h5 class="card-title mb-0">
+                            <i class="fas fa-headset me-2"></i> Support
+                          </h5>
+                        </div>
+                        <div class="card-body">
+                          <p class="card-text">
+                            Need assistance with this step? Our support team is here to help.
+                          </p>
+                          <a href="#" class="btn btn-success">
+                            <i class="fas fa-comment-dots me-1"></i> Get Help
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-4">
+        <!-- Customer Information -->
+        <div class="card mb-4">
+          <div class="card-header bg-white">
+            <h5 class="mb-0">Customer Information</h5>
+          </div>
+          <div class="card-body">
+            <h5>{{ onboarding.customer.company_name }}</h5>
+            <p class="mb-3">
+              <i class="fas fa-user me-2"></i> {{ onboarding.customer.get_full_name }}<br>
+              <i class="fas fa-envelope me-2"></i> <a href="mailto:{{ onboarding.customer.email }}">{{ onboarding.customer.email }}</a><br>
+              <i class="fas fa-phone me-2"></i> {{ onboarding.customer.phone }}
+            </p>
+
+            <div class="d-grid">
+              <a href="#" class="btn btn-outline-primary">
+                <i class="fas fa-user me-1"></i> View Customer Profile
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Onboarding Progress -->
+        <div class="card mb-4">
+          <div class="card-header bg-white">
+            <h5 class="mb-0">Onboarding Progress</h5>
+          </div>
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <span>Overall Progress</span>
+              <span class="fw-bold">{{ onboarding.progress_percentage }}%</span>
+            </div>
+            <div class="progress mb-4" style="height: 10px;">
+              <div class="progress-bar bg-primary" role="progressbar" style="width: {{ onboarding.progress_percentage }}%;"></div>
+            </div>
+
+            <div class="d-flex justify-content-between small text-muted mb-2">
+              <span>Step {{ current_step_index|add:1 }} of {{ total_steps }}</span>
+              <span>
+                {% if onboarding.start_date %}
+                  Started {{ onboarding.start_date|timesince }} ago
+                {% else %}
+                  Not started
+                {% endif %}
+              </span>
+            </div>
+
+            <div class="d-grid">
+              <a href="{% url 'onboarding:customer_onboarding_detail' pk=onboarding.id %}" class="btn btn-outline-primary">
+                <i class="fas fa-list-alt me-1"></i> View All Steps
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step Navigation -->
+        <div class="card mb-4">
+          <div class="card-header bg-white">
+            <h5 class="mb-0">Step Navigation</h5>
+          </div>
+          <div class="list-group list-group-flush">
+            {% if prev_step %}
+              <a href="{% url 'onboarding:step_detail' onboarding_id=onboarding.id step_id=prev_step.step.id %}" class="list-group-item list-group-item-action">
+                <div class="d-flex align-items-center">
+                  <i class="fas fa-arrow-left me-3 text-primary"></i>
+                  <div>
+                    <div class="fw-bold">Previous Step</div>
+                    <div>{{ prev_step.step.name }}</div>
+                  </div>
+                </div>
+              </a>
+            {% endif %}
+
+            {% if next_step %}
+              <a href="{% url 'onboarding:step_detail' onboarding_id=onboarding.id step_id=next_step.step.id %}" class="list-group-item list-group-item-action">
+                <div class="d-flex align-items-center">
+                  <i class="fas fa-arrow-right me-3 text-primary"></i>
+                  <div>
+                    <div class="fw-bold">Next Step</div>
+                    <div>{{ next_step.step.name }}</div>
+                  </div>
+                </div>
+              </a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endblock %}
+
+  {% block extra_js %}
+  <script src="https://cdn.jsdelivr.net/npm/dropzone@5.9.3/dist/min/dropzone.min.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Initialize Dropzone for file uploads
+      {% if step.step_type == 'data_import' %}
+        Dropzone.options.importDropzone = {
+          paramName: "source_file",
+          maxFilesize: 10, // MB
+          acceptedFiles: ".csv,.xlsx,.xls",
+          dictDefaultMessage: `
+            <i class="fas fa-file-upload fa-3x mb-3"></i>
+            <div class="mb-3">Drag and drop your file here or click to browse</div>
+            <div class="small text-muted">Accepted formats: CSV, Excel (.xlsx, .xls)</div>
+          `,
+          init: function() {
+            this.on("sending", function(file, xhr, formData) {
+              formData.append("import_type", document.querySelector('select[name="import_type"]').value);
+              formData.append("source_name", document.querySelector('input[name="source_name"]').value || file.name);
+            });
+
+            this.on("success", function(file, response) {
+              setTimeout(function() {
+                window.location.reload();
+              }, 1500);
+            });
+
+            this.on("error", function(file, errorMessage) {
+              console.error("Upload error:", errorMessage);
+              alert("Error uploading file: " + errorMessage);
+            });
+          }
+        };
+      {% endif %}
+
+      // Checklist item completion handler
+      document.querySelectorAll('.checklist-checkbox').forEach(function(checkbox) {
+        checkbox.addEventListener('change', function() {
+          const checklistItemId = this.dataset.checklistItemId;
+          const isCompleted = this.checked;
+
+          fetch('', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({
+              action: 'update_checklist',
+              checklist_item_id: checklistItemId,
+              is_completed: isCompleted
+            })
+          })
+          .then(response => response.json())
+          .then(data => {
+            if (data.success) {
+              // Success handling
+              if (data.all_completed) {
+                document.getElementById('complete-step-btn').classList.add('pulse');
+              }
+            } else {
+              // Error handling
+              console.error("Error updating checklist item:", data.error);
+              this.checked = !isCompleted; // Revert the checkbox state
+              alert("Error updating checklist item: " + data.error);
+            }
+          })
+          .catch(error => {
+            console.error("Error:", error);
+            this.checked = !isCompleted; // Revert the checkbox state
+            alert("Error updating checklist item. Please try again.");
+          });
+        });
+      });
+    });
+  </script>
+  {% endblock %}

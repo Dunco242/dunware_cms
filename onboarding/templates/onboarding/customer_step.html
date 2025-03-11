@@ -1,0 +1,542 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ step.name }} - Onboarding{% endblock %}
+
+{% block extra_css %}
+<style>
+  .step-container {
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  .step-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    padding: 1.5rem;
+    border-radius: 0.5rem 0.5rem 0 0;
+  }
+
+  .step-content {
+    padding: 2rem;
+  }
+
+  .step-footer {
+    background-color: #f8f9fa;
+    border-top: 1px solid #dee2e6;
+    padding: 1.5rem;
+    border-radius: 0 0 0.5rem 0.5rem;
+  }
+
+  .progress-bar {
+    height: 8px;
+    border-radius: 4px;
+  }
+
+  .resource-card {
+    transition: all 0.2s;
+  }
+
+  .resource-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+  }
+
+  .checklist-item {
+    padding: 1rem;
+    border-bottom: 1px solid #dee2e6;
+    transition: background-color 0.2s;
+  }
+
+  .checklist-item:last-child {
+    border-bottom: none;
+  }
+
+  .checklist-item:hover {
+    background-color: rgba(13, 110, 253, 0.05);
+  }
+
+  .form-check-input.checklist-checkbox {
+    width: 1.2em;
+    height: 1.2em;
+  }
+
+  .video-container {
+    position: relative;
+    padding-bottom: 56.25%;
+    height: 0;
+    overflow: hidden;
+    border-radius: 0.375rem;
+  }
+
+  .video-container iframe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .feedback-stars {
+    font-size: 1.5rem;
+    cursor: pointer;
+  }
+
+  .feedback-stars .star {
+    color: #ced4da;
+    transition: color 0.2s;
+  }
+
+  .feedback-stars .star.active,
+  .feedback-stars .star:hover,
+  .feedback-stars .star:hover ~ .star {
+    color: #ffc107;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+  <!-- Navigation links -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'onboarding:customer_dashboard' %}">Onboarding</a></li>
+        <li class="breadcrumb-item active">{{ step.name }}</li>
+      </ol>
+    </nav>
+    <div>
+      {% if prev_step %}
+        <a href="{% url 'onboarding:customer_step' step_id=prev_step.step.id %}" class="btn btn-outline-secondary me-2">
+          <i class="fas fa-arrow-left me-1"></i> Previous Step
+        </a>
+      {% endif %}
+
+      {% if step_completion.is_completed and next_step %}
+        <a href="{% url 'onboarding:customer_step' step_id=next_step.step.id %}" class="btn btn-primary">
+          Next Step <i class="fas fa-arrow-right ms-1"></i>
+        </a>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Overall progress -->
+  <div class="mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <h6 class="mb-0">Overall Onboarding Progress</h6>
+      <span>{{ progress_percentage }}%</span>
+    </div>
+    <div class="progress" style="height: 8px;">
+      <div class="progress-bar bg-primary" role="progressbar" style="width: {{ progress_percentage }}%;"></div>
+    </div>
+  </div>
+
+  <!-- Step container -->
+  <div class="card mb-5 step-container">
+    <!-- Step header -->
+    <div class="step-header">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h2 class="mb-1">{{ step.name }}</h2>
+          <div>
+            <span class="badge bg-{{ step.step_type|default:'secondary' }}">{{ step.get_step_type_display }}</span>
+            <span class="badge {% if step_completion.is_completed %}bg-success{% else %}bg-primary{% endif %}">
+              {% if step_completion.is_completed %}Completed{% else %}In Progress{% endif %}
+            </span>
+            {% if step.is_required %}
+              <span class="badge bg-danger">Required</span>
+            {% endif %}
+            <span class="text-muted ms-2"><i class="far fa-clock me-1"></i> {{ step.estimated_minutes }} minutes</span>
+          </div>
+        </div>
+        {% if step_completion.is_completed %}
+          <div>
+            <i class="fas fa-check-circle fa-3x text-success"></i>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Step content -->
+    <div class="step-content">
+      <!-- Description -->
+      <div class="mb-5">
+        <h3>About this step</h3>
+        <p class="lead">{{ step.description }}</p>
+
+        {% if step_completion.is_completed %}
+          <div class="alert alert-success mt-4">
+            <div class="d-flex">
+              <div class="me-3">
+                <i class="fas fa-check-circle fa-2x"></i>
+              </div>
+              <div>
+                <h5 class="alert-heading mb-1">You've completed this step!</h5>
+                <p class="mb-0">
+                  Great job! You completed this step on {{ step_completion.completed_date|date:"F d, Y" }}.
+                  {% if next_step %}
+                    You can continue to the next step when you're ready.
+                  {% else %}
+                    This was the final step in your onboarding process. Congratulations!
+                  {% endif %}
+                </p>
+              </div>
+            </div>
+          </div>
+        {% else %}
+          <div class="alert alert-primary mt-4">
+            <div class="d-flex">
+              <div class="me-3">
+                <i class="fas fa-info-circle fa-2x"></i>
+              </div>
+              <div>
+                <h5 class="alert-heading mb-1">Let's complete this step!</h5>
+                <p class="mb-0">
+                  Work through the checklist below to complete this onboarding step.
+                  {% if step.is_required %}
+                    This step is required to continue your onboarding process.
+                  {% else %}
+                    This step is optional but recommended for getting the most out of your CRM.
+                  {% endif %}
+                </p>
+              </div>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+
+      <!-- Step content tabs -->
+      <ul class="nav nav-tabs mb-4" id="stepTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+          <button class="nav-link active" id="checklist-tab" data-bs-toggle="tab" data-bs-target="#checklist" type="button" role="tab">
+            <i class="fas fa-tasks me-1"></i> Checklist
+          </button>
+        </li>
+        {% if step.video_url or step.documentation_url %}
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="resources-tab" data-bs-toggle="tab" data-bs-target="#resources" type="button" role="tab">
+              <i class="fas fa-book me-1"></i> Resources
+            </button>
+          </li>
+        {% endif %}
+        {% if not step_completion.is_completed %}
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="help-tab" data-bs-toggle="tab" data-bs-target="#help" type="button" role="tab">
+              <i class="fas fa-question-circle me-1"></i> Need Help?
+            </button>
+          </li>
+        {% endif %}
+        {% if step_completion.is_completed %}
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="feedback-tab" data-bs-toggle="tab" data-bs-target="#feedback" type="button" role="tab">
+              <i class="fas fa-comment me-1"></i> Feedback
+            </button>
+          </li>
+        {% endif %}
+      </ul>
+
+      <div class="tab-content" id="stepTabContent">
+        <!-- Checklist tab -->
+        <div class="tab-pane fade show active" id="checklist" role="tabpanel" aria-labelledby="checklist-tab">
+          <div class="card">
+            <div class="list-group list-group-flush">
+              {% for item in checklist_items %}
+                <div class="checklist-item">
+                  <div class="form-check d-flex align-items-start">
+                    <input class="form-check-input checklist-checkbox me-3 mt-1" type="checkbox"
+                           id="checklist-item-{{ item.item.id }}"
+                           data-checklist-item-id="{{ item.item.id }}"
+                           {% if item.completion.is_completed %}checked{% endif %}
+                           {% if step_completion.is_completed %}disabled{% endif %}>
+                    <div>
+                      <label class="form-check-label fw-bold" for="checklist-item-{{ item.item.id }}">
+                        {{ item.item.text }}
+                        {% if item.item.is_required %}
+                          <span class="badge bg-danger-subtle text-danger">Required</span>
+                        {% else %}
+                          <span class="badge bg-secondary-subtle text-secondary">Optional</span>
+                        {% endif %}
+                      </label>
+                      {% if item.item.description %}
+                        <p class="mb-0 text-muted">{{ item.item.description }}</p>
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
+              {% empty %}
+                <div class="p-4 text-center">
+                  <p class="text-muted mb-0">No checklist items for this step.</p>
+                </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+
+        <!-- Resources tab -->
+        {% if step.video_url or step.documentation_url %}
+          <div class="tab-pane fade" id="resources" role="tabpanel" aria-labelledby="resources-tab">
+            <div class="row">
+              {% if step.video_url %}
+                <div class="col-md-6 mb-4">
+                  <div class="card resource-card h-100">
+                    <div class="card-header bg-primary text-white">
+                      <h5 class="card-title mb-0">
+                        <i class="fas fa-video me-2"></i> Video Tutorial
+                      </h5>
+                    </div>
+                    <div class="card-body">
+                      <div class="video-container mb-3">
+                        <iframe src="{{ step.video_url }}" frameborder="0" allowfullscreen></iframe>
+                      </div>
+                      <p class="card-text">This video tutorial will guide you through this step.</p>
+                    </div>
+                  </div>
+                </div>
+              {% endif %}
+
+              {% if step.documentation_url %}
+                <div class="col-md-6 mb-4">
+                  <div class="card resource-card h-100">
+                    <div class="card-header bg-info text-white">
+                      <h5 class="card-title mb-0">
+                        <i class="fas fa-book me-2"></i> Documentation
+                      </h5>
+                    </div>
+                    <div class="card-body">
+                      <p class="card-text mb-4">
+                        Our comprehensive documentation will help you understand how to complete this step.
+                      </p>
+                      <div class="d-grid">
+                        <a href="{{ step.documentation_url }}" target="_blank" class="btn btn-info text-white">
+                          <i class="fas fa-external-link-alt me-1"></i> View Documentation
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        {% endif %}
+
+        <!-- Help tab -->
+        {% if not step_completion.is_completed %}
+          <div class="tab-pane fade" id="help" role="tabpanel" aria-labelledby="help-tab">
+            <div class="text-center mb-4">
+              <div class="mb-3">
+                <i class="fas fa-headset fa-4x text-primary"></i>
+              </div>
+              <h4>Need assistance with this step?</h4>
+              <p class="lead">Our team is here to help you succeed.</p>
+            </div>
+
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                <div class="card h-100">
+                  <div class="card-body">
+                    <h5 class="card-title">
+                      <i class="fas fa-calendar-check me-2 text-success"></i> Schedule a Call
+                    </h5>
+                    <p class="card-text">
+                      Book a personalized call with your onboarding specialist to walk through this step together.
+                    </p>
+                    <div class="d-grid">
+                      <a href="#" class="btn btn-outline-primary">
+                        Schedule Call
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-md-6 mb-3">
+                <div class="card h-100">
+                  <div class="card-body">
+                    <h5 class="card-title">
+                      <i class="fas fa-envelope me-2 text-primary"></i> Email Support
+                    </h5>
+                    <p class="card-text">
+                      Send us a detailed question about this step and we'll respond promptly with guidance.
+                    </p>
+                    <div class="d-grid">
+                      <a href="mailto:support@dunware-crm.com" class="btn btn-outline-primary">
+                        Email Support
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        {% endif %}
+
+        <!-- Feedback tab (only shown for completed steps) -->
+        {% if step_completion.is_completed %}
+          <div class="tab-pane fade" id="feedback" role="tabpanel" aria-labelledby="feedback-tab">
+            <div class="p-4 border rounded bg-light">
+              <h4>Share Your Feedback</h4>
+              <p>Your feedback helps us improve the onboarding experience for everyone.</p>
+
+              <form method="post" id="feedbackForm">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="submit_feedback">
+                <input type="hidden" name="customer_onboarding" value="{{ onboarding.id }}">
+                <input type="hidden" name="step" value="{{ step.id }}">
+                <input type="hidden" name="feedback_type" value="step">
+
+                <div class="mb-3">
+                  <label class="form-label">How would you rate this step overall?</label>
+                  <div class="feedback-stars" id="overallRating">
+                    <input type="hidden" name="overall_rating" id="overall_rating_input" value="5">
+                    <i class="fas fa-star star active" data-value="1"></i>
+                    <i class="fas fa-star star active" data-value="2"></i>
+                    <i class="fas fa-star star active" data-value="3"></i>
+                    <i class="fas fa-star star active" data-value="4"></i>
+                    <i class="fas fa-star star active" data-value="5"></i>
+                  </div>
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label">How easy was it to complete this step?</label>
+                  <div class="feedback-stars" id="easeRating">
+                    <input type="hidden" name="ease_of_use_rating" id="ease_rating_input" value="5">
+                    <i class="fas fa-star star active" data-value="1"></i>
+                    <i class="fas fa-star star active" data-value="2"></i>
+                    <i class="fas fa-star star active" data-value="3"></i>
+                    <i class="fas fa-star star active" data-value="4"></i>
+                    <i class="fas fa-star star active" data-value="5"></i>
+                  </div>
+                </div>
+
+                <div class="mb-3">
+                  <label for="what_worked_well" class="form-label">What worked well about this step?</label>
+                  <textarea class="form-control" id="what_worked_well" name="what_worked_well" rows="3"></textarea>
+                </div>
+
+                <div class="mb-3">
+                  <label for="what_could_improve" class="form-label">What could be improved about this step?</label>
+                  <textarea class="form-control" id="what_could_improve" name="what_could_improve" rows="3"></textarea>
+                </div>
+
+                <div class="text-end">
+                  <button type="submit" class="btn btn-primary">Submit Feedback</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Step footer -->
+    <div class="step-footer">
+      {% if not step_completion.is_completed %}
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="complete_step">
+
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="confirmCompletionCheck" required>
+                <label class="form-check-label" for="confirmCompletionCheck">
+                  I have completed all the required tasks for this step
+                </label>
+              </div>
+            </div>
+            <button type="submit" class="btn btn-success" id="completeStepBtn">
+              <i class="fas fa-check me-1"></i> Mark Step as Complete
+            </button>
+          </div>
+        </form>
+      {% else %}
+        <div class="d-flex justify-content-between align-items-center">
+          <div class="text-success">
+            <i class="fas fa-check-circle me-1"></i> You completed this step on {{ step_completion.completed_date|date:"F d, Y" }}
+          </div>
+
+          {% if next_step %}
+            <a href="{% url 'onboarding:customer_step' step_id=next_step.step.id %}" class="btn btn-primary">
+              Continue to Next Step <i class="fas fa-arrow-right ms-1"></i>
+            </a>
+          {% else %}
+            <a href="{% url 'onboarding:customer_dashboard' %}" class="btn btn-primary">
+              Return to Dashboard <i class="fas fa-home ms-1"></i>
+            </a>
+          {% endif %}
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Handle checklist item completion
+    document.querySelectorAll('.checklist-checkbox').forEach(function(checkbox) {
+      checkbox.addEventListener('change', function() {
+        const checklistItemId = this.dataset.checklistItemId;
+        const isCompleted = this.checked;
+
+        fetch('', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}'
+          },
+          body: JSON.stringify({
+            action: 'update_checklist',
+            checklist_item_id: checklistItemId,
+            is_completed: isCompleted
+          })
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            // Success handling
+            if (data.all_completed) {
+              document.getElementById('completeStepBtn').classList.add('pulse');
+              document.getElementById('confirmCompletionCheck').disabled = false;
+            }
+          } else {
+            // Error handling
+            console.error("Error updating checklist item:", data.error);
+            this.checked = !isCompleted; // Revert the checkbox state
+            alert("Error updating checklist item: " + data.error);
+          }
+        })
+        .catch(error => {
+          console.error("Error:", error);
+          this.checked = !isCompleted; // Revert the checkbox state
+          alert("Error updating checklist item. Please try again.");
+        });
+      });
+    });
+
+    // Handle rating stars
+    document.querySelectorAll('.feedback-stars').forEach(function(container) {
+      const stars = container.querySelectorAll('.star');
+      const inputId = container.id === 'overallRating' ? 'overall_rating_input' : 'ease_rating_input';
+
+      stars.forEach(function(star) {
+        star.addEventListener('click', function() {
+          const value = this.dataset.value;
+          document.getElementById(inputId).value = value;
+
+          // Reset all stars
+          stars.forEach(function(s) {
+            s.classList.remove('active');
+          });
+
+          // Activate clicked star and all previous ones
+          for (let i = 0; i < value; i++) {
+            stars[i].classList.add('active');
+          }
+        });
+      });
+    });
+  });
+</script>
+{% endblock %}

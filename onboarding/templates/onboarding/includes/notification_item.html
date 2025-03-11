@@ -1,0 +1,40 @@
+<div class="notification-item p-3 border-bottom" data-notification-id="{{ notification.id }}">
+    <div class="d-flex">
+      <div class="notification-icon me-3 flex-shrink-0 rounded-circle
+           {% if urgency_class == 'immediate' %}bg-danger text-white
+           {% elif urgency_class == 'very-soon' %}bg-warning text-dark
+           {% elif urgency_class == 'soon' %}bg-info text-white
+           {% elif urgency_class == 'today' %}bg-primary text-white
+           {% else %}bg-secondary text-white{% endif %}">
+        <i class="fas fa-{% if notification.notification_type == 'reminder' %}bell
+                 {% elif notification.notification_type == 'completion' %}check-circle
+                 {% elif notification.notification_type == 'milestone' %}flag
+                 {% elif notification.notification_type == 'task' %}tasks
+                 {% elif notification.notification_type == 'welcome' %}handshake
+                 {% elif notification.notification_type == 'plan_change' %}sync
+                 {% else %}info-circle{% endif %}"></i>
+      </div>
+      <div class="flex-grow-1">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <h6 class="mb-1">{{ notification.title }}</h6>
+            <p class="text-muted mb-1 small">{{ notification.message }}</p>
+            <div class="small text-muted">
+              {{ notification.created_at|timesince }} ago
+              {% if notification.related_step %}
+                &bull; {{ notification.related_step.name }}
+              {% endif %}
+            </div>
+          </div>
+          <div class="notification-actions">
+            <form action="{% url 'mark_notification_read' notification.id %}" method="POST" class="d-inline-block">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-sm btn-link text-muted p-0">
+                <i class="fas fa-check"></i>
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>

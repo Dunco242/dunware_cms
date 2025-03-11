@@ -71,6 +71,7 @@ INSTALLED_APPS = [
     'dunware_crm',
     'document_editor.apps.DocumentEditorConfig',
     'video_conference.apps.VideoConferenceConfig',
+    'onboarding',
 ]
 
 MIDDLEWARE = [

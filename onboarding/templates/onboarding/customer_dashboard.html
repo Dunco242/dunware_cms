@@ -1,0 +1,382 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Your Onboarding Progress{% endblock %}
+
+{% block extra_css %}
+<style>
+  .step-card {
+    transition: transform 0.2s ease;
+    height: 100%;
+  }
+
+  .step-card:hover {
+    transform: translateY(-5px);
+  }
+
+  .step-card.completed {
+    border-left: 4px solid #198754;
+  }
+
+  .step-card.current {
+    border-left: 4px solid #0d6efd;
+  }
+
+  .step-card.pending {
+    border-left: 4px solid #6c757d;
+  }
+
+  .progress-card {
+    border-radius: 1rem;
+    overflow: hidden;
+  }
+
+  .step-status-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 15px;
+  }
+
+  .step-status-icon.completed {
+    background-color: #198754;
+    color: white;
+  }
+
+  .step-status-icon.current {
+    background-color: #0d6efd;
+    color: white;
+  }
+
+  .step-status-icon.pending {
+    background-color: #6c757d;
+    color: white;
+  }
+
+  .welcome-card {
+    background: linear-gradient(to right, #0d6efd, #0a58ca);
+    color: white;
+    border-radius: 1rem;
+  }
+
+  .welcome-avatar {
+    width: 120px;
+    height: 120px;
+    border-radius: 60px;
+    background-color: white;
+    color: #0d6efd;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 1.5rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+  {% if no_customer_profile %}
+    <div class="text-center py-5">
+      <div class="mb-4">
+        <i class="fas fa-exclamation-triangle fa-4x text-warning"></i>
+      </div>
+      <h2>Customer Profile Not Found</h2>
+      <p class="lead">
+        We couldn't find a customer profile associated with your account.
+      </p>
+      <p>Please contact support to link your account to your customer profile.</p>
+      <a href="#" class="btn btn-primary mt-3">Contact Support</a>
+    </div>
+  {% elif no_onboarding %}
+    <div class="text-center py-5">
+      <div class="mb-4">
+        <i class="fas fa-clipboard-list fa-4x text-muted"></i>
+      </div>
+      <h2>No Onboarding Process Found</h2>
+      <p class="lead">
+        You don't have an active onboarding process yet.
+      </p>
+      <p>Please contact your account manager to set up your onboarding.</p>
+      <a href="#" class="btn btn-primary mt-3">Contact Account Manager</a>
+    </div>
+  {% else %}
+    <!-- Welcome Section -->
+    <div class="welcome-card p-4 mb-5">
+      <div class="row align-items-center">
+        <div class="col-md-8">
+          <h1 class="display-5 fw-bold mb-3">Welcome to DunWare CRM!</h1>
+          <p class="lead mb-4">
+            We're excited to have you on board. Follow the steps below to get started with your new CRM system.
+          </p>
+
+          <div class="d-flex align-items-center mb-2">
+            <div class="me-3">
+              <i class="fas fa-check-circle fa-lg"></i>
+            </div>
+            <div>
+              <span class="lead">Your onboarding is {{ onboarding.progress_percentage }}% complete</span>
+            </div>
+          </div>
+
+          {% if estimated_completion_date and onboarding.start_date %}
+            <div class="d-flex align-items-center">
+              <div class="me-3">
+                <i class="fas fa-calendar-check fa-lg"></i>
+              </div>
+              <div>
+                <span>Estimated completion date: {{ estimated_completion_date|date:"F d, Y" }}</span>
+              </div>
+            </div>
+          {% endif %}
+        </div>
+        <div class="col-md-4 text-center d-none d-md-block">
+          <div class="welcome-avatar mx-auto">
+            <i class="fas fa-user-circle fa-5x"></i>
+          </div>
+          <h5>{{ onboarding.customer.get_full_name }}</h5>
+          <p>{{ onboarding.customer.company_name }}</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Progress Overview -->
+    <div class="row mb-5">
+      <div class="col-md-8">
+        <div class="card progress-card h-100">
+          <div class="card-body p-4">
+            <h3 class="card-title mb-4">Your Onboarding Progress</h3>
+
+            <div class="mb-4">
+              <div class="d-flex justify-content-between mb-2">
+                <h5 class="mb-0">Overall Progress</h5>
+                <h5 class="mb-0">{{ onboarding.progress_percentage }}%</h5>
+              </div>
+              <div class="progress" style="height: 10px;">
+                <div class="progress-bar" role="progressbar" style="width: {{ onboarding.progress_percentage }}%"></div>
+              </div>
+            </div>
+
+            {% if onboarding.status == 'completed' %}
+              <div class="alert alert-success">
+                <div class="d-flex align-items-center">
+                  <div class="me-3">
+                    <i class="fas fa-check-circle fa-2x"></i>
+                  </div>
+                  <div>
+                    <h5 class="alert-heading mb-1">Onboarding Complete!</h5>
+                    <p class="mb-0">
+                      Congratulations! You've completed all the onboarding steps.
+                      You're now ready to fully utilize your DunWare CRM system.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            {% elif onboarding.status == 'in_progress' %}
+              <div class="alert alert-primary">
+                <div class="d-flex">
+                  <div class="me-3">
+                    <i class="fas fa-info-circle fa-2x"></i>
+                  </div>
+                  <div>
+                    <h5 class="alert-heading mb-1">Onboarding In Progress</h5>
+                    <p class="mb-0">
+                      You're making great progress! Continue with the next steps to complete your onboarding.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            {% elif onboarding.status == 'paused' %}
+              <div class="alert alert-warning">
+                <div class="d-flex">
+                  <div class="me-3">
+                    <i class="fas fa-pause-circle fa-2x"></i>
+                  </div>
+                  <div>
+                    <h5 class="alert-heading mb-1">Onboarding Paused</h5>
+                    <p class="mb-0">
+                      Your onboarding is currently paused.
+                      Please contact your account manager to resume the process.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            {% elif onboarding.status == 'not_started' %}
+              <div class="alert alert-secondary">
+                <div class="d-flex">
+                  <div class="me-3">
+                    <i class="fas fa-hourglass-start fa-2x"></i>
+                  </div>
+                  <div>
+                    <h5 class="alert-heading mb-1">Ready to Begin</h5>
+                    <p class="mb-0">
+                      Your onboarding plan is set up and ready to go.
+                      Start with the first step below to begin your journey.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            {% endif %}
+
+            {% if onboarding.status == 'in_progress' and next_step %}
+              <div class="d-grid mt-4">
+                <a href="{% url 'onboarding:customer_step' step_id=next_step.id %}" class="btn btn-primary btn-lg">
+                  <i class="fas fa-arrow-right me-2"></i> Continue to Next Step
+                </a>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <div class="card h-100">
+          <div class="card-body p-4">
+            <h3 class="card-title mb-4">Your Account</h3>
+
+            {% if onboarding.assigned_to %}
+              <div class="mb-4">
+                <h5 class="mb-3">Your Account Manager</h5>
+                <div class="d-flex align-items-center">
+                  <div class="me-3">
+                    <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
+                      <i class="fas fa-user"></i>
+                    </div>
+                  </div>
+                  <div>
+                    <h6 class="mb-1">{{ onboarding.assigned_to.get_full_name }}</h6>
+                    <a href="mailto:{{ onboarding.assigned_to.user.email }}" class="text-decoration-none">
+                      <i class="fas fa-envelope me-1"></i> {{ onboarding.assigned_to.user.email }}
+                    </a>
+                  </div>
+                </div>
+              </div>
+            {% endif %}
+
+            <div class="mb-4">
+              <h5 class="mb-3">Plan Details</h5>
+              <div class="card bg-light">
+                <div class="card-body">
+                  <h6 class="card-title">{{ onboarding.plan.name }}</h6>
+                  <p class="card-text text-muted mb-0">{{ onboarding.plan.description|truncatechars:100 }}</p>
+                </div>
+              </div>
+            </div>
+
+            {% if days_since_start > 0 %}
+              <div class="text-center text-muted">
+                <i class="far fa-calendar-alt me-1"></i> Day {{ days_since_start }} of your onboarding journey
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Steps Section -->
+    <h3 class="mb-4">Your Onboarding Steps</h3>
+    <div class="row row-cols-1 row-cols-md-2 g-4 mb-5">
+      {% for step_data in steps_with_status %}
+        {% with step=step_data.step completion=step_data.completion %}
+          <div class="col">
+            <div class="card step-card {% if completion and completion.is_completed %}completed{% elif step == current_step %}current{% else %}pending{% endif %}">
+              <div class="card-body p-4">
+                <div class="d-flex align-items-center mb-3">
+                  <div class="step-status-icon {% if completion and completion.is_completed %}completed{% elif step == current_step %}current{% else %}pending{% endif %}">
+                    {% if completion and completion.is_completed %}
+                      <i class="fas fa-check"></i>
+                    {% else %}
+                      {{ forloop.counter }}
+                    {% endif %}
+                  </div>
+
+                  <div>
+                    <h5 class="card-title mb-0">{{ step.name }}</h5>
+                    <span class="badge bg-{{ step.step_type|default:'secondary' }}-subtle text-{{ step.step_type|default:'secondary' }}">
+                      {{ step.get_step_type_display }}
+                    </span>
+                    <span class="badge
+                      {% if completion and completion.is_completed %}bg-success{% elif step == current_step %}bg-primary{% else %}bg-secondary{% endif %}">
+                      {% if completion and completion.is_completed %}
+                        Completed
+                      {% elif step == current_step %}
+                        Current
+                      {% else %}
+                        Pending
+                      {% endif %}
+                    </span>
+                  </div>
+                </div>
+
+                <p class="card-text">{{ step.description|truncatechars:120 }}</p>
+
+                <div class="d-flex justify-content-between align-items-center">
+                  <div class="small text-muted">
+                    <i class="far fa-clock me-1"></i> {{ step.estimated_minutes }} min
+                  </div>
+
+                  {% if completion and completion.is_completed %}
+                    <a href="{% url 'onboarding:customer_step' step_id=step.id %}" class="btn btn-outline-success">
+                      <i class="fas fa-check me-1"></i> Completed
+                    </a>
+                  {% elif step == current_step %}
+                    <a href="{% url 'onboarding:customer_step' step_id=step.id %}" class="btn btn-primary">
+                      <i class="fas fa-arrow-right me-1"></i> Continue
+                    </a>
+                  {% else %}
+                    <a href="{% url 'onboarding:customer_step' step_id=step.id %}" class="btn btn-outline-secondary">
+                      <i class="fas fa-eye me-1"></i> Preview
+                    </a>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+          </div>
+        {% endwith %}
+      {% endfor %}
+    </div>
+
+    <!-- Additional Resources -->
+    <h3 class="mb-4">Resources &amp; Support</h3>
+    <div class="row">
+      <div class="col-md-4 mb-4">
+        <div class="card h-100">
+          <div class="card-body">
+            <h5 class="card-title">
+              <i class="fas fa-book text-primary me-2"></i> Documentation
+            </h5>
+            <p class="card-text">Access our comprehensive documentation and guides.</p>
+            <a href="#" class="btn btn-outline-primary">View Documentation</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-4 mb-4">
+        <div class="card h-100">
+          <div class="card-body">
+            <h5 class="card-title">
+              <i class="fas fa-video text-danger me-2"></i> Video Tutorials
+            </h5>
+            <p class="card-text">Watch step-by-step video guides for your CRM.</p>
+            <a href="#" class="btn btn-outline-primary">Watch Tutorials</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-4 mb-4">
+        <div class="card h-100">
+          <div class="card-body">
+            <h5 class="card-title">
+              <i class="fas fa-headset text-success me-2"></i> Support
+            </h5>
+            <p class="card-text">Have questions? Our support team is ready to help.</p>
+            <a href="#" class="btn btn-outline-primary">Contact Support</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

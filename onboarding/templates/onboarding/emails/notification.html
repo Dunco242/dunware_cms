@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ notification.title }}</title>
+  <style>
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      line-height: 1.6;
+      margin: 0;
+      padding: 0;
+      color: #333333;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .header {
+      background-color: #0d6efd;
+      color: white;
+      padding: 20px;
+      text-align: center;
+      border-radius: 5px 5px 0 0;
+    }
+    .content {
+      background-color: #ffffff;
+      padding: 20px;
+      border-left: 1px solid #dddddd;
+      border-right: 1px solid #dddddd;
+    }
+    .footer {
+      background-color: #f8f9fa;
+      text-align: center;
+      padding: 15px;
+      font-size: 12px;
+      color: #6c757d;
+      border-radius: 0 0 5px 5px;
+      border: 1px solid #dddddd;
+    }
+    .button {
+      display: inline-block;
+      background-color: #0d6efd;
+      color: white;
+      text-decoration: none;
+      padding: 10px 20px;
+      border-radius: 5px;
+      margin-top: 15px;
+    }
+    .notification-type {
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .message {
+      margin: 20px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h2>{{ notification.title }}</h2>
+      <p class="notification-type">{{ notification.get_notification_type_display }}</p>
+    </div>
+
+    <div class="content">
+      <p>Hello {{ notification.recipient.get_full_name }},</p>
+
+      <div class="message">
+        <p>{{ notification.message }}</p>
+      </div>
+
+      {% if notification.related_step %}
+        <p>This notification is related to the <strong>{{ notification.related_step.name }}</strong> step in the onboarding process.</p>
+      {% endif %}
+
+      {% if notification.customer_onboarding %}
+        <p>
+          <strong>Customer:</strong> {{ notification.customer_onboarding.customer.company_name }}<br>
+          <strong>Plan:</strong> {{ notification.customer_onboarding.plan.name }}<br>
+          <strong>Status:</strong> {{ notification.customer_onboarding.get_status_display }}
+        </p>
+
+        <a href="{{ site_url }}{% url 'onboarding:customer_onboarding_detail' pk=notification.customer_onboarding.id %}" class="button">
+          View Onboarding Details
+        </a>
+      {% endif %}
+
+      <p style="margin-top: 20px;">
+        Thank you,<br>
+        The DunWare CRM Team
+      </p>
+    </div>
+
+    <div class="footer">
+      <p>
+        This is an automated message from DunWare CRM. Please do not reply to this email.
+      </p>
+      <p>
+        DunWare CRM &copy; {% now "Y" %} All rights reserved.
+      </p>
+    </div>
+  </div>
+</body>
+</html>

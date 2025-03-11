@@ -1,0 +1,573 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Onboarding Analytics{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.css">
+<style>
+  .metric-card {
+    transition: all 0.3s ease;
+  }
+
+  .metric-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+  }
+
+  .chart-container {
+    position: relative;
+    height: 300px;
+    width: 100%;
+  }
+
+  .metric-icon {
+    width: 48px;
+    height: 48px;
+    background-color: rgba(13, 110, 253, 0.1);
+    color: #0d6efd;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 1rem;
+  }
+
+  .metric-value {
+    font-size: 2.5rem;
+    font-weight: 600;
+  }
+
+  .date-range-selector {
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    padding: 0.5rem 1rem;
+    background-color: #fff;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <!-- Header and Date Range -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="h3 mb-0">Onboarding Analytics</h1>
+      <p class="text-muted">Track onboarding performance and metrics</p>
+    </div>
+
+    <form class="d-flex gap-2">
+      <div class="date-range-selector">
+        <i class="fas fa-calendar-alt me-2"></i>
+        <input type="text" id="dateRange" name="date_range" class="border-0"
+               value="{{ start_date|default:'' }} to {{ end_date|default:'' }}" style="width: 200px;">
+        <input type="hidden" name="start_date" id="startDate" value="{{ start_date|default:'' }}">
+        <input type="hidden" name="end_date" id="endDate" value="{{ end_date|default:'' }}">
+      </div>
+      <button type="submit" class="btn btn-primary">Apply</button>
+    </form>
+  </div>
+
+  <!-- Key Metrics -->
+  <div class="row g-4 mb-5">
+    <div class="col-md-3">
+      <div class="card h-100 metric-card">
+        <div class="card-body">
+          <div class="d-flex align-items-center mb-3">
+            <div class="metric-icon">
+              <i class="fas fa-users fa-lg"></i>
+            </div>
+            <h5 class="card-title mb-0">Active Onboardings</h5>
+          </div>
+          <div class="d-flex justify-content-between align-items-baseline">
+            <p class="metric-value">{{ analytics.status_counts.in_progress|default:0 }}</p>
+            <div class="text-end">
+              {% if analytics.status_counts.last_period and analytics.status_counts.change %}
+                <span class="badge {% if analytics.status_counts.in_progress > analytics.status_counts.last_period.in_progress %}bg-success{% else %}bg-danger{% endif %}">
+                  {% if analytics.status_counts.in_progress > analytics.status_counts.last_period.in_progress %}
+                    <i class="fas fa-arrow-up"></i>
+                  {% else %}
+                    <i class="fas fa-arrow-down"></i>
+                  {% endif %}
+                  {{ analytics.status_counts.change.in_progress|default:0 }}%
+                </span>
+              {% endif %}
+              <p class="text-muted mb-0 small">vs previous period</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-3">
+      <div class="card h-100 metric-card">
+        <div class="card-body">
+          <div class="d-flex align-items-center mb-3">
+            <div class="metric-icon" style="color: #198754; background-color: rgba(25, 135, 84, 0.1);">
+              <i class="fas fa-check-circle fa-lg"></i>
+            </div>
+            <h5 class="card-title mb-0">Completed</h5>
+          </div>
+          <div class="d-flex justify-content-between align-items-baseline">
+            <p class="metric-value">{{ analytics.status_counts.completed|default:0 }}</p>
+            <div class="text-end">
+              {% if analytics.status_counts.last_period and analytics.status_counts.change %}
+                <span class="badge {% if analytics.status_counts.completed > analytics.status_counts.last_period.completed %}bg-success{% else %}bg-danger{% endif %}">
+                  {% if analytics.status_counts.completed > analytics.status_counts.last_period.completed %}
+                    <i class="fas fa-arrow-up"></i>
+                  {% else %}
+                    <i class="fas fa-arrow-down"></i>
+                  {% endif %}
+                  {{ analytics.status_counts.change.completed|default:0 }}%
+                </span>
+              {% endif %}
+              <p class="text-muted mb-0 small">vs previous period</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-3">
+      <div class="card h-100 metric-card">
+        <div class="card-body">
+          <div class="d-flex align-items-center mb-3">
+            <div class="metric-icon" style="color: #dc3545; background-color: rgba(220, 53, 69, 0.1);">
+              <i class="fas fa-exclamation-circle fa-lg"></i>
+            </div>
+            <h5 class="card-title mb-0">Abandoned</h5>
+          </div>
+          <div class="d-flex justify-content-between align-items-baseline">
+            <p class="metric-value">{{ analytics.status_counts.abandoned|default:0 }}</p>
+            <div class="text-end">
+              {% if analytics.status_counts.last_period and analytics.status_counts.change %}
+                <span class="badge {% if analytics.status_counts.abandoned < analytics.status_counts.last_period.abandoned %}bg-success{% else %}bg-danger{% endif %}">
+                  {% if analytics.status_counts.abandoned < analytics.status_counts.last_period.abandoned %}
+                    <i class="fas fa-arrow-down"></i>
+                  {% else %}
+                    <i class="fas fa-arrow-up"></i>
+                  {% endif %}
+                  {{ analytics.status_counts.change.abandoned|default:0 }}%
+                </span>
+              {% endif %}
+              <p class="text-muted mb-0 small">vs previous period</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-3">
+      <div class="card h-100 metric-card">
+        <div class="card-body">
+          <div class="d-flex align-items-center mb-3">
+            <div class="metric-icon" style="color: #0dcaf0; background-color: rgba(13, 202, 240, 0.1);">
+              <i class="fas fa-clock fa-lg"></i>
+            </div>
+            <h5 class="card-title mb-0">Avg. Completion Time</h5>
+          </div>
+          <div class="d-flex justify-content-between align-items-baseline">
+            <p class="metric-value">{{ analytics.avg_completion_days|default:0 }}</p>
+            <div class="text-end">
+              {% if analytics.last_period and analytics.avg_completion_change %}
+                <span class="badge {% if analytics.avg_completion_days < analytics.last_period.avg_completion_days %}bg-success{% else %}bg-danger{% endif %}">
+                  {% if analytics.avg_completion_days < analytics.last_period.avg_completion_days %}
+                    <i class="fas fa-arrow-down"></i>
+                  {% else %}
+                    <i class="fas fa-arrow-up"></i>
+                  {% endif %}
+                  {{ analytics.avg_completion_change|default:0 }}%
+                </span>
+              {% endif %}
+              <p class="text-muted mb-0 small">days</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div class="row mb-5">
+    <div class="col-md-8">
+      <div class="card h-100">
+        <div class="card-header bg-white">
+          <h5 class="mb-0">Onboarding Volume Over Time</h5>
+        </div>
+        <div class="card-body">
+          <div class="chart-container">
+            <canvas id="onboardingVolumeChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-4">
+      <div class="card h-100">
+        <div class="card-header bg-white">
+          <h5 class="mb-0">Completion Rate</h5>
+        </div>
+        <div class="card-body text-center">
+          <div id="completionRate" class="mt-3 mb-4"
+               style="width: 200px; height: 200px; margin: 0 auto; position: relative;">
+            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);">
+              <h2 class="mb-0">{{ analytics.completion_rate|default:0 }}%</h2>
+              <p class="text-muted">Completion Rate</p>
+            </div>
+          </div>
+
+          <div class="d-flex justify-content-between mt-3">
+            <div>
+              <h6 class="mb-1">Started</h6>
+              <p class="h4">{{ analytics.total_onboardings|default:0 }}</p>
+            </div>
+            <div>
+              <h6 class="mb-1">Completed</h6>
+              <p class="h4">{{ analytics.total_completed|default:0 }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row mb-5">
+    <div class="col-md-6">
+      <div class="card h-100">
+        <div class="card-header bg-white">
+          <h5 class="mb-0">Step Completion Times</h5>
+        </div>
+        <div class="card-body">
+          <div class="chart-container">
+            <canvas id="stepTimeChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <div class="card h-100">
+        <div class="card-header bg-white">
+          <h5 class="mb-0">Satisfaction Trends</h5>
+        </div>
+        <div class="card-body">
+          <div class="chart-container">
+            <canvas id="satisfactionChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Detailed Analytics -->
+  <div class="row">
+    <div class="col-md-6">
+      <div class="card mb-4">
+        <div class="card-header bg-white">
+          <h5 class="mb-0">Common Improvement Suggestions</h5>
+        </div>
+        <div class="card-body">
+          {% if analytics.common_improvement_terms %}
+            <div class="d-flex flex-wrap gap-2 mb-3">
+              {% for term in analytics.common_improvement_terms %}
+                <div class="badge bg-light text-dark p-2">
+                  {{ term.0 }} <span class="badge bg-primary">{{ term.1 }}</span>
+                </div>
+              {% endfor %}
+            </div>
+            <p class="text-muted small">
+              Common terms found in improvement feedback from customers.
+            </p>
+          {% else %}
+            <div class="text-center py-4">
+              <p class="text-muted mb-0">No improvement suggestions found in the selected date range.</p>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <div class="card mb-4">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">Step Completion Analysis</h5>
+          <div class="dropdown">
+            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="exportDropdown" data-bs-toggle="dropdown">
+              <i class="fas fa-download me-1"></i> Export
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="exportDropdown">
+              <li><a class="dropdown-item" href="#" id="exportCSV">CSV</a></li>
+              <li><a class="dropdown-item" href="#" id="exportPDF">PDF</a></li>
+            </ul>
+          </div>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>Step Type</th>
+                  <th>Avg. Time (hours)</th>
+                  <th>Completion Rate</th>
+                  <th>Satisfaction</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% if analytics.step_completion_times %}
+                  {% for step_data in analytics.step_completion_times %}
+                    <tr>
+                      <td>{{ step_data.display_name }}</td>
+                      <td>{{ step_data.avg_hours|default:0 }}</td>
+                      <td>
+                        <div class="progress" style="height: 6px; width: 100px;">
+                          <div class="progress-bar" role="progressbar" style="width: {{ step_data.completion_rate|default:0 }}%"></div>
+                        </div>
+                        <span class="small">{{ step_data.completion_rate|default:0 }}%</span>
+                      </td>
+                      <td>
+                        {% if step_data.avg_rating %}
+                          <div class="text-warning">
+                            {% for i in "12345" %}
+                              {% if forloop.counter <= step_data.avg_rating|floatformat:"0" %}
+                                <i class="fas fa-star"></i>
+                              {% elif forloop.counter == step_data.avg_rating|floatformat:"0"|add:"1" and step_data.avg_rating|floatformat:"1"|slice:"1:2" != "0" %}
+                                <i class="fas fa-star-half-alt"></i>
+                              {% else %}
+                                <i class="far fa-star"></i>
+                              {% endif %}
+                            {% endfor %}
+                            <span class="text-dark ms-1">{{ step_data.avg_rating|floatformat:"1" }}</span>
+                          </div>
+                        {% else %}
+                          <span class="text-muted">No data</span>
+                        {% endif %}
+                      </td>
+                    </tr>
+                  {% endfor %}
+                {% else %}
+                  <tr>
+                    <td colspan="4" class="text-center py-3">No step completion data available.</td>
+                  </tr>
+                {% endif %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Initialize date range picker
+    const dateRangePicker = flatpickr("#dateRange", {
+      mode: "range",
+      dateFormat: "Y-m-d",
+      defaultDate: ["{{ start_date|default:'now'|date:'Y-m-d' }}", "{{ end_date|default:'now'|date:'Y-m-d' }}"],
+      onChange: function(selectedDates, dateStr) {
+        if (selectedDates.length === 2) {
+          document.getElementById('startDate').value = formatDate(selectedDates[0]);
+          document.getElementById('endDate').value = formatDate(selectedDates[1]);
+        }
+      }
+    });
+
+    function formatDate(date) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+
+    // Safe JSON parsing for chart data
+    function safeJSONParse(str, defaultValue) {
+      try {
+        return JSON.parse(str);
+      } catch (e) {
+        console.error("Error parsing JSON:", e);
+        return defaultValue;
+      }
+    }
+
+    // --- FIXED JAVASCRIPT SECTION ---
+
+    // Prepare chart labels and data - Fixed by properly handling template variables
+    // These will be processed by the template engine before reaching the browser
+    const volumeLabels = {{ analytics.onboarding_volume.labels|default:"[]"|safe }};
+    const volumeData = {{ analytics.onboarding_volume.data|default:"[]"|safe }};
+
+    // Completion rate calculation
+    const completionRate = {{ analytics.completion_rate|default:0 }};
+    const incompleteRate = 100 - completionRate;
+
+    // Step completion data - Fixed by properly handling template loop
+    const stepLabels = [];
+    const stepData = [];
+    {% if analytics.step_completion_times %}
+      {% for step in analytics.step_completion_times %}
+        stepLabels.push("{{ step.display_name }}");
+        stepData.push({{ step.avg_hours|default:0 }});
+      {% endfor %}
+    {% endif %}
+
+    // Satisfaction trend data
+    const satisfactionLabels = {{ analytics.satisfaction_trend.labels|default:"[]"|safe }};
+    const satisfactionData = {{ analytics.satisfaction_trend.data|default:"[]"|safe }};
+
+    // --- END FIXED JAVASCRIPT SECTION ---
+
+    // Onboarding Volume Chart
+    const volumeCtx = document.getElementById('onboardingVolumeChart');
+    if (volumeCtx) {
+      new Chart(volumeCtx.getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels: volumeLabels,
+          datasets: [{
+            label: 'New Onboardings',
+            data: volumeData,
+            backgroundColor: 'rgba(13, 110, 253, 0.7)',
+            borderColor: 'rgba(13, 110, 253, 1)',
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                precision: 0
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // Completion Rate Chart (doughnut)
+    const completionRateCtx = document.getElementById('completionRate');
+    if (completionRateCtx) {
+      new Chart(completionRateCtx.getContext('2d'), {
+        type: 'doughnut',
+        data: {
+          labels: ['Completed', 'Incomplete'],
+          datasets: [{
+            data: [completionRate, incompleteRate],
+            backgroundColor: [
+              'rgba(25, 135, 84, 0.7)',
+              'rgba(222, 226, 230, 0.7)'
+            ],
+            borderColor: [
+              'rgba(25, 135, 84, 1)',
+              'rgba(222, 226, 230, 1)'
+            ],
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: '75%',
+          plugins: {
+            legend: {
+              display: false
+            },
+            tooltip: {
+              enabled: true
+            }
+          }
+        }
+      });
+    }
+
+    // Step Completion Times Chart
+    const stepTimeCtx = document.getElementById('stepTimeChart');
+    if (stepTimeCtx && stepLabels.length > 0) {
+      new Chart(stepTimeCtx.getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels: stepLabels,
+          datasets: [{
+            label: 'Average Hours to Complete',
+            data: stepData,
+            backgroundColor: 'rgba(13, 202, 240, 0.7)',
+            borderColor: 'rgba(13, 202, 240, 1)',
+            borderWidth: 1
+          }]
+        },
+        options: {
+          indexAxis: 'y', // This makes it a horizontal bar chart
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: {
+              beginAtZero: true
+            }
+          }
+        }
+      });
+    }
+
+    // Satisfaction Trend Chart
+    const satisfactionCtx = document.getElementById('satisfactionChart');
+    if (satisfactionCtx && satisfactionLabels.length > 0) {
+      new Chart(satisfactionCtx.getContext('2d'), {
+        type: 'line',
+        data: {
+          labels: satisfactionLabels,
+          datasets: [{
+            label: 'Average Rating',
+            data: satisfactionData,
+            fill: false,
+            backgroundColor: 'rgba(255, 193, 7, 0.7)',
+            borderColor: 'rgba(255, 193, 7, 1)',
+            tension: 0.2,
+            pointBackgroundColor: 'rgba(255, 193, 7, 1)',
+            pointRadius: 4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              beginAtZero: true,
+              max: 5,
+              ticks: {
+                stepSize: 1
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // Export functionality
+    const exportCSVBtn = document.getElementById('exportCSV');
+    if (exportCSVBtn) {
+      exportCSVBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        // Add CSV export implementation here
+        alert('CSV export functionality to be implemented');
+      });
+    }
+
+    const exportPDFBtn = document.getElementById('exportPDF');
+    if (exportPDFBtn) {
+      exportPDFBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        // Add PDF export implementation here
+        alert('PDF export functionality to be implemented');
+      });
+    }
+  });
+</script>
+{% endblock %}
