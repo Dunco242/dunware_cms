@@ -174,8 +174,15 @@
             <span class="text-danger">*</span>
           </label>
 
-          <!-- Simple dropdown for plan selection -->
-          {{ form.plan }}
+          <!-- Explicit select element with options -->
+          <select name="{{ form.plan.name }}" id="{{ form.plan.id_for_label }}" class="form-select" required>
+            <option value="">---------</option>
+            {% for plan in form.plan.field.queryset %}
+              <option value="{{ plan.id }}" {% if form.plan.value == plan.id %}selected{% endif %}>
+                {{ plan.name }} ({{ plan.get_tier_display }})
+              </option>
+            {% endfor %}
+          </select>
 
           {% if form.plan.errors %}
           <div class="invalid-feedback d-block">
@@ -233,27 +240,21 @@
 {% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-  // Plan dropdown selection handler
+  // Plan dropdown selection handler - simplified
   const planSelect = document.getElementById('{{ form.plan.id_for_label }}');
   const planDetails = document.getElementById('selected-plan-details');
   const planTitle = document.getElementById('selected-plan-title');
   const planDescription = document.getElementById('selected-plan-description');
   const planDays = document.getElementById('selected-plan-days');
 
-  // Plan data encoded as JSON by the template engine
-  const planData = JSON.parse('{{ form.plan.field.queryset|safe|stringformat:"s"|escapejs }}');
-
   // Update plan details when selection changes
   planSelect.addEventListener('change', function() {
-    const selectedPlanId = this.value;
-    // Find the selected plan in options
-    const selectedOption = Array.from(this.options).find(option => option.value === selectedPlanId);
+    const selectedOption = this.options[this.selectedIndex];
 
-    if (selectedOption && selectedOption.text) {
-      // Display basic info we can get from the option itself
+    if (this.value) {
       planTitle.textContent = selectedOption.text;
-      planDescription.textContent = "Selected plan: " + selectedOption.text;
-      planDays.textContent = "See plan details after saving";
+      planDescription.textContent = "Plan selected successfully";
+      planDays.textContent = "Continue to complete setup";
       planDetails.style.display = 'block';
     } else {
       planDetails.style.display = 'none';
@@ -262,13 +263,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Initialize with current selection if any
   if (planSelect.value) {
-    const selectedOption = Array.from(planSelect.options).find(option => option.value === planSelect.value);
-    if (selectedOption) {
-      planTitle.textContent = selectedOption.text;
-      planDescription.textContent = "Selected plan: " + selectedOption.text;
-      planDays.textContent = "See plan details after saving";
-      planDetails.style.display = 'block';
-    }
+    const selectedOption = planSelect.options[planSelect.selectedIndex];
+    planTitle.textContent = selectedOption.text;
+    planDescription.textContent = "Plan selected successfully";
+    planDays.textContent = "Continue to complete setup";
+    planDetails.style.display = 'block';
   }
 
   // Form validation
