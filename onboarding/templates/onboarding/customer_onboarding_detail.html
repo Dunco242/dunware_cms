@@ -506,8 +506,11 @@
               <p>Onboarding completed on<br>{{ onboarding.completed_date|date:"F d, Y" }}</p>
 
               <button id="generate-report-btn" class="btn btn-outline-primary">
-                <i class="fas fa-file-alt me-1"></i> Generate Report
+                <i class="fas fa-file-alt me-1"></i> Generate Raw Report
               </button>
+              <a href="{% url 'onboarding:generate_html_report %}" class="btn btn-sm btn-primary">
+                <i class="fas fa-arrow-right me-1"></i> Styled Report
+              </a>
             </div>
           {% elif onboarding.status == 'paused' %}
             <div class="text-center mb-3">
@@ -534,7 +537,7 @@
     this.disabled = true;
 
     // Use a direct GET request instead of fetch
-    window.location.href = "{% url 'onboarding:html-report' pk=onboarding.id %}";
+    window.location.href = "{% url 'onboarding:generate_report' pk=onboarding.id %}";
 
     // Reset button after a delay
     setTimeout(() => {
