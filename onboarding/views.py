@@ -2,6 +2,8 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.views.generic import (
     ListView, DetailView, CreateView, UpdateView, TemplateView, FormView, View
 )
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.decorators import login_required
 from django.urls import reverse, reverse_lazy
@@ -25,7 +27,7 @@ from .services import (
     OnboardingService, DataImportService, NotificationService,
     OnboardingAnalyticsService
 )
-
+import io
 import logging
 logger = logging.getLogger(__name__)
 
@@ -782,3 +784,58 @@ class OnboardingAnalyticsView(LoginRequiredMixin, EmployeeRequiredMixin, Templat
         })
 
         return context
+
+
+def generate_onboarding_report(request, pk):
+    """Generate a PDF report for a customer onboarding"""
+    onboarding = get_object_or_404(CustomerOnboarding, pk=pk)
+
+    # Check permissions
+    if not request.user.is_authenticated:
+        return JsonResponse({"success": False, "error": "Authentication required"}, status=403)
+
+    # Create a file-like buffer to receive PDF data
+    buffer = io.BytesIO()
+
+    # Create the PDF object, using the buffer as its "file"
+    p = canvas.Canvas(buffer, pagesize=letter)
+
+    # Draw things on the PDF
+    p.setFont("Helvetica-Bold", 16)
+    p.drawString(100, 750, f"Onboarding Report: {onboarding.customer.company_name}")
+
+    p.setFont("Helvetica", 12)
+    p.drawString(100, 720, f"Plan: {onboarding.plan.name}")
+    p.drawString(100, 700, f"Status: {onboarding.get_status_display()}")
+    p.drawString(100, 680, f"Progress: {onboarding.progress_percentage}%")
+
+    # Add more content to the report
+    y_position = 640
+    p.setFont("Helvetica-Bold", 14)
+    p.drawString(100, y_position, "Completed Steps")
+    y_position -= 20
+
+    for completion in onboarding.step_completions.filter(is_completed=True):
+        p.setFont("Helvetica", 12)
+        p.drawString(120, y_position, f"• {completion.step.name}")
+        if completion.completed_date:
+            p.drawString(350, y_position, f"Completed on: {completion.completed_date.strftime('%Y-%m-%d')}")
+        y_position -= 20
+
+        if y_position < 100:
+            # Start a new page if we're running out of space
+            p.showPage()
+            p.setFont("Helvetica-Bold", 16)
+            p.drawString(100, 750, f"Onboarding Report: {onboarding.customer.company_name} (continued)")
+            y_position = 720
+
+    # Close the PDF object cleanly, and return the PDF file
+    p.showPage()
+    p.save()
+
+    # File response
+    buffer.seek(0)
+    response = HttpResponse(buffer, content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="onboarding_report_{pk}.pdf"'
+
+    return response

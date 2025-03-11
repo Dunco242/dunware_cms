@@ -32,4 +32,7 @@ urlpatterns = [
     path('welcome/', views.WelcomeView.as_view(), name='welcome'),
     path('progress/', views.CustomerDashboardView.as_view(), name='customer_dashboard'),
     path('step/<int:step_id>/', views.CustomerOnboardingStepView.as_view(), name='customer_step'),
+
+    # Generate Report
+    path('customer-onboardings/<int:pk>/generate-report/', views.generate_onboarding_report, name='generate_report'),
 ]
