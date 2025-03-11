@@ -508,9 +508,9 @@
               <button id="generate-report-btn" class="btn btn-outline-primary">
                 <i class="fas fa-file-alt me-1"></i> Generate Raw Report
               </button>
-              <a href="{% url 'onboarding:generate_html_report %}" class="btn btn-sm btn-primary">
-                <i class="fas fa-arrow-right me-1"></i> Styled Report
-              </a>
+              <a href="{% url 'onboarding:generate_html_report' pk=onboarding.id %}" class="btn btn-sm btn-primary">
+                <i class="fas fa-file-alt me-1"></i> Styled Report
+            </a>
             </div>
           {% elif onboarding.status == 'paused' %}
             <div class="text-center mb-3">
