@@ -179,7 +179,6 @@
     <h3 class="section-title">Onboarding Progress</h3>
     <div class="progress-container">
         <div class="progress-chart">
-            <!-- For HTML-to-PDF, you might need to use an actual chart library or SVG -->
             <svg width="150" height="150" viewBox="0 0 100 100">
                 <circle cx="50" cy="50" r="45" fill="transparent" stroke="#e9ecef" stroke-width="10"></circle>
                 <circle cx="50" cy="50" r="45" fill="transparent" stroke="#0d6efd" stroke-width="10"
@@ -191,72 +190,68 @@
     </div>
 
     <h3 class="section-title">Completed Steps</h3>
-    {% with completed_steps=onboarding.step_completions.filter(is_completed=True) %}
-        {% if completed_steps %}
-            <table class="steps-table">
-                <thead>
+    {% if completed_steps %}
+        <table class="steps-table">
+            <thead>
+                <tr>
+                    <th>Step</th>
+                    <th>Type</th>
+                    <th>Completion Date</th>
+                    <th>Completed By</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for completion in completed_steps %}
                     <tr>
-                        <th>Step</th>
-                        <th>Type</th>
-                        <th>Completion Date</th>
-                        <th>Completed By</th>
+                        <td>{{ completion.step.name }}</td>
+                        <td>{{ completion.step.get_step_type_display }}</td>
+                        <td>
+                            {% if completion.completed_date %}
+                                {{ completion.completed_date|date:"M d, Y" }}
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if completion.completed_by %}
+                                {{ completion.completed_by.get_full_name }}
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        </td>
                     </tr>
-                </thead>
-                <tbody>
-                    {% for completion in completed_steps %}
-                        <tr>
-                            <td>{{ completion.step.name }}</td>
-                            <td>{{ completion.step.get_step_type_display }}</td>
-                            <td>
-                                {% if completion.completed_date %}
-                                    {{ completion.completed_date|date:"M d, Y" }}
-                                {% else %}
-                                    N/A
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if completion.completed_by %}
-                                    {{ completion.completed_by.get_full_name }}
-                                {% else %}
-                                    N/A
-                                {% endif %}
-                            </td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        {% else %}
-            <div class="no-data">No steps have been completed yet.</div>
-        {% endif %}
-    {% endwith %}
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <div class="no-data">No steps have been completed yet.</div>
+    {% endif %}
 
     <h3 class="section-title">Pending Steps</h3>
-    {% with pending_steps=onboarding.step_completions.filter(is_completed=False) %}
-        {% if pending_steps %}
-            <table class="steps-table">
-                <thead>
+    {% if pending_steps %}
+        <table class="steps-table">
+            <thead>
+                <tr>
+                    <th>Step</th>
+                    <th>Type</th>
+                    <th>Required</th>
+                    <th>Est. Time (min)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for completion in pending_steps %}
                     <tr>
-                        <th>Step</th>
-                        <th>Type</th>
-                        <th>Required</th>
-                        <th>Est. Time (min)</th>
+                        <td>{{ completion.step.name }}</td>
+                        <td>{{ completion.step.get_step_type_display }}</td>
+                        <td>{% if completion.step.is_required %}Yes{% else %}No{% endif %}</td>
+                        <td>{{ completion.step.estimated_minutes }}</td>
                     </tr>
-                </thead>
-                <tbody>
-                    {% for completion in pending_steps %}
-                        <tr>
-                            <td>{{ completion.step.name }}</td>
-                            <td>{{ completion.step.get_step_type_display }}</td>
-                            <td>{% if completion.step.is_required %}Yes{% else %}No{% endif %}</td>
-                            <td>{{ completion.step.estimated_minutes }}</td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        {% else %}
-            <div class="no-data">All steps have been completed.</div>
-        {% endif %}
-    {% endwith %}
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <div class="no-data">All steps have been completed.</div>
+    {% endif %}
 
     <div class="footer">
         <p>Report generated on: {{ report_date|date:"F d, Y H:i:s" }}</p>

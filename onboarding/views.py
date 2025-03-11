@@ -1002,9 +1002,15 @@ def generate_html_report(request, pk):
     """Generate a PDF report from HTML template"""
     onboarding = get_object_or_404(CustomerOnboarding, pk=pk)
 
+    # Pre-filter the data
+    completed_steps = onboarding.step_completions.filter(is_completed=True)
+    pending_steps = onboarding.step_completions.filter(is_completed=False)
+
     # Render HTML template with context
     html_string = render_to_string('onboarding/report_template.html', {
         'onboarding': onboarding,
+        'completed_steps': completed_steps,
+        'pending_steps': pending_steps,
         'report_date': timezone.now()
     })
 
