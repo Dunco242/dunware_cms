@@ -528,79 +528,100 @@
 </div>
 {% block extra_js %}
 <script>
-// Add this to your existing DOMContentLoaded event handler
-document.addEventListener('DOMContentLoaded', function() {
-  // Your existing code here...
+  // Add this to your existing DOMContentLoaded event handler
+  document.addEventListener('DOMContentLoaded', function() {
+    // Your existing code here...
 
-  // Report generation handler
-  const reportButton = document.querySelector('#generate-report-btn');
-  if (reportButton) {
-    reportButton.addEventListener('click', function(event) {
-      event.preventDefault();
+    // Report generation handler
+    const reportButton = document.querySelector('#generate-report-btn');
+    if (reportButton) {
+      reportButton.addEventListener('click', function(event) {
+        event.preventDefault();
 
-      // Show loading state
-      const originalText = reportButton.innerHTML;
-      reportButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Generating...';
-      reportButton.disabled = true;
+        // Show loading state
+        const originalText = reportButton.innerHTML;
+        reportButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Generating...';
+        reportButton.disabled = true;
 
-      // Get the onboarding ID
-      const onboardingId = reportButton.dataset.onboardingId || window.location.pathname.split('/').filter(segment => segment)[2];
+        // Get the onboarding ID from URL
+        const onboardingId = window.location.pathname.split('/').filter(segment => segment)[2];
 
-      // Make the API call to generate the report
-      fetch(`/onboarding/customer-onboardings/${onboardingId}/generate-report/`, {
-        method: 'POST',
-        headers: {
-          'X-CSRFToken': document.querySelector('input[name="csrfmiddlewaretoken"]').value
-        },
-        credentials: 'same-origin'
-      })
-      .then(response => {
-        if (!response.ok) {
-          throw new Error(`Server returned status: ${response.status}`);
+        // Find the CSRF token - look in multiple places
+        let csrfToken = null;
+        const csrfInput = document.querySelector('input[name="csrfmiddlewaretoken"]');
+        const csrfCookie = document.cookie.split('; ').find(row => row.startsWith('csrftoken='));
+
+        if (csrfInput) {
+          csrfToken = csrfInput.value;
+        } else if (csrfCookie) {
+          csrfToken = csrfCookie.split('=')[1];
         }
-        if (response.headers.get('Content-Type').includes('application/json')) {
-          return response.json();
-        } else {
-          // This might be a file download
-          return response.blob();
+
+        if (!csrfToken) {
+          alert('Could not find CSRF token. Please reload the page and try again.');
+          reportButton.innerHTML = originalText;
+          reportButton.disabled = false;
+          return;
         }
-      })
-      .then(data => {
-        if (data instanceof Blob) {
-          // Handle file download
-          const url = window.URL.createObjectURL(data);
-          const a = document.createElement('a');
-          a.style.display = 'none';
-          a.href = url;
-          a.download = `onboarding-report-${onboardingId}.pdf`;
-          document.body.appendChild(a);
-          a.click();
-          window.URL.revokeObjectURL(url);
-        } else {
-          // Handle JSON response
-          if (data.success) {
-            if (data.redirect_url) {
-              window.location.href = data.redirect_url;
-            } else {
-              alert('Report generated successfully!');
-            }
-          } else {
-            alert(`Error: ${data.error || 'Unknown error occurred'}`);
+
+        // Make the API call to generate the report
+        fetch(`/onboarding/customer-onboardings/${onboardingId}/generate-report/`, {
+          method: 'POST',
+          headers: {
+            'X-CSRFToken': csrfToken,
+            'Content-Type': 'application/json'
+          },
+          credentials: 'same-origin',
+          body: JSON.stringify({}) // Empty JSON body
+        })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`Server returned status: ${response.status}`);
           }
-        }
-      })
-      .catch(error => {
-        console.error('Error generating report:', error);
-        alert(`Error generating report: ${error.message || 'Unknown error'}`);
-      })
-      .finally(() => {
-        // Reset button state
-        reportButton.innerHTML = originalText;
-        reportButton.disabled = false;
+          const contentType = response.headers.get('Content-Type');
+          if (contentType && contentType.includes('application/json')) {
+            return response.json();
+          } else {
+            // This might be a file download
+            return response.blob();
+          }
+        })
+        .then(data => {
+          if (data instanceof Blob) {
+            // Handle file download
+            const url = window.URL.createObjectURL(data);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            a.download = `onboarding-report-${onboardingId}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+          } else {
+            // Handle JSON response
+            if (data.success) {
+              if (data.redirect_url) {
+                window.location.href = data.redirect_url;
+              } else {
+                alert('Report generated successfully!');
+              }
+            } else {
+              alert(`Error: ${data.error || 'Unknown error occurred'}`);
+            }
+          }
+        })
+        .catch(error => {
+          console.error('Error generating report:', error);
+          alert(`Error generating report: ${error.message || 'Unknown error'}`);
+        })
+        .finally(() => {
+          // Reset button state
+          reportButton.innerHTML = originalText;
+          reportButton.disabled = false;
+        });
       });
-    });
-  }
-});
-</script>
+    }
+  });
+  </script>
 {% endblock %}
 {% endblock %}
