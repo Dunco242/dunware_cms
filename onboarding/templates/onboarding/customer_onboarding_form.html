@@ -1,0 +1,286 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Customer Onboarding - Setup{% endblock %}
+
+{% block extra_css %}
+<style>
+  .form-card {
+    border-radius: 10px;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    transition: all 0.3s ease;
+  }
+
+  .form-card:hover {
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+  }
+
+  .plan-card {
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: all 0.2s ease;
+  }
+
+  .plan-card.selected {
+    border-color: #0d6efd;
+    background-color: rgba(13, 110, 253, 0.05);
+  }
+
+  .step-indicator {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 2rem;
+  }
+
+  .step {
+    text-align: center;
+    position: relative;
+    flex: 1;
+  }
+
+  .step:before {
+    content: '';
+    position: absolute;
+    top: 15px;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background-color: #dee2e6;
+    z-index: -1;
+  }
+
+  .step:first-child:before {
+    left: 50%;
+    width: 50%;
+  }
+
+  .step:last-child:before {
+    width: 50%;
+  }
+
+  .step-number {
+    width: 30px;
+    height: 30px;
+    line-height: 30px;
+    border-radius: 50%;
+    background-color: #dee2e6;
+    color: #6c757d;
+    margin: 0 auto 5px;
+  }
+
+  .step.active .step-number {
+    background-color: #0d6efd;
+    color: white;
+  }
+
+  .step.completed .step-number {
+    background-color: #198754;
+    color: white;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <!-- Breadcrumb -->
+  <nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'onboarding:dashboard' %}">Onboarding</a></li>
+      <li class="breadcrumb-item active">Create Onboarding</li>
+    </ol>
+  </nav>
+
+  <div class="row mb-4">
+    <div class="col">
+      <h1 class="h2 mb-1">Create Customer Onboarding</h1>
+      <p class="text-muted">Set up the onboarding process for your customer</p>
+    </div>
+  </div>
+
+  <!-- Progress Indicator -->
+  <div class="step-indicator mb-4">
+    <div class="step active">
+      <div class="step-number">1</div>
+      <div class="step-label">Setup</div>
+    </div>
+    <div class="step">
+      <div class="step-number">2</div>
+      <div class="step-label">Planning</div>
+    </div>
+    <div class="step">
+      <div class="step-number">3</div>
+      <div class="step-label">Implementation</div>
+    </div>
+  </div>
+
+  {% if customer %}
+  <div class="alert alert-info mb-4">
+    <div class="d-flex align-items-center">
+      <i class="fas fa-info-circle me-3 fa-lg"></i>
+      <div>
+        <strong>Setting up onboarding for {{ customer.company_name }}</strong>
+        <p class="mb-0">Complete the form below to start the onboarding process for this customer.</p>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="card form-card mb-4">
+    <div class="card-header bg-white">
+      <h5 class="mb-0">Onboarding Information</h5>
+    </div>
+    <div class="card-body">
+      <form method="post" class="needs-validation" novalidate>
+        {% csrf_token %}
+
+        <div class="row mb-3">
+          <div class="col-md-6">
+            <label for="{{ form.customer.id_for_label }}" class="form-label">
+              Customer
+              {% if form.customer.field.required %}<span class="text-danger">*</span>{% endif %}
+            </label>
+            {{ form.customer }}
+            {% if form.customer.errors %}
+            <div class="invalid-feedback d-block">
+              {{ form.customer.errors }}
+            </div>
+            {% endif %}
+            {% if form.customer.help_text %}
+            <small class="form-text text-muted">{{ form.customer.help_text }}</small>
+            {% endif %}
+          </div>
+
+          <div class="col-md-6">
+            <label for="{{ form.assigned_to.id_for_label }}" class="form-label">
+              Assigned To
+              {% if form.assigned_to.field.required %}<span class="text-danger">*</span>{% endif %}
+            </label>
+            {{ form.assigned_to }}
+            {% if form.assigned_to.errors %}
+            <div class="invalid-feedback d-block">
+              {{ form.assigned_to.errors }}
+            </div>
+            {% endif %}
+            {% if form.assigned_to.help_text %}
+            <small class="form-text text-muted">{{ form.assigned_to.help_text }}</small>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="mb-4">
+          <label for="" class="form-label d-block mb-3">
+            Onboarding Plan
+            <span class="text-danger">*</span>
+          </label>
+
+          <div class="row row-cols-1 row-cols-md-3 g-3">
+            {% for plan_option in form.plan.field.queryset %}
+            <div class="col">
+              <div class="card h-100 plan-card" data-plan-id="{{ plan_option.id }}">
+                <div class="card-body">
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h5 class="card-title mb-0">{{ plan_option.name }}</h5>
+                    <span class="badge {% if plan_option.tier == 'starter' %}bg-primary{% elif plan_option.tier == 'professional' %}bg-success{% else %}bg-danger{% endif %}">
+                      {{ plan_option.get_tier_display }}
+                    </span>
+                  </div>
+                  <p class="card-text text-muted small">{{ plan_option.description }}</p>
+                  <div class="d-flex justify-content-between mt-3">
+                    <div>
+                      <i class="far fa-clock me-1"></i>
+                      <span>{{ plan_option.estimated_days }} days</span>
+                    </div>
+                    <div class="form-check">
+                      <input class="form-check-input" type="radio" name="{{ form.plan.name }}"
+                             id="plan_{{ plan_option.id }}" value="{{ plan_option.id }}"
+                             {% if form.plan.value|stringformat:'s' == plan_option.id|stringformat:'s' %}checked{% endif %}>
+                      <label class="form-check-label" for="plan_{{ plan_option.id }}">
+                        Select
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+
+          {% if form.plan.errors %}
+          <div class="invalid-feedback d-block mt-2">
+            {{ form.plan.errors }}
+          </div>
+          {% endif %}
+        </div>
+
+        <div class="mb-3">
+          <div class="form-check">
+            {{ form.send_reminders }}
+            <label class="form-check-label" for="{{ form.send_reminders.id_for_label }}">
+              {{ form.send_reminders.label }}
+            </label>
+            {% if form.send_reminders.errors %}
+            <div class="invalid-feedback d-block">
+              {{ form.send_reminders.errors }}
+            </div>
+            {% endif %}
+            {% if form.send_reminders.help_text %}
+            <small class="form-text text-muted d-block">{{ form.send_reminders.help_text }}</small>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="mt-4 pt-3 border-top d-flex justify-content-between">
+          <a href="{% url 'onboarding:dashboard' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-times me-1"></i> Cancel
+          </a>
+          <button type="submit" class="btn btn-primary">
+            <i class="fas fa-check me-1"></i> Create Onboarding
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Plan selection cards
+  const planCards = document.querySelectorAll('.plan-card');
+
+  planCards.forEach(card => {
+    card.addEventListener('click', function() {
+      const planId = this.dataset.planId;
+      const radioInput = document.getElementById('plan_' + planId);
+
+      // Update the radio button
+      radioInput.checked = true;
+
+      // Update card styling
+      planCards.forEach(c => c.classList.remove('selected'));
+      this.classList.add('selected');
+    });
+
+    // Initialize selected state
+    const planId = card.dataset.planId;
+    const radioInput = document.getElementById('plan_' + planId);
+    if (radioInput.checked) {
+      card.classList.add('selected');
+    }
+  });
+
+  // Form validation
+  const form = document.querySelector('form');
+  form.addEventListener('submit', function(event) {
+    if (!form.checkValidity()) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+
+    form.classList.add('was-validated');
+  });
+});
+</script>
+{% endblock %}
