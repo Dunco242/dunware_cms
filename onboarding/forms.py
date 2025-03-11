@@ -28,7 +28,7 @@ class CustomerOnboardingForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
 
         # Only include active customers
-        self.fields['customer'].queryset = Customer.objects.filter(is_active=True)
+        self.fields['customer'].queryset = Customer.objects.filter(status='active')
 
         # Only include active onboarding plans
         self.fields['plan'].queryset = OnboardingPlan.objects.filter(is_active=True)
