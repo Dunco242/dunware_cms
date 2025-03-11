@@ -9,6 +9,7 @@ from django.contrib.auth.decorators import login_required
 from django.urls import reverse, reverse_lazy
 from django.contrib import messages
 from django.utils import timezone
+from django.views.decorators.csrf import csrf_exempt  # Only use if needed
 from django.db import transaction
 from django.http import JsonResponse, HttpResponseRedirect, Http404, HttpResponse
 
@@ -785,14 +786,15 @@ class OnboardingAnalyticsView(LoginRequiredMixin, EmployeeRequiredMixin, Templat
 
         return context
 
-
+@login_required  # Ensure user is logged in
 def generate_onboarding_report(request, pk):
     """Generate a PDF report for a customer onboarding"""
     onboarding = get_object_or_404(CustomerOnboarding, pk=pk)
 
-    # Check permissions
-    if not request.user.is_authenticated:
-        return JsonResponse({"success": False, "error": "Authentication required"}, status=403)
+    # If you need additional permission checks, add them here
+    # For example, check if the user is assigned to this onboarding
+    # if onboarding.assigned_to != request.user.employee_profile and not request.user.is_staff:
+    #     return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
 
     # Create a file-like buffer to receive PDF data
     buffer = io.BytesIO()
