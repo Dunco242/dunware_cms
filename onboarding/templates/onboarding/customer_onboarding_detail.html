@@ -526,4 +526,81 @@
     </div>
   </div>
 </div>
+{% block extra_js %}
+<script>
+// Add this to your existing DOMContentLoaded event handler
+document.addEventListener('DOMContentLoaded', function() {
+  // Your existing code here...
+
+  // Report generation handler
+  const reportButton = document.querySelector('#generate-report-btn');
+  if (reportButton) {
+    reportButton.addEventListener('click', function(event) {
+      event.preventDefault();
+
+      // Show loading state
+      const originalText = reportButton.innerHTML;
+      reportButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Generating...';
+      reportButton.disabled = true;
+
+      // Get the onboarding ID
+      const onboardingId = reportButton.dataset.onboardingId || window.location.pathname.split('/').filter(segment => segment)[2];
+
+      // Make the API call to generate the report
+      fetch(`/onboarding/customer-onboardings/${onboardingId}/generate-report/`, {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': document.querySelector('input[name="csrfmiddlewaretoken"]').value
+        },
+        credentials: 'same-origin'
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`Server returned status: ${response.status}`);
+        }
+        if (response.headers.get('Content-Type').includes('application/json')) {
+          return response.json();
+        } else {
+          // This might be a file download
+          return response.blob();
+        }
+      })
+      .then(data => {
+        if (data instanceof Blob) {
+          // Handle file download
+          const url = window.URL.createObjectURL(data);
+          const a = document.createElement('a');
+          a.style.display = 'none';
+          a.href = url;
+          a.download = `onboarding-report-${onboardingId}.pdf`;
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+        } else {
+          // Handle JSON response
+          if (data.success) {
+            if (data.redirect_url) {
+              window.location.href = data.redirect_url;
+            } else {
+              alert('Report generated successfully!');
+            }
+          } else {
+            alert(`Error: ${data.error || 'Unknown error occurred'}`);
+          }
+        }
+      })
+      .catch(error => {
+        console.error('Error generating report:', error);
+        alert(`Error generating report: ${error.message || 'Unknown error'}`);
+      })
+      .finally(() => {
+        // Reset button state
+        reportButton.innerHTML = originalText;
+        reportButton.disabled = false;
+      });
+    });
+  }
+});
+</script>
+{% endblock %}
 {% endblock %}
