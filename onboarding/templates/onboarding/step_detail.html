@@ -610,8 +610,18 @@
           `,
           init: function() {
             this.on("sending", function(file, xhr, formData) {
-              formData.append("import_type", document.querySelector('select[name="import_type"]').value);
-              formData.append("source_name", document.querySelector('input[name="source_name"]').value || file.name);
+              const importTypeSelect = document.querySelector('select[name="import_type"]');
+              const sourceNameInput = document.querySelector('input[name="source_name"]');
+
+              if (importTypeSelect) {
+                formData.append("import_type", importTypeSelect.value);
+              }
+
+              if (sourceNameInput) {
+                formData.append("source_name", sourceNameInput.value || file.name);
+              } else {
+                formData.append("source_name", file.name);
+              }
             });
 
             this.on("success", function(file, response) {
@@ -622,7 +632,7 @@
 
             this.on("error", function(file, errorMessage) {
               console.error("Upload error:", errorMessage);
-              alert("Error uploading file: " + errorMessage);
+              alert("Error uploading file: " + (typeof errorMessage === 'string' ? errorMessage : "Unknown error"));
             });
           }
         };
@@ -633,38 +643,76 @@
         checkbox.addEventListener('change', function() {
           const checklistItemId = this.dataset.checklistItemId;
           const isCompleted = this.checked;
+          const originalState = isCompleted;
+          const csrfToken = document.querySelector('input[name="csrfmiddlewaretoken"]').value;
 
-          fetch('', {
+          // Create a FormData object
+          const formData = new FormData();
+          formData.append('action', 'update_checklist');
+          formData.append('checklist_item_id', checklistItemId);
+          formData.append('is_completed', isCompleted);
+          formData.append('csrfmiddlewaretoken', csrfToken);
+
+          fetch(window.location.href, {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-CSRFToken': '{{ csrf_token }}'
-            },
-            body: JSON.stringify({
-              action: 'update_checklist',
-              checklist_item_id: checklistItemId,
-              is_completed: isCompleted
-            })
+            body: formData,
+            credentials: 'same-origin'
           })
-          .then(response => response.json())
+          .then(response => {
+            if (!response.ok) {
+              throw new Error('Server returned status: ' + response.status);
+            }
+            return response.json();
+          })
           .then(data => {
-            if (data.success) {
+            if (data && data.success) {
               // Success handling
-              if (data.all_completed) {
+              if (data.all_completed && document.getElementById('complete-step-btn')) {
                 document.getElementById('complete-step-btn').classList.add('pulse');
               }
             } else {
               // Error handling
-              console.error("Error updating checklist item:", data.error);
-              this.checked = !isCompleted; // Revert the checkbox state
-              alert("Error updating checklist item: " + data.error);
+              console.error("Error updating checklist item:", data ? data.error : "Unknown error");
+              this.checked = !originalState; // Revert the checkbox state
+              alert("Error updating checklist item: " + (data && data.error ? data.error : "Unknown error"));
             }
           })
           .catch(error => {
-            console.error("Error:", error);
-            this.checked = !isCompleted; // Revert the checkbox state
-            alert("Error updating checklist item. Please try again.");
+            console.error("Error:", error.message || error);
+            this.checked = !originalState; // Revert the checkbox state
+            alert("Error updating checklist item. Please try again. " + (error.message || ""));
           });
+        });
+      });
+
+      // Enable Bootstrap tooltips if present
+      if (typeof bootstrap !== 'undefined' && bootstrap.Tooltip) {
+        const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        tooltipTriggerList.map(function (tooltipTriggerEl) {
+          return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+      }
+
+      // Handle tab state persistence
+      const activateTab = function(tabId) {
+        const tabElement = document.getElementById(tabId);
+        if (tabElement) {
+          const tab = new bootstrap.Tab(tabElement);
+          tab.show();
+        }
+      };
+
+      // Get active tab from localStorage if available
+      const activeTab = localStorage.getItem('onboarding_active_tab');
+      if (activeTab) {
+        activateTab(activeTab);
+      }
+
+      // Store active tab on change
+      const tabs = document.querySelectorAll('button[data-bs-toggle="tab"]');
+      tabs.forEach(tab => {
+        tab.addEventListener('shown.bs.tab', function (event) {
+          localStorage.setItem('onboarding_active_tab', event.target.id);
         });
       });
     });
