@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block title %}Plans{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1>Plans</h1>
+    <div class="row">
+        {% for plan in plans %}
+            <div class="col-md-4 mb-4">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ plan.name }}</h5>
+                        <p class="card-text">{{ plan.description }}</p>
+                        <!-- Add more plan details as needed -->
+                    </div>
+                </div>
+            </div>
+        {% empty %}
+            <p>No plans available.</p>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
