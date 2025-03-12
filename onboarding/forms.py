@@ -7,7 +7,7 @@ from core.models import Customer, Employee
 from .models import (
     OnboardingPlan, OnboardingStep, CustomerOnboarding,
     OnboardingStepCompletion, DataImportJob, OnboardingFeedback,
-    OnboardingChecklistItem, ChecklistItemCompletion
+    OnboardingChecklistItem, ChecklistItemCompletion, DataRequest
 )
 
 
