@@ -30,7 +30,7 @@ class ChatManager {
 
         // Use correct path based on environment
         const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-        this.wsUrl = `${protocol}${window.location.host}/ws/chat/${sessionId}/`;
+this.wsUrl = `${protocol}${window.location.host}/ws/chat/${sessionId}/`;
 
         // Initialize the connection
         this.connect();
@@ -132,8 +132,6 @@ class ChatManager {
             receiver_id: receiverId,
             content: content
         };
-
-        console.log('Sending message data:', messageData);
 
         // Send the message
         this.socket.send(JSON.stringify(messageData));
@@ -304,15 +302,6 @@ class ChatManager {
  * Set up notification WebSocket for real-time chat notifications
  */
 function setupNotifications() {
-    // Check if notification WebSocket is already initialized elsewhere
-    if (window.notificationSocketInitialized) {
-        console.log('Notification WebSocket already initialized elsewhere');
-        return;
-    }
-
-    // Mark as initialized
-    window.notificationSocketInitialized = true;
-
     const userInfo = document.getElementById('userInfo');
     if (userInfo && userInfo.dataset.employeeId) {
         setupNotificationSocket(userInfo.dataset.employeeId);
@@ -351,28 +340,20 @@ function setupNotificationSocket(employeeId) {
             };
 
             socket.onmessage = function(event) {
-                try {
-                    const data = JSON.parse(event.data);
-                    console.log('Notification received:', data);
+                const data = JSON.parse(event.data);
+                console.log('Notification received:', data);
 
-                    if (data.type === 'new_message') {
-                        // Update notification badge
-                        updateNotificationBadge();
+                if (data.type === 'new_message') {
+                    // Update notification badge
+                    updateNotificationBadge();
 
-                        // Show notification if not in the chat session already
-                        const currentPath = window.location.pathname;
-                        const chatSessionPath = `/chat/session/${data.message.session_id}/`;
+                    // Show notification if not in the chat session already
+                    const currentPath = window.location.pathname;
+                    const chatSessionPath = `/chat/session/${data.message.session_id}/`;
 
-                        if (!currentPath.startsWith(chatSessionPath)) {
-                            showNotification(data.message);
-                        }
+                    if (!currentPath.startsWith(chatSessionPath)) {
+                        showNotification(data.message);
                     }
-                    else if (data.type === 'notification_update') {
-                        // Update the notification badge with counts from the server
-                        updateNotificationCountFromData(data.counts);
-                    }
-                } catch (error) {
-                    console.error('Error processing WebSocket message:', error);
                 }
             };
 
@@ -403,41 +384,16 @@ function setupNotificationSocket(employeeId) {
 }
 
 /**
- * Update notification badge with count from server data
- * @param {Object} counts - Notification counts from server
+ * Update notification badge with new count
  */
-function updateNotificationCountFromData(counts) {
-    // Update general notification badge
-    const notificationBadge = document.getElementById('notificationCountBadge');
-    if (notificationBadge) {
-        const totalCount = counts.total || 0;
-        if (totalCount > 0) {
-            notificationBadge.textContent = totalCount;
-            notificationBadge.classList.remove('d-none');
-        } else {
-            notificationBadge.classList.add('d-none');
-        }
-    }
+function updateNotificationBadge() {
+    const badge = document.getElementById('notificationBadge');
+    if (badge) {
+        let count = parseInt(badge.textContent) || 0;
+        count++;
 
-    // Update chat-specific notification badge
-    const chatBadge = document.getElementById('notificationBadge');
-    if (chatBadge && counts.types) {
-        const chatCount = counts.types.chat || 0;
-        if (chatCount > 0) {
-            chatBadge.textContent = chatCount;
-            chatBadge.classList.remove('d-none');
-        } else {
-            chatBadge.classList.add('d-none');
-        }
-    }
-    // Add pulse effect to chat icon when there are new chat messages
-    const navItem = document.getElementById('chatNavIcon');
-    if (navItem) {
-        if (counts.types && counts.types.chat > 0) {
-            navItem.classList.add('pulse');
-        } else {
-            navItem.classList.remove('pulse');
-        }
+        badge.textContent = count;
+        badge.classList.remove('d-none');
     }
 }
 
