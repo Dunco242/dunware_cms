@@ -387,11 +387,10 @@ function setupNotificationSocket(employeeId) {
  * Update notification badge with new count
  */
 function updateNotificationBadge() {
-    const badge = document.getElementById('notificationBadge');
+    const badge = document.getElementById('chatNotificationBadge');
     if (badge) {
         let count = parseInt(badge.textContent) || 0;
         count++;
-
         badge.textContent = count;
         badge.classList.remove('d-none');
     }
