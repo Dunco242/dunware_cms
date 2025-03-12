@@ -255,6 +255,16 @@ class LeadForm(forms.ModelForm):
                 raise ValidationError('A customer with this email already exists.')
         return cleaned_data
 
+    def clean_phone(self):
+        phone = self.cleaned_data.get('phone')
+        if phone:
+            # Remove any non-digit characters first
+            digits = ''.join(filter(str.isdigit, phone))
+            if len(digits) == 10:  # Ensure we have exactly 10 digits
+                # Format to (XXX)XXX-XXXX
+                return f'({digits[:3]}){digits[3:6]}-{digits[6:]}'
+        return phone
+
 class ServiceForm(forms.ModelForm):
     class Meta:
         model = Service

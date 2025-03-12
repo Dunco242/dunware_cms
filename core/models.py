@@ -390,7 +390,7 @@ class Lead(models.Model):
 
     phone_regex = RegexValidator(
         regex=r'^\(\d{3}\)\d{3}-\d{4}$',
-        message="Phone number must be entered in the format: '+999999999'. Up to 15 digits allowed."
+        message="Phone number must be entered in the format: '(999)999-9999'"
     )
     phone = models.CharField(
         validators=[phone_regex],
