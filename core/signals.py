@@ -99,5 +99,6 @@ def create_chat_notification(sender, instance, created, **kwargs):
             message=instance.content[:50] + ('...' if len(instance.content) > 50 else ''),
             priority='normal',
             action_url=f'/chat/session/{instance.session.id}/',
-            reference_id=instance.id
+            reference_id=instance.id,
+            event_datetime=timezone.now()  # Add this line to fix the error
         )
