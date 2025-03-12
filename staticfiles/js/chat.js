@@ -30,7 +30,7 @@ class ChatManager {
 
         // Use correct path based on environment
         const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-this.wsUrl = `${protocol}${window.location.host}/ws/chat/${sessionId}/`;
+        this.wsUrl = `${protocol}${window.location.host}/ws/chat/${sessionId}/`;
 
         // Initialize the connection
         this.connect();
@@ -132,6 +132,8 @@ this.wsUrl = `${protocol}${window.location.host}/ws/chat/${sessionId}/`;
             receiver_id: receiverId,
             content: content
         };
+
+        console.log('Sending message data:', messageData);
 
         // Send the message
         this.socket.send(JSON.stringify(messageData));
@@ -299,7 +301,6 @@ this.wsUrl = `${protocol}${window.location.host}/ws/chat/${sessionId}/`;
 }
 
 /**
-/**
  * Set up notification WebSocket for real-time chat notifications
  */
 function setupNotifications() {
@@ -367,8 +368,8 @@ function setupNotificationSocket(employeeId) {
                         }
                     }
                     else if (data.type === 'notification_update') {
-                        // Just log it for now - no need to take action on these updates
-                        console.log('Received notification update, counts:', data.counts);
+                        // Update the notification badge with counts from the server
+                        updateNotificationCountFromData(data.counts);
                     }
                 } catch (error) {
                     console.error('Error processing WebSocket message:', error);
@@ -402,16 +403,41 @@ function setupNotificationSocket(employeeId) {
 }
 
 /**
- * Update notification badge with new count
+ * Update notification badge with count from server data
+ * @param {Object} counts - Notification counts from server
  */
-function updateNotificationBadge() {
-    const badge = document.getElementById('notificationBadge');
-    if (badge) {
-        let count = parseInt(badge.textContent) || 0;
-        count++;
+function updateNotificationCountFromData(counts) {
+    // Update general notification badge
+    const notificationBadge = document.getElementById('notificationCountBadge');
+    if (notificationBadge) {
+        const totalCount = counts.total || 0;
+        if (totalCount > 0) {
+            notificationBadge.textContent = totalCount;
+            notificationBadge.classList.remove('d-none');
+        } else {
+            notificationBadge.classList.add('d-none');
+        }
+    }
 
-        badge.textContent = count;
-        badge.classList.remove('d-none');
+    // Update chat-specific notification badge
+    const chatBadge = document.getElementById('notificationBadge');
+    if (chatBadge && counts.types) {
+        const chatCount = counts.types.chat || 0;
+        if (chatCount > 0) {
+            chatBadge.textContent = chatCount;
+            chatBadge.classList.remove('d-none');
+        } else {
+            chatBadge.classList.add('d-none');
+        }
+    }
+    // Add pulse effect to chat icon when there are new chat messages
+    const navItem = document.getElementById('chatNavIcon');
+    if (navItem) {
+        if (counts.types && counts.types.chat > 0) {
+            navItem.classList.add('pulse');
+        } else {
+            navItem.classList.remove('pulse');
+        }
     }
 }
 
