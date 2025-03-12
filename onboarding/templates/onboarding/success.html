@@ -1,0 +1,127 @@
+<!-- templates/onboarding/public/success.html -->
+{% extends 'onboarding/public/base_public.html' %}
+{% block title %}Request Submitted - DunWare Solutions{% endblock %}
+
+{% block extra_css %}
+<style>
+    .success-icon {
+        font-size: 5rem;
+        color: #28a745;
+        margin-bottom: 1.5rem;
+    }
+
+    .success-container {
+        background-color: #f8f9fa;
+        border-radius: 0.5rem;
+        padding: 3rem 2rem;
+        margin-bottom: 2rem;
+        text-align: center;
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    }
+
+    .action-links {
+        margin-top: 2rem;
+    }
+
+    .action-links .btn {
+        margin: 0 0.5rem 1rem 0.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="hero-section bg-light">
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8 mx-auto text-center">
+                <h1 class="display-4 fw-bold mb-4">Success!</h1>
+                <p class="lead mb-0">Your request has been successfully submitted.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container py-5">
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <div class="success-container">
+                <div class="success-icon">
+                    <i class="bi bi-check-circle-fill"></i>
+                </div>
+
+                <h2 class="mb-4">Thank You</h2>
+
+                <p class="mb-4">We have received your submission and our team will process your request promptly.</p>
+
+                {% if messages %}
+                <div class="alert alert-success">
+                    {% for message in messages %}
+                    <p {% if message.tags %}class="{{ message.tags }}"{% endif %}>{{ message }}</p>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <div class="action-links">
+                    <div class="row justify-content-center">
+                        <div class="col-md-4">
+                            <a href="{% url 'onboarding:services_landing_page' %}" class="btn btn-primary btn-lg d-block">
+                                Return to Home
+                            </a>
+                        </div>
+                        <div class="col-md-4">
+                            <a href="{% url 'onboarding:contact_request' %}" class="btn btn-outline-secondary btn-lg d-block">
+                                Contact Us
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mt-4">
+                <div class="card-body">
+                    <h3 class="card-title">What happens next?</h3>
+
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item">
+                            <i class="bi bi-envelope me-2"></i>
+                            <strong>Check your email</strong> - You should receive a confirmation email shortly
+                        </li>
+                        <li class="list-group-item">
+                            <i class="bi bi-person-check me-2"></i>
+                            <strong>Our team will review</strong> - We'll process your request according to its type
+                        </li>
+                        <li class="list-group-item">
+                            <i class="bi bi-telephone me-2"></i>
+                            <strong>We may contact you</strong> - If we need additional information
+                        </li>
+                        <li class="list-group-item">
+                            <i class="bi bi-clock-history me-2"></i>
+                            <strong>Response time</strong> - We'll get back to you within 2 business days
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Additional contact information -->
+            <div class="text-center mt-4">
+                <p>If you have any questions, please contact our support team:</p>
+                <p><strong>Email:</strong> <a href="mailto:support@dunwaresolutions.com">support@dunwaresolutions.com</a></p>
+                <p><strong>Phone:</strong> (555) 123-4567</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Optional JavaScript for additional functionality
+    document.addEventListener('DOMContentLoaded', function() {
+        // Auto-redirect after a long period (optional)
+        // setTimeout(function() {
+        //     window.location.href = "{% url 'onboarding:services_landing_page' %}";
+        // }, 300000); // 5 minutes
+    });
+</script>
+{% endblock %}

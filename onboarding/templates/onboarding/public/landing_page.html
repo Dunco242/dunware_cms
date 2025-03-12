@@ -1,0 +1,181 @@
+<!-- templates/onboarding/public/landing_page.html -->
+{% extends 'onboarding/public/base_public.html' %}
+
+{% block title %}DunWare Solutions - Business Services{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<div class="hero-section">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-lg-6">
+                <h1 class="display-4 fw-bold mb-4">Streamline Your Business Operations</h1>
+                <p class="lead mb-4">Our integrated solutions help businesses reduce complexity, increase efficiency, and drive growth. Find out how we can transform your operations.</p>
+                <div class="d-grid gap-2 d-md-flex">
+                    <a href="{% url 'onboarding:service_list' %}" class="btn btn-primary btn-lg px-4 me-md-2">Explore Services</a>
+                    <a href="{% url 'onboarding:contact_request' %}" class="btn btn-outline-primary btn-lg px-4">Contact Us</a>
+                </div>
+            </div>
+            <div class="col-lg-6 d-none d-lg-block">
+                <img src="https://via.placeholder.com/600x400?text=Business+Solutions" alt="Business Solutions" class="img-fluid rounded shadow">
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Featured Services -->
+<div class="container mb-5">
+    <div class="text-center mb-5">
+        <h2 class="fw-bold">Our Services</h2>
+        <p class="lead text-muted">Tailored solutions to meet your business needs</p>
+    </div>
+
+    <div class="row g-4">
+        {% for service in featured_services %}
+            <div class="col-md-4">
+                <div class="card service-card">
+                    <img src="https://via.placeholder.com/800x500?text={{ service.name }}" class="card-img-top service-img" alt="{{ service.name }}">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ service.name }}</h5>
+                        <p class="card-text">{{ service.description|truncatewords:25 }}</p>
+                        <a href="{% url 'onboarding:service_detail' service_id=service.id %}" class="btn btn-outline-primary">Learn More</a>
+                    </div>
+                </div>
+            </div>
+        {% empty %}
+            <div class="col-12 text-center">
+                <p>No services are currently available. Please check back soon!</p>
+            </div>
+        {% endfor %}
+    </div>
+
+    <div class="text-center mt-5">
+        <a href="{% url 'onboarding:service_list' %}" class="btn btn-primary">View All Services</a>
+    </div>
+</div>
+
+<!-- Features Section -->
+<div class="container mb-5">
+    <div class="text-center mb-5">
+        <h2 class="fw-bold">Why Choose Us</h2>
+        <p class="lead text-muted">Delivering excellence in every solution</p>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-md-4 text-center">
+            <div class="feature-icon">
+                <i class="fas fa-chart-line"></i>
+            </div>
+            <h3>Expert Consultation</h3>
+            <p>Our team of experts will analyze your business needs and develop tailored solutions that drive results.</p>
+        </div>
+
+        <div class="col-md-4 text-center">
+            <div class="feature-icon">
+                <i class="fas fa-cogs"></i>
+            </div>
+            <h3>Seamless Implementation</h3>
+            <p>Our proven onboarding process ensures smooth transitions with minimal disruption to your operations.</p>
+        </div>
+
+        <div class="col-md-4 text-center">
+            <div class="feature-icon">
+                <i class="fas fa-headset"></i>
+            </div>
+            <h3>Dedicated Support</h3>
+            <p>Ongoing support and maintenance to ensure your systems continue to perform at their best.</p>
+        </div>
+    </div>
+</div>
+
+<!-- Call to Action -->
+<div class="cta-section">
+    <div class="container text-center">
+        <h2 class="fw-bold mb-4">Ready to Transform Your Business?</h2>
+        <p class="lead mb-4">Schedule a consultation with our experts to discover how our solutions can help you achieve your business goals.</p>
+        <a href="{% url 'onboarding:contact_request' %}" class="btn btn-light btn-lg px-5">Get Started</a>
+    </div>
+</div>
+
+<!-- Testimonials -->
+<div class="container mb-5">
+    <div class="text-center mb-5">
+        <h2 class="fw-bold">What Our Clients Say</h2>
+        <p class="lead text-muted">Success stories from businesses like yours</p>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <div class="mb-3 text-warning">
+                        <i class="fas fa-star"></i>
+                        <i class="fas fa-star"></i>
+                        <i class="fas fa-star"></i>
+                        <i class="fas fa-star"></i>
+                        <i class="fas fa-star"></i>
+                    </div>
+                    <p class="card-text">"DunWare Solutions transformed our operations. Their team understood our needs and delivered a solution that exceeded our expectations."</p>
+                </div>
+                <div class="card-footer bg-white">
+                    <div class="d-flex align-items-center">
+                        <img src="https://via.placeholder.com/50" class="rounded-circle me-3" alt="Client">
+                        <div>
+                            <h6 class="mb-0">Jane Doe</h6>
+                            <small class="text-muted">CEO, Example Company</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <div class="mb-3 text-warning">
+                        <i class="fas fa-star"></i>
+                        <i class="fas fa-star"></i>
+                        <i class="fas fa-star"></i>
+                        <i class="fas fa-star"></i>
+                        <i class="fas fa-star"></i>
+                    </div>
+                    <p class="card-text">"The onboarding process was seamless, and the ongoing support has been exceptional. We've seen a 30% increase in efficiency since implementation."</p>
+                </div>
+                <div class="card-footer bg-white">
+                    <div class="d-flex align-items-center">
+                        <img src="https://via.placeholder.com/50" class="rounded-circle me-3" alt="Client">
+                        <div>
+                            <h6 class="mb-0">John Smith</h6>
+                            <small class="text-muted">CTO, Tech Innovations</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <div class="mb-3 text-warning">
+                        <i class="fas fa-star"></i>
+                        <i class="fas fa-star"></i>
+                        <i class="fas fa-star"></i>
+                        <i class="fas fa-star"></i>
+                        <i class="fas fa-star-half-alt"></i>
+                    </div>
+                    <p class="card-text">"Working with DunWare has been a game-changer for our business. Their solutions are intuitive, powerful, and backed by amazing customer service."</p>
+                </div>
+                <div class="card-footer bg-white">
+                    <div class="d-flex align-items-center">
+                        <img src="https://via.placeholder.com/50" class="rounded-circle me-3" alt="Client">
+                        <div>
+                            <h6 class="mb-0">Sarah Johnson</h6>
+                            <small class="text-muted">Operations Manager, Global Retail</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -18,12 +18,14 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.decorators import login_required
 from django.urls import reverse, reverse_lazy
 from django.contrib import messages
+from django.conf import settings
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt  # Only use if needed
 from django.db import transaction
+from django.core.mail import send_mail
 from django.http import JsonResponse, HttpResponseRedirect, Http404, HttpResponse
 from weasyprint import HTML
-from core.models import Customer, Employee
+from core.models import Customer, Employee, Service, Lead
 from core.mixins import EmployeeRequiredMixin
 from .models import (
     OnboardingPlan, OnboardingStep, CustomerOnboarding,
@@ -32,7 +34,7 @@ from .models import (
 )
 from .forms import (
     CustomerOnboardingForm, OnboardingStepCompletionForm, DataImportForm,
-    OnboardingFeedbackForm, ChecklistItemCompletionForm
+    OnboardingFeedbackForm, ChecklistItemCompletionForm, ContactRequestForm, DataRequestForm
 )
 from .services import (
     OnboardingService, DataImportService, NotificationService,
@@ -1023,3 +1025,142 @@ def generate_html_report(request, pk):
     response['Content-Disposition'] = f'attachment; filename="onboarding_report_{pk}.pdf"'
 
     return response
+
+
+def services_landing_page(request):
+    """Main landing page for services"""
+    featured_services = Service.objects.filter(is_active=True)[:3]
+    return render(request, 'onboarding/public/landing_page.html', {
+        'featured_services': featured_services,
+    })
+
+def service_list(request):
+    """Display list of all services"""
+    services = Service.objects.filter(is_active=True)
+    return render(request, 'onboarding/public/service_list.html', {
+        'services': services,
+    })
+
+def service_detail(request, service_id):
+    """Display detailed information about a specific service"""
+    service = get_object_or_404(Service, id=service_id, is_active=True)
+    related_services = Service.objects.filter(is_active=True).exclude(id=service_id)[:3]
+    return render(request, 'onboarding/public/service_detail.html', {
+        'service': service,
+        'related_services': related_services,
+    })
+
+def contact_request(request):
+    """Contact form for service inquiries that creates a Lead"""
+    if request.method == 'POST':
+        form = ContactRequestForm(request.POST)
+        if form.is_valid():
+            # Create a lead from the contact form
+            lead = Lead(
+                company_name=form.cleaned_data['company_name'],
+                contact_person=form.cleaned_data['contact_name'],
+                email=form.cleaned_data['email'],
+                phone=form.cleaned_data['phone'],
+                source='website',
+                status='new',
+                notes=f"Service Interest: {form.cleaned_data['service_interest']}\n\n{form.cleaned_data['message']}"
+            )
+            lead.save()
+
+            # Send notification email to admin
+            send_mail(
+                f'New Lead: {lead.company_name}',
+                f'A new lead has been created from the website contact form.\n\n'
+                f'Company: {lead.company_name}\n'
+                f'Contact: {lead.contact_person}\n'
+                f'Email: {lead.email}\n'
+                f'Phone: {lead.phone}\n\n'
+                f'Message: {form.cleaned_data["message"]}',
+                settings.DEFAULT_FROM_EMAIL,
+                [settings.ADMIN_EMAIL],
+                fail_silently=False,
+            )
+
+            # Send confirmation email to lead
+            send_mail(
+                'Thank you for your interest in DunWare Solutions',
+                f'Dear {lead.contact_person},\n\n'
+                f'Thank you for your interest in our services. We have received your inquiry and a member of our team will be in touch shortly.\n\n'
+                f'Regards,\n'
+                f'The DunWare Solutions Team',
+                settings.DEFAULT_FROM_EMAIL,
+                [lead.email],
+                fail_silently=False,
+            )
+
+            messages.success(request, "Your inquiry has been submitted successfully. We'll be in touch soon!")
+            return redirect('onboarding:success_page')
+    else:
+        # Pre-populate service interest if coming from a service page
+        initial = {}
+        service_id = request.GET.get('service_id')
+        if service_id:
+            try:
+                service = Service.objects.get(id=service_id)
+                initial['service_interest'] = service.name
+            except Service.DoesNotExist:
+                pass
+
+        form = ContactRequestForm(initial=initial)
+
+    return render(request, 'onboarding/public/contact_form.html', {
+        'form': form,
+    })
+
+def data_request_form(request):
+    """Form for customers to request their data (for privacy compliance)"""
+    if request.method == 'POST':
+        form = DataRequestForm(request.POST)
+        if form.is_valid():
+            # Store the request in the database
+            data_request = form.save()
+
+            # Send notification to admin
+            send_mail(
+                f'New Data Request: {form.cleaned_data["email"]}',
+                f'A new data request has been submitted.\n\n'
+                f'Request Type: {data_request.get_request_type_display()}\n'
+                f'Email: {data_request.email}\n'
+                f'Company: {data_request.company_name}\n'
+                f'Verification Code: {data_request.verification_code}',
+                settings.DEFAULT_FROM_EMAIL,
+                [settings.ADMIN_EMAIL],
+                fail_silently=False,
+            )
+
+            # Send confirmation to requester with verification code
+            send_mail(
+                'Your Data Request Confirmation',
+                f'Dear {data_request.name},\n\n'
+                f'We have received your request to {data_request.get_request_type_display().lower()} your data. '
+                f'Your verification code is: {data_request.verification_code}\n\n'
+                f'Please keep this code for reference when we contact you to fulfill your request.\n\n'
+                f'We will process your request within the timeframe required by applicable privacy laws.\n\n'
+                f'Regards,\n'
+                f'DunWare Solutions Privacy Team',
+                settings.DEFAULT_FROM_EMAIL,
+                [data_request.email],
+                fail_silently=False,
+            )
+
+            messages.success(request, "Your data request has been submitted successfully. Please check your email for confirmation.")
+            return redirect('onboarding:success_page')
+    else:
+        form = DataRequestForm()
+
+    return render(request, 'onboarding/public/data_request_form.html', {
+        'form': form,
+    })
+
+def privacy_policy(request):
+    """Display privacy policy page"""
+    return render(request, 'onboarding/public/privacy_policy.html')
+
+def success_page(request):
+    """Generic success page after form submission"""
+    return render(request, 'onboarding/public/success.html')

@@ -159,6 +159,12 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link {% if 'onboarding' in request.resolver_match.url_name %}active{% endif %}"
+                           href="{% url 'onboarding:dashboard' %}">
+                            <i class="fas fa-clipboard-list"></i> Onboarding
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link {% if 'billing' in request.resolver_match.url_name %}active{% endif %}"
                            href="{% url 'integrated-billing-dashboard' %}">
                             <i class="fas fa-calculator"></i> Billing

@@ -461,3 +461,35 @@ class OnboardingNotification(models.Model):
             logger = logging.getLogger(__name__)
             logger.error(f"Failed to send onboarding notification email: {str(e)}")
             return False
+
+
+class DataRequest(models.Model):
+    """Stores requests for data access, deletion, etc. for privacy compliance"""
+    REQUEST_TYPES = [
+        ('access', 'Access My Data'),
+        ('export', 'Export My Data'),
+        ('correct', 'Correct My Data'),
+        ('delete', 'Delete My Data'),
+    ]
+
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('processing', 'Processing'),
+        ('completed', 'Completed'),
+        ('denied', 'Denied'),
+    ]
+
+    request_type = models.CharField(max_length=20, choices=REQUEST_TYPES)
+    name = models.CharField(max_length=100)
+    email = models.EmailField()
+    company_name = models.CharField(max_length=100)
+    customer_id = models.CharField(max_length=50, blank=True, null=True, help_text="Customer ID if known")
+    details = models.TextField(blank=True, help_text="Additional details to help identify the data")
+    verification_code = models.CharField(max_length=10)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.get_request_type_display()} request by {self.name} ({self.email})"

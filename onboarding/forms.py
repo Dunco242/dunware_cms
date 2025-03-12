@@ -1,7 +1,8 @@
 from django import forms
 from django.core.exceptions import ValidationError
 from django.utils import timezone
-
+import uuid
+import random
 from core.models import Customer, Employee
 from .models import (
     OnboardingPlan, OnboardingStep, CustomerOnboarding,
@@ -228,3 +229,33 @@ class OnboardingPlanSelectionForm(forms.Form):
                 raise ValidationError("Please schedule the welcome call during business hours (9AM-5PM).")
 
         return welcome_call_date
+
+
+class ContactRequestForm(forms.Form):
+    company_name = forms.CharField(max_length=100, widget=forms.TextInput(attrs={'class': 'form-control'}))
+    contact_name = forms.CharField(max_length=100, widget=forms.TextInput(attrs={'class': 'form-control'}))
+    email = forms.EmailField(widget=forms.EmailInput(attrs={'class': 'form-control'}))
+    phone = forms.CharField(max_length=20, widget=forms.TextInput(attrs={'class': 'form-control'}))
+    service_interest = forms.CharField(max_length=100, required=False, widget=forms.TextInput(attrs={'class': 'form-control'}))
+    message = forms.CharField(widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 5}))
+
+class DataRequestForm(forms.ModelForm):
+    class Meta:
+        model = DataRequest
+        fields = ['request_type', 'name', 'email', 'company_name', 'customer_id', 'details']
+        widgets = {
+            'request_type': forms.Select(attrs={'class': 'form-select'}),
+            'name': forms.TextInput(attrs={'class': 'form-control'}),
+            'email': forms.EmailInput(attrs={'class': 'form-control'}),
+            'company_name': forms.TextInput(attrs={'class': 'form-control'}),
+            'customer_id': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'If known'}),
+            'details': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Please provide any additional information that might help us identify your data.'})
+        }
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        # Generate a random verification code
+        instance.verification_code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
+        if commit:
+            instance.save()
+        return instance

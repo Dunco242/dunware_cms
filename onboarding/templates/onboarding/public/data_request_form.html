@@ -1,0 +1,203 @@
+<!-- templates/onboarding/public/data_request_form.html -->
+{% extends 'onboarding/public/base_public.html' %}
+{% block title %}Data Privacy Request - DunWare Solutions{% endblock %}
+{% block extra_css %}
+<style>
+    .privacy-section {
+        background-color: #f8f9fa;
+        padding: 2rem;
+        border-radius: 0.5rem;
+        margin-bottom: 2rem;
+    }
+</style>
+{% endblock %}
+{% block content %}
+<!-- Header -->
+<div class="hero-section">
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8 mx-auto text-center">
+                <h1 class="display-4 fw-bold mb-4">Data Privacy Request</h1>
+                <p class="lead mb-4">Use this form to request access to, modification of, or deletion of your personal data in accordance with applicable privacy regulations.</p>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="container mb-5">
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <div class="privacy-section">
+                <h3>Your Privacy Rights</h3>
+                <p>At DunWare Solutions, we respect your privacy rights and are committed to complying with applicable data protection laws including:</p>
+                <ul>
+                    <li>General Data Protection Regulation (GDPR)</li>
+                    <li>California Consumer Privacy Act (CCPA) and California Privacy Rights Act (CPRA)</li>
+                    <li>Other state and international privacy regulations</li>
+                </ul>
+                <p>Depending on your location, you may have the right to:</p>
+                <ul>
+                    <li><strong>Access</strong> personal information we have about you</li>
+                    <li><strong>Correct</strong> inaccurate or incomplete information</li>
+                    <li><strong>Request deletion</strong> of your personal information</li>
+                    <li><strong>Obtain a copy</strong> of your data in a portable format</li>
+                </ul>
+                <p>We will respond to your request within the timeframe required by applicable law (typically 30 days).</p>
+            </div>
+
+            <div class="card">
+                <div class="card-header bg-white">
+                    <h3 class="mb-0">Submit Your Request</h3>
+                </div>
+                <div class="card-body">
+                    <form method="post" action="">
+                        {% csrf_token %}
+
+                        <div class="mb-3">
+                            <label for="{{ form.request_type.id_for_label }}" class="form-label">Request Type</label>
+                            {{ form.request_type }}
+                            {% if form.request_type.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.request_type.errors }}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.full_name.id_for_label }}" class="form-label">Full Name *</label>
+                            {{ form.full_name }}
+                            {% if form.full_name.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.full_name.errors }}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.email.id_for_label }}" class="form-label">Email Address *</label>
+                            {{ form.email }}
+                            {% if form.email.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.email.errors }}
+                                </div>
+                            {% endif %}
+                            <div class="form-text">We'll use this email to communicate about your request</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.country.id_for_label }}" class="form-label">Country of Residence *</label>
+                            {{ form.country }}
+                            {% if form.country.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.country.errors }}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.relationship.id_for_label }}" class="form-label">Relationship to DunWare Solutions *</label>
+                            {{ form.relationship }}
+                            {% if form.relationship.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.relationship.errors }}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.account_id.id_for_label }}" class="form-label">Account ID/Username (if applicable)</label>
+                            {{ form.account_id }}
+                            {% if form.account_id.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.account_id.errors }}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.request_details.id_for_label }}" class="form-label">Request Details *</label>
+                            {{ form.request_details }}
+                            {% if form.request_details.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.request_details.errors }}
+                                </div>
+                            {% endif %}
+                            <div class="form-text">Please provide specific details about your request to help us process it efficiently</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check">
+                                {{ form.identity_verification }}
+                                <label class="form-check-label" for="{{ form.identity_verification.id_for_label }}">
+                                    I understand that DunWare Solutions may require additional information to verify my identity before processing this request *
+                                </label>
+                                {% if form.identity_verification.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.identity_verification.errors }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check">
+                                {{ form.privacy_policy_agreement }}
+                                <label class="form-check-label" for="{{ form.privacy_policy_agreement.id_for_label }}">
+                                    I have read and agree to the <a href="{% url 'privacy_policy' %}" target="_blank">Privacy Policy</a> *
+                                </label>
+                                {% if form.privacy_policy_agreement.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.privacy_policy_agreement.errors }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="g-recaptcha" data-sitekey="{{ recaptcha_site_key }}"></div>
+                            {% if recaptcha_error %}
+                                <div class="invalid-feedback d-block">
+                                    {{ recaptcha_error }}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary btn-lg">Submit Request</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <div class="alert alert-info">
+                    <h5>What happens next?</h5>
+                    <ol>
+                        <li>We'll confirm receipt of your request via email within 2 business days</li>
+                        <li>Our privacy team will review your request</li>
+                        <li>We may contact you for additional verification if needed</li>
+                        <li>We'll provide a substantive response within the timeframe required by applicable law</li>
+                    </ol>
+                </div>
+
+                <p class="mt-4 text-center">
+                    Questions about this form? Contact our Data Protection Officer at <a href="mailto:privacy@dunwaresolutions.com">privacy@dunwaresolutions.com</a>
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://www.google.com/recaptcha/api.js" async defer></script>
+<script>
+    // Show/hide conditional fields based on request type
+    document.addEventListener('DOMContentLoaded', function() {
+        const requestTypeSelect = document.getElementById('{{ form.request_type.id_for_label }}');
+
+        requestTypeSelect.addEventListener('change', function() {
+            // Add any conditional logic for showing/hiding fields based on request type
+        });
+    });
+</script>
+{% endblock %}

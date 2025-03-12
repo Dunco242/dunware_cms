@@ -1,0 +1,67 @@
+<!-- templates/onboarding/public/service_list.html -->
+{% extends 'onboarding/public/base_public.html' %}
+
+{% block title %}Our Services - DunWare Solutions{% endblock %}
+
+{% block content %}
+<!-- Header Section -->
+<div class="hero-section">
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8 mx-auto text-center">
+                <h1 class="display-4 fw-bold mb-4">Our Services</h1>
+                <p class="lead mb-4">Discover the comprehensive range of solutions we offer to help your business thrive.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Services List -->
+<div class="container mb-5">
+    <div class="row g-4">
+        {% for service in services %}
+            <div class="col-md-4">
+                <div class="card service-card h-100">
+                    <img src="https://via.placeholder.com/800x500?text={{ service.name }}" class="card-img-top service-img" alt="{{ service.name }}">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ service.name }}</h5>
+                        <p class="card-text">{{ service.description|truncatewords:25 }}</p>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="fw-bold">${{ service.price }}</span>
+                            <a href="{% url 'onboarding:service_detail' service_id=service.id %}" class="btn btn-outline-primary">Learn More</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% empty %}
+            <div class="col-12 text-center">
+                <div class="alert alert-info">
+                    <p class="mb-0">No services are currently available. Please check back soon or <a href="{% url 'onboarding:contact_request' %}">contact us</a> for more information.</p>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Call to Action -->
+<div class="cta-section">
+    <div class="container text-center">
+        <h2 class="fw-bold mb-4">Not Sure Which Service You Need?</h2>
+        <p class="lead mb-4">Contact our team for a personalized consultation to find the right solution for your business.</p>
+        <a href="{% url 'onboarding:contact_request' %}" class="btn btn-light btn-lg px-5">Contact Us</a>
+    </div>
+</div>
+
+<!-- Frequently Asked Questions -->
+<div class="container my-5">
+    <div class="text-center mb-5">
+        <h2 class="fw-bold">Frequently Asked Questions</h2>
+        <p class="lead text-muted">Find answers to common questions about our services</p>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="accordion" id="faqAccordion">
+                <div class="accordion-item">
+                    <h2 class="accordion-header" id="heading1">
+                        <button class="accordion-button" type="button

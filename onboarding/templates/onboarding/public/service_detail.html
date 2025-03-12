@@ -1,0 +1,272 @@
+<!-- templates/onboarding/public/service_detail.html -->
+{% extends 'onboarding/public/base_public.html' %}
+
+{% block title %}{{ service.name }} - DunWare Solutions{% endblock %}
+
+{% block content %}
+<!-- Service Header -->
+<div class="hero-section">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-lg-6">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item"><a href="{% url 'onboarding:services_landing' %}">Home</a></li>
+                        <li class="breadcrumb-item"><a href="{% url 'onboarding:service_list' %}">Services</a></li>
+                        <li class="breadcrumb-item active">{{ service.name }}</li>
+                    </ol>
+                </nav>
+                <h1 class="display-4 fw-bold mb-4">{{ service.name }}</h1>
+                <p class="lead mb-4">{{ service.description }}</p>
+                <div class="d-flex align-items-center mb-4">
+                    <span class="h4 mb-0 me-3">${{ service.price }}</span>
+                    <a href="{% url 'onboarding:contact_request' %}?service_id={{ service.id }}" class="btn btn-primary btn-lg">Get Started</a>
+                </div>
+            </div>
+            <div class="col-lg-6 d-none d-lg-block">
+                <img src="https://via.placeholder.com/600x400?text={{ service.name }}" alt="{{ service.name }}" class="img-fluid rounded shadow">
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Service Details -->
+<div class="container mb-5">
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card mb-4">
+                <div class="card-header bg-white">
+                    <h3 class="mb-0">Service Overview</h3>
+                </div>
+                <div class="card-body">
+                    <p>{{ service.description }}</p>
+                    <h4 class="mt-4">Key Features</h4>
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item">
+                            <i class="fas fa-check-circle text-success me-2"></i> Comprehensive business analysis and needs assessment
+                        </li>
+                        <li class="list-group-item">
+                            <i class="fas fa-check-circle text-success me-2"></i> Customized implementation based on your specific requirements
+                        </li>
+                        <li class="list-group-item">
+                            <i class="fas fa-check-circle text-success me-2"></i> Dedicated onboarding specialist to guide you through the process
+                        </li>
+                        <li class="list-group-item">
+                            <i class="fas fa-check-circle text-success me-2"></i> Training for your team to ensure maximum adoption
+                        </li>
+                        <li class="list-group-item">
+                            <i class="fas fa-check-circle text-success me-2"></i> Ongoing support and maintenance
+                        </li>
+                    </ul>
+
+                    <h4 class="mt-4">Benefits</h4>
+                    <div class="row g-4 mt-2">
+                        <div class="col-md-6">
+                            <div class="d-flex">
+                                <div class="flex-shrink-0 text-primary">
+                                    <i class="fas fa-chart-line fa-2x"></i>
+                                </div>
+                                <div class="flex-grow-1 ms-3">
+                                    <h5>Increased Efficiency</h5>
+                                    <p>Streamline your operations and reduce manual processes.</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="d-flex">
+                                <div class="flex-shrink-0 text-primary">
+                                    <i class="fas fa-dollar-sign fa-2x"></i>
+                                </div>
+                                <div class="flex-grow-1 ms-3">
+                                    <h5>Cost Savings</h5>
+                                    <p>Reduce operational costs and improve resource allocation.</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="d-flex">
+                                <div class="flex-shrink-0 text-primary">
+                                    <i class="fas fa-tasks fa-2x"></i>
+                                </div>
+                                <div class="flex-grow-1 ms-3">
+                                    <h5>Enhanced Productivity</h5>
+                                    <p>Enable your team to focus on high-value activities.</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="d-flex">
+                                <div class="flex-shrink-0 text-primary">
+                                    <i class="fas fa-users fa-2x"></i>
+                                </div>
+                                <div class="flex-grow-1 ms-3">
+                                    <h5>Improved Customer Experience</h5>
+                                    <p>Deliver better service and build stronger relationships.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header bg-white">
+                    <h3 class="mb-0">Onboarding Process</h3>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4 text-center mb-4 mb-md-0">
+                            <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center mx-auto mb-3" style="width: 80px; height: 80px;">
+                                <i class="fas fa-handshake fa-2x"></i>
+                            </div>
+                            <h5>Initial Consultation</h5>
+                            <p class="small">We discuss your needs and define the scope of work.</p>
+                        </div>
+                        <div class="col-md-4 text-center mb-4 mb-md-0">
+                            <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center mx-auto mb-3" style="width: 80px; height: 80px;">
+                                <i class="fas fa-cogs fa-2x"></i>
+                            </div>
+                            <h5>Implementation</h5>
+                            <p class="small">We set up and configure the service to your specifications.</p>
+                        </div>
+                        <div class="col-md-4 text-center">
+                            <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center mx-auto mb-3" style="width: 80px; height: 80px;">
+                                <i class="fas fa-graduation-cap fa-2x"></i>
+                            </div>
+                            <h5>Training & Support</h5>
+                            <p class="small">We train your team and provide ongoing support.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header bg-white">
+                    <h3 class="mb-0">Frequently Asked Questions</h3>
+                </div>
+                <div class="card-body">
+                    <div class="accordion" id="serviceAccordion">
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="service-heading1">
+                                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#service-collapse1" aria-expanded="true" aria-controls="service-collapse1">
+                                    What does this service include?
+                                </button>
+                            </h2>
+                            <div id="service-collapse1" class="accordion-collapse collapse show" aria-labelledby="service-heading1" data-bs-parent="#serviceAccordion">
+                                <div class="accordion-body">
+                                    <p>This service includes initial consultation, custom implementation, data migration (if applicable), system configuration, user training, and ongoing support. We work closely with you throughout the process to ensure the solution meets your specific business needs.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="service-heading2">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#service-collapse2" aria-expanded="false" aria-controls="service-collapse2">
+                                    How long does implementation take?
+                                </button>
+                            </h2>
+                            <div id="service-collapse2" class="accordion-collapse collapse" aria-labelledby="service-heading2" data-bs-parent="#serviceAccordion">
+                                <div class="accordion-body">
+                                    <p>Implementation timelines vary based on the complexity of your needs, but typically range from 2-8 weeks. During your initial consultation, we'll provide a more accurate timeline based on your specific requirements.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="service-heading3">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#service-collapse3" aria-expanded="false" aria-controls="service-collapse3">
+                                    Is training included?
+                                </button>
+                            </h2>
+                            <div id="service-collapse3" class="accordion-collapse collapse" aria-labelledby="service-heading3" data-bs-parent="#serviceAccordion">
+                                <div class="accordion-body">
+                                    <p>Yes, training is included as part of the implementation process. We provide comprehensive training tailored to different user roles within your organization to ensure everyone can effectively use the system. Additional training sessions can be arranged as needed.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card mb-4 sticky-top" style="top: 2rem; z-index: 10;">
+                <div class="card-header bg-white">
+                    <h4 class="mb-0">Ready to Get Started?</h4>
+                </div>
+                <div class="card-body">
+                    <p>Contact us today to learn more about how this service can benefit your business.</p>
+                    <a href="{% url 'onboarding:contact_request' %}?service_id={{ service.id }}" class="btn btn-primary w-100 mb-3">Request Information</a>
+                    <a href="tel:+15551234567" class="btn btn-outline-primary w-100">
+                        <i class="fas fa-phone me-2"></i> Call (555) 123-4567
+                    </a>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header bg-white">
+                    <h4 class="mb-0">Related Services</h4>
+                </div>
+                <div class="card-body p-0">
+                    <ul class="list-group list-group-flush">
+                        {% for related_service in related_services %}
+                            <li class="list-group-item">
+                                <a href="{% url 'onboarding:service_detail' service_id=related_service.id %}" class="text-decoration-none">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span>{{ related_service.name }}</span>
+                                        <i class="fas fa-chevron-right text-muted"></i>
+                                    </div>
+                                </a>
+                            </li>
+                        {% empty %}
+                            <li class="list-group-item text-center text-muted">
+                                No related services available
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header bg-white">
+                    <h4 class="mb-0">Testimonials</h4>
+                </div>
+                <div class="card-body">
+                    <div class="mb-4">
+                        <div class="mb-2 text-warning">
+                            <i class="fas fa-star"></i>
+                            <i class="fas fa-star"></i>
+                            <i class="fas fa-star"></i>
+                            <i class="fas fa-star"></i>
+                            <i class="fas fa-star"></i>
+                        </div>
+                        <p class="small fst-italic">"Implementation was smooth and professional. The team at DunWare Solutions exceeded our expectations."</p>
+                        <div class="small text-muted">- Michael T., CFO</div>
+                    </div>
+
+                    <div>
+                        <div class="mb-2 text-warning">
+                            <i class="fas fa-star"></i>
+                            <i class="fas fa-star"></i>
+                            <i class="fas fa-star"></i>
+                            <i class="fas fa-star"></i>
+                            <i class="fas fa-star-half-alt"></i>
+                        </div>
+                        <p class="small fst-italic">"The onboarding process was well-organized and efficient. Our team was up and running quickly."</p>
+                        <div class="small text-muted">- Rebecca L., Operations Director</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Call to Action -->
+<div class="cta-section">
+    <div class="container text-center">
+        <h2 class="fw-bold mb-4">Ready to Transform Your Business?</h2>
+        <p class="lead mb-4">Contact us today to learn more about our {{ service.name }} service.</p>
+        <a href="{% url 'onboarding:contact_request' %}?service_id={{ service.id }}" class="btn btn-light btn-lg px-5">Get Started</a>
+    </div>
+</div>
+{% endblock %}

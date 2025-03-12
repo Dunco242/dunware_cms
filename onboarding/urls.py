@@ -36,4 +36,13 @@ urlpatterns = [
     # Generate Report
     path('customer-onboardings/<int:pk>/generate-report/', views.generate_onboarding_report, name='generate_report'),
     path('customer-onboardings/<int:pk>/html-report/', views.generate_html_report, name='generate_html_report'),
+
+    # Public-facing pages
+    path('', views.services_landing_page, name='services_landing'),
+    path('services/', views.service_list, name='service_list'),
+    path('services/<int:service_id>/', views.service_detail, name='service_detail'),
+    path('contact/', views.contact_request, name='contact_request'),
+    path('privacy/', views.privacy_policy, name='privacy_policy'),
+    path('data-request/', views.data_request_form, name='data_request_form'),
+    path('success/', views.success_page, name='success_page'),
 ]
