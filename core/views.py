@@ -1528,6 +1528,8 @@ class MeetingDeleteView(LoginRequiredMixin, DeleteView):
         return super().delete(request, *args, **kwargs)
 
 
+logger = logging.getLogger(__name__)
+
 class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
     template_name = 'core/calendar.html'
 
@@ -1536,6 +1538,36 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
         today = timezone.now().date()
 
         try:
+            # Make sure 'self.employee' is defined properly
+            try:
+                # This should be set by EmployeeRequiredMixin but check as a fallback
+                if not hasattr(self, 'employee'):
+                    self.employee = Employee.objects.get(user=self.request.user)
+            except Employee.DoesNotExist:
+                logger.error(f"No employee profile found for user {self.request.user.username}")
+                self.employee = None
+
+            # Get available employees for scheduling group meetings
+            try:
+                # Make sure we have an employee instance first
+                if self.employee:
+                    # Use a direct query instead of exclude to ensure we get results
+                    available_employees = Employee.objects.filter(
+                        user__is_active=True
+                    ).exclude(id=self.employee.id).order_by('user__last_name', 'user__first_name')
+                else:
+                    # If no employee is found, just get all active employees
+                    available_employees = Employee.objects.filter(
+                        user__is_active=True
+                    ).order_by('user__last_name', 'user__first_name')
+
+                context['available_employees'] = available_employees
+                logger.debug(f"Found {available_employees.count()} available employees")
+            except Exception as e:
+                logger.error(f"Error loading employees: {str(e)}")
+                logger.error(traceback.format_exc())
+                context['available_employees'] = []
+
             # Get managed projects and team memberships
             projects = Project.objects.filter(
                 Q(project_manager=self.employee) |
@@ -1585,18 +1617,6 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
                 Q(attendees=self.employee)
             ).distinct().select_related('customer', 'created_by')
 
-            # Get available employees for scheduling group meetings
-            try:
-                # Exclude the current employee
-                available_employees = Employee.objects.exclude(id=self.employee.id).filter(
-                    user__is_active=True
-                ).order_by('user__last_name', 'user__first_name')
-
-                context['available_employees'] = available_employees
-            except Exception as e:
-                logger.error(f"Error loading employees: {str(e)}")
-                context['available_employees'] = []
-
             # Get scheduling information
             scheduling_data = {}
             try:
@@ -1638,7 +1658,6 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
                 context['available_slots'] = available_slots
 
                 # Get schedule rule information
-                from .models import ScheduleRule
                 schedule_rules = ScheduleRule.objects.filter(
                     user=self.request.user,
                     is_active=True
@@ -1687,6 +1706,7 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
                 'project_tasks': [],
                 'today': today,
                 'is_personal_calendar': True,
+                'available_employees': [],
             })
 
         return context
@@ -1820,32 +1840,15 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
                         continue
 
                 # Add current user's employee
-                participants.append(self.employee)
+                if self.employee and self.employee not in participants:
+                    participants.append(self.employee)
 
-                # Get suggestion
-                suggestion = scheduling_service.suggest_meeting_time(
-                    participants=participants,
-                    duration_minutes=duration,
-                    within_days=7
-                )
+                # Log what we're working with
+                logger.debug(f"Finding optimal time for {len(participants)} participants: {[p.user.username for p in participants]}")
+                logger.debug(f"Duration: {duration} minutes")
 
-                if suggestion.get('success'):
-                    # Redirect to meeting creation page with suggested time
-                    start_time = suggestion['start_datetime'].strftime('%Y-%m-%dT%H:%M')
-                    end_time = suggestion['end_datetime'].strftime('%Y-%m-%dT%H:%M')
-                    attendee_ids = ','.join([str(p.id) for p in participants if p != self.employee])
-
-                    if return_json:
-                        response_data = {
-                            'success': True,
-                            'redirect_url': f'/meetings/create/?start_time={start_time}&end_time={end_time}&attendees={attendee_ids}'
-                        }
-                    else:
-                        return redirect(
-                            f'/meetings/create/?start_time={start_time}&end_time={end_time}&attendees={attendee_ids}'
-                        )
-                else:
-                    error_message = suggestion.get('error', 'Could not find a suitable meeting time')
+                if not participants:
+                    error_message = "No valid participants selected."
                     if return_json:
                         response_data = {
                             'success': False,
@@ -1853,9 +1856,42 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
                         }
                     else:
                         messages.error(request, error_message)
+                else:
+                    # Get suggestion
+                    suggestion = scheduling_service.suggest_meeting_time(
+                        participants=participants,
+                        duration_minutes=duration,
+                        within_days=7
+                    )
+
+                    if suggestion.get('success'):
+                        # Redirect to meeting creation page with suggested time
+                        start_time = suggestion['start_datetime'].strftime('%Y-%m-%dT%H:%M')
+                        end_time = suggestion['end_datetime'].strftime('%Y-%m-%dT%H:%M')
+                        attendee_ids = ','.join([str(p.id) for p in participants if p != self.employee])
+
+                        if return_json:
+                            response_data = {
+                                'success': True,
+                                'redirect_url': f'/meetings/create/?start_time={start_time}&end_time={end_time}&attendees={attendee_ids}'
+                            }
+                        else:
+                            return redirect(
+                                f'/meetings/create/?start_time={start_time}&end_time={end_time}&attendees={attendee_ids}'
+                            )
+                    else:
+                        error_message = suggestion.get('error', 'Could not find a suitable meeting time')
+                        if return_json:
+                            response_data = {
+                                'success': False,
+                                'message': error_message
+                            }
+                        else:
+                            messages.error(request, error_message)
 
             except Exception as e:
                 logger.error(f"Error suggesting meeting time: {str(e)}")
+                logger.error(traceback.format_exc())
                 error_message = f"Error suggesting meeting time: {str(e)}"
                 if return_json:
                     response_data = {
@@ -1867,7 +1903,6 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
 
         # Return JSON response for AJAX requests
         if return_json:
-            from django.http import JsonResponse
             return JsonResponse(response_data)
 
         # Redirect back to calendar for non-AJAX requests
