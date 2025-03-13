@@ -11,7 +11,7 @@ from .models import (
     Customer, Lead, Meeting, Task, Event, Employee,
     ServiceSubscription, Invoice, ChatMessage, GeneralNotifier
 )
-from customer_projects.models import ProjectTask, TimeEntry, Project
+from customer_projects.models import *
 from .notification_service import SmartNotificationService
 from .customer_lifecycle import CustomerLifecycleManager
 from .invoice_automation import InvoiceGenerator

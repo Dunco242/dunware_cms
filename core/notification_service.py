@@ -12,7 +12,7 @@ from channels.layers import get_channel_layer
 
 from .models import (
     GeneralNotifier, Customer, Lead, Meeting, Task, Event, Employee,
-    Project, Invoice, Subscription, ServiceSubscription, ChatMessage
+    Invoice, Subscription, ServiceSubscription, ChatMessage
 )
 
 try:
