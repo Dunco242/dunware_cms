@@ -28,32 +28,179 @@
        overflow: visible !important;
        white-space: normal !important;
    }
+   .availability-slot {
+       background-color: rgba(92, 184, 92, 0.2);
+       border: 1px solid #5cb85c;
+       padding: 2px 4px;
+       margin: 2px 0;
+       border-radius: 3px;
+   }
+   .availability-unavailable {
+       background-color: rgba(217, 83, 79, 0.2);
+       border: 1px solid #d9534f;
+       padding: 2px 4px;
+       margin: 2px 0;
+       border-radius: 3px;
+       color: #d9534f;
+   }
+   .schedule-rule-item {
+       background-color: rgba(91, 192, 222, 0.1);
+       border: 1px solid #5bc0de;
+       padding: 8px;
+       margin-bottom: 8px;
+       border-radius: 4px;
+   }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="container-fluid">
-   <div class="card shadow mb-4">
-       <div class="card-header py-3 d-flex justify-content-between align-items-center">
-           <h6 class="m-0 font-weight-bold text-primary">My Calendar</h6>
-           <div class="btn-group">
-               <a href="{% url 'task-create' %}" class="btn btn-sm btn-outline-primary">
-                   <i class="fas fa-tasks"></i> New Task
-               </a>
-               <a href="{% url 'meeting-create' %}" class="btn btn-sm btn-outline-primary">
-                   <i class="fas fa-video"></i> New Meeting
-               </a>
-               <a href="{% url 'event-create' %}" class="btn btn-sm btn-outline-primary">
-                   <i class="fas fa-calendar"></i> New Event
-               </a>
-               <a href="{% url 'schedule-rule-list' %}" class="btn btn-sm btn-outline-primary">
-                   <i class="fas fa-calendar-alt"></i> Scheduling Rules
-               </a>
-           </div>
-       </div>
-       <div class="card-body">
-           <div id="calendar"></div>
-       </div>
+   <div class="row">
+      <!-- Calendar Column -->
+      <div class="col-lg-9">
+         <div class="card shadow mb-4">
+            <div class="card-header py-3 d-flex justify-content-between align-items-center">
+               <h6 class="m-0 font-weight-bold text-primary">My Calendar</h6>
+               <div class="btn-group">
+                  <a href="{% url 'task-create' %}" class="btn btn-sm btn-outline-primary">
+                     <i class="fas fa-tasks"></i> New Task
+                  </a>
+                  <a href="{% url 'meeting-create' %}" class="btn btn-sm btn-outline-primary">
+                     <i class="fas fa-video"></i> New Meeting
+                  </a>
+                  <a href="{% url 'event-create' %}" class="btn btn-sm btn-outline-primary">
+                     <i class="fas fa-calendar"></i> New Event
+                  </a>
+                  <a href="{% url 'schedule-rule-list' %}" class="btn btn-sm btn-outline-primary">
+                     <i class="fas fa-calendar-alt"></i> Scheduling Rules
+                  </a>
+               </div>
+            </div>
+            <div class="card-body">
+               <div id="calendar"></div>
+            </div>
+         </div>
+      </div>
+
+      <!-- Sidebar Column -->
+      <div class="col-lg-3">
+         <!-- Availability Card -->
+         <div class="card shadow mb-4">
+            <div class="card-header py-3">
+               <h6 class="m-0 font-weight-bold text-primary">Today's Availability</h6>
+            </div>
+            <div class="card-body">
+               {% if availability_data and availability_data.today %}
+                  {% if availability_data.today.available %}
+                     <div class="text-success mb-3">
+                        <i class="fas fa-check-circle"></i> You are available today
+                     </div>
+
+                     <h6>Available Slots:</h6>
+                     <div class="availability-slots mb-3">
+                        {% for slot in availability_data.today.slots %}
+                           <div class="availability-slot">
+                              {{ slot.start|time:"g:i A" }} - {{ slot.end|time:"g:i A" }}
+                           </div>
+                        {% empty %}
+                           <div class="availability-unavailable">
+                              <i class="fas fa-times-circle"></i> No available slots
+                           </div>
+                        {% endfor %}
+                     </div>
+                  {% else %}
+                     <div class="text-danger mb-3">
+                        <i class="fas fa-times-circle"></i> Not available today
+                        {% if availability_data.today.reason %}
+                           <p class="text-muted small">Reason: {{ availability_data.today.reason }}</p>
+                        {% endif %}
+                     </div>
+                  {% endif %}
+               {% else %}
+                  <div class="text-muted">
+                     <i class="fas fa-info-circle"></i> No availability data
+                  </div>
+               {% endif %}
+            </div>
+         </div>
+
+         <!-- Suggested Meeting Slots Card -->
+         <div class="card shadow mb-4">
+            <div class="card-header py-3">
+               <h6 class="m-0 font-weight-bold text-primary">Suggested Meeting Times</h6>
+            </div>
+            <div class="card-body">
+               {% if available_slots %}
+                  {% for slot in available_slots %}
+                     <div class="mb-2">
+                        <a href="{% url 'meeting-create' %}?start_time={{ slot.start|date:'Y-m-d\TH:i' }}&end_time={{ slot.end|date:'Y-m-d\TH:i' }}" class="btn btn-sm btn-outline-success w-100 text-left">
+                           <i class="far fa-clock"></i> {{ slot.label }}
+                        </a>
+                     </div>
+                  {% endfor %}
+               {% else %}
+                  <p class="text-muted">No suggested meeting times available</p>
+               {% endif %}
+            </div>
+         </div>
+
+         <!-- Schedule Group Meeting Card -->
+         <div class="card shadow mb-4">
+            <div class="card-header py-3">
+               <h6 class="m-0 font-weight-bold text-primary">Schedule Group Meeting</h6>
+            </div>
+            <div class="card-body">
+               <form method="post" action="{% url 'calendar' %}">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="suggest_meeting">
+
+                  <div class="mb-3">
+                     <label class="form-label">Select Participants:</label>
+                     <select name="participants" class="form-select" multiple>
+                        {% for employee in available_employees %}
+                           <option value="{{ employee.id }}">{{ employee.get_full_name }}</option>
+                        {% endfor %}
+                     </select>
+                     <div class="form-text">Hold Ctrl to select multiple</div>
+                  </div>
+
+                  <div class="mb-3">
+                     <label class="form-label">Duration:</label>
+                     <select name="duration" class="form-select">
+                        <option value="30">30 minutes</option>
+                        <option value="60" selected>1 hour</option>
+                        <option value="90">1.5 hours</option>
+                        <option value="120">2 hours</option>
+                     </select>
+                  </div>
+
+                  <button type="submit" class="btn btn-primary w-100">
+                     Find Optimal Time
+                  </button>
+               </form>
+            </div>
+         </div>
+
+         <!-- Schedule Rules Summary -->
+         {% if schedule_rules %}
+         <div class="card shadow mb-4">
+            <div class="card-header py-3">
+               <h6 class="m-0 font-weight-bold text-primary">Your Schedule Rules</h6>
+            </div>
+            <div class="card-body">
+               {% for rule in schedule_rules %}
+                  <div class="schedule-rule-item">
+                     <h6>{{ rule.name }}</h6>
+                     <div><strong>When:</strong> {{ rule.recurrence }}</div>
+                     <div><strong>Day:</strong> {{ rule.day_info }}</div>
+                     <div><strong>Hours:</strong> {{ rule.time_range }}</div>
+                     <div><small>Buffer: {{ rule.buffer }}</small></div>
+                  </div>
+               {% endfor %}
+            </div>
+         </div>
+         {% endif %}
+      </div>
    </div>
 </div>
 
@@ -77,6 +224,48 @@
        </div>
    </div>
 </div>
+
+<!-- Availability Check Modal -->
+<div class="modal fade" id="availabilityCheckModal" tabindex="-1" role="dialog">
+   <div class="modal-dialog" role="document">
+       <div class="modal-content">
+           <div class="modal-header">
+               <h5 class="modal-title">Check Time Slot Availability</h5>
+               <button type="button" class="close" data-dismiss="modal">
+                   <span>&times;</span>
+               </button>
+           </div>
+           <div class="modal-body">
+               <form method="post" action="{% url 'calendar' %}">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="availability_check">
+
+                  <div class="mb-3">
+                     <label for="availabilityDate" class="form-label">Date:</label>
+                     <input type="date" id="availabilityDate" name="date" class="form-control" required>
+                  </div>
+
+                  <div class="mb-3">
+                     <label for="availabilityTime" class="form-label">Start Time:</label>
+                     <input type="time" id="availabilityTime" name="start_time" class="form-control" required>
+                  </div>
+
+                  <div class="mb-3">
+                     <label for="availabilityDuration" class="form-label">Duration:</label>
+                     <select id="availabilityDuration" name="duration" class="form-select">
+                        <option value="30">30 minutes</option>
+                        <option value="60" selected>1 hour</option>
+                        <option value="90">1.5 hours</option>
+                        <option value="120">2 hours</option>
+                     </select>
+                  </div>
+
+                  <button type="submit" class="btn btn-primary">Check Availability</button>
+               </form>
+           </div>
+       </div>
+   </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -84,25 +273,27 @@
 <script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/locales-all.min.js'></script>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function() {
     var calendarEl = document.getElementById('calendar');
-    var calendar = new FullCalendar.Calendar(calendarEl, {
+
+    var calendarConfig = {
         initialView: 'dayGridMonth',
         height: 'auto',
         headerToolbar: {
             left: 'prev,next today',
             center: 'title',
-            right: 'dayGridMonth,timeGridWeek,timeGridDay'
+            right: 'timeGridWeek,timeGridDay,dayGridMonth'
         },
         eventSources: [
             {
-                url: "{% url 'user-calendar-events' %}",
+                url: djangoData.userCalendarEventsUrl,
                 method: 'GET',
                 failure: function() {
                     alert('There was an error fetching calendar items!');
                 }
             }
         ],
+
         editable: true,
         selectable: true,
         selectMirror: true,
@@ -148,7 +339,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // Add customer info if available
             if (arg.event.extendedProps.customer) {
                 let customerSpan = document.createElement('small');
-                customerSpan.textContent = `📋 ${arg.event.extendedProps.customer}`;
+                customerSpan.textContent = '📋 ' + arg.event.extendedProps.customer;
                 customerSpan.style.display = 'block';
                 customerSpan.style.opacity = '0.8';
                 eventEl.appendChild(customerSpan);
@@ -159,13 +350,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 let typeSpan = document.createElement('small');
                 switch (arg.event.extendedProps.type) {
                     case 'task':
-                        typeSpan.textContent = `📋 Task - ${arg.event.extendedProps.status}`;
+                        typeSpan.textContent = '📋 Task - ' + arg.event.extendedProps.status;
                         break;
                     case 'meeting':
-                        typeSpan.textContent = `🤝 Meeting - ${arg.event.extendedProps.meeting_type || ''}`;
+                        typeSpan.textContent = '🤝 Meeting - ' + (arg.event.extendedProps.meeting_type || '');
                         break;
                     case 'event':
-                        typeSpan.textContent = `📅 Event`;
+                        typeSpan.textContent = '📅 Event';
                         break;
                 }
                 typeSpan.style.display = 'block';
@@ -174,6 +365,16 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             return { domNodes: [eventEl] };
+        },
+
+        // Custom button for availability check
+        customButtons: {
+            checkAvailability: {
+                text: 'Check Availability',
+                click: function() {
+                    $('#availabilityCheckModal').modal('show');
+                }
+            }
         },
 
         // Handle Event Drag/Drop
@@ -186,13 +387,13 @@ document.addEventListener('DOMContentLoaded', function() {
             var endpoint = '';
             switch (eventType) {
                 case 'task':
-                    endpoint = '{% url "api-update-task" %}';
+                    endpoint = djangoData.apiUpdateTaskUrl;
                     break;
                 case 'meeting':
-                    endpoint = '{% url "api-schedule-meeting" %}';
+                    endpoint = djangoData.apiScheduleMeetingUrl;
                     break;
                 case 'event':
-                    endpoint = '{% url "api-update-event" %}';
+                    endpoint = djangoData.apiUpdateEventUrl;
                     break;
                 default:
                     console.error('Unknown event type:', eventType);
@@ -215,8 +416,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 success: function(response) {
                     toastr.success('Item updated successfully');
                 },
-                error: function() {
-                    toastr.error('Failed to update item');
+                error: function(xhr, status, error) {
+                    console.error('Error updating item:', error);
+                    toastr.error('Failed to update item: ' + (xhr.responseJSON ? xhr.responseJSON.message : error));
                     info.revert(); // revert if update fails
                 }
             });
@@ -228,9 +430,72 @@ document.addEventListener('DOMContentLoaded', function() {
                 info.jsEvent.preventDefault(); // prevent the default action
                 window.location.href = info.event.url;
             }
-        }
-    });
+        },
 
+        // Date selection
+        select: function(info) {
+            // Get the date in YYYY-MM-DD format
+            const dateStr = info.startStr.split('T')[0];
+
+            // Show options dialog for the selected date
+            if (confirm("Would you like to create a new item for " + dateStr + "?")) {
+                // Ask what type of item to create
+                const itemType = prompt("Enter the type of item to create (task, meeting, event):");
+
+                if (itemType) {
+                    switch(itemType.toLowerCase()) {
+                        case 'task':
+                            window.location.href = djangoData.taskCreateUrl + "?due_date=" + info.startStr;
+                            break;
+                        case 'meeting':
+                            window.location.href = djangoData.meetingCreateUrl + "?start_time=" + info.startStr + "&end_time=" + info.endStr;
+                            break;
+                        case 'event':
+                            window.location.href = djangoData.eventCreateUrl + "?start=" + info.startStr + "&end=" + info.endStr;
+                            break;
+                        default:
+                            alert("Invalid item type. Please choose 'task', 'meeting', or 'event'.");
+                    }
+                }
+            }
+
+            calendar.unselect();
+        }
+    };
+
+    // Add business hours if they exist
+    if (djangoData.businessHours) {
+        calendarConfig.businessHours = djangoData.businessHours;
+    }
+
+    // Add day cell handler for availability if scheduling data exists
+    if (djangoData.schedulingData) {
+        calendarConfig.dayCellDidMount = function(info) {
+            const dateStr = info.date.toISOString().split('T')[0];
+            const dayData = djangoData.schedulingData[dateStr];
+
+            if (dayData) {
+                if (dayData.available) {
+                    // Add availability indicator
+                    const dot = document.createElement('div');
+                    dot.classList.add('availability-indicator');
+                    dot.style.height = '8px';
+                    dot.style.width = '8px';
+                    dot.style.borderRadius = '50%';
+                    dot.style.backgroundColor = '#5cb85c';
+                    dot.style.display = 'inline-block';
+                    dot.style.marginLeft = '5px';
+
+                    const dateNum = info.el.querySelector('.fc-daygrid-day-number');
+                    if (dateNum) {
+                        dateNum.appendChild(dot);
+                    }
+                }
+            }
+        };
+    }
+
+    var calendar = new FullCalendar.Calendar(calendarEl, calendarConfig);
     calendar.render();
 
     // CSRF Token Retrieval Function
@@ -248,6 +513,23 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         return cookieValue;
     }
+
+    // Add availability checker button
+    var headerToolbar = document.querySelector('.fc-toolbar-chunk:last-child');
+    if (headerToolbar) {
+        var checkBtn = document.createElement('button');
+        checkBtn.textContent = 'Check Availability';
+        checkBtn.className = 'btn btn-sm btn-outline-primary ms-2';
+        checkBtn.onclick = function() {
+            $('#availabilityCheckModal').modal('show');
+        };
+        headerToolbar.appendChild(checkBtn);
+    }
+
+    // Initialize modals properly
+    $('#availabilityCheckModal').on('shown.bs.modal', function() {
+        $('#availabilityDate').focus();
+    });
 });
 </script>
 {% endblock %}

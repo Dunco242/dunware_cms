@@ -339,3 +339,12 @@ LOGGING = {
 # Agora credentials
 AGORA_APP_ID = os.getenv('AGORA_APP_ID')
 AGORA_APP_CERTIFICATE = os.getenv('AGORA_APP_CERTIFICATE')
+
+
+#AUTOMATION SETTINGS
+
+ENABLE_AUTOMATION = True  # Set to False in development if needed
+
+# APScheduler settings
+APSCHEDULER_DATETIME_FORMAT = "N j, Y, f:s a"
+SCHEDULER_DEFAULT_MAX_INSTANCES = 1

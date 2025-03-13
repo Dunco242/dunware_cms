@@ -60,6 +60,85 @@
         </div>
     </div>
 
+    <!-- Add this section right after the customer info card in customer_detail.html -->
+<div class="col-lg-4 mb-4">
+    <div class="card shadow">
+        <div class="card-header py-3 d-flex justify-content-between align-items-center">
+            <h6 class="m-0 font-weight-bold text-primary">Customer Health</h6>
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="run_health_check">
+                <button type="submit" class="btn btn-sm btn-primary">
+                    <i class="fas fa-sync"></i> Update Health
+                </button>
+            </form>
+        </div>
+        <div class="card-body">
+            {% if health_score %}
+                <div class="text-center mb-3">
+                    <div class="progress" style="height: 25px;">
+                        <div class="progress-bar bg-{{ health_color }}" role="progressbar"
+                             style="width: {{ health_score }}%"
+                             aria-valuenow="{{ health_score }}"
+                             aria-valuemin="0"
+                             aria-valuemax="100">
+                            {{ health_score }}%
+                        </div>
+                    </div>
+                    <h5 class="mt-2">{{ health_status|title }}</h5>
+                </div>
+
+                <div class="health-factors">
+                    <h6>Health Factors:</h6>
+                    <ul class="list-group list-group-flush">
+                        {% for key, value in health_factors.items %}
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                {{ key|title|replace:"_":" " }}
+                                <span class="badge {% if '-' in value %}bg-danger{% elif '+' in value %}bg-success{% else %}bg-info{% endif %}">
+                                    {{ value }}
+                                </span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+
+                {% if days_since_interaction is not None %}
+                    <div class="mt-3">
+                        <p class="mb-1">Last interaction: {{ last_interaction|date:"M d, Y" }}</p>
+                        <p class="{% if days_since_interaction > 30 %}text-danger{% elif days_since_interaction > 14 %}text-warning{% else %}text-success{% endif %}">
+                            {{ days_since_interaction }} days ago
+                        </p>
+                    </div>
+                {% endif %}
+
+                <div class="mt-3">
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="schedule_follow_up">
+                        <div class="input-group">
+                            <select name="follow_up_days" class="form-control">
+                                <option value="1">Tomorrow</option>
+                                <option value="3">3 days</option>
+                                <option value="7" selected>1 week</option>
+                                <option value="14">2 weeks</option>
+                                <option value="30">1 month</option>
+                            </select>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-calendar-plus"></i> Schedule Follow-up
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            {% else %}
+                <div class="text-center text-muted">
+                    <p>No health score data available.</p>
+                    <p>Run a health check to analyze customer engagement.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
     <!-- Tabs Card -->
     <div class="col-lg-8 mb-4">
         <div class="card shadow">

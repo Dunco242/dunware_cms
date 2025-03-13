@@ -1,17 +1,298 @@
 {% extends 'core/base.html' %}
-{% block title %}Lead Detail{% endblock %}
+{% load humanize %}
+
+{% block title %}{{ lead.company_name }} (Lead){% endblock %}
+
 {% block content %}
-<div class="card shadow">
-    <div class="card-header bg-primary text-white">Lead Detail</div>
-    <div class="card-body">
-        <p><strong>Company Name:</strong> {{ lead.company_name }}</p>
-        <p><strong>Contact Person:</strong> {{ lead.contact_person }}</p>
-        <p><strong>Email:</strong> {{ lead.email }}</p>
-        <p><strong>Phone:</strong> {{ lead.phone }}</p>
-        <p><strong>Status:</strong> {{ lead.get_status_display }}</p>
-        <p><strong>Assigned To:</strong> {{ lead.assigned_to.user.get_full_name }}</p>
-        <a href="{% url 'lead-update' lead.pk %}" class="btn btn-warning">Edit</a>
-        <a href="{% url 'lead-delete' lead.pk %}" class="btn btn-danger">Delete</a>
+<div class="row">
+    <!-- Lead Info Card -->
+    <div class="col-lg-4 mb-4">
+        <div class="card shadow">
+            <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                <h6 class="m-0 font-weight-bold text-primary">Lead Information</h6>
+                <div class="btn-group">
+                    <a href="{% url 'lead-update' lead.pk %}" class="btn btn-sm btn-warning">
+                        <i class="fas fa-edit"></i> Edit
+                    </a>
+                    <a href="{% url 'lead-delete' lead.pk %}" class="btn btn-sm btn-danger">
+                        <i class="fas fa-trash"></i> Delete
+                    </a>
+                </div>
+            </div>
+            <div class="card-body">
+                <dl class="row">
+                    <dt class="col-sm-4">Company Name</dt>
+                    <dd class="col-sm-8">{{ lead.company_name }}</dd>
+                    <dt class="col-sm-4">Contact Person</dt>
+                    <dd class="col-sm-8">{{ lead.contact_person }}</dd>
+                    <dt class="col-sm-4">Email</dt>
+                    <dd class="col-sm-8"><a href="mailto:{{ lead.email }}">{{ lead.email }}</a></dd>
+                    <dt class="col-sm-4">Phone</dt>
+                    <dd class="col-sm-8"><a href="tel:{{ lead.phone }}">{{ lead.phone }}</a></dd>
+                    <dt class="col-sm-4">Source</dt>
+                    <dd class="col-sm-8">{{ lead.get_source_display }}</dd>
+                    <dt class="col-sm-4">Status</dt>
+                    <dd class="col-sm-8">
+                        <span class="badge bg-{{ lead.get_status_color }}">
+                            {{ lead.get_status_display }}
+                        </span>
+                    </dd>
+                    <dt class="col-sm-4">Assigned To</dt>
+                    <dd class="col-sm-8">
+                        {% if lead.assigned_to %}
+                            {{ lead.assigned_to.user.get_full_name }}
+                        {% else %}
+                            <span class="text-muted">Unassigned</span>
+                        {% endif %}
+                    </dd>
+                    <dt class="col-sm-4">Created</dt>
+                    <dd class="col-sm-8">{{ lead.created_at|naturaltime }}</dd>
+                    {% if lead.last_contacted %}
+                        <dt class="col-sm-4">Last Contacted</dt>
+                        <dd class="col-sm-8">
+                            {{ lead.last_contacted|naturaltime }}
+                            {% if lead.days_since_last_contact > 14 %}
+                                <span class="badge bg-warning">{{ lead.days_since_last_contact }} days ago</span>
+                            {% endif %}
+                        </dd>
+                    {% endif %}
+                    {% if lead.estimated_value %}
+                        <dt class="col-sm-4">Estimated Value</dt>
+                        <dd class="col-sm-8">${{ lead.estimated_value }}</dd>
+                    {% endif %}
+                </dl>
+            </div>
+        </div>
+
+        <!-- Lead Actions Card -->
+        <div class="card shadow mt-4">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">Lead Actions</h6>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    {% if lead.is_convertible %}
+                        <a href="{% url 'convert-lead-to-customer' lead.pk %}" class="btn btn-success w-100 mb-2">
+                            <i class="fas fa-user-plus"></i> Convert to Customer
+                        </a>
+                        <p class="small text-muted">
+                            This lead will be converted to a customer and all notes will be transferred.
+                            The customer lifecycle process will automatically begin.
+                        </p>
+                    {% elif lead.status == 'converted' %}
+                        <div class="alert alert-success">
+                            <i class="fas fa-check-circle"></i> This lead has been converted to a customer.
+                            {% if lead.converted_to_customer %}
+                                <a href="{% url 'customer-detail' lead.converted_to_customer.pk %}" class="btn btn-sm btn-primary mt-2">
+                                    View Customer
+                                </a>
+                            {% endif %}
+                        </div>
+                    {% else %}
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i> Change lead status to "Qualified" or "Negotiating" to enable conversion.
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="mb-3">
+                    <a href="{% url 'note-create' %}?lead={{ lead.pk }}" class="btn btn-info w-100 mb-2">
+                        <i class="fas fa-sticky-note"></i> Add Note
+                    </a>
+                </div>
+
+                <div class="mb-3">
+                    <a href="{% url 'task-create' %}?lead={{ lead.pk }}" class="btn btn-primary w-100 mb-2">
+                        <i class="fas fa-tasks"></i> Create Task
+                    </a>
+                </div>
+
+                <div>
+                    <a href="{% url 'meeting-create' %}?lead={{ lead.pk }}" class="btn btn-warning w-100">
+                        <i class="fas fa-video"></i> Schedule Meeting
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lead Tabs Card -->
+    <div class="col-lg-8 mb-4">
+        <div class="card shadow">
+            <div class="card-header">
+                <ul class="nav nav-tabs card-header-tabs" role="tablist">
+                    <li class="nav-item">
+                        <a class="nav-link active" data-bs-toggle="tab" href="#notes">
+                            <i class="fas fa-sticky-note"></i> Notes
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-bs-toggle="tab" href="#tasks">
+                            <i class="fas fa-tasks"></i> Tasks
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-bs-toggle="tab" href="#meetings">
+                            <i class="fas fa-video"></i> Meetings
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-bs-toggle="tab" href="#timeline">
+                            <i class="fas fa-history"></i> Timeline
+                        </a>
+                    </li>
+                </ul>
+            </div>
+            <div class="card-body">
+                <div class="tab-content">
+                    <!-- Notes Section -->
+                    <div class="tab-pane fade show active" id="notes">
+                        {% if lead.lead_notes.all %}
+                            <div class="list-group">
+                                {% for note in lead.lead_notes.all %}
+                                    <div class="list-group-item">
+                                        <div class="d-flex w-100 justify-content-between">
+                                            <h5 class="mb-1">{{ note.title }}</h5>
+                                            <small>{{ note.created_at|naturaltime }}</small>
+                                        </div>
+                                        <p class="mb-1">{{ note.content }}</p>
+                                        <small>By {{ note.created_by.user.get_full_name }}</small>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <p class="text-center text-muted">No notes found</p>
+                        {% endif %}
+                    </div>
+
+                    <!-- Tasks Section -->
+                    <div class="tab-pane fade" id="tasks">
+                        {% if lead.tasks.all %}
+                            <div class="list-group">
+                                {% for task in lead.tasks.all %}
+                                    <div class="list-group-item">
+                                        <div class="d-flex w-100 justify-content-between">
+                                            <h5 class="mb-1">{{ task.title }}</h5>
+                                            <span class="badge bg-{{ task.status }}">{{ task.get_status_display }}</span>
+                                        </div>
+                                        <p class="mb-1">{{ task.description }}</p>
+                                        <small>Due: {{ task.due_date|date:"M d, Y H:i" }} |
+                                               Assigned to: {{ task.assigned_to.user.get_full_name }}</small>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <p class="text-center text-muted">No tasks found</p>
+                        {% endif %}
+                    </div>
+
+                    <!-- Meetings Section -->
+                    <div class="tab-pane fade" id="meetings">
+                        {% if lead.lead_meetings.all %}
+                            <div class="list-group">
+                                {% for meeting in lead.lead_meetings.all %}
+                                    <div class="list-group-item">
+                                        <div class="d-flex w-100 justify-content-between">
+                                            <h5 class="mb-1">{{ meeting.title }}</h5>
+                                            <span class="badge bg-{{ meeting.meeting_type }}">
+                                                {{ meeting.get_meeting_type_display }}
+                                            </span>
+                                        </div>
+                                        <p class="mb-1">{{ meeting.description }}</p>
+                                        <small>
+                                            Start: {{ meeting.start_time|date:"M d, Y H:i" }} |
+                                            End: {{ meeting.end_time|date:"M d, Y H:i" }}
+                                        </small>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <p class="text-center text-muted">No meetings found</p>
+                        {% endif %}
+                    </div>
+
+                    <!-- Timeline Section -->
+                    <div class="tab-pane fade" id="timeline">
+                        <div class="timeline">
+                            <!-- Created Timeline Item -->
+                            <div class="timeline-item">
+                                <div class="timeline-marker bg-primary">
+                                    <i class="fas fa-plus"></i>
+                                </div>
+                                <div class="timeline-content">
+                                    <h6 class="timeline-title">Lead Created</h6>
+                                    <p class="timeline-text">Lead was created in the system.</p>
+                                    <small class="text-muted">{{ lead.created_at|naturaltime }}</small>
+                                </div>
+                            </div>
+
+                            <!-- Notes Timeline Items -->
+                            {% for note in lead.lead_notes.all %}
+                                <div class="timeline-item">
+                                    <div class="timeline-marker bg-info">
+                                        <i class="fas fa-sticky-note"></i>
+                                    </div>
+                                    <div class="timeline-content">
+                                        <h6 class="timeline-title">Note: {{ note.title }}</h6>
+                                        <p class="timeline-text">{{ note.content|truncatechars:100 }}</p>
+                                        <small class="text-muted">
+                                            {{ note.created_at|naturaltime }} by {{ note.created_by.user.get_full_name }}
+                                        </small>
+                                    </div>
+                                </div>
+                            {% endfor %}
+
+                            <!-- Tasks Timeline Items -->
+                            {% for task in lead.tasks.all %}
+                                <div class="timeline-item">
+                                    <div class="timeline-marker bg-warning">
+                                        <i class="fas fa-tasks"></i>
+                                    </div>
+                                    <div class="timeline-content">
+                                        <h6 class="timeline-title">Task: {{ task.title }}</h6>
+                                        <p class="timeline-text">{{ task.description|truncatechars:100 }}</p>
+                                        <small class="text-muted">
+                                            Due: {{ task.due_date|date:"M d, Y H:i" }} |
+                                            Status: {{ task.get_status_display }}
+                                        </small>
+                                    </div>
+                                </div>
+                            {% endfor %}
+
+                            <!-- Meetings Timeline Items -->
+                            {% for meeting in lead.lead_meetings.all %}
+                                <div class="timeline-item">
+                                    <div class="timeline-marker bg-success">
+                                        <i class="fas fa-video"></i>
+                                    </div>
+                                    <div class="timeline-content">
+                                        <h6 class="timeline-title">Meeting: {{ meeting.title }}</h6>
+                                        <p class="timeline-text">{{ meeting.description|truncatechars:100 }}</p>
+                                        <small class="text-muted">
+                                            {{ meeting.start_time|date:"M d, Y H:i" }} to {{ meeting.end_time|date:"H:i" }}
+                                        </small>
+                                    </div>
+                                </div>
+                            {% endfor %}
+
+                            <!-- Conversion Timeline Item (if converted) -->
+                            {% if lead.status == 'converted' and lead.conversion_date %}
+                                <div class="timeline-item">
+                                    <div class="timeline-marker bg-success">
+                                        <i class="fas fa-user-plus"></i>
+                                    </div>
+                                    <div class="timeline-content">
+                                        <h6 class="timeline-title">Converted to Customer</h6>
+                                        <p class="timeline-text">This lead was successfully converted to a customer.</p>
+                                        <small class="text-muted">{{ lead.conversion_date|naturaltime }}</small>
+                                    </div>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}

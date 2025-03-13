@@ -3,61 +3,262 @@
 
 {% block content %}
 <div class="container">
-    <h2>Billing Dashboard</h2>
-    <hr>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Billing Dashboard</h2>
+        <div class="btn-group">
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="generate_pending_invoices">
+                <button type="submit" class="btn btn-success">
+                    <i class="fas fa-file-invoice"></i> Generate Invoices
+                </button>
+            </form>
+            <form method="post" class="ms-2">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="process_overdue_invoices">
+                <button type="submit" class="btn btn-warning">
+                    <i class="fas fa-exclamation-circle"></i> Process Overdue
+                </button>
+            </form>
+            <form method="post" class="ms-2">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="send_invoice_reminders">
+                <button type="submit" class="btn btn-info">
+                    <i class="fas fa-bell"></i> Send Reminders
+                </button>
+            </form>
+        </div>
+    </div>
 
-    <h4>Invoices</h4>
-<table class="table">
-    <thead>
-        <tr>
-            <th>Invoice #</th>
-            <th>Customer</th>
-            <th>Amount</th>
-            <th>Status</th>
-            <th>Created At</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for invoice in invoices %}
-        {% if invoice.status != 'paid' %}  <!-- ✅ Ensure paid invoices don't show -->
-        <tr>
-            <td>
-                <a href="{% url 'invoice-update' invoice.pk %}">
-                    {{ invoice.invoice_number }}
-                </a>
-            </td>
-            <td>{{ invoice.customer.company_name }}</td>
-            <td>${{ invoice.total_amount }}</td>
-            <td>{{ invoice.get_status_display }}</td>
-            <td>{{ invoice.created_at|date:"Y-m-d" }}</td>
-        </tr>
-        {% endif %}
-        {% endfor %}
-    </tbody>
-</table>
+    <!-- Billing Statistics -->
+    {% if monthly_revenue is not None %}
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Monthly Revenue</h5>
+                    <h3 class="card-text">${{ monthly_revenue|floatformat:2 }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Yearly Revenue</h5>
+                    <h3 class="card-text">${{ yearly_revenue|floatformat:2 }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-dark">
+                <div class="card-body">
+                    <h5 class="card-title">Outstanding</h5>
+                    <h3 class="card-text">${{ outstanding_amount|floatformat:2 }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-danger text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Overdue</h5>
+                    <h3 class="card-text">${{ overdue_amount|floatformat:2 }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 
-    <h4>Subscriptions</h4>
+    <!-- Pending Invoices -->
+    <h4>Pending Invoices</h4>
     <table class="table">
         <thead>
             <tr>
-                <th>Plan</th>
+                <th>Invoice #</th>
                 <th>Customer</th>
+                <th>Amount</th>
+                <th>Status</th>
+                <th>Due Date</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for invoice in invoices %}
+            {% if invoice.status != 'paid' %}  <!-- ✅ Ensure paid invoices don't show -->
+            <tr>
+                <td>
+                    <a href="{% url 'invoice-update' invoice.pk %}">
+                        {{ invoice.invoice_number }}
+                    </a>
+                </td>
+                <td>{{ invoice.customer.company_name }}</td>
+                <td>${{ invoice.total_amount }}</td>
+                <td>
+                    <span class="badge {% if invoice.status == 'overdue' %}bg-danger{% elif invoice.status == 'partial' %}bg-warning{% else %}bg-info{% endif %}">
+                        {{ invoice.get_status_display }}
+                    </span>
+                </td>
+                <td>{{ invoice.due_date|date:"Y-m-d" }}</td>
+                <td>
+                    <div class="btn-group">
+                        <a href="{% url 'invoice-detail' invoice.pk %}" class="btn btn-sm btn-primary">
+                            <i class="fas fa-eye"></i> View
+                        </a>
+                        <a href="{% url 'invoice-update' invoice.pk %}" class="btn btn-sm btn-warning">
+                            <i class="fas fa-edit"></i> Edit
+                        </a>
+                    </div>
+                </td>
+            </tr>
+            {% endif %}
+            {% endfor %}
+        </tbody>
+    </table>
+
+    {% if upcoming_due_invoices %}
+    <h4>Upcoming Due Invoices (Next 7 Days)</h4>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Invoice #</th>
+                <th>Customer</th>
+                <th>Amount</th>
+                <th>Due Date</th>
+                <th>Days Left</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for invoice in upcoming_due_invoices %}
+            <tr>
+                <td>
+                    <a href="{% url 'invoice-detail' invoice.pk %}">
+                        {{ invoice.invoice_number }}
+                    </a>
+                </td>
+                <td>{{ invoice.customer.company_name }}</td>
+                <td>${{ invoice.amount_due }}</td>
+                <td>{{ invoice.due_date|date:"Y-m-d" }}</td>
+                <td>
+                    {% with days_left=invoice.days_until_due %}
+                        <span class="badge {% if days_left <= 1 %}bg-danger{% elif days_left <= 3 %}bg-warning{% else %}bg-info{% endif %}">
+                            {{ days_left }} day{{ days_left|pluralize }}
+                        </span>
+                    {% endwith %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    <h4>Active Subscriptions</h4>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Service</th>
+                <th>Customer</th>
+                <th>Billing Cycle</th>
                 <th>Status</th>
                 <th>Start Date</th>
                 <th>End Date</th>
+                <th>Amount</th>
             </tr>
         </thead>
         <tbody>
             {% for subscription in subscriptions %}
             <tr>
-                <td>{{ subscription.plan }}</td>
+                <td>{{ subscription.service.name }}</td>
                 <td>{{ subscription.customer.company_name }}</td>
-                <td>{{ subscription.get_status_display }}</td>
+                <td>{{ subscription.get_billing_cycle_display }}</td>
+                <td>
+                    <span class="badge {% if subscription.status == 'active' %}bg-success{% elif subscription.status == 'paused' %}bg-warning{% else %}bg-secondary{% endif %}">
+                        {{ subscription.get_status_display }}
+                    </span>
+                </td>
                 <td>{{ subscription.start_date|date:"Y-m-d" }}</td>
                 <td>{{ subscription.end_date|date:"Y-m-d" }}</td>
+                <td>${{ subscription.calculate_total }}</td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
+
+    {% if revenue_by_service %}
+    <h4>Revenue by Service</h4>
+    <div class="row">
+        <div class="col-md-8">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Service</th>
+                        <th>Active Subscriptions</th>
+                        <th>Revenue</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in revenue_by_service %}
+                    <tr>
+                        <td>{{ item.service }}</td>
+                        <td>{{ item.subscriptions }}</td>
+                        <td>${{ item.amount|floatformat:2 }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="col-md-4">
+            <!-- Placeholder for revenue chart - you can add a chart here -->
+            <div class="card">
+                <div class="card-body text-center">
+                    <p>Revenue Distribution</p>
+                    <!-- Canvas for chart -->
+                    <canvas id="revenueChart" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 </div>
+{% endblock %}
+
+{% block extra_js %}
+{% if revenue_by_service %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Get revenue data
+        const revenueData = [
+            {% for item in revenue_by_service %}
+                {{ item.amount }},
+            {% endfor %}
+        ];
+
+        const labels = [
+            {% for item in revenue_by_service %}
+                "{{ item.service }}",
+            {% endfor %}
+        ];
+
+        // Create pie chart
+        const ctx = document.getElementById('revenueChart').getContext('2d');
+        const revenueChart = new Chart(ctx, {
+            type: 'pie',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: revenueData,
+                    backgroundColor: [
+                        '#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b',
+                        '#858796', '#5a5c69', '#476B9B', '#2DCE89', '#11CDEF'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false
+            }
+        });
+    });
+</script>
+{% endif %}
 {% endblock %}

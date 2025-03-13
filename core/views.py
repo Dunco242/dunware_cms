@@ -843,6 +843,30 @@ class MeetingCreateView(LoginRequiredMixin, CreateView):
             # Log initial times for debugging
             logger.debug(f"Initial start time: {initial['start_time']}, Initial end time: {initial['end_time']}")
 
+            # Check for suggested attendees in request
+            attendee_ids = self.request.GET.getlist('attendees')
+            if attendee_ids:
+                # Use scheduling service to suggest optimal meeting time
+                from .scheduling_service import SchedulingService
+                scheduling_service = SchedulingService(self.request.user)
+
+                # Get attendees as Employee objects
+                attendees = Employee.objects.filter(id__in=attendee_ids)
+
+                # Get suggestion for next 7 days
+                suggestion = scheduling_service.suggest_meeting_time(
+                    participants=list(attendees) + [employee],
+                    duration_minutes=60,
+                    within_days=7
+                )
+
+                # Use suggested time if available
+                if suggestion.get('success'):
+                    initial['start_time'] = suggestion['start_datetime']
+                    initial['end_time'] = suggestion['end_datetime']
+                    # Store attendees for the form
+                    initial['attendees'] = attendees
+
         except Employee.DoesNotExist:
             logger.error(f"Employee profile not found for user {self.request.user.id}")
         except Exception as e:
@@ -858,6 +882,54 @@ class MeetingCreateView(LoginRequiredMixin, CreateView):
         except Employee.DoesNotExist:
             logger.error(f"Employee profile not found for user {self.request.user.id}")
         return kwargs
+
+    def get_context_data(self, **kwargs):
+        """Add availability data to context"""
+        context = super().get_context_data(**kwargs)
+
+        try:
+            # Add scheduling availability data
+            from .scheduling_service import SchedulingService
+            scheduling_service = SchedulingService(self.request.user)
+
+            # Get availability for next 7 days
+            availability_data = {}
+            today = timezone.now().date()
+            for i in range(7):
+                day = today + timezone.timedelta(days=i)
+                availability_data[day.strftime('%Y-%m-%d')] = scheduling_service.get_availability(day)
+
+            context['availability_data'] = availability_data
+            context['suggested_times'] = self._get_suggested_meeting_times(scheduling_service)
+
+        except Exception as e:
+            logger.error(f"Error getting scheduling data: {str(e)}")
+
+        return context
+
+    def _get_suggested_meeting_times(self, scheduling_service):
+        """Get a list of suggested meeting times"""
+        suggested_times = []
+
+        try:
+            for duration in [30, 60]:
+                # Get next available slot
+                start, end = scheduling_service.get_next_available_slot(
+                    from_datetime=timezone.now(),
+                    duration_minutes=duration
+                )
+
+                if start and end:
+                    suggested_times.append({
+                        'duration': duration,
+                        'start': start,
+                        'end': end,
+                        'label': f"{duration} min meeting at {start.strftime('%I:%M %p')} on {start.strftime('%b %d')}"
+                    })
+        except Exception as e:
+            logger.error(f"Error generating suggested times: {str(e)}")
+
+        return suggested_times
 
     def form_valid(self, form):
         try:
@@ -881,8 +953,9 @@ class MeetingCreateView(LoginRequiredMixin, CreateView):
                 # Log actual times being saved
                 logger.debug(f"Saving meeting with start time: {start_time}, end time: {end_time}")
 
+                # Use the scheduling service to check availability
+                from .scheduling_service import SchedulingService
                 scheduling_service = SchedulingService(self.request.user)
-                scheduling_service.employee = employee
 
                 duration = (end_time - start_time).total_seconds() / 60
 
@@ -893,7 +966,19 @@ class MeetingCreateView(LoginRequiredMixin, CreateView):
                 )
 
                 if not is_available:
-                    form.add_error(None, "Selected time slot is not available")
+                    # Try to find an alternative time slot
+                    next_start, next_end = scheduling_service.get_next_available_slot(
+                        from_datetime=start_time,
+                        duration_minutes=int(duration)
+                    )
+
+                    if next_start and next_end:
+                        form.add_error(None,
+                            f"Selected time slot is not available. Suggested alternative: "
+                            f"{next_start.strftime('%Y-%m-%d %H:%M')} to {next_end.strftime('%H:%M')}"
+                        )
+                    else:
+                        form.add_error(None, "Selected time slot is not available")
                     return self.form_invalid(form)
 
                 # Set status based on meeting time relative to now
@@ -920,6 +1005,12 @@ class MeetingCreateView(LoginRequiredMixin, CreateView):
                     self.request,
                     f"Meeting '{form.instance.title}' scheduled successfully"
                 )
+
+                # Create notifications for attendees
+                from .notification_service import SmartNotificationService
+                notification_service = SmartNotificationService()
+                notification_service.create_meeting_notification(form.instance)
+
                 return response
 
         except Employee.DoesNotExist:
@@ -1692,6 +1783,34 @@ class InvoiceUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
         """Only superusers can edit invoices."""
         return self.request.user.is_superuser
 
+    def get_context_data(self, **kwargs):
+        """Add related data to context"""
+        context = super().get_context_data(**kwargs)
+        invoice = self.get_object()
+
+        # Add customer's payment history
+        context['customer_payments'] = Payment.objects.filter(
+            customer=invoice.customer
+        ).order_by('-transaction_date')
+
+        # Add customer's subscription info
+        context['customer_subscriptions'] = ServiceSubscription.objects.filter(
+            customer=invoice.customer,
+            is_active=True
+        )
+
+        # Add invoice line items if available
+        if hasattr(invoice, 'notes') and invoice.notes:
+            try:
+                import json
+                invoice_details = json.loads(invoice.notes)
+                context['line_items'] = invoice_details.get('line_items', [])
+            except (json.JSONDecodeError, ValueError):
+                # No valid JSON in notes field
+                pass
+
+        return context
+
     def form_valid(self, form):
         invoice = form.save(commit=False)
         previous_status = self.get_object().status  # Get previous status before update
@@ -1707,19 +1826,63 @@ class InvoiceUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
             'overdue': 'pending',
         }
 
-        # ✅ Check if payment record should be created
-        if invoice.status in status_mapping and previous_status != invoice.status:
-            existing_payment = Payment.objects.filter(invoice=invoice).exists()
+        # Import the invoice generator
+        from .invoice_automation import InvoiceGenerator
+        invoice_generator = InvoiceGenerator()
 
-            if not existing_payment:
-                Payment.objects.create(
-                    customer=invoice.customer,
-                    invoice=invoice,
-                    amount=invoice.total_amount,
-                    status=status_mapping[invoice.status],  # ✅ Apply status mapping
-                    transaction_date=timezone.now(),
-                )
-                messages.success(self.request, f'Invoice marked as {invoice.status}, payment recorded.')
+        # ✅ Handle status change with automation
+        if invoice.status != previous_status:
+            if invoice.status == 'paid' and previous_status != 'paid':
+                # Create a payment record if invoice is marked as paid
+                with transaction.atomic():
+                    # Check for existing payment
+                    existing_payment = Payment.objects.filter(invoice=invoice).exists()
+
+                    if not existing_payment:
+                        # Create payment using the invoice generator
+                        try:
+                            payment = Payment.objects.create(
+                                customer=invoice.customer,
+                                invoice=invoice,
+                                amount=invoice.total_amount,
+                                status='completed',
+                                transaction_date=timezone.now()
+                            )
+
+                            # Create transaction record
+                            Transaction.objects.create(
+                                customer=invoice.customer,
+                                invoice=invoice,
+                                payment=payment,
+                                transaction_type='invoice_payment',
+                                amount=payment.amount,
+                                reference=payment.reference or f"INV-{invoice.invoice_number}",
+                                status='completed'
+                            )
+
+                            messages.success(self.request, f'Invoice marked as {invoice.status}, payment recorded.')
+                        except Exception as e:
+                            logger.error(f"Error creating payment record: {str(e)}")
+                            messages.error(self.request, f"Error recording payment: {str(e)}")
+
+            elif invoice.status == 'overdue' and previous_status != 'overdue':
+                # Create overdue notification
+                from .notification_service import SmartNotificationService
+                notification_service = SmartNotificationService()
+
+                try:
+                    notification_service.create_notification(
+                        user=invoice.customer.assigned_to.user,
+                        title=f"Invoice {invoice.invoice_number} Marked Overdue",
+                        message=f"Invoice for {invoice.customer.company_name} in the amount of ${invoice.total_amount} has been marked as overdue.",
+                        notification_type="deadline",
+                        event_datetime=timezone.now(),
+                        priority="high",
+                        content_object=invoice,
+                        action_url=reverse('invoice-detail', args=[invoice.id])
+                    )
+                except Exception as e:
+                    logger.error(f"Error creating overdue notification: {str(e)}")
 
         invoice.save()
         messages.success(self.request, 'Invoice updated successfully.')
