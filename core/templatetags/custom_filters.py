@@ -10,3 +10,12 @@ def add_class(value, arg):
     else:
         css_classes = arg
     return value.as_widget(attrs={'class': css_classes})
+
+
+@register.filter
+def split(value, arg):
+    """
+    Split the value by the argument and return a list.
+    Example: {{ value|split:"," }}
+    """
+    return value.split(arg)
