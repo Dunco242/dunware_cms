@@ -272,8 +272,41 @@
 <script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js'></script>
 <script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/locales-all.min.js'></script>
 
+<!-- First, define the djangoData object with all needed URLs -->
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
+    // Create a JavaScript object to hold all the data from Django
+    var djangoData = {
+        userCalendarEventsUrl: "{% url 'user-calendar-events' %}",
+        taskCreateUrl: "{% url 'task-create' %}",
+        meetingCreateUrl: "{% url 'meeting-create' %}",
+        eventCreateUrl: "{% url 'event-create' %}",
+        apiUpdateTaskUrl: "{% url 'api-update-task' %}",
+        apiScheduleMeetingUrl: "{% url 'api-schedule-meeting' %}",
+        apiUpdateEventUrl: "{% url 'api-update-event' %}"
+    };
+
+    {% if schedule_rules %}
+    // Convert schedule rules to JavaScript array
+    djangoData.businessHours = [
+        {% for rule in schedule_rules %}
+        {
+            daysOfWeek: [{% if rule.recurrence == 'Daily' %}0, 1, 2, 3, 4, 5, 6{% elif rule.day_info == 'Every Monday' %}1{% elif rule.day_info == 'Every Tuesday' %}2{% elif rule.day_info == 'Every Wednesday' %}3{% elif rule.day_info == 'Every Thursday' %}4{% elif rule.day_info == 'Every Friday' %}5{% elif rule.day_info == 'Every Saturday' %}6{% elif rule.day_info == 'Every Sunday' %}0{% endif %}],
+            startTime: '{{ rule.time_range|cut:" - "|cut:" "|split:"|"|first }}',
+            endTime: '{{ rule.time_range|cut:" - "|cut:" "|split:"|"|last }}'
+        }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ];
+    {% endif %}
+
+    {% if scheduling_data %}
+    // Convert scheduling data to JavaScript object
+    djangoData.schedulingData = {{ scheduling_data|safe }};
+    {% endif %}
+</script>
+
+<!-- Now the calendar initialization script that uses djangoData -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
     var calendarEl = document.getElementById('calendar');
 
     var calendarConfig = {
