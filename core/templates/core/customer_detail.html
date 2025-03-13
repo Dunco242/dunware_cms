@@ -65,7 +65,7 @@
     <div class="card shadow">
         <div class="card-header py-3 d-flex justify-content-between align-items-center">
             <h6 class="m-0 font-weight-bold text-primary">Customer Health</h6>
-            <form method="post">
+            <form method="post" action="{% url 'customer-detail' customer.pk %}">
                 {% csrf_token %}
                 <input type="hidden" name="action" value="run_health_check">
                 <button type="submit" class="btn btn-sm btn-primary">

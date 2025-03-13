@@ -12,6 +12,7 @@ class DashboardView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
         today = timezone.now().date()
 
         try:
+            # Basic dashboard data
             context.update({
                 'total_customers': Customer.objects.filter(
                     assigned_to=self.employee
@@ -22,7 +23,7 @@ class DashboardView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
                 'upcoming_tasks': Task.objects.filter(
                     assigned_to=self.employee,
                     status__in=['pending', 'in_progress'],
-                    due_date__gte=today
+                    due_date__gte=timezone.now()
                 ).order_by('due_date')[:5],
                 'upcoming_meetings': Meeting.objects.filter(
                     Q(organizer=self.employee) | Q(attendees=self.employee),
@@ -34,9 +35,117 @@ class DashboardView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
                 'overdue_tasks': Task.objects.filter(
                     assigned_to=self.employee,
                     status__in=['pending', 'in_progress'],
-                    due_date__lt=today
+                    due_date__lt=timezone.now()
                 ).count(),
             })
+
+            # Add smart notification data
+            from .notification_service import SmartNotificationService
+            notification_service = SmartNotificationService()
+
+            # Get active and upcoming notifications
+            active_notifications = notification_service.get_user_active_notifications(
+                self.request.user, limit=10
+            )
+
+            upcoming_notifications = notification_service.get_user_upcoming_notifications(
+                self.request.user, limit=10
+            )
+
+            context.update({
+                'active_notifications': active_notifications,
+                'upcoming_notifications': upcoming_notifications,
+            })
+
+            # Add smart scheduling suggestions
+            try:
+                from .scheduling_service import SchedulingService
+                scheduling_service = SchedulingService(self.request.user)
+
+                # Get today's availability
+                availability = scheduling_service.get_availability(timezone.now().date())
+
+                # Find next available slots
+                available_slots = []
+                for duration in [30, 60]:
+                    next_start, next_end = scheduling_service.get_next_available_slot(
+                        from_datetime=timezone.now(),
+                        duration_minutes=duration
+                    )
+
+                    if next_start and next_end:
+                        available_slots.append({
+                            'duration': duration,
+                            'start': next_start,
+                            'end': next_end
+                        })
+
+                context['available_slots'] = available_slots
+                context['availability'] = availability
+            except Exception as e:
+                logger.error(f"Error getting scheduling data: {str(e)}")
+
+            # Add customer lifecycle data
+            try:
+                from .customer_lifecycle import CustomerLifecycleManager
+                lifecycle_manager = CustomerLifecycleManager()
+
+                # Get customers assigned to this employee
+                assigned_customers = Customer.objects.filter(assigned_to=self.employee)
+
+                # Get at-risk customers (health score < 50)
+                at_risk_customers = []
+                needs_attention_customers = []
+
+                for customer in assigned_customers:
+                    health_score, factors = lifecycle_manager._calculate_health_score(customer)
+
+                    if health_score < 50:
+                        at_risk_customers.append({
+                            'customer': customer,
+                            'health_score': health_score,
+                            'factors': factors
+                        })
+                    elif health_score < 70:
+                        needs_attention_customers.append({
+                            'customer': customer,
+                            'health_score': health_score,
+                            'factors': factors
+                        })
+
+                context['at_risk_customers'] = at_risk_customers
+                context['needs_attention_customers'] = needs_attention_customers
+            except Exception as e:
+                logger.error(f"Error getting customer lifecycle data: {str(e)}")
+
+            # Add invoice data
+            try:
+                # Get pending invoices for assigned customers
+                pending_invoices = Invoice.objects.filter(
+                    customer__assigned_to=self.employee,
+                    status__in=['pending', 'partial']
+                ).order_by('due_date')
+
+                context['pending_invoices'] = pending_invoices
+
+                # Get overdue invoices
+                overdue_invoices = Invoice.objects.filter(
+                    customer__assigned_to=self.employee,
+                    status='overdue'
+                ).order_by('due_date')
+
+                context['overdue_invoices'] = overdue_invoices
+
+                # Get pending payments
+                pending_payments = Payment.objects.filter(
+                    customer__assigned_to=self.employee,
+                    status='pending'
+                ).order_by('-transaction_date')
+
+                context['pending_payments'] = pending_payments
+            except Exception as e:
+                logger.error(f"Error getting invoice data: {str(e)}")
+
         except Exception as e:
             logger.error(f"Error getting dashboard data: {str(e)}")
             messages.error(self.request, 'Error loading dashboard data.')
@@ -234,10 +343,117 @@ class CustomerDetailView(LoginRequiredMixin, DetailView):
             'invoices': Invoice.objects.filter(customer=customer),  # ✅ Ensure invoices are included
             'payments': Payment.objects.filter(invoice__customer=customer),  # ✅ Fetch payments linked to invoices
             'total_paid': Payment.objects.filter(invoice__customer=customer).aggregate(total=models.Sum('amount'))['total'] or 0
-
         })
 
+        # Add customer health score
+        try:
+            from .customer_lifecycle import CustomerLifecycleManager
+            lifecycle_manager = CustomerLifecycleManager()
+
+            # Calculate health score
+            health_score, health_factors = lifecycle_manager._calculate_health_score(customer)
+            context['health_score'] = health_score
+            context['health_factors'] = health_factors
+
+            # Add health status based on score
+            if health_score >= 80:
+                context['health_status'] = 'excellent'
+                context['health_color'] = 'success'
+            elif health_score >= 70:
+                context['health_status'] = 'good'
+                context['health_color'] = 'info'
+            elif health_score >= 50:
+                context['health_status'] = 'needs attention'
+                context['health_color'] = 'warning'
+            else:
+                context['health_status'] = 'at risk'
+                context['health_color'] = 'danger'
+
+            # Get recent interactions
+            from django.db.models import Max
+
+            last_meeting = Meeting.objects.filter(customers=customer).aggregate(Max('start_time'))['start_time__max']
+            last_note = Note.objects.filter(customer=customer).aggregate(Max('created_at'))['created_at__max']
+            last_task = Task.objects.filter(customer=customer).aggregate(Max('updated_at'))['updated_at__max']
+
+            latest_dates = [d for d in [last_meeting, last_note, last_task] if d is not None]
+            if latest_dates:
+                context['last_interaction'] = max(latest_dates)
+                days_since = (timezone.now() - context['last_interaction']).days
+                context['days_since_interaction'] = days_since
+
+        except Exception as e:
+            logger.error(f"Error calculating customer health: {str(e)}")
+
         return context
+
+    def post(self, request, *args, **kwargs):
+        """Handle POST requests for customer actions"""
+        customer = self.get_object()
+        action = request.POST.get('action')
+
+        if action == 'run_health_check':
+            # Run health check on demand
+            try:
+                from .customer_lifecycle import CustomerLifecycleManager
+                lifecycle_manager = CustomerLifecycleManager()
+
+                lifecycle_manager.evaluate_customer_health(customer)
+                messages.success(request, "Customer health evaluation completed successfully")
+            except Exception as e:
+                messages.error(request, f"Error running health check: {str(e)}")
+
+        elif action == 'schedule_follow_up':
+            # Schedule follow-up task
+            try:
+                from .customer_lifecycle import CustomerLifecycleManager
+                lifecycle_manager = CustomerLifecycleManager()
+
+                follow_up_days = int(request.POST.get('follow_up_days', 7))
+                task = lifecycle_manager._create_followup_task(customer, days=follow_up_days)
+
+                if task:
+                    messages.success(request, f"Follow-up task scheduled for {task.due_date.strftime('%Y-%m-%d')}")
+                else:
+                    messages.warning(request, "Could not schedule follow-up task - customer may not have an assigned employee")
+
+            except Exception as e:
+                messages.error(request, f"Error scheduling follow-up: {str(e)}")
+
+        elif action == 'generate_invoice':
+            # Generate invoice for customer
+            try:
+                from .invoice_automation import InvoiceGenerator
+                invoice_generator = InvoiceGenerator()
+
+                # Find active subscriptions
+                subscriptions = ServiceSubscription.objects.filter(
+                    customer=customer,
+                    is_active=True
+                )
+
+                if not subscriptions.exists():
+                    messages.warning(request, "Customer has no active subscriptions to invoice")
+                else:
+                    # Create invoice for each subscription
+                    invoices_created = 0
+                    for subscription in subscriptions:
+                        invoice = invoice_generator._generate_subscription_invoice(
+                            subscription, timezone.now().date()
+                        )
+                        if invoice:
+                            invoices_created += 1
+
+                    if invoices_created > 0:
+                        messages.success(request, f"Successfully generated {invoices_created} invoice(s)")
+                    else:
+                        messages.warning(request, "No invoices were generated - subscriptions may already be invoiced")
+
+            except Exception as e:
+                messages.error(request, f"Error generating invoice: {str(e)}")
+
+        # Redirect back to customer detail page
+        return redirect('customer-detail', pk=customer.pk)
 
 class CustomerCreateView(LoginRequiredMixin, CreateView):
     model = Customer
@@ -355,28 +571,75 @@ def convert_lead_to_customer(request, pk):
     if request.method == 'POST':
         form = CustomerForm(request.POST)
         if form.is_valid():
-            customer = form.save(commit=False)
-            customer.company_name = lead.company_name
-            customer.contact_person = lead.contact_person
-            customer.email = lead.email
-            customer.phone = lead.phone
-            customer.assigned_to = lead.assigned_to
-            customer.save()
+            with transaction.atomic():
+                # Create customer record
+                customer = form.save(commit=False)
+                customer.company_name = lead.company_name
+                customer.contact_person = lead.contact_person
+                customer.email = lead.email
+                customer.phone = lead.phone
+                customer.assigned_to = lead.assigned_to
+                customer.save()
 
-            # Copy notes from lead to customer
-            for note in Note.objects.filter(lead=lead):
-                note.pk = None  # Create a new note
-                note.lead = None
-                note.customer = customer
-                note.save()
+                # Copy notes from lead to customer
+                for note in Note.objects.filter(lead=lead):
+                    note.pk = None  # Create a new note
+                    note.lead = None
+                    note.customer = customer
+                    note.save()
 
-            # Update lead status
-            lead.status = 'converted'
-            lead.save()
+                # Update lead status
+                lead.status = 'converted'
+                lead.converted_to_customer = customer
+                lead.conversion_date = timezone.now()
+                lead.save()
 
-            messages.success(request, 'Lead successfully converted to customer.')
-            return redirect('customer-detail', pk=customer.pk)
+                # Use customer lifecycle automation
+                try:
+                    # Import the customer lifecycle manager
+                    from .customer_lifecycle import CustomerLifecycleManager
+                    lifecycle_manager = CustomerLifecycleManager()
+
+                    # Process the new customer with automation
+                    lifecycle_manager.convert_lead_to_customer(lead, customer)
+
+                    # Log the conversion
+                    logger.info(f"Lead {lead.id} converted to customer {customer.id} with lifecycle automation")
+
+                except Exception as e:
+                    # If lifecycle automation fails, still proceed but log the error
+                    logger.error(f"Error in customer lifecycle automation: {str(e)}")
+
+                    # Create basic onboarding tasks manually as fallback
+                    if customer.assigned_to:
+                        # Create welcome email task
+                        Task.objects.create(
+                            title=f"Send welcome email to {customer.company_name}",
+                            description=f"Send a personalized welcome email to {customer.contact_person} at {customer.email}.",
+                            due_date=timezone.now() + timedelta(days=1),
+                            priority="high",
+                            status="pending",
+                            assigned_to=customer.assigned_to,
+                            created_by=customer.assigned_to,
+                            customer=customer
+                        )
+
+                        # Create initial meeting task
+                        Task.objects.create(
+                            title=f"Schedule kickoff meeting with {customer.company_name}",
+                            description=f"Schedule an initial meeting to discuss their specific needs.",
+                            due_date=timezone.now() + timedelta(days=3),
+                            priority="medium",
+                            status="pending",
+                            assigned_to=customer.assigned_to,
+                            created_by=customer.assigned_to,
+                            customer=customer
+                        )
+
+                messages.success(request, 'Lead successfully converted to customer.')
+                return redirect('customer-detail', pk=customer.pk)
     else:
+        # Populate form with lead data
         form = CustomerForm(initial={
             'company_name': lead.company_name,
             'contact_person': lead.contact_person,
@@ -677,6 +940,58 @@ class TaskCreateView(LoginRequiredMixin, CreateView):
     template_name = 'core/task_form.html'
     success_url = reverse_lazy('task-list')
 
+    def get_initial(self):
+        """Set initial values for the form"""
+        initial = super().get_initial()
+
+        # Set due date based on scheduling availability
+        try:
+            from .scheduling_service import SchedulingService
+            scheduling_service = SchedulingService(self.request.user)
+
+            # Find next available slot for a task (30 minutes)
+            next_start, next_end = scheduling_service.get_next_available_slot(
+                from_datetime=timezone.now(),
+                duration_minutes=30
+            )
+
+            if next_start:
+                initial['due_date'] = next_start
+        except Exception as e:
+            logger.error(f"Error getting scheduling data: {str(e)}")
+            # Default to tomorrow at 9 AM if scheduling fails
+            tomorrow = timezone.now() + timedelta(days=1)
+            initial['due_date'] = tomorrow.replace(hour=9, minute=0, second=0, microsecond=0)
+
+        # Set assigned to as current user's employee profile
+        try:
+            initial['assigned_to'] = self.request.user.employee_profile
+        except Exception:
+            pass
+
+        return initial
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        # Add scheduling availability data
+        try:
+            from .scheduling_service import SchedulingService
+            scheduling_service = SchedulingService(self.request.user)
+
+            # Get availability for next 7 days
+            availability_data = {}
+            today = timezone.now().date()
+            for i in range(7):
+                day = today + timedelta(days=i)
+                availability_data[day.strftime('%Y-%m-%d')] = scheduling_service.get_availability(day)
+
+            context['availability_data'] = availability_data
+        except Exception as e:
+            logger.error(f"Error getting scheduling data: {str(e)}")
+
+        return context
+
     def form_valid(self, form):
         try:
             employee = self.request.user.employee_profile
@@ -688,45 +1003,63 @@ class TaskCreateView(LoginRequiredMixin, CreateView):
         due_date = form.cleaned_data.get('due_date')
 
         try:
+            # Validate scheduling with scheduling service
+            from .scheduling_service import SchedulingService
             scheduling_service = SchedulingService(self.request.user)
-        except ValueError as service_error:
-            messages.error(self.request, str(service_error))
-            return self.form_invalid(form)
 
-        # Check a small duration (30 minutes) for task slot
-        end_time = due_date + timedelta(minutes=30)
-        duration = 30
+            # Check a small duration (30 minutes) for task slot
+            if due_date:
+                end_time = due_date + timedelta(minutes=30)
+                duration = 30
 
-        # Check availability based on scheduling rules
-        if not scheduling_service.check_availability(due_date, end_time, duration):
-            # Try to find next available slot
-            next_start, next_end = scheduling_service.get_next_available_slot(
-                due_date,
-                duration
-            )
-
-            if next_start and next_end:
-                messages.error(self.request,
-                    f"The selected time is not available according to your scheduling rules. "
-                    f"Next available slot is {next_start.strftime('%Y-%m-%d %H:%M')} "
-                    f"to {next_end.strftime('%Y-%m-%d %H:%M')}"
+                # Check availability based on scheduling rules
+                is_available = scheduling_service.check_availability(
+                    due_date,
+                    end_time,
+                    duration
                 )
-            else:
-                messages.error(self.request, "No available time slots found based on your scheduling rules.")
 
-            return self.form_invalid(form)
+                if not is_available:
+                    # Try to find next available slot
+                    next_start, next_end = scheduling_service.get_next_available_slot(
+                        due_date,
+                        duration
+                    )
 
-        # Set the created_by and save
+                    if next_start and next_end:
+                        messages.error(self.request,
+                            f"The selected time is not available according to your scheduling rules. "
+                            f"Next available slot is {next_start.strftime('%Y-%m-%d %H:%M')} "
+                            f"to {next_end.strftime('%Y-%m-%d %H:%M')}"
+                        )
+                    else:
+                        messages.error(self.request, "No available time slots found based on your scheduling rules.")
+
+                    return self.form_invalid(form)
+        except Exception as e:
+            logger.error(f"Error checking scheduling availability: {str(e)}")
+            # Continue even if scheduling validation fails
+
+        # Set the created_by and assigned_to
         form.instance.created_by = employee
+        if not form.instance.assigned_to:
+            form.instance.assigned_to = employee
 
         try:
+            # Save the task
+            response = super().form_valid(form)
+
+            # Create notification
+            from .notification_service import SmartNotificationService
+            notification_service = SmartNotificationService()
+            notification_service.create_task_notification(self.object)
+
             messages.success(self.request, 'Task created successfully.')
-            return super().form_valid(form)
+            return response
         except Exception as e:
             logger.error(f"Unexpected error in task creation: {str(e)}")
             messages.error(self.request, f'An unexpected error occurred: {str(e)}')
             return self.form_invalid(form)
-
 
 class TaskUpdateView(LoginRequiredMixin, UpdateView):
     model = Task
@@ -1252,6 +1585,71 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
                 Q(attendees=self.employee)
             ).distinct().select_related('customer', 'created_by')
 
+            # Get scheduling information
+            scheduling_data = {}
+            try:
+                from .scheduling_service import SchedulingService
+                scheduling_service = SchedulingService(self.request.user)
+
+                # Get availability for the next 30 days
+                start_date = today
+                end_date = today + timedelta(days=30)
+
+                # Get date range as list of dates
+                date_range = []
+                current_date = start_date
+                while current_date <= end_date:
+                    date_range.append(current_date)
+                    current_date += timedelta(days=1)
+
+                # Get availability for each date
+                for date in date_range:
+                    availability = scheduling_service.get_availability(date)
+                    scheduling_data[date.strftime('%Y-%m-%d')] = availability
+
+                # Get next available slots for various durations
+                available_slots = []
+                for duration in [30, 60, 120]:
+                    next_start, next_end = scheduling_service.get_next_available_slot(
+                        from_datetime=timezone.now(),
+                        duration_minutes=duration
+                    )
+
+                    if next_start and next_end:
+                        available_slots.append({
+                            'duration': duration,
+                            'start': next_start,
+                            'end': next_end,
+                            'label': f"{duration} minute slot on {next_start.strftime('%A, %b %d')} at {next_start.strftime('%I:%M %p')}"
+                        })
+
+                context['available_slots'] = available_slots
+
+                # Get schedule rule information
+                from .models import ScheduleRule
+                schedule_rules = ScheduleRule.objects.filter(
+                    user=self.request.user,
+                    is_active=True
+                )
+
+                # Format rule information for display
+                rule_info = []
+                for rule in schedule_rules:
+                    rule_info.append({
+                        'name': rule.name,
+                        'recurrence': rule.get_recurrence_type_display(),
+                        'time_range': f"{rule.start_time.strftime('%I:%M %p')} - {rule.end_time.strftime('%I:%M %p')}",
+                        'day_info': self._get_rule_day_info(rule),
+                        'duration_limits': f"{rule.min_booking_duration}-{rule.max_booking_duration} minutes",
+                        'buffer': f"{rule.buffer_before} min before, {rule.buffer_after} min after"
+                    })
+
+                context['schedule_rules'] = rule_info
+
+            except Exception as e:
+                logger.error(f"Error getting scheduling data: {str(e)}")
+                logger.error(traceback.format_exc())
+
             context.update({
                 'events': events,
                 'tasks': tasks,
@@ -1261,6 +1659,7 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
                 'project_tasks': project_tasks,
                 'today': today,
                 'is_personal_calendar': True,
+                'scheduling_data': scheduling_data,
             })
 
         except Exception as e:
@@ -1280,6 +1679,18 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
 
         return context
 
+    def _get_rule_day_info(self, rule):
+        """Format day information for a schedule rule"""
+        if rule.recurrence_type == 'daily':
+            return "Every day"
+        elif rule.recurrence_type == 'weekly':
+            return f"Every {rule.get_day_of_week_display()}"
+        elif rule.recurrence_type == 'monthly':
+            return f"Day {rule.day_of_month} of each month"
+        elif rule.recurrence_type == 'yearly':
+            return f"{rule.get_month_display()} {rule.day_of_month}"
+        return ""
+
     def get(self, request, *args, **kwargs):
         try:
             return super().get(request, *args, **kwargs)
@@ -1289,7 +1700,103 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
             messages.error(request, 'Error displaying calendar.')
             return redirect('dashboard')
 
-        return context
+    def post(self, request, *args, **kwargs):
+        """Handle POST requests for calendar actions"""
+        action = request.POST.get('action')
+
+        if action == 'availability_check':
+            # Check availability for specified date and time
+            try:
+                from .scheduling_service import SchedulingService
+                scheduling_service = SchedulingService(request.user)
+
+                date_str = request.POST.get('date')
+                start_time_str = request.POST.get('start_time')
+                duration = int(request.POST.get('duration', 60))
+
+                # Parse date and time
+                date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
+                start_time_obj = datetime.strptime(start_time_str, '%H:%M').time()
+
+                # Create datetime objects
+                start_datetime = datetime.combine(date_obj, start_time_obj)
+                start_datetime = timezone.make_aware(start_datetime)
+                end_datetime = start_datetime + timedelta(minutes=duration)
+
+                # Check availability
+                is_available = scheduling_service.check_availability(
+                    start_datetime,
+                    end_datetime,
+                    duration
+                )
+
+                if is_available:
+                    messages.success(request, f"The time slot on {date_str} at {start_time_str} for {duration} minutes is available.")
+                else:
+                    # Try to find next available slot
+                    next_start, next_end = scheduling_service.get_next_available_slot(
+                        start_datetime,
+                        duration
+                    )
+
+                    if next_start and next_end:
+                        messages.warning(request,
+                            f"The selected time is not available. Next available slot is "
+                            f"{next_start.strftime('%Y-%m-%d %H:%M')} to {next_end.strftime('%H:%M')}"
+                        )
+                    else:
+                        messages.error(request, "The selected time is not available and no alternative slots were found.")
+
+            except Exception as e:
+                logger.error(f"Error checking availability: {str(e)}")
+                messages.error(request, f"Error checking availability: {str(e)}")
+
+        elif action == 'suggest_meeting':
+            # Suggest a meeting time with selected participants
+            try:
+                from .scheduling_service import SchedulingService
+                scheduling_service = SchedulingService(request.user)
+
+                participant_ids = request.POST.getlist('participants')
+                duration = int(request.POST.get('duration', 60))
+
+                # Get participant employees
+                participants = []
+                for pid in participant_ids:
+                    try:
+                        participant = Employee.objects.get(id=pid)
+                        participants.append(participant)
+                    except Employee.DoesNotExist:
+                        continue
+
+                # Add current user's employee
+                participants.append(self.employee)
+
+                # Get suggestion
+                suggestion = scheduling_service.suggest_meeting_time(
+                    participants=participants,
+                    duration_minutes=duration,
+                    within_days=7
+                )
+
+                if suggestion.get('success'):
+                    # Redirect to meeting creation page with suggested time
+                    start_time = suggestion['start_datetime'].strftime('%Y-%m-%dT%H:%M')
+                    end_time = suggestion['end_datetime'].strftime('%Y-%m-%dT%H:%M')
+                    attendee_ids = ','.join([str(p.id) for p in participants if p != self.employee])
+
+                    return redirect(
+                        f'/meetings/create/?start_time={start_time}&end_time={end_time}&attendees={attendee_ids}'
+                    )
+                else:
+                    messages.error(request, suggestion.get('error', 'Could not find a suitable meeting time'))
+
+            except Exception as e:
+                logger.error(f"Error suggesting meeting time: {str(e)}")
+                messages.error(request, f"Error suggesting meeting time: {str(e)}")
+
+        # Redirect back to calendar
+        return redirect('calendar')
 
 @login_required
 def calendar_events(request):
@@ -2071,14 +2578,175 @@ class BillingDashboardView(LoginRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context.update({
-            'invoices': Invoice.objects.exclude(status='paid').order_by('-created_at'),  # ✅ Show only unpaid invoices
-            'payments': Payment.objects.all().order_by('-transaction_date'),
-            'subscriptions': Subscription.objects.all().order_by('-start_date'),
-            'transactions': Transaction.objects.all().order_by('-transaction_date'),
-        })
+
+        try:
+            # Get standard billing data
+            context.update({
+                'invoices': Invoice.objects.exclude(status='paid').order_by('-created_at'),  # Show only unpaid invoices
+                'payments': Payment.objects.all().order_by('-transaction_date'),
+                'subscriptions': Subscription.objects.all().order_by('-start_date'),
+                'transactions': Transaction.objects.all().order_by('-transaction_date'),
+            })
+
+            # Add revenue statistics with Invoice Generator
+            try:
+                from .invoice_automation import InvoiceGenerator
+                invoice_generator = InvoiceGenerator()
+
+                # Get current month and year
+                today = timezone.now().date()
+                current_month = today.month
+                current_year = today.year
+
+                # Calculate monthly revenue
+                monthly_revenue = Payment.objects.filter(
+                    transaction_date__year=current_year,
+                    transaction_date__month=current_month,
+                    status='completed'
+                ).aggregate(total=models.Sum('amount'))['total'] or 0
+
+                # Calculate yearly revenue
+                yearly_revenue = Payment.objects.filter(
+                    transaction_date__year=current_year,
+                    status='completed'
+                ).aggregate(total=models.Sum('amount'))['total'] or 0
+
+                # Calculate outstanding invoices amount
+                outstanding_amount = Invoice.objects.filter(
+                    status__in=['pending', 'partial', 'overdue']
+                ).aggregate(total=models.Sum('amount_due'))['total'] or 0
+
+                # Calculate overdue invoices amount
+                overdue_amount = Invoice.objects.filter(
+                    status='overdue'
+                ).aggregate(total=models.Sum('amount_due'))['total'] or 0
+
+                # Get revenue by service type
+                from django.db.models import Sum, F
+                revenue_by_service = []
+
+                services = Service.objects.all()
+                for service in services:
+                    # Find all service subscriptions for this service
+                    subscriptions = ServiceSubscription.objects.filter(service=service, is_active=True)
+
+                    # Find invoices related to these subscriptions
+                    service_invoices = Invoice.objects.filter(services__in=subscriptions)
+
+                    # Calculate total paid for these invoices
+                    paid_amount = Payment.objects.filter(
+                        invoice__in=service_invoices,
+                        status='completed'
+                    ).aggregate(total=models.Sum('amount'))['total'] or 0
+
+                    revenue_by_service.append({
+                        'service': service.name,
+                        'amount': paid_amount,
+                        'subscriptions': subscriptions.count()
+                    })
+
+                # Add to context
+                context.update({
+                    'monthly_revenue': monthly_revenue,
+                    'yearly_revenue': yearly_revenue,
+                    'outstanding_amount': outstanding_amount,
+                    'overdue_amount': overdue_amount,
+                    'revenue_by_service': revenue_by_service
+                })
+
+                # Get pending invoice generations
+                from django.db.models import Count
+                service_subscriptions_needing_invoices = ServiceSubscription.objects.filter(
+                    is_active=True,
+                    invoice_generated=False
+                ).count()
+
+                context['subscriptions_needing_invoices'] = service_subscriptions_needing_invoices
+
+                # Get upcoming invoice due dates
+                upcoming_due_invoices = Invoice.objects.filter(
+                    due_date__range=[today, today + timedelta(days=7)],
+                    status__in=['pending', 'partial']
+                ).order_by('due_date')
+
+                context['upcoming_due_invoices'] = upcoming_due_invoices
+
+            except Exception as e:
+                logger.error(f"Error calculating revenue statistics: {str(e)}")
+
+        except Exception as e:
+            logger.error(f"Error loading billing dashboard data: {str(e)}")
+            messages.error(self.request, f"Error loading billing data: {str(e)}")
+            context.update({
+                'invoices': [],
+                'payments': [],
+                'subscriptions': []
+            })
+
         return context
 
+    def post(self, request, *args, **kwargs):
+        """Handle POST requests for billing actions"""
+        action = request.POST.get('action')
+
+        if action == 'generate_pending_invoices':
+            # Generate invoices for all pending subscriptions
+            try:
+                from .invoice_automation import InvoiceGenerator
+                invoice_generator = InvoiceGenerator()
+
+                # Generate subscription invoices
+                invoices_created = invoice_generator.generate_subscription_invoices()
+
+                # Generate project invoices if applicable
+                if hasattr(invoice_generator, 'generate_project_invoices'):
+                    project_invoices = invoice_generator.generate_project_invoices()
+                    invoices_created += project_invoices
+
+                if invoices_created > 0:
+                    messages.success(request, f"Successfully generated {invoices_created} invoice(s)")
+                else:
+                    messages.info(request, "No new invoices were generated")
+
+            except Exception as e:
+                logger.error(f"Error generating invoices: {str(e)}")
+                messages.error(request, f"Error generating invoices: {str(e)}")
+
+        elif action == 'process_overdue_invoices':
+            # Mark overdue invoices
+            try:
+                from .invoice_automation import InvoiceGenerator
+                invoice_generator = InvoiceGenerator()
+
+                count = invoice_generator.process_overdue_invoices()
+
+                if count > 0:
+                    messages.success(request, f"Marked {count} invoice(s) as overdue")
+                else:
+                    messages.info(request, "No invoices to mark as overdue")
+
+            except Exception as e:
+                logger.error(f"Error processing overdue invoices: {str(e)}")
+                messages.error(request, f"Error processing overdue invoices: {str(e)}")
+
+        elif action == 'send_invoice_reminders':
+            # Send reminders for upcoming and overdue invoices
+            try:
+                from .invoice_automation import InvoiceGenerator
+                invoice_generator = InvoiceGenerator()
+
+                count = invoice_generator.send_invoice_reminders()
+
+                if count > 0:
+                    messages.success(request, f"Sent {count} invoice reminder(s)")
+                else:
+                    messages.info(request, "No invoice reminders to send")
+
+            except Exception as e:
+                logger.error(f"Error sending invoice reminders: {str(e)}")
+                messages.error(request, f"Error sending invoice reminders: {str(e)}")
+
+        return redirect('billing_dashboard')
 
 # Invoice Views
 class InvoiceListView(LoginRequiredMixin, ListView):
