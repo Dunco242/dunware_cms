@@ -93,7 +93,7 @@
                     <ul class="list-group list-group-flush">
                         {% for key, value in health_factors.items %}
                             <li class="list-group-item d-flex justify-content-between align-items-center">
-                                {{ key|title|replace:"_":" " }}
+                                {{ key|title|cut:"_"|add:" " }}
                                 <span class="badge {% if '-' in value %}bg-danger{% elif '+' in value %}bg-success{% else %}bg-info{% endif %}">
                                     {{ value }}
                                 </span>
