@@ -1585,6 +1585,18 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
                 Q(attendees=self.employee)
             ).distinct().select_related('customer', 'created_by')
 
+            # Get available employees for scheduling group meetings
+            try:
+                # Exclude the current employee
+                available_employees = Employee.objects.exclude(id=self.employee.id).filter(
+                    user__is_active=True
+                ).order_by('user__last_name', 'user__first_name')
+
+                context['available_employees'] = available_employees
+            except Exception as e:
+                logger.error(f"Error loading employees: {str(e)}")
+                context['available_employees'] = []
+
             # Get scheduling information
             scheduling_data = {}
             try:
@@ -1703,6 +1715,11 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
     def post(self, request, *args, **kwargs):
         """Handle POST requests for calendar actions"""
         action = request.POST.get('action')
+        is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+
+        # Flag to track if we should return JSON
+        return_json = is_ajax
+        response_data = {}
 
         if action == 'availability_check':
             # Check availability for specified date and time
@@ -1731,7 +1748,14 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
                 )
 
                 if is_available:
-                    messages.success(request, f"The time slot on {date_str} at {start_time_str} for {duration} minutes is available.")
+                    success_message = f"The time slot on {date_str} at {start_time_str} for {duration} minutes is available."
+                    if return_json:
+                        response_data = {
+                            'available': True,
+                            'message': success_message
+                        }
+                    else:
+                        messages.success(request, success_message)
                 else:
                     # Try to find next available slot
                     next_start, next_end = scheduling_service.get_next_available_slot(
@@ -1740,16 +1764,42 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
                     )
 
                     if next_start and next_end:
-                        messages.warning(request,
+                        warning_message = (
                             f"The selected time is not available. Next available slot is "
                             f"{next_start.strftime('%Y-%m-%d %H:%M')} to {next_end.strftime('%H:%M')}"
                         )
+
+                        if return_json:
+                            response_data = {
+                                'available': False,
+                                'message': warning_message,
+                                'next_slot': {
+                                    'start': next_start.strftime('%Y-%m-%d %H:%M'),
+                                    'end': next_end.strftime('%Y-%m-%d %H:%M')
+                                }
+                            }
+                        else:
+                            messages.warning(request, warning_message)
                     else:
-                        messages.error(request, "The selected time is not available and no alternative slots were found.")
+                        error_message = "The selected time is not available and no alternative slots were found."
+                        if return_json:
+                            response_data = {
+                                'available': False,
+                                'message': error_message
+                            }
+                        else:
+                            messages.error(request, error_message)
 
             except Exception as e:
                 logger.error(f"Error checking availability: {str(e)}")
-                messages.error(request, f"Error checking availability: {str(e)}")
+                error_message = f"Error checking availability: {str(e)}"
+                if return_json:
+                    response_data = {
+                        'available': False,
+                        'message': error_message
+                    }
+                else:
+                    messages.error(request, error_message)
 
         elif action == 'suggest_meeting':
             # Suggest a meeting time with selected participants
@@ -1785,18 +1835,44 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
                     end_time = suggestion['end_datetime'].strftime('%Y-%m-%dT%H:%M')
                     attendee_ids = ','.join([str(p.id) for p in participants if p != self.employee])
 
-                    return redirect(
-                        f'/meetings/create/?start_time={start_time}&end_time={end_time}&attendees={attendee_ids}'
-                    )
+                    if return_json:
+                        response_data = {
+                            'success': True,
+                            'redirect_url': f'/meetings/create/?start_time={start_time}&end_time={end_time}&attendees={attendee_ids}'
+                        }
+                    else:
+                        return redirect(
+                            f'/meetings/create/?start_time={start_time}&end_time={end_time}&attendees={attendee_ids}'
+                        )
                 else:
-                    messages.error(request, suggestion.get('error', 'Could not find a suitable meeting time'))
+                    error_message = suggestion.get('error', 'Could not find a suitable meeting time')
+                    if return_json:
+                        response_data = {
+                            'success': False,
+                            'message': error_message
+                        }
+                    else:
+                        messages.error(request, error_message)
 
             except Exception as e:
                 logger.error(f"Error suggesting meeting time: {str(e)}")
-                messages.error(request, f"Error suggesting meeting time: {str(e)}")
+                error_message = f"Error suggesting meeting time: {str(e)}"
+                if return_json:
+                    response_data = {
+                        'success': False,
+                        'message': error_message
+                    }
+                else:
+                    messages.error(request, error_message)
 
-        # Redirect back to calendar
+        # Return JSON response for AJAX requests
+        if return_json:
+            from django.http import JsonResponse
+            return JsonResponse(response_data)
+
+        # Redirect back to calendar for non-AJAX requests
         return redirect('calendar')
+
 
 @login_required
 def calendar_events(request):
