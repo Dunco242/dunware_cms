@@ -896,8 +896,23 @@ class EmployeeUsernameChoiceField(forms.ModelChoiceField):
         return obj.user.username
 
 class EmployeeUsernameForm(forms.Form):
-    employees = EmployeeUsernameChoiceField(
-        queryset=Employee.objects.all(),  # Or your filtered queryset
-        empty_label=None,
-        widget=forms.Select,
+    participants = forms.ModelMultipleChoiceField(
+        queryset=Employee.objects.all(),
+        required=False,
+        widget=forms.SelectMultiple(attrs={
+            'class': 'form-select',
+            'id': 'participantsSelect',
+            'style': 'min-height: 100px; display: block !important;'
+        })
     )
+
+    def __init__(self, *args, **kwargs):
+        available_employees = kwargs.pop('available_employees', None)
+        super().__init__(*args, **kwargs)
+        if available_employees is not None:
+            self.fields['participants'].queryset = available_employees
+
+    def label_from_instance(self, obj):
+        if obj.user.get_full_name():
+            return obj.user.get_full_name()
+        return obj.user.username

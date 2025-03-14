@@ -72,6 +72,7 @@ from django.contrib.auth.forms import PasswordChangeForm
 from .forms import (
     UserRegistrationForm,
     EmployeeForm,
+    EmployeeUsernameForm,
     CustomerForm,
     LeadForm,
     ServiceForm,

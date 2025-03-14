@@ -1549,11 +1549,11 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
             for emp in available_employees[:5]:  # Log first 5 for sample
                 logger.info(f"Employee: {emp.id} - {emp.user.username if emp.user else 'No user'}")
 
-            # Create the form with initial value
-            form = EmployeeUsernameForm(initial={'employees': available_employees.first() if available_employees else None})
+            # Create the participants form with the available employees
+            participants_form = EmployeeUsernameForm(available_employees=available_employees)
 
             # Add form and available employees to context
-            context['form'] = form
+            context['form'] = participants_form
             context['available_employees'] = available_employees
 
             # Get schedule rule information
@@ -1576,7 +1576,7 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
 
             context['schedule_rules'] = rule_info
 
-            # Simplified context data
+            # Add other necessary context data
             context.update({
                 'events': [],  # These would be populated from your actual queries
                 'tasks': [],
@@ -1790,7 +1790,6 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
 
         # Redirect back to calendar for non-AJAX requests
         return redirect('calendar')
-
 
 # Function-based view alternative
 def calendar_view(request):
