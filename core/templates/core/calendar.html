@@ -5,6 +5,7 @@
 </head>
 <body>
     <select id="participant-select">
+        <option value="123">Test User</option>
         {% for employee in available_employees %}
             <option value="{{ employee.id }}">{{ employee.user.username }}</option>
         {% empty %}
