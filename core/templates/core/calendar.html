@@ -276,8 +276,9 @@
                     <div class="alert alert-info">
                         <h6>Raw Database Counts:</h6>
                         <ul>
-                          <li>Employee model count: {{ raw_employees|length }}</li>
-                          <li>Users model count: {{ request.user.objects.all.count }}</li>
+                          <li>Raw Employee count: {{ raw_employees|length }}</li>
+                          <li>Active user count: {{ active_user_count }}</li>
+                          <li>Current user: {{ request.user.username }}</li>
                         </ul>
                       </div>
                     <div class="mb-3">

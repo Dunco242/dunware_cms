@@ -1536,6 +1536,9 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         today = timezone.now().date()
+        all_employees_raw = list(Employee.objects.all())
+        context['raw_employees'] = all_employees_raw
+        context['active_user_count'] = User.objects.filter(is_active=True).count()
 
         # Debug logging for employee troubleshooting
         logger.info(f"CalendarView - User: {self.request.user.username}")
