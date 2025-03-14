@@ -158,19 +158,7 @@
                     <div class="mb-3">
                         <label class="form-label">Select Participants:</label>
                         <select name="participants" class="form-select" multiple id="participantsSelect" style="min-height: 100px; display: block !important;">
-                            {% if available_employees %}
-                                {% for employee in available_employees %}
-                                    <option value="{{ employee.user.id }}">
-                                        {% if employee.user.get_full_name %}
-                                            {{ employee.user.get_full_name }}
-                                        {% else %}
-                                            {{ employee.user.username }}
-                                        {% endif %}
-                                    </option>
-                                {% endfor %}
-                            {% else %}
-                                <option disabled>No other employees available</option>
-                            {% endif %}
+                            {{ form.employees }}
                         </select>
                         <div class="form-text">Hold Ctrl to select multiple</div>
                     </div>

@@ -1539,7 +1539,6 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
 
         try:
             # Get all other active employees (not the current user)
-            # Modified query to ensure we're getting employees correctly
             available_employees = Employee.objects.filter(
                 is_active=True,
                 user__is_active=True
@@ -1550,10 +1549,12 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
             for emp in available_employees[:5]:  # Log first 5 for sample
                 logger.info(f"Employee: {emp.id} - {emp.user.username if emp.user else 'No user'}")
 
-            context['available_employees'] = available_employees
+            # Create the form with initial value
+            form = EmployeeUsernameForm(initial={'employees': available_employees.first() if available_employees else None})
 
-            # Get managed projects and team memberships
-            # Removed Project query that was causing import error
+            # Add form and available employees to context
+            context['form'] = form
+            context['available_employees'] = available_employees
 
             # Get schedule rule information
             schedule_rules = ScheduleRule.objects.filter(
@@ -1594,6 +1595,7 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
                 'today': today,
                 'is_personal_calendar': True,
                 'available_employees': [],
+                'form': EmployeeUsernameForm(),  # Empty form in case of error
             })
 
         return context
@@ -1609,6 +1611,7 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
         elif rule.recurrence_type == 'yearly':
             return f"{rule.get_month_display()} {rule.day_of_month}"
         return ""
+
     def get(self, request, *args, **kwargs):
         try:
             return super().get(request, *args, **kwargs)
@@ -1787,6 +1790,78 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
 
         # Redirect back to calendar for non-AJAX requests
         return redirect('calendar')
+
+
+# Function-based view alternative
+def calendar_view(request):
+    """Function-based alternative to the CalendarView class."""
+    today = timezone.now().date()
+
+    try:
+        # Get all other active employees (not the current user)
+        available_employees = Employee.objects.filter(
+            is_active=True,
+            user__is_active=True
+        ).exclude(user=request.user).select_related('user')
+
+        # Create the form with initial value
+        form = EmployeeUsernameForm(initial={'employees': available_employees.first() if available_employees else None})
+
+        # Get schedule rule information
+        schedule_rules = ScheduleRule.objects.filter(
+            user=request.user,
+            is_active=True
+        )
+
+        # Format rule information for display
+        rule_info = []
+        for rule in schedule_rules:
+            # Helper function to get day info
+            def get_rule_day_info(rule):
+                if rule.recurrence_type == 'daily':
+                    return "Every day"
+                elif rule.recurrence_type == 'weekly':
+                    return f"Every {rule.get_day_of_week_display()}"
+                elif rule.recurrence_type == 'monthly':
+                    return f"Day {rule.day_of_month} of each month"
+                elif rule.recurrence_type == 'yearly':
+                    return f"{rule.get_month_display()} {rule.day_of_month}"
+                return ""
+
+            rule_info.append({
+                'name': rule.name,
+                'recurrence': rule.get_recurrence_type_display(),
+                'time_range': f"{rule.start_time.strftime('%I:%M %p')} - {rule.end_time.strftime('%I:%M %p')}",
+                'day_info': get_rule_day_info(rule),
+                'duration_limits': f"{rule.min_booking_duration}-{rule.max_booking_duration} minutes",
+                'buffer': f"{rule.buffer_before} min before, {rule.buffer_after} min after"
+            })
+
+        context = {
+            'form': form,
+            'available_employees': available_employees,
+            'schedule_rules': rule_info,
+            'events': [],  # These would be populated from your actual queries
+            'tasks': [],
+            'meetings': [],
+            'today': today,
+            'is_personal_calendar': True,
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting calendar data: {str(e)}")
+        messages.error(request, 'Error loading calendar data.')
+        context = {
+            'form': EmployeeUsernameForm(),  # Empty form in case of error
+            'available_employees': [],
+            'events': [],
+            'tasks': [],
+            'meetings': [],
+            'today': today,
+            'is_personal_calendar': True,
+        }
+
+    return render(request, 'core/calendar.html', context)
 
 @login_required
 def calendar_events(request):

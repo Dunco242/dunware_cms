@@ -889,3 +889,15 @@ class EmailComposeForm(forms.ModelForm):
             )
 
         return cleaned_data
+
+
+class EmployeeUsernameChoiceField(forms.ModelChoiceField):
+    def label_from_instance(self, obj):
+        return obj.user.username
+
+class EmployeeUsernameForm(forms.Form):
+    employees = EmployeeUsernameChoiceField(
+        queryset=Employee.objects.all(),  # Or your filtered queryset
+        empty_label=None,
+        widget=forms.Select,
+    )
