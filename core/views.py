@@ -1530,24 +1530,6 @@ class MeetingDeleteView(LoginRequiredMixin, DeleteView):
 
 logger = logging.getLogger(__name__)
 
-from django.views.generic import TemplateView
-from django.contrib.auth.mixins import LoginRequiredMixin
-from django.shortcuts import redirect
-from django.utils import timezone
-from django.db.models import Q
-from django.http import JsonResponse
-from django.contrib import messages
-from datetime import datetime, timedelta
-
-from .mixins import EmployeeRequiredMixin
-from .models import (
-    Project, ProjectPhase, ProjectTask, Task, Meeting, Event,
-    Employee, ScheduleRule
-)
-
-import logging
-logger = logging.getLogger(__name__)
-
 class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
     template_name = 'core/calendar.html'
 
