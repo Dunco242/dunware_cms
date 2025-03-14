@@ -18,15 +18,13 @@ class EmployeeRequiredMixin:
             Employee = apps.get_model('core', 'Employee')
 
             try:
-                # Get the employee via the related name, but also set it directly for consistency
+                # Get the employee via the related name
                 self.employee = request.user.employee_profile
-                # Also set the employee directly from the Employee model for query consistency
-                self.employee = Employee.objects.get(id=self.employee.id)
 
                 if not self.employee.is_active:
                     messages.warning(request, 'Your employee profile is inactive. Please contact an administrator.')
                     return redirect('logout')
-            except Employee.DoesNotExist:
+            except AttributeError: #Catch the attribute error first
                 try:
                     # Attempt to create employee profile
                     self.employee = Employee.objects.create(
@@ -44,6 +42,7 @@ class EmployeeRequiredMixin:
                     logger.error(f"Failed to create employee profile for user {request.user.username}: {str(e)}")
                     messages.error(request, 'Unable to create employee profile. Please contact an administrator.')
                     return redirect('logout')
+
         except Exception as e:
             logger.error(f"Error checking employee profile for user {request.user.username}: {str(e)}")
             messages.error(request, 'Error accessing employee profile. Please contact an administrator.')
