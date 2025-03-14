@@ -921,7 +921,7 @@ class EmployeeUsernameForm(forms.Form):
 class EmployeeSelectionForm(forms.Form):
     """Form for selecting employees in the calendar view"""
     employees = forms.ModelMultipleChoiceField(
-        queryset=Employee.objects.filter(is_active=True),
+        queryset=Employee.objects.all(),  # Default queryset - will be overridden
         required=False,
         widget=forms.SelectMultiple(attrs={
             'class': 'form-select',
@@ -931,12 +931,13 @@ class EmployeeSelectionForm(forms.Form):
     )
 
     def __init__(self, *args, **kwargs):
+        available_employees = kwargs.pop('available_employees', None)
         super().__init__(*args, **kwargs)
-        # Set display format for employees
-        self.fields['employees'].label_from_instance = self._get_employee_label
 
-    def _get_employee_label(self, employee):
-        """Get appropriate display label for employee"""
-        if employee.user.get_full_name():
-            return employee.user.get_full_name()
-        return employee.user.username
+        # Explicitly log what we're receiving
+        if available_employees is not None:
+            print(f"EmployeeSelectionForm received {available_employees.count()} employees")
+            self.fields['employees'].queryset = available_employees
+
+            # Force a more straightforward label method
+            self.fields['employees'].label_from_instance = lambda obj: f"{obj.user.username} ({obj.id})"

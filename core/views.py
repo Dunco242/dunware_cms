@@ -1539,73 +1539,99 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         today = timezone.now().date()
-
+        # Try alternative relationship patterns
         try:
-            # Ensure the employee attribute is accessible
-            employee = self.employee
-
-            # Get all other active employees (not the current user)
+            # First try the standard related_name approach
             available_employees = Employee.objects.filter(
                 is_active=True,
                 user__is_active=True
             ).exclude(id=employee.id).select_related('user')
 
-            # Log for debugging
-            logger.info(f"Found {available_employees.count()} available employees")
+            if available_employees.count() == 0:
+                # Try alternative relationship if the standard one returns nothing
+                available_employees = Employee.objects.filter(is_active=True)
+                if hasattr(employee, 'user_id'):
+                    available_employees = available_employees.exclude(user_id=employee.user_id)
+                else:
+                    available_employees = available_employees.exclude(id=employee.id)
+            logger.info(f"Available employees after alternative filter: {available_employees.count()}")
+        except Exception as e:
+            logger.error(f"Error getting employees: {str(e)}", exc_info=True)
+            available_employees = Employee.objects.none()
 
-            # Initialize the employee selection form
-            employee_selection_form = EmployeeSelectionForm()
-            employee_selection_form.fields['employees'].queryset = available_employees
+        try:
+            # Get all other active employees (not the current user)
+            all_employees = Employee.objects.all()
+            active_employees = Employee.objects.filter(is_active=True)
+            user_employees = Employee.objects.filter(user__is_active=True)
 
-            # Get schedule rule information
-            schedule_rules = ScheduleRule.objects.filter(
-                user=self.request.user,
-                is_active=True
+            # Log detailed information about employee queries
+            logger.info(f"All employees: {all_employees.count()}")
+            logger.info(f"Active employees: {active_employees.count()}")
+            logger.info(f"User active employees: {user_employees.count()}")
+
+            # Get current employee for excluding
+            employee = self.employee
+            logger.info(f"Current employee: {employee.id} - {employee.user.username if hasattr(employee, 'user') else 'No user'}")
+
+            # Create queryset excluding current user
+            available_employees = Employee.objects.filter(
+                is_active=True,
+                user__is_active=True
+            ).exclude(id=employee.id).select_related('user')
+
+            logger.info(f"Available employees after filter: {available_employees.count()}")
+            for emp in available_employees:
+                logger.info(f"Available employee: {emp.id} - {emp.user.username if hasattr(emp, 'user') else 'No user'}")
+
+            # Create unfiltered form first
+            all_employees_form = EmployeeSelectionForm(available_employees=all_employees)
+
+            # Create the actual form for the template
+            employee_selection_form = EmployeeSelectionForm(available_employees=available_employees)
+
+            # Provide both to context for debugging
+            context['all_employees'] = all_employees
+            context['available_employees'] = available_employees
+            context['employee_form'] = employee_selection_form
+
+
+            logger.info(f"Available employees after alternative filter: {available_employees.count()}")
+        except Exception as e:
+            logger.error(f"Error getting employees: {str(e)}", exc_info=True)
+            available_employees = Employee.objects.none()
+        # Get today's availability
+        from .services.scheduling import SchedulingService
+
+        scheduling_service = SchedulingService(self.request.user)
+        availability_data = {'today': scheduling_service.get_availability(today)}
+
+        # Get upcoming available slots
+        available_slots = []
+        for duration in [30, 60]:
+            next_start, next_end = scheduling_service.get_next_available_slot(
+                from_datetime=timezone.now(),
+                duration_minutes=duration
             )
-
-            # Format rule information for display
-            rule_info = []
-            for rule in schedule_rules:
-                rule_info.append({
-                    'name': rule.name,
-                    'recurrence': rule.get_recurrence_type_display(),
-                    'time_range': f"{rule.start_time.strftime('%I:%M %p')} - {rule.end_time.strftime('%I:%M %p')}",
-                    'day_info': self._get_rule_day_info(rule),
-                    'duration_limits': f"{rule.min_booking_duration}-{rule.max_booking_duration} minutes",
-                    'buffer': f"{rule.buffer_before} min before, {rule.buffer_after} min after"
+            if next_start and next_end:
+                available_slots.append({
+                    'start': next_start,
+                    'end': next_end,
+                    'label': f"{duration} min slot at {next_start.strftime('%I:%M %p')} on {next_start.strftime('%b %d')}"
                 })
 
-            # Get today's availability
-            from .services.scheduling import SchedulingService
-            scheduling_service = SchedulingService(self.request.user)
-            availability_data = {'today': scheduling_service.get_availability(today)}
-
-            # Get upcoming available slots
-            available_slots = []
-            for duration in [30, 60]:
-                next_start, next_end = scheduling_service.get_next_available_slot(
-                    from_datetime=timezone.now(),
-                    duration_minutes=duration
-                )
-                if next_start and next_end:
-                    available_slots.append({
-                        'start': next_start,
-                        'end': next_end,
-                        'label': f"{duration} min slot at {next_start.strftime('%I:%M %p')} on {next_start.strftime('%b %d')}"
-                    })
-
-            # Populate context with all calendar data
-            context.update({
-                'current_employee': employee,
-                'available_employees': available_employees,
-                'employee_form': employee_selection_form,
-                'schedule_rules': rule_info,
-                'availability_data': availability_data,
-                'available_slots': available_slots,
-                'today': today,
-                'is_personal_calendar': True,
-                'employee_count': available_employees.count(),
-            })
+        # Populate context with all calendar data
+        context.update({
+            'current_employee': employee,
+            'available_employees': available_employees,
+            'employee_form': employee_selection_form,
+            'schedule_rules': rule_info,
+            'availability_data': availability_data,
+            'available_slots': available_slots,
+            'today': today,
+            'is_personal_calendar': True,
+            'employee_count': available_employees.count(),
+        })
 
         except Exception as e:
             logger.error(f"Error getting calendar data: {str(e)}", exc_info=True)

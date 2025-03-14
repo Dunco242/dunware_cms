@@ -319,6 +319,27 @@
                    <button type="submit" class="btn btn-primary">Check Availability</button>
                 </form>
             </div>
+            <!-- Debug information -->
+<div class="card mb-4">
+    <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">Debug Information</h6>
+    </div>
+    <div class="card-body">
+        <p><strong>Total employees in system:</strong> {{ all_employees.count }}</p>
+        <p><strong>Available employees count:</strong> {{ available_employees.count }}</p>
+        <p><strong>Form exists:</strong> {{ employee_form|yesno:"Yes,No" }}</p>
+        <p><strong>Form type:</strong> {{ employee_form.__class__.__name__ }}</p>
+
+        <h6>Available Employee IDs:</h6>
+        <ul>
+        {% for emp in available_employees %}
+            <li>ID: {{ emp.id }} - Username: {{ emp.user.username }} - Active: {{ emp.is_active }}</li>
+        {% empty %}
+            <li>No available employees found</li>
+        {% endfor %}
+        </ul>
+    </div>
+</div>
         </div>
     </div>
 </div>
