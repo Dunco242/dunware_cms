@@ -1549,7 +1549,7 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
                 logger.debug(f"Current employee: {self.employee.id} - {self.employee.user.get_full_name()}")
 
                 # Get other active employees, excluding current employee
-                available_employees = Employee.objects.exclude(id=self.employee.id).filter(
+                available_employees = Employee.objects.exclude(user=self.request.user).filter(
                     user__is_active=True
                 ).order_by('user__last_name', 'user__first_name')
 
@@ -1713,6 +1713,24 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
                 'available_employees': [],
             })
 
+        # Add this to your get_context_data in CalendarView
+        try:
+            print(f"Current employee ID: {self.employee.id}")
+            print(f"Total employees in database: {Employee.objects.count()}")
+
+            all_employees = Employee.objects.all()
+            print(f"All employee IDs: {[e.id for e in all_employees]}")
+
+            available_employees = Employee.objects.exclude(id=self.employee.id).filter(
+                user__is_active=True
+            ).order_by('user__last_name', 'user__first_name')
+
+            print(f"Available employees count: {available_employees.count()}")
+            print(f"Available employee IDs: {[e.id for e in available_employees]}")
+
+            context['available_employees'] = available_employees
+        except Exception as e:
+            print(f"Error getting employees: {str(e)}")
         return context
 
     def _get_rule_day_info(self, rule):

@@ -54,6 +54,18 @@
 </style>
 {% endblock %}
 
+<div style="padding: 10px; background: #f8f9fa; border: 1px solid #ddd; margin-bottom: 10px;">
+    <h5>Debug Info:</h5>
+    <p>Available employees: {{ available_employees|length }}</p>
+    <p>Employee IDs:
+        {% for emp in available_employees %}
+            {{ emp.id }}{% if not forloop.last %}, {% endif %}
+        {% empty %}
+            None found
+        {% endfor %}
+    </p>
+</div>
+
 {% block content %}
 <div class="container-fluid">
    <div class="row">
@@ -373,8 +385,8 @@
         {% for rule in schedule_rules %}
         {
             daysOfWeek: [{% if rule.recurrence == 'Daily' %}0, 1, 2, 3, 4, 5, 6{% elif rule.day_info == 'Every Monday' %}1{% elif rule.day_info == 'Every Tuesday' %}2{% elif rule.day_info == 'Every Wednesday' %}3{% elif rule.day_info == 'Every Thursday' %}4{% elif rule.day_info == 'Every Friday' %}5{% elif rule.day_info == 'Every Saturday' %}6{% elif rule.day_info == 'Every Sunday' %}0{% endif %}],
-            startTime: '{{ rule.time_range|cut:" - "|cut:" "|split:"|"|first }}',
-            endTime: '{{ rule.time_range|cut:" - "|cut:" "|split:"|"|last }}'
+            startTime: '{{ rule.time_range|slice:":5" }}',
+            endTime: '{{ rule.time_range|slice:"-5:" }}'
         }{% if not forloop.last %},{% endif %}
         {% endfor %}
     ];
@@ -385,7 +397,6 @@
     djangoData.schedulingData = {{ scheduling_data|safe }};
     {% endif %}
 </script>
-
 <!-- Now the calendar initialization script that uses djangoData -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
