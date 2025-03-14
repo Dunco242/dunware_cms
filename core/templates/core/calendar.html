@@ -160,7 +160,7 @@
                         <select name="participants" class="form-select" multiple id="participantsSelect" style="min-height: 100px; display: block !important;">
                             {% if available_employees %}
                                 {% for employee in available_employees %}
-                                    <option value="{{ employee.id }}">
+                                    <option value="{{ employee.user.id }}">
                                         {% if employee.user.get_full_name %}
                                             {{ employee.user.get_full_name }}
                                         {% else %}
