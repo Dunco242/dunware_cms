@@ -348,3 +348,6 @@ ENABLE_AUTOMATION = True  # Set to False in development if needed
 # APScheduler settings
 APSCHEDULER_DATETIME_FORMAT = "N j, Y, f:s a"
 SCHEDULER_DEFAULT_MAX_INSTANCES = 1
+
+
+DEFAULT_CHARSET = 'utf-8'
