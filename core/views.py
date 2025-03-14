@@ -1530,83 +1530,38 @@ class MeetingDeleteView(LoginRequiredMixin, DeleteView):
 
 logger = logging.getLogger(__name__)
 
+from django.views.generic import TemplateView
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.shortcuts import redirect
+from django.utils import timezone
+from django.db.models import Q
+from django.http import JsonResponse
+from django.contrib import messages
+from datetime import datetime, timedelta
+
+from .mixins import EmployeeRequiredMixin
+from .models import (
+    Project, ProjectPhase, ProjectTask, Task, Meeting, Event,
+    Employee, ScheduleRule
+)
+
+import logging
+logger = logging.getLogger(__name__)
+
 class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
     template_name = 'core/calendar.html'
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         today = timezone.now().date()
-        all_employees_raw = list(Employee.objects.all())
-        context['raw_employees'] = all_employees_raw
-        context['active_user_count'] = User.objects.filter(is_active=True).count()
-
-        # Debug logging for employee troubleshooting
-        logger.info(f"CalendarView - User: {self.request.user.username}")
-        if hasattr(self, 'employee'):
-            logger.info(f"CalendarView - Employee set: {self.employee.id}")
-        else:
-            logger.error("CalendarView - Employee not set!")
 
         try:
-            # Get all employees for debugging
-            all_employees = Employee.objects.all()
-            logger.info(f"CalendarView - Total employees in DB: {all_employees.count()}")
-            logger.info(f"CalendarView - All employee IDs: {[emp.id for emp in all_employees]}")
+            # Get all other active employees (not the current user)
+            available_employees = Employee.objects.filter(
+                user__is_active=True
+            ).exclude(user=self.request.user)
 
-            # Get all active users for debugging
-            all_active_users = User.objects.filter(is_active=True)
-            logger.info(f"CalendarView - Total active users: {all_active_users.count()}")
-            logger.info(f"CalendarView - Active user IDs: {[user.id for user in all_active_users]}")
-
-            # Query available employees using direct Employee model approach
-            try:
-                # Ensure we have self.employee
-                if not hasattr(self, 'employee'):
-                    logger.warning("CalendarView - self.employee not set, trying to get it manually")
-                    self.employee = Employee.objects.get(user=self.request.user)
-
-                # Log this for debugging
-                logger.info(f"CalendarView - Current employee: {self.employee.id} - {self.employee.user.get_full_name()}")
-
-                # Try multiple query approaches to see what works
-                # Approach 1: Standard query excluding current employee
-                available_employees1 = Employee.objects.exclude(id=self.employee.id).filter(
-                    user__is_active=True
-                ).order_by('user__last_name', 'user__first_name')
-
-                # Approach 2: Query by excluding current user
-                available_employees2 = Employee.objects.exclude(user=self.request.user).filter(
-                    user__is_active=True
-                ).order_by('user__last_name', 'user__first_name')
-
-                # Approach 3: Raw query to get all employees except current
-                all_other_employees = Employee.objects.all().exclude(id=self.employee.id)
-
-                # Log results from all approaches
-                logger.info(f"CalendarView - Approach 1 count: {available_employees1.count()}")
-                logger.info(f"CalendarView - Approach 2 count: {available_employees2.count()}")
-                logger.info(f"CalendarView - Approach 3 count: {all_other_employees.count()}")
-
-                # Log employee details for debugging
-                if available_employees1.exists():
-                    logger.info(f"CalendarView - First few employees (approach 1): {[(emp.id, emp.user.get_full_name()) for emp in available_employees1[:3]]}")
-                else:
-                    logger.warning("CalendarView - No employees found with approach 1")
-
-                # Use the first approach for context
-                context['available_employees'] = available_employees1
-                context['available_employees2'] = available_employees2
-                context['all_other_employees'] = all_other_employees
-
-            except Employee.DoesNotExist:
-                logger.error(f"CalendarView - No employee profile found for user {self.request.user.username}")
-                context['available_employees'] = []
-                context['employee_query_error'] = "No employee profile found"
-            except Exception as e:
-                logger.error(f"CalendarView - Error loading employees: {str(e)}")
-                logger.error(traceback.format_exc())
-                context['available_employees'] = []
-                context['employee_query_error'] = str(e)
+            context['available_employees'] = available_employees
 
             # Get managed projects and team memberships
             projects = Project.objects.filter(
@@ -1703,9 +1658,6 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
                     is_active=True
                 )
 
-                # Log schedule rules for debugging
-                logger.info(f"CalendarView - User has {schedule_rules.count()} active schedule rules")
-
                 # Format rule information for display
                 rule_info = []
                 for rule in schedule_rules:
@@ -1721,8 +1673,7 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
                 context['schedule_rules'] = rule_info
 
             except Exception as e:
-                logger.error(f"CalendarView - Error getting scheduling data: {str(e)}")
-                logger.error(traceback.format_exc())
+                logger.error(f"Error getting scheduling data: {str(e)}")
 
             context.update({
                 'events': events,
@@ -1736,19 +1687,8 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
                 'scheduling_data': scheduling_data,
             })
 
-            # Force some employees into context as fallback
-            try:
-                all_active_users = User.objects.filter(is_active=True).exclude(id=self.request.user.id)
-                force_employees = list(Employee.objects.filter(user__in=all_active_users))
-                context['force_employees'] = force_employees
-                logger.info(f"CalendarView - Force employees count: {len(force_employees)}")
-            except Exception as e:
-                logger.error(f"CalendarView - Error forcing employees: {str(e)}")
-                context['force_employees'] = []
-
         except Exception as e:
-            logger.error(f"CalendarView - Error getting calendar data: {str(e)}")
-            logger.error(traceback.format_exc())
+            logger.error(f"Error getting calendar data: {str(e)}")
             messages.error(self.request, 'Error loading calendar data.')
             context.update({
                 'events': [],
@@ -1760,12 +1700,8 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
                 'today': today,
                 'is_personal_calendar': True,
                 'available_employees': [],
-                'error_message': str(e)
             })
 
-        # Log final context keys for debugging
-        logger.info(f"CalendarView - Final context keys: {context.keys()}")
-        logger.info(f"CalendarView - available_employees count: {len(context.get('available_employees', []))}")
         return context
 
     def _get_rule_day_info(self, rule):
@@ -1782,19 +1718,14 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
 
     def get(self, request, *args, **kwargs):
         try:
-            logger.info(f"CalendarView GET - User: {request.user.username}")
             return super().get(request, *args, **kwargs)
         except Exception as e:
-            logger.error(f"CalendarView GET - Error: {str(e)}")
-            logger.error(traceback.format_exc())
+            logger.error(f"Error in calendar view: {str(e)}")
             messages.error(request, 'Error displaying calendar.')
             return redirect('dashboard')
 
     def post(self, request, *args, **kwargs):
         """Handle POST requests for calendar actions"""
-        logger.info(f"CalendarView POST - User: {request.user.username}")
-        logger.info(f"CalendarView POST - Data: {request.POST}")
-
         action = request.POST.get('action')
         is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
 
@@ -1805,15 +1736,8 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
         if action == 'availability_check':
             # Check availability for specified date and time
             try:
-                # Log the received data for debugging
-                logger.info(f"CalendarView - Availability check request data: {request.POST}")
-
                 from .scheduling_service import SchedulingService
                 scheduling_service = SchedulingService(request.user)
-
-                # Log if schedule rules exist
-                rule_count = getattr(scheduling_service, 'schedule_rules', []).count() if hasattr(scheduling_service, 'schedule_rules') else 0
-                logger.info(f"CalendarView - User has {rule_count} active schedule rules")
 
                 date_str = request.POST.get('date')
                 start_time_str = request.POST.get('start_time')
@@ -1828,20 +1752,12 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
                 start_datetime = timezone.make_aware(start_datetime)
                 end_datetime = start_datetime + timedelta(minutes=duration)
 
-                logger.info(f"CalendarView - Checking availability for {start_datetime} to {end_datetime} (duration: {duration} minutes)")
-
                 # Check availability
                 is_available = scheduling_service.check_availability(
                     start_datetime,
                     end_datetime,
                     duration
                 )
-
-                # Log result for debugging
-                logger.info(f"CalendarView - Availability check result: {is_available}")
-
-                # TEMPORARY: For debugging, force availability to True to test UI
-                # is_available = True
 
                 if is_available:
                     success_message = f"The time slot on {date_str} at {start_time_str} for {duration} minutes is available."
@@ -1858,8 +1774,6 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
                         start_datetime,
                         duration
                     )
-
-                    logger.info(f"CalendarView - Next available slot: {next_start} to {next_end}")
 
                     if next_start and next_end:
                         warning_message = (
@@ -1889,14 +1803,12 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
                             messages.error(request, error_message)
 
             except Exception as e:
-                logger.error(f"CalendarView - Error checking availability: {str(e)}")
-                logger.error(traceback.format_exc())
+                logger.error(f"Error checking availability: {str(e)}")
                 error_message = f"Error checking availability: {str(e)}"
                 if return_json:
                     response_data = {
                         'available': False,
-                        'message': error_message,
-                        'error_details': str(e)
+                        'message': error_message
                     }
                 else:
                     messages.error(request, error_message)
@@ -1904,16 +1816,11 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
         elif action == 'suggest_meeting':
             # Suggest a meeting time with selected participants
             try:
-                # Log the received data for debugging
-                logger.info(f"CalendarView - Suggest meeting request data: {request.POST}")
-
                 from .scheduling_service import SchedulingService
                 scheduling_service = SchedulingService(request.user)
 
                 participant_ids = request.POST.getlist('participants')
                 duration = int(request.POST.get('duration', 60))
-
-                logger.info(f"CalendarView - Participant IDs: {participant_ids}, Duration: {duration}")
 
                 # Get participant employees
                 participants = []
@@ -1922,15 +1829,11 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
                         participant = Employee.objects.get(id=pid)
                         participants.append(participant)
                     except Employee.DoesNotExist:
-                        logger.warning(f"CalendarView - Employee with ID {pid} not found")
                         continue
 
                 # Add current user's employee
-                if self.employee and self.employee not in participants:
+                if hasattr(self, 'employee') and self.employee and self.employee not in participants:
                     participants.append(self.employee)
-
-                # Log participants for debugging
-                logger.info(f"CalendarView - Finding optimal time for {len(participants)} participants: {[p.user.username for p in participants]}")
 
                 if not participants:
                     error_message = "No valid participants selected."
@@ -1948,8 +1851,6 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
                         duration_minutes=duration,
                         within_days=7
                     )
-
-                    logger.info(f"CalendarView - Suggestion result: {suggestion}")
 
                     if suggestion.get('success'):
                         # Redirect to meeting creation page with suggested time
@@ -1977,8 +1878,7 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
                             messages.error(request, error_message)
 
             except Exception as e:
-                logger.error(f"CalendarView - Error suggesting meeting time: {str(e)}")
-                logger.error(traceback.format_exc())
+                logger.error(f"Error suggesting meeting time: {str(e)}")
                 error_message = f"Error suggesting meeting time: {str(e)}"
                 if return_json:
                     response_data = {
@@ -1990,7 +1890,6 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
 
         # Return JSON response for AJAX requests
         if return_json:
-            logger.info(f"CalendarView - Returning JSON response: {response_data}")
             return JsonResponse(response_data)
 
         # Redirect back to calendar for non-AJAX requests
