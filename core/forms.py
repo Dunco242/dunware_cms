@@ -916,3 +916,27 @@ class EmployeeUsernameForm(forms.Form):
         if obj.user.get_full_name():
             return obj.user.get_full_name()
         return obj.user.username
+
+
+class EmployeeSelectionForm(forms.Form):
+    """Form for selecting employees in the calendar view"""
+    employees = forms.ModelMultipleChoiceField(
+        queryset=Employee.objects.filter(is_active=True),
+        required=False,
+        widget=forms.SelectMultiple(attrs={
+            'class': 'form-select',
+            'id': 'participantsSelect',
+            'style': 'min-height: 100px; display: block !important;'
+        })
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Set display format for employees
+        self.fields['employees'].label_from_instance = self._get_employee_label
+
+    def _get_employee_label(self, employee):
+        """Get appropriate display label for employee"""
+        if employee.user.get_full_name():
+            return employee.user.get_full_name()
+        return employee.user.username

@@ -73,6 +73,7 @@ from .forms import (
     UserRegistrationForm,
     EmployeeForm,
     EmployeeUsernameForm,
+    EmployeeSelectionForm,
     CustomerForm,
     LeadForm,
     ServiceForm,

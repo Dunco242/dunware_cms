@@ -1531,30 +1531,31 @@ class MeetingDeleteView(LoginRequiredMixin, DeleteView):
 logger = logging.getLogger(__name__)
 
 class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
-    template_name = 'core/calendar.html'
+    """
+    Enhanced calendar view with employee selection and scheduling capabilities
+    """
+    template_name = 'core/calendar_revamped.html'
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         today = timezone.now().date()
 
         try:
+            # Ensure the employee attribute is accessible
+            employee = self.employee
+
             # Get all other active employees (not the current user)
             available_employees = Employee.objects.filter(
                 is_active=True,
                 user__is_active=True
-            ).exclude(user=self.request.user).select_related('user')
+            ).exclude(id=employee.id).select_related('user')
 
             # Log for debugging
             logger.info(f"Found {available_employees.count()} available employees")
-            for emp in available_employees[:5]:  # Log first 5 for sample
-                logger.info(f"Employee: {emp.id} - {emp.user.username if emp.user else 'No user'}")
 
-            # Create the participants form with the available employees
-            participants_form = EmployeeUsernameForm(available_employees=available_employees)
-
-            # Add form and available employees to context
-            context['form'] = participants_form
-            context['available_employees'] = available_employees
+            # Initialize the employee selection form
+            employee_selection_form = EmployeeSelectionForm()
+            employee_selection_form.fields['employees'].queryset = available_employees
 
             # Get schedule rule information
             schedule_rules = ScheduleRule.objects.filter(
@@ -1574,28 +1575,45 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
                     'buffer': f"{rule.buffer_before} min before, {rule.buffer_after} min after"
                 })
 
-            context['schedule_rules'] = rule_info
+            # Get today's availability
+            from .services.scheduling import SchedulingService
+            scheduling_service = SchedulingService(self.request.user)
+            availability_data = {'today': scheduling_service.get_availability(today)}
 
-            # Add other necessary context data
+            # Get upcoming available slots
+            available_slots = []
+            for duration in [30, 60]:
+                next_start, next_end = scheduling_service.get_next_available_slot(
+                    from_datetime=timezone.now(),
+                    duration_minutes=duration
+                )
+                if next_start and next_end:
+                    available_slots.append({
+                        'start': next_start,
+                        'end': next_end,
+                        'label': f"{duration} min slot at {next_start.strftime('%I:%M %p')} on {next_start.strftime('%b %d')}"
+                    })
+
+            # Populate context with all calendar data
             context.update({
-                'events': [],  # These would be populated from your actual queries
-                'tasks': [],
-                'meetings': [],
+                'current_employee': employee,
+                'available_employees': available_employees,
+                'employee_form': employee_selection_form,
+                'schedule_rules': rule_info,
+                'availability_data': availability_data,
+                'available_slots': available_slots,
                 'today': today,
                 'is_personal_calendar': True,
+                'employee_count': available_employees.count(),
             })
 
         except Exception as e:
-            logger.error(f"Error getting calendar data: {str(e)}")
+            logger.error(f"Error getting calendar data: {str(e)}", exc_info=True)
             messages.error(self.request, 'Error loading calendar data.')
             context.update({
-                'events': [],
-                'tasks': [],
-                'meetings': [],
                 'today': today,
                 'is_personal_calendar': True,
-                'available_employees': [],
-                'form': EmployeeUsernameForm(),  # Empty form in case of error
+                'error_message': str(e),
             })
 
         return context
@@ -1616,7 +1634,7 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
         try:
             return super().get(request, *args, **kwargs)
         except Exception as e:
-            logger.error(f"Error in calendar view: {str(e)}")
+            logger.error(f"Error in calendar view: {str(e)}", exc_info=True)
             messages.error(request, 'Error displaying calendar.')
             return redirect('dashboard')
 
@@ -1624,172 +1642,172 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
         """Handle POST requests for calendar actions"""
         action = request.POST.get('action')
         is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+        response_data = {'status': 'error', 'message': 'Invalid action'}
 
-        # Flag to track if we should return JSON
-        return_json = is_ajax
-        response_data = {}
+        try:
+            employee = self.employee
 
-        if action == 'availability_check':
-            # Check availability for specified date and time
+            if action == 'availability_check':
+                response_data = self._handle_availability_check(request)
+            elif action == 'suggest_meeting':
+                response_data = self._handle_suggest_meeting(request, employee)
+            else:
+                response_data = {'status': 'error', 'message': f"Unknown action: {action}"}
+
+            if is_ajax:
+                return JsonResponse(response_data)
+
+            # For non-AJAX, set appropriate message and redirect
+            if response_data.get('status') == 'success':
+                messages.success(request, response_data.get('message', 'Action completed successfully'))
+
+                # Check if we have a redirect URL in the response
+                if 'redirect_url' in response_data:
+                    return redirect(response_data['redirect_url'])
+            else:
+                messages.error(request, response_data.get('message', 'Error processing request'))
+
+            return redirect('calendar')
+
+        except Exception as e:
+            logger.error(f"Error processing calendar action: {str(e)}", exc_info=True)
+            error_message = f"An error occurred: {str(e)}"
+
+            if is_ajax:
+                return JsonResponse({'status': 'error', 'message': error_message})
+
+            messages.error(request, error_message)
+            return redirect('calendar')
+
+    def _handle_availability_check(self, request):
+        """Process availability check requests"""
+        try:
+            from .services.scheduling import SchedulingService
+            scheduling_service = SchedulingService(request.user)
+
+            date_str = request.POST.get('date')
+            start_time_str = request.POST.get('start_time')
+            duration = int(request.POST.get('duration', 60))
+
+            # Validate inputs
+            if not date_str or not start_time_str:
+                return {'status': 'error', 'message': 'Date and start time are required'}
+
+            # Parse date and time
             try:
-                from .scheduling_service import SchedulingService
-                scheduling_service = SchedulingService(request.user)
-
-                date_str = request.POST.get('date')
-                start_time_str = request.POST.get('start_time')
-                duration = int(request.POST.get('duration', 60))
-
-                # Parse date and time
                 date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
                 start_time_obj = datetime.strptime(start_time_str, '%H:%M').time()
+            except ValueError:
+                return {'status': 'error', 'message': 'Invalid date or time format'}
 
-                # Create datetime objects
-                start_datetime = datetime.combine(date_obj, start_time_obj)
-                start_datetime = timezone.make_aware(start_datetime)
-                end_datetime = start_datetime + timedelta(minutes=duration)
+            # Create datetime objects
+            start_datetime = datetime.combine(date_obj, start_time_obj)
+            start_datetime = timezone.make_aware(start_datetime)
+            end_datetime = start_datetime + timedelta(minutes=duration)
 
-                # Check availability
-                is_available = scheduling_service.check_availability(
+            # Check availability
+            is_available = scheduling_service.check_availability(
+                start_datetime,
+                end_datetime,
+                duration
+            )
+
+            if is_available:
+                return {
+                    'status': 'success',
+                    'available': True,
+                    'message': f"The time slot on {date_str} at {start_time_str} for {duration} minutes is available."
+                }
+            else:
+                # Try to find next available slot
+                next_start, next_end = scheduling_service.get_next_available_slot(
                     start_datetime,
-                    end_datetime,
                     duration
                 )
 
-                if is_available:
-                    success_message = f"The time slot on {date_str} at {start_time_str} for {duration} minutes is available."
-                    if return_json:
-                        response_data = {
-                            'available': True,
-                            'message': success_message
-                        }
-                    else:
-                        messages.success(request, success_message)
-                else:
-                    # Try to find next available slot
-                    next_start, next_end = scheduling_service.get_next_available_slot(
-                        start_datetime,
-                        duration
-                    )
-
-                    if next_start and next_end:
-                        warning_message = (
-                            f"The selected time is not available. Next available slot is "
-                            f"{next_start.strftime('%Y-%m-%d %H:%M')} to {next_end.strftime('%H:%M')}"
-                        )
-
-                        if return_json:
-                            response_data = {
-                                'available': False,
-                                'message': warning_message,
-                                'next_slot': {
-                                    'start': next_start.strftime('%Y-%m-%d %H:%M'),
-                                    'end': next_end.strftime('%Y-%m-%d %H:%M')
-                                }
-                            }
-                        else:
-                            messages.warning(request, warning_message)
-                    else:
-                        error_message = "The selected time is not available and no alternative slots were found."
-                        if return_json:
-                            response_data = {
-                                'available': False,
-                                'message': error_message
-                            }
-                        else:
-                            messages.error(request, error_message)
-
-            except Exception as e:
-                logger.error(f"Error checking availability: {str(e)}")
-                error_message = f"Error checking availability: {str(e)}"
-                if return_json:
-                    response_data = {
+                if next_start and next_end:
+                    return {
+                        'status': 'warning',
                         'available': False,
-                        'message': error_message
-                    }
-                else:
-                    messages.error(request, error_message)
-
-        elif action == 'suggest_meeting':
-            # Suggest a meeting time with selected participants
-            try:
-                from .scheduling_service import SchedulingService
-                scheduling_service = SchedulingService(request.user)
-
-                participant_ids = request.POST.getlist('participants')
-                duration = int(request.POST.get('duration', 60))
-
-                # Get participant employees
-                participants = []
-                for pid in participant_ids:
-                    try:
-                        participant = Employee.objects.get(id=pid)
-                        participants.append(participant)
-                    except Employee.DoesNotExist:
-                        continue
-
-                # Add current user's employee
-                if hasattr(self, 'employee') and self.employee and self.employee not in participants:
-                    participants.append(self.employee)
-
-                if not participants:
-                    error_message = "No valid participants selected."
-                    if return_json:
-                        response_data = {
-                            'success': False,
-                            'message': error_message
+                        'message': f"The selected time is not available. Next available slot is {next_start.strftime('%Y-%m-%d %H:%M')} to {next_end.strftime('%H:%M')}",
+                        'next_slot': {
+                            'start': next_start.strftime('%Y-%m-%d %H:%M'),
+                            'end': next_end.strftime('%Y-%m-%d %H:%M')
                         }
-                    else:
-                        messages.error(request, error_message)
-                else:
-                    # Get suggestion
-                    suggestion = scheduling_service.suggest_meeting_time(
-                        participants=participants,
-                        duration_minutes=duration,
-                        within_days=7
-                    )
-
-                    if suggestion.get('success'):
-                        # Redirect to meeting creation page with suggested time
-                        start_time = suggestion['start_datetime'].strftime('%Y-%m-%dT%H:%M')
-                        end_time = suggestion['end_datetime'].strftime('%Y-%m-%dT%H:%M')
-                        attendee_ids = ','.join([str(p.id) for p in participants if p != self.employee])
-
-                        if return_json:
-                            response_data = {
-                                'success': True,
-                                'redirect_url': f'/meetings/create/?start_time={start_time}&end_time={end_time}&attendees={attendee_ids}'
-                            }
-                        else:
-                            return redirect(
-                                f'/meetings/create/?start_time={start_time}&end_time={end_time}&attendees={attendee_ids}'
-                            )
-                    else:
-                        error_message = suggestion.get('error', 'Could not find a suitable meeting time')
-                        if return_json:
-                            response_data = {
-                                'success': False,
-                                'message': error_message
-                            }
-                        else:
-                            messages.error(request, error_message)
-
-            except Exception as e:
-                logger.error(f"Error suggesting meeting time: {str(e)}")
-                error_message = f"Error suggesting meeting time: {str(e)}"
-                if return_json:
-                    response_data = {
-                        'success': False,
-                        'message': error_message
                     }
                 else:
-                    messages.error(request, error_message)
+                    return {
+                        'status': 'error',
+                        'available': False,
+                        'message': "The selected time is not available and no alternative slots were found."
+                    }
 
-        # Return JSON response for AJAX requests
-        if return_json:
-            return JsonResponse(response_data)
+        except Exception as e:
+            logger.error(f"Error checking availability: {str(e)}", exc_info=True)
+            return {'status': 'error', 'message': f"Error checking availability: {str(e)}"}
 
-        # Redirect back to calendar for non-AJAX requests
-        return redirect('calendar')
+    def _handle_suggest_meeting(self, request, employee):
+        """Process meeting suggestion requests"""
+        try:
+            from .services.scheduling import SchedulingService
+            scheduling_service = SchedulingService(request.user)
+
+            # Get selected employees
+            employee_ids = request.POST.getlist('employees')
+
+            if not employee_ids:
+                return {'status': 'error', 'message': 'No participants selected'}
+
+            duration = int(request.POST.get('duration', 60))
+
+            # Get participant employees
+            participants = []
+            for emp_id in employee_ids:
+                try:
+                    participant = Employee.objects.get(id=emp_id)
+                    participants.append(participant)
+                except Employee.DoesNotExist:
+                    continue
+
+            # Add current user's employee if not already included
+            if employee and employee not in participants:
+                participants.append(employee)
+
+            if not participants:
+                return {'status': 'error', 'message': 'No valid participants selected.'}
+
+            # Get suggestion
+            suggestion = scheduling_service.suggest_meeting_time(
+                participants=participants,
+                duration_minutes=duration,
+                within_days=7
+            )
+
+            if suggestion.get('success'):
+                # Format for meeting creation page
+                start_time = suggestion['start_datetime'].strftime('%Y-%m-%dT%H:%M')
+                end_time = suggestion['end_datetime'].strftime('%Y-%m-%dT%H:%M')
+                attendee_ids = ','.join([str(p.id) for p in participants if p != employee])
+
+                return {
+                    'status': 'success',
+                    'success': True,
+                    'message': 'Found optimal meeting time',
+                    'redirect_url': f'/meetings/create/?start_time={start_time}&end_time={end_time}&attendees={attendee_ids}'
+                }
+            else:
+                return {
+                    'status': 'error',
+                    'success': False,
+                    'message': suggestion.get('error', 'Could not find a suitable meeting time')
+                }
+
+        except Exception as e:
+            logger.error(f"Error suggesting meeting time: {str(e)}", exc_info=True)
+            return {'status': 'error', 'message': f"Error suggesting meeting time: {str(e)}"}
+
+
+
 
 # Function-based view alternative
 def calendar_view(request):
@@ -1863,110 +1881,111 @@ def calendar_view(request):
     return render(request, 'core/calendar.html', context)
 
 @login_required
-def calendar_events(request):
-    """Retrieve events for calendar"""
-    employee = request.user.employee_profile
-    customer_id = request.GET.get('customer_id')
+def user_calendar_events(request):
+    """API endpoint to get calendar events for the current user"""
+    try:
+        employee = request.user.employee_profile
 
-    if customer_id:
-        # Customer-specific events
-        events = Event.objects.filter(customer_id=customer_id)
-    else:
-        # Personal calendar events
-        events = Event.objects.filter(
-            Q(created_by=employee) |
-            Q(attendees=employee)
-        ).distinct()
+        # Get date range from request
+        start_date = request.GET.get('start')
+        end_date = request.GET.get('end')
 
-    return JsonResponse([event.get_calendar_event_data() for event in events], safe=False)
-
-
-    def get_events_data(self, request):
-        """Returns calendar events as JSON"""
-        employee = getattr(request.user, 'employee', None)
-        if not employee:
-            return JsonResponse({"error": "No employee profile found"}, status=400)
-
-        try:
-            start_date = make_aware(datetime.strptime(request.GET.get('start', ''), '%Y-%m-%d'))
-            end_date = make_aware(datetime.strptime(request.GET.get('end', ''), '%Y-%m-%d'))
-        except ValueError:
-            return JsonResponse({"error": "Invalid date format"}, status=400)
-
-        customer_id = request.GET.get('customer_id')
-        events_list = []
-
-        # Get Events
-        if customer_id:
-            events = Event.objects.filter(
-                customer_id=customer_id,
-                start_time__range=[start_date, end_date]
-            )
+        if start_date and end_date:
+            start_date = datetime.fromisoformat(start_date.rstrip('Z'))
+            end_date = datetime.fromisoformat(end_date.rstrip('Z'))
+            start_date = timezone.make_aware(start_date)
+            end_date = timezone.make_aware(end_date)
         else:
-            events = Event.objects.filter(
-                Q(created_by=employee) |
-                Q(attendees=employee),
-                start_time__range=[start_date, end_date]
-            ).distinct()
+            # Default to current month if not specified
+            today = timezone.now()
+            start_date = today.replace(day=1, hour=0, minute=0, second=0)
+            next_month = today.month + 1 if today.month < 12 else 1
+            next_month_year = today.year if today.month < 12 else today.year + 1
+            end_date = today.replace(year=next_month_year, month=next_month, day=1, hour=23, minute=59, second=59)
 
-        for event in events:
-            events_list.append(event.get_calendar_event_data())
+        # Get events
+        events = []
 
-        # Get Tasks (if viewing personal calendar)
-        if not customer_id:
-            tasks = Task.objects.filter(
-                Q(assigned_to=employee) |
-                Q(created_by=employee),
-                due_date__range=[start_date, end_date]
-            )
+        # Add tasks
+        tasks = Task.objects.filter(
+            Q(assigned_to=employee) | Q(created_by=employee),
+            due_date__range=(start_date, end_date)
+        ).select_related('assigned_to', 'assigned_to__user')
 
-            for task in tasks:
-                events_list.append({
-                    'id': f'task_{task.id}',
-                    'title': f'Task: {task.title}',
-                    'start': task.start_date.isoformat(),
-                    'end': task.due_date.isoformat(),
-                    'backgroundColor': '#f6c23e',
-                    'borderColor': '#f6c23e',
-                    'textColor': '#000000',
-                    'url': reverse('customer_projects:task-detail', kwargs={
-                        'phase_id': task.phase.id,
-                        'pk': task.id
-                    }),
-                    'extendedProps': {
-                        'type': 'task',
-                        'status': task.get_status_display(),
-                        'project': task.phase.project.name,
-                        'customer': task.phase.project.customer.company_name,
-                        'phase': task.phase.name
-                    }
-                })
+        for task in tasks:
+            events.append({
+                'id': f'task_{task.id}',
+                'title': task.title,
+                'start': task.due_date.isoformat(),
+                'end': (task.due_date + timedelta(hours=1)).isoformat(),
+                'backgroundColor': '#f6c23e',
+                'borderColor': '#f6c23e',
+                'textColor': '#000000',
+                'url': f'/tasks/{task.id}/',
+                'extendedProps': {
+                    'type': 'task',
+                    'status': task.get_status_display(),
+                    'priority': task.get_priority_display(),
+                    'assigned_to': task.assigned_to.user.get_full_name() if task.assigned_to else 'Unassigned'
+                }
+            })
 
-            # Get Meetings
-            meetings = Meeting.objects.filter(
-                Q(organizer=employee) |
-                Q(attendees=employee),
-                start_time__range=[start_date, end_date]
-            )
+        # Add meetings
+        meetings = Meeting.objects.filter(
+            Q(organizer=employee) | Q(attendees=employee),
+            start_time__range=(start_date, end_date)
+        ).distinct().select_related('organizer', 'organizer__user')
 
-            for meeting in meetings:
-                events_list.append({
-                    'id': f'meeting_{meeting.id}',
-                    'title': f'Meeting: {meeting.title}',
-                    'start': meeting.start_time.isoformat(),
-                    'end': meeting.end_time.isoformat(),
-                    'className': f'meeting-type-{meeting.meeting_type}',
+        for meeting in meetings:
+            events.append({
+                'id': f'meeting_{meeting.id}',
+                'title': meeting.title,
+                'start': meeting.start_time.isoformat(),
+                'end': meeting.end_time.isoformat(),
+                'backgroundColor': '#e74a3b',
+                'borderColor': '#e74a3b',
+                'textColor': '#ffffff',
+                'url': f'/meetings/{meeting.id}/',
+                'extendedProps': {
                     'type': 'meeting',
-                    'url': f'/meetings/{meeting.id}/',
-                    'extendedProps': {
-                        'description': meeting.description,
-                        'meetingType': meeting.get_meeting_type_display(),
-                        'organizer': meeting.organizer.user.get_full_name(),
-                        'attendees': [att.user.get_full_name() for att in meeting.attendees.all()]
-                    }
-                })
+                    'meeting_type': meeting.get_meeting_type_display(),
+                    'status': meeting.status,
+                    'organizer': meeting.organizer.user.get_full_name() if meeting.organizer else 'Unknown'
+                }
+            })
 
-        return JsonResponse(events_list, safe=False)
+        # Add events
+        calendar_events = Event.objects.filter(
+            Q(created_by=employee) | Q(attendees=employee),
+            start_time__range=(start_date, end_date)
+        ).distinct().select_related('created_by', 'created_by__user', 'customer')
+
+        for event in calendar_events:
+            events.append({
+                'id': f'event_{event.id}',
+                'title': event.title,
+                'start': event.start_time.isoformat(),
+                'end': event.end_time.isoformat(),
+                'backgroundColor': event.color or '#858796',
+                'borderColor': event.color or '#858796',
+                'textColor': '#ffffff',
+                'url': f'/events/{event.id}/',
+                'extendedProps': {
+                    'type': 'event',
+                    'event_type': event.event_type,
+                    'location': event.location or '',
+                    'description': event.description or '',
+                    'customer': event.customer.company_name if event.customer else None,
+                    'created_by': event.created_by.user.get_full_name() if event.created_by else None
+                }
+            })
+
+        return JsonResponse(events, safe=False)
+
+    except Exception as e:
+        logger.error(f"Error getting calendar events: {str(e)}", exc_info=True)
+        return JsonResponse({'error': str(e)}, status=500)
+
 
 
 @login_required
