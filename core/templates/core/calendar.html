@@ -4,13 +4,13 @@
     <title>Simplified Calendar</title>
 </head>
 <body>
+    <h1>Calendar</h1>
     <select id="participant-select">
-        <option value="123">Test User</option>
         {% for employee in available_employees %}
-            <option value="{{ employee.id }}">{{ employee.user.username }}</option>
+            <option value="{{ employee.id }}">{{ employee.id }}</option>
         {% empty %}
             <option>No Employees Available</option>
         {% endfor %}
-    </select>
-</body>
+    </select
+></body>
 </html>
