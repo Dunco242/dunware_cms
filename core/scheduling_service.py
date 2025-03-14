@@ -89,117 +89,127 @@ class SchedulingService:
         return result
 
     def check_availability(self, start_time, end_time, duration_minutes, exclude_meeting_id=None):
-    """
-    Check if a specific time slot is available with more detailed logging
-    """
-    import logging
-    logger = logging.getLogger(__name__)
+        """
+        Check if a specific time slot is available with detailed logging
+        """
+        logger = logging.getLogger(__name__)
 
-    if not isinstance(start_time, datetime):
-        logger.error("start_time is not a datetime object")
-        return False
-    if not isinstance(end_time, datetime):
-        logger.error("end_time is not a datetime object")
-        return False
-
-    date = start_time.date()
-    logger.debug(f"Checking availability for date: {date}")
-
-    # Check date exceptions
-    exceptions = ScheduleException.objects.filter(
-        user=self.user,
-        date=date
-    )
-
-    if exceptions.exists():
-        exception = exceptions.first()
-        logger.debug(f"Found exception for date: {exception.is_available}")
-        if not exception.is_available:
+        if not isinstance(start_time, datetime):
+            logger.error("start_time is not a datetime object")
+            return False
+        if not isinstance(end_time, datetime):
+            logger.error("end_time is not a datetime object")
             return False
 
-        # Check if within exception time bounds
-        if exception.start_time and exception.end_time:
-            exception_start = datetime.combine(date, exception.start_time)
-            exception_end = datetime.combine(date, exception.end_time)
+        date = start_time.date()
+        logger.debug(f"Checking availability for date: {date}")
 
-            if exception_start <= start_time and end_time <= exception_end:
-                logger.debug("Time is within exception bounds")
-            else:
-                logger.debug("Time is outside exception bounds")
+        # Check date exceptions
+        exceptions = ScheduleException.objects.filter(
+            user=self.user,
+            date=date
+        )
+
+        if exceptions.exists():
+            exception = exceptions.first()
+            logger.debug(f"Found exception for date: {exception.is_available}")
+            if not exception.is_available:
                 return False
 
-    # Get applicable rules
-    applicable_rules = self._get_applicable_rules(date)
-    rule_count = applicable_rules.count()
-    logger.debug(f"Found {rule_count} applicable rules for date {date}")
+            # Check if within exception time bounds
+            if exception.start_time and exception.end_time:
+                exception_start = datetime.combine(date, exception.start_time)
+                exception_end = datetime.combine(date, exception.end_time)
 
-    if not applicable_rules.exists():
-        logger.debug("No applicable rules found")
+                if exception_start <= start_time and end_time <= exception_end:
+                    logger.debug("Time is within exception bounds")
+                else:
+                    logger.debug("Time is outside exception bounds")
+                    return False
+
+        # Get applicable rules
+        applicable_rules = self._get_applicable_rules(date)
+        rule_count = applicable_rules.count()
+        logger.debug(f"Found {rule_count} applicable rules for date {date}")
+
+        # If no applicable rules and no active schedule rules, consider it available
+        # This makes the system work even if no rules are configured
+        if not applicable_rules.exists():
+            all_rules = self.schedule_rules.count()
+            logger.debug(f"No applicable rules found (total rules: {all_rules})")
+
+            # If there are no rules at all, consider all times available
+            if all_rules == 0:
+                logger.debug("No rules configured, considering all times available")
+                # Check for conflicts with existing meetings/events
+                if self._check_slot_conflicts(start_time, end_time, 15, 15, exclude_meeting_id):
+                    return True
+            return False
+
+        # Check against each rule
+        for rule in applicable_rules:
+            logger.debug(f"Checking rule: {rule.name} ({rule.recurrence_type})")
+            rule_start = datetime.combine(date, rule.start_time)
+            rule_end = datetime.combine(date, rule.end_time)
+
+            # Check time bounds
+            time_in_bounds = (rule_start <= start_time and end_time <= rule_end)
+            logger.debug(f"Time in bounds: {time_in_bounds} ({rule.start_time}-{rule.end_time})")
+            if not time_in_bounds:
+                continue
+
+            # Check duration constraints
+            duration = (end_time - start_time).total_seconds() / 60
+            duration_valid = (rule.min_booking_duration <= duration <= rule.max_booking_duration)
+            logger.debug(f"Duration valid: {duration_valid} ({duration} minutes, allowed: {rule.min_booking_duration}-{rule.max_booking_duration})")
+            if not duration_valid:
+                continue
+
+            # Check scheduling conflicts with buffer times
+            no_conflicts = self._check_slot_conflicts(start_time, end_time,
+                                            rule.buffer_before, rule.buffer_after,
+                                            exclude_meeting_id)
+            logger.debug(f"No conflicts: {no_conflicts}")
+            if not no_conflicts:
+                continue
+
+            # If we got here, the rule allows this slot
+            logger.debug("Slot is available!")
+            return True
+
+        # No rules allow this slot
+        logger.debug("No rules allow this slot")
         return False
 
-    # Check against each rule
-    for rule in applicable_rules:
-        logger.debug(f"Checking rule: {rule.name} ({rule.recurrence_type})")
-        rule_start = datetime.combine(date, rule.start_time)
-        rule_end = datetime.combine(date, rule.end_time)
+    def _get_applicable_rules(self, date):
+        """Get schedule rules that apply to the given date with logging"""
+        import logging
+        logger = logging.getLogger(__name__)
 
-        # Check time bounds
-        time_in_bounds = (rule_start <= start_time and end_time <= rule_end)
-        logger.debug(f"Time in bounds: {time_in_bounds} ({rule.start_time}-{rule.end_time})")
-        if not time_in_bounds:
-            continue
+        weekday = date.strftime('%A').lower()
+        month = date.month
+        day_of_month = date.day
 
-        # Check duration constraints
-        duration = (end_time - start_time).total_seconds() / 60
-        duration_valid = (rule.min_booking_duration <= duration <= rule.max_booking_duration)
-        logger.debug(f"Duration valid: {duration_valid} ({duration} minutes, allowed: {rule.min_booking_duration}-{rule.max_booking_duration})")
-        if not duration_valid:
-            continue
+        logger.debug(f"Getting rules for date {date} (weekday: {weekday}, month: {month}, day: {day_of_month})")
 
-        # Check scheduling conflicts with buffer times
-        no_conflicts = self._check_slot_conflicts(start_time, end_time,
-                                        rule.buffer_before, rule.buffer_after,
-                                        exclude_meeting_id)
-        logger.debug(f"No conflicts: {no_conflicts}")
-        if not no_conflicts:
-            continue
+        # List all available rules for debugging
+        all_rules = self.schedule_rules.all()
+        logger.debug(f"User has {all_rules.count()} total rules:")
+        for rule in all_rules:
+            logger.debug(f" - Rule: {rule.name}, Type: {rule.recurrence_type}, Active: {rule.is_active}")
 
-        # If we got here, the rule allows this slot
-        logger.debug("Slot is available!")
-        return True
+        # Get applicable rules
+        from django.db.models import Q
 
-    # No rules allow this slot
-    logger.debug("No rules allow this slot")
-    return False
+        rules = self.schedule_rules.filter(
+            Q(recurrence_type='daily') |
+            Q(recurrence_type='weekly', day_of_week=weekday) |
+            Q(recurrence_type='monthly', day_of_month=day_of_month) |
+            Q(recurrence_type='yearly', month=month, day_of_month=day_of_month)
+        )
 
-# And also override this helper method to provide more information
-def _get_applicable_rules(self, date):
-    """Get schedule rules that apply to the given date with logging"""
-    import logging
-    logger = logging.getLogger(__name__)
-
-    weekday = date.strftime('%A').lower()
-    month = date.month
-    day_of_month = date.day
-
-    logger.debug(f"Getting rules for date {date} (weekday: {weekday}, month: {month}, day: {day_of_month})")
-
-    # List all available rules for debugging
-    all_rules = self.schedule_rules.all()
-    logger.debug(f"User has {all_rules.count()} total rules:")
-    for rule in all_rules:
-        logger.debug(f" - Rule: {rule.name}, Type: {rule.recurrence_type}, Active: {rule.is_active}")
-
-    # Get applicable rules
-    rules = self.schedule_rules.filter(
-        Q(recurrence_type='daily') |
-        Q(recurrence_type='weekly', day_of_week=weekday) |
-        Q(recurrence_type='monthly', day_of_month=day_of_month) |
-        Q(recurrence_type='yearly', month=month, day_of_month=day_of_month)
-    )
-
-    logger.debug(f"Found {rules.count()} applicable rules for date {date}")
-    return rules
+        logger.debug(f"Found {rules.count()} applicable rules for date {date}")
+        return rules
 
     def get_next_available_slot(self, from_datetime, duration_minutes,
                                 max_days_ahead=14, preferred_times=None):

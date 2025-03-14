@@ -147,65 +147,68 @@
 
          <!-- Schedule Group Meeting Card -->
          <div class="card shadow mb-4">
-            <div class="card-header py-3">
-                <h6 class="m-0 font-weight-bold text-primary">Schedule Group Meeting</h6>
-            </div>
-            <div class="card-body">
-                <!-- Debug information -->
-                <div class="mb-3 small">
-                    {% if available_employees %}
-                        <div class="text-success">Found {{ available_employees|length }} employees</div>
-                        <div class="text-muted">Debug: {% for emp in available_employees %}{{ emp.id }}{% if not forloop.last %}, {% endif %}{% endfor %}</div>
-                    {% else %}
-                        <div class="text-warning">No employees available in context</div>
-                    {% endif %}
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Schedule Group Meeting</h6>
                 </div>
-
-                <form method="post" action="{% url 'calendar' %}" id="scheduleMeetingForm">
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="suggest_meeting">
-
-                    <div class="mb-3">
-                        <label class="form-label">Select Participants:</label>
-                        <select name="participants" class="form-select" multiple id="participantsSelect">
-                            <!-- Debug: Using length directly for debugging -->
-                            {% if available_employees|length > 0 %}
-                                {% for employee in available_employees %}
-                                    <option value="{{ employee.id }}">
-                                        {% if employee.user.get_full_name %}
-                                            {{ employee.user.get_full_name }}
-                                        {% else %}
-                                            {{ employee.user.username }}
-                                        {% endif %}
-                                    </option>
-                                {% endfor %}
-                            {% else %}
-                                <option disabled>No other employees available</option>
-                            {% endif %}
-                        </select>
-                        <div class="form-text">Hold Ctrl to select multiple</div>
+                <div class="card-body">
+                    <!-- Debug information -->
+                    <div class="mb-3 small">
+                        {% if available_employees %}
+                            <div class="text-success">Found {{ available_employees|length }} employees</div>
+                            <div class="text-muted">Debug IDs: {% for emp in available_employees %}{{ emp.id }}{% if not forloop.last %}, {% endif %}{% endfor %}</div>
+                        {% else %}
+                            <div class="text-warning">No employees available in context</div>
+                        {% endif %}
                     </div>
 
-                    <div class="mb-3">
-                        <label class="form-label">Duration:</label>
-                        <select name="duration" class="form-select">
-                            <option value="30">30 minutes</option>
-                            <option value="60" selected>1 hour</option>
-                            <option value="90">1.5 hours</option>
-                            <option value="120">2 hours</option>
-                        </select>
-                    </div>
+                    <form method="post" action="{% url 'calendar' %}" id="scheduleMeetingForm">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="suggest_meeting">
 
-                    <div id="meetingResults" class="mt-3 d-none">
-                        <div class="alert" role="alert"></div>
-                    </div>
+                        <div class="mb-3">
+                            <label class="form-label">Select Participants:</label>
+                            <select name="participants" class="form-select" multiple id="participantsSelect">
+                                {% if available_employees %}
+                                    {% for employee in available_employees %}
+                                        <option value="{{ employee.id }}">
+                                            {% if employee.user.get_full_name %}
+                                                {{ employee.user.get_full_name }}
+                                            {% else %}
+                                                {{ employee.user.username }}
+                                            {% endif %}
+                                        </option>
+                                    {% endfor %}
+                                {% else %}
+                                    <option disabled>No other employees available</option>
+                                {% endif %}
+                            </select>
+                            <div class="form-text">Hold Ctrl to select multiple</div>
+                        </div>
 
-                    <button type="submit" class="btn btn-primary w-100" id="findTimeButton">
-                        <i class="fas fa-search"></i> Find Optimal Time
-                    </button>
-                </form>
+                        <div class="mb-3">
+                            <label class="form-label">Duration:</label>
+                            <select name="duration" class="form-select">
+                                <option value="30">30 minutes</option>
+                                <option value="60" selected>1 hour</option>
+                                <option value="90">1.5 hours</option>
+                                <option value="120">2 hours</option>
+                            </select>
+                        </div>
+
+                        <div id="meetingResults" class="mt-3 d-none">
+                            <div class="alert" role="alert"></div>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary w-100" id="findTimeButton">
+                            <i class="fas fa-search"></i> Find Optimal Time
+                        </button>
+                    </form>
+                </div>
             </div>
-        </div>
+
+</div>
+
 
          <!-- Schedule Rules Summary -->
          {% if schedule_rules %}
@@ -692,8 +695,13 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 <script>
     $(document).ready(function() {
+        console.log("Group meeting form initialized");
+
         // Check if we have any participants to select
-        if ($('#participantsSelect option').length === 0) {
+        var optionCount = $('#participantsSelect option').not('[disabled]').length;
+        console.log("Available employees: " + optionCount);
+
+        if (optionCount === 0) {
             $('#participantsSelect').after('<div class="alert alert-warning mt-2">No other employees available</div>');
             $('#findTimeButton').prop('disabled', true);
         }
@@ -723,6 +731,9 @@ document.addEventListener('DOMContentLoaded', function() {
                        .html('<i class="fas fa-spinner fa-spin"></i> Finding optimal meeting time...');
             submitBtn.prop('disabled', true);
 
+            // Log form data for debugging
+            console.log("Form data:", form.serialize());
+
             // Submit the form via AJAX
             $.ajax({
                 url: form.attr('action'),
@@ -730,6 +741,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 data: form.serialize(),
                 headers: {'X-Requested-With': 'XMLHttpRequest'},
                 success: function(response) {
+                    console.log("Response:", response);
+
                     if (response.success) {
                         resultsAlert.removeClass('alert-info alert-warning alert-danger')
                                   .addClass('alert-success')
@@ -746,7 +759,10 @@ document.addEventListener('DOMContentLoaded', function() {
                         submitBtn.prop('disabled', false);
                     }
                 },
-                error: function() {
+                error: function(xhr, status, error) {
+                    console.error("Error:", error);
+                    console.error("Response:", xhr.responseText);
+
                     resultsAlert.removeClass('alert-info alert-success alert-warning')
                               .addClass('alert-danger')
                               .html('<i class="fas fa-times-circle"></i> Error suggesting meeting time. Please try again.');
@@ -755,8 +771,7 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     });
-</script>
-<script>
+</script><script>
     $(document).ready(function() {
         // Check if jQuery is loaded
         if (!window.jQuery) {
