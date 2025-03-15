@@ -1542,48 +1542,18 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
 
         try:
             # Get current employee from the mixin
-            employee = self.employee
-            logger.info(f"Current employee: {employee.id} - {employee.user.username if hasattr(employee, 'user') else 'No user'}")
+            current_employee = self.employee
 
-            # Get all employees for debugging
-            all_employees = Employee.objects.all()
-            active_employees = Employee.objects.filter(is_active=True)
-            user_active_employees = Employee.objects.filter(user__is_active=True)
-
-            # Log counts for debugging
-            logger.info(f"All employees: {all_employees.count()}")
-            logger.info(f"Active employees: {active_employees.count()}")
-            logger.info(f"User active employees: {user_active_employees.count()}")
-
-            # Create available employees queryset - employees other than current user
-            # First try the standard approach
-            try:
-                available_employees = Employee.objects.filter(
-                    is_active=True,
-                    user__is_active=True
-                ).exclude(id=employee.id).select_related('user')
-
-                # If no employees found, try alternative query
-                if available_employees.count() == 0:
-                    logger.info("No employees found with standard query, trying alternatives")
-                    available_employees = Employee.objects.filter(is_active=True)
-                    if hasattr(employee, 'user_id') and employee.user_id:
-                        available_employees = available_employees.exclude(user_id=employee.user_id)
-                    else:
-                        available_employees = available_employees.exclude(id=employee.id)
-
-                logger.info(f"Available employees after query: {available_employees.count()}")
-
-                # Log each available employee for debugging
-                for emp in available_employees:
-                    logger.info(f"Available employee: {employee.id} - {employee.user.username if hasattr(employee, 'user') else 'No user'}")
-
-            except Exception as e:
-                logger.error(f"Error querying available employees: {str(e)}", exc_info=True)
-                available_employees = Employee.objects.none()
+            # Get available employees using the same approach as chat_inbox
+            available_employees = Employee.objects.exclude(
+                id=current_employee.id
+            ).filter(
+                is_active=True,
+                user__is_active=True
+            ).select_related('user')
 
             # Create the employee selection form
-            employee_selection_form = EmployeeSelectionForm(available_employees=available_employees)
+            employee_form = EmployeeSelectionForm(available_employees=available_employees)
 
             # Get schedule rule information
             schedule_rules = ScheduleRule.objects.filter(
@@ -1622,13 +1592,11 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
                         'label': f"{duration} min slot at {next_start.strftime('%I:%M %p')} on {next_start.strftime('%b %d')}"
                     })
 
-            # Add debugging information to context
+            # Add data to context
             context.update({
-                'current_employee': employee,
-                'all_employees': all_employees,
-                'active_employees': active_employees,
+                'current_employee': current_employee,
                 'available_employees': available_employees,
-                'employee_form': employee_selection_form,
+                'employee_form': employee_form,  # Use consistent name matching the template
                 'schedule_rules': rule_info,
                 'availability_data': availability_data,
                 'available_slots': available_slots,
@@ -1659,14 +1627,6 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
         elif rule.recurrence_type == 'yearly':
             return f"{rule.get_month_display()} {rule.day_of_month}"
         return ""
-
-    def get(self, request, *args, **kwargs):
-        try:
-            return super().get(request, *args, **kwargs)
-        except Exception as e:
-            logger.error(f"Error in calendar view: {str(e)}", exc_info=True)
-            messages.error(request, 'Error displaying calendar.')
-            return redirect('dashboard')
 
     def post(self, request, *args, **kwargs):
         """Handle POST requests for calendar actions"""
