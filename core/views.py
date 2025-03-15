@@ -1544,14 +1544,8 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
             # Get current employee from the mixin
             current_employee = self.employee
 
-            # Simple and direct approach to get available employees
-            available_employees = Employee.objects.exclude(
-                id=current_employee.id
-            ).filter(
-                is_active=True
-            ).select_related('user')
-
-            # Skip the form approach entirely - we'll just use the queryset directly
+            # Simple direct query for available employees - matching the working minimal view
+            available_employees = Employee.objects.exclude(id=current_employee.id).filter(is_active=True).select_related('user')
 
             # Get schedule rule information
             schedule_rules = ScheduleRule.objects.filter(
@@ -1792,7 +1786,6 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
         except Exception as e:
             logger.error(f"Error suggesting meeting time: {str(e)}", exc_info=True)
             return {'status': 'error', 'message': f"Error suggesting meeting time: {str(e)}"}
-
 
 
 # Function-based view alternative

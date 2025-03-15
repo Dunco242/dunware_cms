@@ -166,62 +166,52 @@
             </div>
          </div>
 
-<!-- Schedule Group Meeting Card - Direct Select Version -->
-<div class="card shadow mb-4">
-    <div class="card-header py-3">
-        <h6 class="m-0 font-weight-bold text-primary">
-           Schedule Group Meeting
-           {% if available_employees.count > 0 %}
-           <span class="badge bg-primary text-white employee-count-badge">{{ available_employees.count }} employees</span>
-           {% endif %}
-        </h6>
-    </div>
-    <div class="card-body">
-        <form method="post" action="{% url 'calendar' %}" id="scheduleMeetingForm">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="suggest_meeting">
-
-            <div class="mb-3">
-                <label class="form-label">Select Participants:</label>
-
-                <select name="employees" multiple class="form-select" id="participantsSelect"
-                      style="height: 200px !important; width: 100%; display: block !important;">
-                  {% for emp in available_employees %}
-                      <option value="{{ emp.id }}">
-                          {% if emp.user.get_full_name %}
-                              {{ emp.user.get_full_name }}
-                          {% else %}
-                              {{ emp.user.username }}
-                          {% endif %}
-                          ({{ emp.employee_id }})
-                      </option>
-                  {% empty %}
-                      <option disabled>No employees available</option>
-                  {% endfor %}
-                </select>
-                <div class="form-text">Hold Ctrl to select multiple participants</div>
+         <div class="card shadow mb-4">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">
+                   Schedule Group Meeting
+                   <span class="badge bg-primary text-white employee-count-badge">{{ available_employees.count }} employees</span>
+                </h6>
             </div>
+            <div class="card-body">
+                <form method="post" id="scheduleMeetingForm">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="suggest_meeting">
 
-            <div class="mb-3">
-                <label class="form-label">Duration:</label>
-                <select name="duration" class="form-select">
-                    <option value="30">30 minutes</option>
-                    <option value="60" selected>1 hour</option>
-                    <option value="90">1.5 hours</option>
-                    <option value="120">2 hours</option>
-                </select>
+                    <div class="mb-3">
+                        <label class="form-label">Select Participants ({{ available_employees.count }} available):</label>
+                        <select name="employees" multiple class="form-select" id="participantsSelect" style="height: 200px !important; width: 100%; display: block !important;">
+                            {% for emp in available_employees %}
+                                <option value="{{ emp.id }}">
+                                    {{ emp.user.get_full_name|default:emp.user.username }} ({{ emp.employee_id }})
+                                </option>
+                            {% empty %}
+                                <option disabled>No employees available</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">Hold Ctrl to select multiple participants</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Duration:</label>
+                        <select name="duration" class="form-select">
+                            <option value="30">30 minutes</option>
+                            <option value="60" selected>1 hour</option>
+                            <option value="90">1.5 hours</option>
+                            <option value="120">2 hours</option>
+                        </select>
+                    </div>
+
+                    <div id="meetingResults" class="mt-3 d-none">
+                        <div class="alert" role="alert"></div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100" id="findTimeButton">
+                        <i class="fas fa-search"></i> Find Optimal Time
+                    </button>
+                </form>
             </div>
-
-            <div id="meetingResults" class="mt-3 d-none">
-                <div class="alert" role="alert"></div>
-            </div>
-
-            <button type="submit" class="btn btn-primary w-100" id="findTimeButton">
-                <i class="fas fa-search"></i> Find Optimal Time
-            </button>
-        </form>
-    </div>
-</div>
+        </div>
 
          <!-- Schedule Rules Summary -->
          {% if schedule_rules %}
@@ -724,62 +714,88 @@
         });
     });
 
-    // Handle group meeting form submission
-$('#scheduleMeetingForm').on('submit', function(e) {
-    e.preventDefault();
+// Handle group meeting form submission
+document.addEventListener('DOMContentLoaded', function() {
+    // Select the form and other elements
+    const form = document.getElementById('scheduleMeetingForm');
+    const resultsDiv = document.getElementById('meetingResults');
+    const resultsAlert = resultsDiv.querySelector('.alert');
+    const submitBtn = document.getElementById('findTimeButton');
+    const participantsSelect = document.getElementById('participantsSelect');
 
-    var form = $(this);
-    var resultsDiv = $('#meetingResults');
-    var resultsAlert = resultsDiv.find('.alert');
-    var submitBtn = $('#findTimeButton');
-
-    // Check if participants are selected
-    if ($('#participantsSelect').val() === null || $('#participantsSelect').val().length === 0) {
-        resultsDiv.removeClass('d-none');
-        resultsAlert.removeClass('alert-success alert-warning alert-info')
-                  .addClass('alert-danger')
-                  .html('<i class="fas fa-times-circle"></i> Please select at least one participant');
-        return;
+    // Log the select element for debugging
+    console.log('Participants select element:', participantsSelect);
+    if (participantsSelect) {
+        console.log('Options count:', participantsSelect.options.length);
+        console.log('Select style display:', window.getComputedStyle(participantsSelect).display);
     }
 
-    // Show loading message
-    resultsDiv.removeClass('d-none');
-    resultsAlert.removeClass('alert-success alert-danger alert-warning')
-              .addClass('alert-info')
-              .html('<i class="fas fa-spinner fa-spin"></i> Finding optimal meeting time...');
-    submitBtn.prop('disabled', true);
-
-    // Submit the form via AJAX
-    $.ajax({
-        url: form.attr('action'),
-        method: 'POST',
-        data: form.serialize(),
-        headers: {'X-Requested-With': 'XMLHttpRequest'},
-        success: function(response) {
-            if (response.status === 'success') {
-                resultsAlert.removeClass('alert-info alert-warning alert-danger')
-                          .addClass('alert-success')
-                          .html('<i class="fas fa-check-circle"></i> Suitable time found! Redirecting...');
-
-                // Redirect to meeting creation page
-                setTimeout(function() {
-                    window.location.href = response.redirect_url;
-                }, 1000);
-            } else {
-                resultsAlert.removeClass('alert-info alert-success alert-warning')
-                          .addClass('alert-danger')
-                          .html('<i class="fas fa-times-circle"></i> ' + (response.message || 'Could not find a suitable meeting time'));
-                submitBtn.prop('disabled', false);
-            }
-        },
-        error: function(xhr, status, error) {
-            resultsAlert.removeClass('alert-info alert-success alert-warning')
-                      .addClass('alert-danger')
-                      .html('<i class="fas fa-times-circle"></i> Error suggesting meeting time. Please try again.');
-            submitBtn.prop('disabled', false);
-            console.error('Error suggesting meeting time:', error);
+    // Check if Select2 is initialized
+    if ($.fn.select2 && participantsSelect) {
+        // Remove any existing Select2 initialization
+        try {
+            $(participantsSelect).select2('destroy');
+        } catch (e) {
+            console.log('Select2 not previously initialized');
         }
-    });
+
+        // Initialize without any custom options that might hide the select
+        $(participantsSelect).select2({
+            width: '100%',
+            dropdownCssClass: 'select2-dropdown-open'
+        });
+    }
+
+    // Handle form submission
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            // Check if participants are selected
+            if (participantsSelect.selectedOptions.length === 0) {
+                resultsDiv.classList.remove('d-none');
+                resultsAlert.className = 'alert alert-danger';
+                resultsAlert.innerHTML = '<i class="fas fa-times-circle"></i> Please select at least one participant';
+                return;
+            }
+
+            // Show loading message
+            resultsDiv.classList.remove('d-none');
+            resultsAlert.className = 'alert alert-info';
+            resultsAlert.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Finding optimal meeting time...';
+            submitBtn.disabled = true;
+
+            // Submit the form via AJAX
+            $.ajax({
+                url: form.action,
+                method: 'POST',
+                data: $(form).serialize(),
+                headers: {'X-Requested-With': 'XMLHttpRequest'},
+                success: function(response) {
+                    if (response.status === 'success') {
+                        resultsAlert.className = 'alert alert-success';
+                        resultsAlert.innerHTML = '<i class="fas fa-check-circle"></i> Suitable time found! Redirecting...';
+
+                        // Redirect to meeting creation page
+                        setTimeout(function() {
+                            window.location.href = response.redirect_url;
+                        }, 1000);
+                    } else {
+                        resultsAlert.className = 'alert alert-danger';
+                        resultsAlert.innerHTML = '<i class="fas fa-times-circle"></i> ' +
+                            (response.message || 'Could not find a suitable meeting time');
+                        submitBtn.disabled = false;
+                    }
+                },
+                error: function(xhr, status, error) {
+                    resultsAlert.className = 'alert alert-danger';
+                    resultsAlert.innerHTML = '<i class="fas fa-times-circle"></i> Error suggesting meeting time. Please try again.';
+                    submitBtn.disabled = false;
+                    console.error('Error suggesting meeting time:', error);
+                }
+            });
+        });
+    }
 });
 </script>
 {% endblock %}
