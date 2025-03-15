@@ -7,38 +7,15 @@
 {% block extra_css %}
 <link href='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css' rel='stylesheet' />
 
-
-<!-- Override problematic CSS for this page only -->
+<!-- Critical CSS overrides -->
 <style>
-   /* Override the problematic select styles for this page */
-   select.form-control,
-   select,
-   #participantsSelect {
-       -webkit-appearance: menulist !important;
-       -moz-appearance: menulist !important;
-       appearance: menulist !important;
-       background: white !important;
-       padding-right: 20px !important;
-   }
-
-   /* Ensure the dropdown arrow appears */
-   select::-ms-expand {
-       display: inline !important;
-   }
-
-   /* Fix for responsiveness */
-   .calendar-container {
-       height: 650px;
-       max-width: 100%;
-       overflow: auto;
-   }
-
+   /* Calendar styling */
    #calendar {
        max-width: 100%;
-       height: 100%;
+       height: 650px;
    }
 
-   /* Ensuring content doesn't overflow */
+   /* Responsive layout */
    .calendar-row {
        display: flex;
        flex-wrap: wrap;
@@ -54,17 +31,6 @@
        max-width: 350px;
    }
 
-   /* Responsive adjustments */
-   @media (max-width: 992px) {
-       .calendar-sidebar {
-           max-width: 100%;
-       }
-
-       .calendar-container {
-           height: 500px;
-       }
-   }
-
    /* Calendar event styling */
    .fc-event {
        cursor: pointer;
@@ -73,12 +39,15 @@
        line-height: 1.2 !important;
        padding: 2px 4px !important;
    }
+
    .fc-event-time {
        font-weight: bold;
    }
+
    .fc-daygrid-event-dot {
        display: none;
    }
+
    .fc-event-title {
        display: block;
        overflow: visible !important;
@@ -93,6 +62,7 @@
        margin: 2px 0;
        border-radius: 3px;
    }
+
    .availability-unavailable {
        background-color: rgba(217, 83, 79, 0.2);
        border: 1px solid #d9534f;
@@ -101,6 +71,7 @@
        border-radius: 3px;
        color: #d9534f;
    }
+
    .schedule-rule-item {
        background-color: rgba(91, 192, 222, 0.1);
        border: 1px solid #5bc0de;
@@ -108,6 +79,7 @@
        margin-bottom: 8px;
        border-radius: 4px;
    }
+
    .error-container {
       background-color: rgba(220, 53, 69, 0.1);
       border: 1px solid #dc3545;
@@ -115,25 +87,58 @@
       padding: 15px;
       margin-bottom: 15px;
    }
+
    .employee-count-badge {
       font-size: 0.9rem;
       vertical-align: middle;
       margin-left: 8px;
    }
 
-   /* Fix Select2 conflicts directly */
-   .select2-container {
-       display: none !important;
-   }
-
-   #participantsSelect {
+   /* Force native select appearance */
+   select[name="employees"] {
        display: block !important;
        visibility: visible !important;
-       width: 100% !important;
-       height: 200px !important;
        opacity: 1 !important;
+       height: 200px !important;
+       width: 100% !important;
+       max-width: 100% !important;
        position: static !important;
+       z-index: 9999 !important;
+       background-color: white !important;
+       -webkit-appearance: menulist !important;
+       -moz-appearance: menulist !important;
+       appearance: menulist !important;
+   }
+
+   /* Hide any Select2 containers */
+   body .select2-container {
+       display: none !important;
+       visibility: hidden !important;
+       opacity: 0 !important;
+   }
+
+   /* Fix Select2 hidden elements */
+   .select2-hidden-accessible {
+       display: block !important;
+       position: static !important;
+       width: auto !important;
+       height: auto !important;
+       opacity: 1 !important;
        margin: 0 !important;
+       overflow: visible !important;
+       clip: auto !important;
+       border: 1px solid #ced4da !important;
+   }
+
+   /* Responsive adjustments */
+   @media (max-width: 992px) {
+       .calendar-sidebar {
+           max-width: 100%;
+       }
+
+       #calendar {
+           height: 500px;
+       }
    }
 </style>
 {% endblock %}
@@ -170,9 +175,7 @@
                </div>
             </div>
             <div class="card-body">
-               <div class="calendar-container">
-                  <div id="calendar"></div>
-               </div>
+               <div id="calendar"></div>
             </div>
          </div>
       </div>
@@ -239,52 +242,61 @@
             </div>
          </div>
 
-<!-- Schedule Group Meeting Card -->
-<div class="card shadow mb-4">
-    <div class="card-header py-3">
-        <h6 class="m-0 font-weight-bold text-primary">
-           Schedule Group Meeting
-           <span class="badge bg-primary text-white">{{ available_employees.count }} employees</span>
-        </h6>
-    </div>
-    <div class="card-body">
-        <form method="post" action="{% url 'calendar' %}" id="scheduleMeetingForm">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="suggest_meeting">
-
-            <div class="mb-3">
-                <label class="form-label">Select Participants:</label>
-                <!-- Simple, basic select element with no fancy styling -->
-                <select name="employees" multiple style="width: 100%; height: 200px; display: block !important">
-                    {% for emp in available_employees %}
-                        <option value="{{ emp.id }}">
-                            {{ emp.user.username }} ({{ emp.employee_id }})
-                        </option>
-                    {% empty %}
-                        <option disabled>No employees available</option>
-                    {% endfor %}
-                </select>
-                <div class="form-text">Hold Ctrl to select multiple participants</div>
+         <!-- Schedule Group Meeting Card -->
+         <div class="card shadow mb-4">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">
+                   Schedule Group Meeting
+                   <span class="badge bg-primary text-white employee-count-badge">{{ available_employees|length }} employees</span>
+                </h6>
             </div>
+            <div class="card-body">
+                <form method="post" action="{% url 'calendar' %}" id="scheduleMeetingForm">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="suggest_meeting">
 
-            <div class="mb-3">
-                <label class="form-label">Duration:</label>
-                <select name="duration" style="width: 100%">
-                    <option value="30">30 minutes</option>
-                    <option value="60" selected>1 hour</option>
-                    <option value="90">1.5 hours</option>
-                    <option value="120">2 hours</option>
-                </select>
+                    <div class="mb-3">
+                        <label class="form-label">Select Participants:</label>
+                        <select name="employees" multiple
+                              style="width: 100%; height: 200px; display: block !important; visibility: visible !important;
+                                     opacity: 1 !important; position: static !important; border: 1px solid #ced4da;">
+                            {% for emp in available_employees %}
+                                <option value="{{ emp.id }}">
+                                    {% if emp.user.get_full_name %}
+                                        {{ emp.user.get_full_name }}
+                                    {% else %}
+                                        {{ emp.user.username }}
+                                    {% endif %}
+                                    ({{ emp.employee_id }})
+                                </option>
+                            {% empty %}
+                                <option disabled>No employees available</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">Hold Ctrl to select multiple participants</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Duration:</label>
+                        <select name="duration" class="form-select">
+                            <option value="30">30 minutes</option>
+                            <option value="60" selected>1 hour</option>
+                            <option value="90">1.5 hours</option>
+                            <option value="120">2 hours</option>
+                        </select>
+                    </div>
+
+                    <div id="meetingResults" class="mt-3 d-none">
+                        <div class="alert" role="alert"></div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100" id="findTimeButton">
+                        <i class="fas fa-search"></i> Find Optimal Time
+                    </button>
+                </form>
             </div>
+        </div>
 
-            <div id="meetingResults" class="mt-3 d-none">
-                <div class="alert" role="alert"></div>
-            </div>
-
-            <button type="submit" class="btn btn-primary w-100">Find Optimal Time</button>
-        </form>
-    </div>
-</div>
          <!-- Schedule Rules Summary -->
          {% if schedule_rules %}
          <div class="card shadow mb-4">
@@ -389,28 +401,6 @@
                    <button type="submit" class="btn btn-primary">Check Availability</button>
                 </form>
             </div>
-        </div>
-        <div id="employeeData" style="display:none;" data-count="{{ available_employees.count }}">
-            {% for emp in available_employees %}
-              <div class="employee-item"
-                   data-id="{{ emp.id }}"
-                   data-name="{% if emp.user.get_full_name %}{{ emp.user.get_full_name }}{% else %}{{ emp.user.username }}{% endif %}"
-                   data-employee-id="{{ emp.employee_id }}">
-              </div>
-            {% endfor %}
-          </div>
-    </div>
-    <div class="card mb-3">
-        <div class="card-header bg-warning">Debug Info</div>
-        <div class="card-body">
-            <p>Available employees count: {{ available_employees.count }}</p>
-            <ul>
-            {% for emp in available_employees %}
-                <li>{{ emp.id }} - {{ emp.user.username }}</li>
-            {% empty %}
-                <li>No employees in context!</li>
-            {% endfor %}
-            </ul>
         </div>
     </div>
 </div>
