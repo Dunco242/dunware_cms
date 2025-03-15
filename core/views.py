@@ -5575,3 +5575,54 @@ def minimal_calendar_view(request):
 
     # Render a minimal template
     return render(request, 'core/minimal_calendar.html', context)
+
+
+class CalendarViewSimplified(LoginRequiredMixin, TemplateView):
+    """
+    Simplified calendar view focused only on employee selection
+    """
+    template_name = 'core/calendar_simplified.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        try:
+            # Direct access to employee profile without mixin
+            if hasattr(self.request.user, 'employee_profile'):
+                current_employee = self.request.user.employee_profile
+
+                # Get all employees except the current one
+                all_employees = Employee.objects.all()
+                available_employees = Employee.objects.exclude(id=current_employee.id)
+                active_employees = Employee.objects.filter(is_active=True)
+
+                # Log all employees for debugging
+                for emp in all_employees:
+                    print(f"Employee: {emp.id} - {emp.user.username if hasattr(emp, 'user') else 'No user'}")
+
+                # Add data to context
+                context.update({
+                    'current_employee': current_employee,
+                    'all_employees': all_employees,
+                    'available_employees': available_employees,
+                    'active_employees': active_employees,
+                    'employee_count': available_employees.count(),
+                })
+            else:
+                context.update({
+                    'error_message': 'No employee profile found',
+                    'available_employees': [],
+                    'employee_count': 0,
+                })
+
+        except Exception as e:
+            import traceback
+            print(f"Error getting calendar data: {str(e)}")
+            print(traceback.format_exc())
+            context.update({
+                'error_message': str(e),
+                'available_employees': [],
+                'employee_count': 0,
+            })
+
+        return context

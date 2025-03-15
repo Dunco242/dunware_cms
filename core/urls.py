@@ -50,7 +50,9 @@ from .views import (
     # Schedule Views
     ScheduleRuleListView, ScheduleRuleCreateView,
     ScheduleRuleUpdateView, ScheduleRuleDeleteView,
-
+    ################################################
+    CalendarViewSimplified,
+    ################################################
     # Task Views
     TaskListView, TaskCreateView, TaskDetailView,
     TaskUpdateView, TaskDeleteView, task_status_update,
@@ -263,6 +265,7 @@ urlpatterns = [
     path('websocket-test/', views.websocket_test, name='websocket_test'),
     path('employee-diagnostic/', views.employee_diagnostic, name='employee-diagnostic'),
     path('minimal-calendar/', views.minimal_calendar_view, name='minimal_calendar'),
+    path('calendar-simplified/', CalendarViewSimplified.as_view(), name='calendar-simplified'),
 ]
 
 

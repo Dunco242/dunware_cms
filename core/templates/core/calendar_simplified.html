@@ -1,0 +1,51 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}Simplified Calendar{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Simplified Calendar View</h5>
+                </div>
+                <div class="card-body">
+                    {% if error_message %}
+                    <div class="alert alert-danger">
+                        {{ error_message }}
+                    </div>
+                    {% endif %}
+
+                    <h6>Current Employee: {{ current_employee.user.username }} (ID: {{ current_employee.id }})</h6>
+
+                    <h6>Employee Counts:</h6>
+                    <ul>
+                        <li>All employees: {{ all_employees.count }}</li>
+                        <li>Available employees: {{ available_employees.count }}</li>
+                        <li>Active employees: {{ active_employees.count }}</li>
+                    </ul>
+
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label class="form-label">Select Participants ({{ available_employees.count }} available):</label>
+                            <select name="employees" multiple class="form-select" style="height: 200px;">
+                                {% for emp in available_employees %}
+                                    <option value="{{ emp.id }}">
+                                        {{ emp.user.get_full_name|default:emp.user.username }} ({{ emp.employee_id }})
+                                    </option>
+                                {% empty %}
+                                    <option disabled>No employees available</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Submit</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
