@@ -77,28 +77,6 @@
    </div>
    {% endif %}
 
-   <!-- Debug information -->
-   <div class="card mb-4">
-       <div class="card-header py-3">
-           <h6 class="m-0 font-weight-bold text-primary">Debug Information</h6>
-       </div>
-       <div class="card-body">
-           <p><strong>Total employees in system:</strong> {{ employee.user.count }}</p>
-           <p><strong>Active employees count:</strong> {{ active_employees.count }}</p>
-           <p><strong>Available employees count:</strong> {{ available_employees.count }}</p>
-           <p><strong>Form exists:</strong> {% if employee_selection_form %}Yes{% else %}No{% endif %}</p>
-
-           <h6>Available Employee IDs:</h6>
-           <ul>
-           {% for emp in available_employees %}
-               <li>ID: {{ emp.id }} - Username: {{ emp.user.username }} - Active: {{ emp.is_active }}</li>
-           {% empty %}
-               <li>No available employees found</li>
-           {% endfor %}
-           </ul>
-       </div>
-   </div>
-
    <div class="row">
       <!-- Calendar Column -->
       <div class="col-lg-9">
@@ -188,7 +166,7 @@
             </div>
          </div>
 
-         <!-- Schedule Group Meeting Card -->
+<!-- Schedule Group Meeting Card -->
 <div class="card shadow mb-4">
     <div class="card-header py-3">
         <h6 class="m-0 font-weight-bold text-primary">
@@ -199,16 +177,6 @@
         </h6>
     </div>
     <div class="card-body">
-        <!-- Debug Info (remove in production) -->
-        <div class="alert alert-info">
-            <strong>Debug Info:</strong><br>
-            Current Employee ID: {{ current_employee_id }}<br>
-            Available Employees Count: {{ available_employees.count }}<br>
-            Employee Form Field: {% if employee_form.employees %}Yes{% else %}No{% endif %}<br>
-            Employee Form Fields: {{ employee_form.fields.keys|join:", " }}<br>
-            Form is bound: {{ employee_form.is_bound }}<br>
-        </div>
-
         <form method="post" action="{% url 'calendar' %}" id="scheduleMeetingForm">
             {% csrf_token %}
             <input type="hidden" name="action" value="suggest_meeting">
@@ -216,30 +184,25 @@
             <div class="mb-3">
                 <label class="form-label">Select Participants:</label>
                 {% if available_employees.count > 0 %}
-                   <!-- Print the raw form field for debugging -->
-                   {{ employee_form.as_p }}
-
-                   <!-- Direct rendering for debugging -->
+                   <!-- Simplified form rendering -->
                    <select name="employees" multiple class="form-select" id="participantsSelect" style="min-height: 100px; display: block !important;">
                      {% for emp in available_employees %}
                          <option value="{{ emp.id }}">
-                             ID: {{ emp.id }} -
                              {% if emp.user.get_full_name %}
                                  {{ emp.user.get_full_name }}
                              {% else %}
                                  {{ emp.user.username }}
                              {% endif %}
+                             ({{ emp.employee_id }})
                          </option>
-                     {% empty %}
-                         <option disabled>No employees in queryset</option>
                      {% endfor %}
                    </select>
-                   <div class="form-text">Hold Ctrl to select multiple participants (Debug IDs: {{ debug_employee_ids|join:", " }})</div>
+                   <div class="form-text">Hold Ctrl to select multiple participants</div>
                 {% else %}
                    <select class="form-select" multiple id="participantsSelect" disabled style="min-height: 100px; display: block !important;">
                       <option>No employees available</option>
                    </select>
-                   <div class="form-text text-danger">No employees available for meetings (Current ID: {{ debug_employee_id }})</div>
+                   <div class="form-text text-danger">No employees available for meetings</div>
                 {% endif %}
             </div>
             <div class="mb-3">

@@ -923,6 +923,7 @@ class EmployeeSelectionForm(forms.Form):
     employees = forms.ModelMultipleChoiceField(
         queryset=Employee.objects.filter(is_active=True),
         required=False,
+        label="Select Participants",
         widget=forms.SelectMultiple(attrs={
             'class': 'form-select',
             'id': 'participantsSelect',
@@ -934,18 +935,9 @@ class EmployeeSelectionForm(forms.Form):
         available_employees = kwargs.pop('available_employees', None)
         super().__init__(*args, **kwargs)
 
-        # Set the queryset if available_employees was provided
+        # Set the queryset directly
         if available_employees is not None:
             self.fields['employees'].queryset = available_employees
 
-        # Set how employees should be displayed in the dropdown
-        self.fields['employees'].label_from_instance = self.get_employee_label
-
-    def get_employee_label(self, employee):
-        """Return the display text for each employee in the dropdown"""
-        if hasattr(employee, 'user') and hasattr(employee.user, 'get_full_name'):
-            full_name = employee.user.get_full_name()
-            if full_name:
-                return full_name
-            return employee.user.username
-        return f"Employee {employee.id}"
+        # Ensure label_from_instance works with Django 2.x and 3.x
+        self.fields['employees'].label_from_instance = lambda obj: f"{obj.user.get_full_name() or obj.user.username} ({obj.employee_id})"
