@@ -916,48 +916,4 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 </script>
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Read employee data from hidden div
-    const employeeData = document.getElementById('employeeData');
-    if (!employeeData) {
-        console.error('Employee data div not found');
-        return;
-    }
-
-    const employeeCount = employeeData.getAttribute('data-count') || '0';
-    const employeeItems = employeeData.querySelectorAll('.employee-item');
-
-    const employeeSelect = document.getElementById('employeeSelect');
-    const employeeCountBadge = document.getElementById('employeeCountBadge');
-
-    if (!employeeSelect || !employeeCountBadge) {
-        console.error('Required elements not found');
-        return;
-    }
-
-    // Update badge
-    employeeCountBadge.textContent = employeeCount + ' employees';
-
-    // Clear select options
-    employeeSelect.innerHTML = '';
-
-    // Add options based on div data
-    if (employeeItems.length > 0) {
-        employeeItems.forEach(function(item) {
-            const option = document.createElement('option');
-            option.value = item.getAttribute('data-id');
-            option.textContent = item.getAttribute('data-name') + ' (' + item.getAttribute('data-employee-id') + ')';
-            employeeSelect.appendChild(option);
-        });
-        console.log('Added ' + employeeItems.length + ' employees to select');
-    } else {
-        const option = document.createElement('option');
-        option.disabled = true;
-        option.textContent = 'No employees available';
-        employeeSelect.appendChild(option);
-        console.log('No employees found');
-    }
-});
-</script>
 {% endblock %}
