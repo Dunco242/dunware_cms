@@ -1537,37 +1537,37 @@ class CalendarView(LoginRequiredMixin, TemplateView):
     template_name = 'core/calendar_revamped.html'
 
     def get_context_data(self, **kwargs):
-    context = super().get_context_data(**kwargs)
-    today = timezone.now().date()
+        context = super().get_context_data(**kwargs)
+        today = timezone.now().date()
 
-    try:
-        if hasattr(self.request.user, 'employee_profile'):
-            current_employee = self.request.user.employee_profile
+        try:
+            if hasattr(self.request.user, 'employee_profile'):
+                current_employee = self.request.user.employee_profile
 
-            # Get employees but also prepare a JSON format for JavaScript
-            available_employees = Employee.objects.exclude(id=current_employee.id).filter(is_active=True)
+                # Get employees but also prepare a JSON format for JavaScript
+                available_employees = Employee.objects.exclude(id=current_employee.id).filter(is_active=True)
 
-            # Create a JSON-serializable list of employee data
-            employee_list = []
-            for emp in available_employees:
-                employee_list.append({
-                    'id': emp.id,
-                    'name': emp.user.get_full_name() or emp.user.username,
-                    'employee_id': emp.employee_id
+                # Create a JSON-serializable list of employee data
+                employee_list = []
+                for emp in available_employees:
+                    employee_list.append({
+                        'id': emp.id,
+                        'name': emp.user.get_full_name() or emp.user.username,
+                        'employee_id': emp.employee_id
+                    })
+
+                # Add all data to context
+                context.update({
+                    'current_employee': current_employee,
+                    'available_employees': available_employees,
+                    'employee_list_json': json.dumps(employee_list),  # Add JSON data
+                    # ... other context data ...
                 })
+        except Exception as e:
+            # Error handling
+            pass
 
-            # Add all data to context
-            context.update({
-                'current_employee': current_employee,
-                'available_employees': available_employees,
-                'employee_list_json': json.dumps(employee_list),  # Add JSON data
-                # ... other context data ...
-            })
-    except Exception as e:
-        # Error handling
-        pass
-
-    return context
+        return context
 
     def _get_rule_day_info(self, rule):
         """Format day information for a schedule rule"""
