@@ -1541,60 +1541,71 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
         today = timezone.now().date()
 
         try:
-            # Get current employee from the mixin
-            current_employee = self.employee
+            # Use request.user.employee_profile directly instead of self.employee from the mixin
+            # This matches the approach in minimal_calendar_view
+            if hasattr(self.request.user, 'employee_profile'):
+                current_employee = self.request.user.employee_profile
 
-            # Simple direct query for available employees - matching the working minimal view
-            available_employees = Employee.objects.exclude(id=current_employee.id).filter(is_active=True).select_related('user')
+                # Use the same query that works in minimal_calendar_view
+                available_employees = Employee.objects.exclude(id=current_employee.id).filter(is_active=True)
 
-            # Get schedule rule information
-            schedule_rules = ScheduleRule.objects.filter(
-                user=self.request.user,
-                is_active=True
-            )
-
-            # Format rule information for display
-            rule_info = []
-            for rule in schedule_rules:
-                rule_info.append({
-                    'name': rule.name,
-                    'recurrence': rule.get_recurrence_type_display(),
-                    'time_range': f"{rule.start_time.strftime('%I:%M %p')} - {rule.end_time.strftime('%I:%M %p')}",
-                    'day_info': self._get_rule_day_info(rule),
-                    'duration_limits': f"{rule.min_booking_duration}-{rule.max_booking_duration} minutes",
-                    'buffer': f"{rule.buffer_before} min before, {rule.buffer_after} min after"
-                })
-
-            # Get today's availability
-            from .services.scheduling import SchedulingService
-            scheduling_service = SchedulingService(self.request.user)
-            availability_data = {'today': scheduling_service.get_availability(today)}
-
-            # Get upcoming available slots
-            available_slots = []
-            for duration in [30, 60]:
-                next_start, next_end = scheduling_service.get_next_available_slot(
-                    from_datetime=timezone.now(),
-                    duration_minutes=duration
+                # Get schedule rule information
+                schedule_rules = ScheduleRule.objects.filter(
+                    user=self.request.user,
+                    is_active=True
                 )
-                if next_start and next_end:
-                    available_slots.append({
-                        'start': next_start,
-                        'end': next_end,
-                        'label': f"{duration} min slot at {next_start.strftime('%I:%M %p')} on {next_start.strftime('%b %d')}"
+
+                # Format rule information for display
+                rule_info = []
+                for rule in schedule_rules:
+                    rule_info.append({
+                        'name': rule.name,
+                        'recurrence': rule.get_recurrence_type_display(),
+                        'time_range': f"{rule.start_time.strftime('%I:%M %p')} - {rule.end_time.strftime('%I:%M %p')}",
+                        'day_info': self._get_rule_day_info(rule),
+                        'duration_limits': f"{rule.min_booking_duration}-{rule.max_booking_duration} minutes",
+                        'buffer': f"{rule.buffer_before} min before, {rule.buffer_after} min after"
                     })
 
-            # Add data to context
-            context.update({
-                'current_employee': current_employee,
-                'available_employees': available_employees,
-                'schedule_rules': rule_info,
-                'availability_data': availability_data,
-                'available_slots': available_slots,
-                'today': today,
-                'is_personal_calendar': True,
-                'employee_count': available_employees.count(),
-            })
+                # Get today's availability
+                from .services.scheduling import SchedulingService
+                scheduling_service = SchedulingService(self.request.user)
+                availability_data = {'today': scheduling_service.get_availability(today)}
+
+                # Get upcoming available slots
+                available_slots = []
+                for duration in [30, 60]:
+                    next_start, next_end = scheduling_service.get_next_available_slot(
+                        from_datetime=timezone.now(),
+                        duration_minutes=duration
+                    )
+                    if next_start and next_end:
+                        available_slots.append({
+                            'start': next_start,
+                            'end': next_end,
+                            'label': f"{duration} min slot at {next_start.strftime('%I:%M %p')} on {next_start.strftime('%b %d')}"
+                        })
+
+                # Add data to context
+                context.update({
+                    'current_employee': current_employee,
+                    'available_employees': available_employees,
+                    'schedule_rules': rule_info,
+                    'availability_data': availability_data,
+                    'available_slots': available_slots,
+                    'today': today,
+                    'is_personal_calendar': True,
+                    'employee_count': available_employees.count(),
+                })
+            else:
+                messages.error(self.request, 'No employee profile found for this user.')
+                context.update({
+                    'today': today,
+                    'is_personal_calendar': True,
+                    'error_message': 'No employee profile found',
+                    'available_employees': [],
+                    'employee_count': 0,
+                })
 
         except Exception as e:
             logger.error(f"Error getting calendar data: {str(e)}", exc_info=True)
@@ -1603,6 +1614,8 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
                 'today': today,
                 'is_personal_calendar': True,
                 'error_message': str(e),
+                'available_employees': [],
+                'employee_count': 0,
             })
 
         return context
@@ -1626,7 +1639,8 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
         response_data = {'status': 'error', 'message': 'Invalid action'}
 
         try:
-            employee = self.employee
+            # Use request.user.employee_profile for consistency with get_context_data
+            employee = request.user.employee_profile
 
             if action == 'availability_check':
                 response_data = self._handle_availability_check(request)
@@ -1786,7 +1800,6 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
         except Exception as e:
             logger.error(f"Error suggesting meeting time: {str(e)}", exc_info=True)
             return {'status': 'error', 'message': f"Error suggesting meeting time: {str(e)}"}
-
 
 # Function-based view alternative
 def calendar_view(request):
