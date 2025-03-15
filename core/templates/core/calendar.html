@@ -165,53 +165,62 @@
                {% endif %}
             </div>
          </div>
+         <!-- Schedule Group Meeting Card -->
+<div class="card shadow mb-4">
+    <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">
+           Schedule Group Meeting
+           <span class="badge bg-primary text-white employee-count-badge">{{ available_employees.count }} employees</span>
+        </h6>
+    </div>
+    <div class="card-body">
+        <form method="post" action="{% url 'calendar' %}" id="scheduleMeetingForm">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="suggest_meeting">
 
-         <div class="card shadow mb-4">
-            <div class="card-header py-3">
-                <h6 class="m-0 font-weight-bold text-primary">
-                   Schedule Group Meeting
-                   <span class="badge bg-primary text-white employee-count-badge">{{ available_employees.count }} employees</span>
-                </h6>
+            <div class="mb-3">
+                <label class="form-label">Select Participants ({{ available_employees.count }} available):</label>
+
+                <!-- Explicitly prevent Select2 from affecting this select -->
+                <select name="employees" multiple class="form-select no-select2" id="participantsSelect"
+                      style="height: 200px !important; width: 100% !important; display: block !important; visibility: visible !important; opacity: 1 !important;"
+                      data-select2-id="none">
+                    {% for emp in available_employees %}
+                        <option value="{{ emp.id }}">
+                            {% if emp.user.get_full_name %}
+                                {{ emp.user.get_full_name }}
+                            {% else %}
+                                {{ emp.user.username }}
+                            {% endif %}
+                            ({{ emp.employee_id }})
+                        </option>
+                    {% empty %}
+                        <option disabled>No employees available</option>
+                    {% endfor %}
+                </select>
+                <div class="form-text">Hold Ctrl to select multiple participants</div>
             </div>
-            <div class="card-body">
-                <form method="post" id="scheduleMeetingForm">
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="suggest_meeting">
 
-                    <div class="mb-3">
-                        <label class="form-label">Select Participants ({{ available_employees.count }} available):</label>
-                        <select name="employees" multiple class="form-select" id="participantsSelect" style="height: 200px !important; width: 100%; display: block !important;">
-                            {% for emp in available_employees %}
-                                <option value="{{ emp.id }}">
-                                    {{ emp.user.get_full_name|default:emp.user.username }} ({{ emp.employee_id }})
-                                </option>
-                            {% empty %}
-                                <option disabled>No employees available</option>
-                            {% endfor %}
-                        </select>
-                        <div class="form-text">Hold Ctrl to select multiple participants</div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label">Duration:</label>
-                        <select name="duration" class="form-select">
-                            <option value="30">30 minutes</option>
-                            <option value="60" selected>1 hour</option>
-                            <option value="90">1.5 hours</option>
-                            <option value="120">2 hours</option>
-                        </select>
-                    </div>
-
-                    <div id="meetingResults" class="mt-3 d-none">
-                        <div class="alert" role="alert"></div>
-                    </div>
-
-                    <button type="submit" class="btn btn-primary w-100" id="findTimeButton">
-                        <i class="fas fa-search"></i> Find Optimal Time
-                    </button>
-                </form>
+            <div class="mb-3">
+                <label class="form-label">Duration:</label>
+                <select name="duration" class="form-select">
+                    <option value="30">30 minutes</option>
+                    <option value="60" selected>1 hour</option>
+                    <option value="90">1.5 hours</option>
+                    <option value="120">2 hours</option>
+                </select>
             </div>
-        </div>
+
+            <div id="meetingResults" class="mt-3 d-none">
+                <div class="alert" role="alert"></div>
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100" id="findTimeButton">
+                <i class="fas fa-search"></i> Find Optimal Time
+            </button>
+        </form>
+    </div>
+</div>
 
          <!-- Schedule Rules Summary -->
          {% if schedule_rules %}
@@ -328,6 +337,48 @@
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
 <script>
+    document.addEventListener('DOMContentLoaded', function() {
+    // Disable Select2 for the participants select
+    if ($.fn.select2) {
+        try {
+            // Try to destroy any existing Select2 instance
+            $('#participantsSelect').select2('destroy');
+        } catch (e) {
+            console.log('Select2 not initialized or error destroying:', e);
+        }
+
+        // Prevent automatic initialization by Select2
+        $.fn.select2.defaults.set('debug', true);
+
+        // Add a class to prevent auto-initialization
+        $('#participantsSelect').addClass('no-select2');
+
+        // Override any global initialization for this specific element
+        $(document).on('select2:init', '#participantsSelect', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            return false;
+        });
+    }
+
+    // Print debug information about the select element
+    const participantsSelect = document.getElementById('participantsSelect');
+    if (participantsSelect) {
+        console.log('Participants select found:', participantsSelect);
+        console.log('Options count:', participantsSelect.options.length);
+        console.log('Current display style:', window.getComputedStyle(participantsSelect).display);
+        console.log('Current visibility:', window.getComputedStyle(participantsSelect).visibility);
+
+        // Force display properties
+        participantsSelect.style.display = 'block';
+        participantsSelect.style.visibility = 'visible';
+        participantsSelect.style.opacity = '1';
+        participantsSelect.removeAttribute('aria-hidden');
+        participantsSelect.removeAttribute('tabindex');
+    } else {
+        console.log('Participants select not found in DOM');
+    }
+});
     // Initialize calendar configuration
     document.addEventListener('DOMContentLoaded', function() {
         // Initialize Select2
