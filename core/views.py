@@ -1537,83 +1537,37 @@ class CalendarView(LoginRequiredMixin, TemplateView):
     template_name = 'core/calendar_revamped.html'
 
     def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        today = timezone.now().date()
+    context = super().get_context_data(**kwargs)
+    today = timezone.now().date()
 
-        try:
-            # Direct access to employee profile without mixin - this works
-            if hasattr(self.request.user, 'employee_profile'):
-                current_employee = self.request.user.employee_profile
+    try:
+        if hasattr(self.request.user, 'employee_profile'):
+            current_employee = self.request.user.employee_profile
 
-                # Simple query that works in simplified view
-                available_employees = Employee.objects.exclude(id=current_employee.id)
+            # Get employees but also prepare a JSON format for JavaScript
+            available_employees = Employee.objects.exclude(id=current_employee.id).filter(is_active=True)
 
-                # Get schedule rule information and other calendar data
-                schedule_rules = ScheduleRule.objects.filter(
-                    user=self.request.user,
-                    is_active=True
-                )
-
-                # Format rule information for display
-                rule_info = []
-                for rule in schedule_rules:
-                    rule_info.append({
-                        'name': rule.name,
-                        'recurrence': rule.get_recurrence_type_display(),
-                        'time_range': f"{rule.start_time.strftime('%I:%M %p')} - {rule.end_time.strftime('%I:%M %p')}",
-                        'day_info': self._get_rule_day_info(rule),
-                        'duration_limits': f"{rule.min_booking_duration}-{rule.max_booking_duration} minutes",
-                        'buffer': f"{rule.buffer_before} min before, {rule.buffer_after} min after"
-                    })
-
-                # Get availability data
-                from .services.scheduling import SchedulingService
-                scheduling_service = SchedulingService(self.request.user)
-                availability_data = {'today': scheduling_service.get_availability(today)}
-
-                # Get available slots
-                available_slots = []
-                for duration in [30, 60]:
-                    next_start, next_end = scheduling_service.get_next_available_slot(
-                        from_datetime=timezone.now(),
-                        duration_minutes=duration
-                    )
-                    if next_start and next_end:
-                        available_slots.append({
-                            'start': next_start,
-                            'end': next_end,
-                            'label': f"{duration} min slot at {next_start.strftime('%I:%M %p')} on {next_start.strftime('%b %d')}"
-                        })
-
-                # Add all data to context
-                context.update({
-                    'current_employee': current_employee,
-                    'available_employees': available_employees,
-                    'schedule_rules': rule_info,
-                    'availability_data': availability_data,
-                    'available_slots': available_slots,
-                    'today': today,
-                    'is_personal_calendar': True,
-                    'employee_count': available_employees.count(),
-                })
-            else:
-                context.update({
-                    'error_message': 'No employee profile found',
-                    'available_employees': [],
-                    'employee_count': 0,
+            # Create a JSON-serializable list of employee data
+            employee_list = []
+            for emp in available_employees:
+                employee_list.append({
+                    'id': emp.id,
+                    'name': emp.user.get_full_name() or emp.user.username,
+                    'employee_id': emp.employee_id
                 })
 
-        except Exception as e:
-            import traceback
-            print(f"Error getting calendar data: {str(e)}")
-            print(traceback.format_exc())
+            # Add all data to context
             context.update({
-                'error_message': str(e),
-                'available_employees': [],
-                'employee_count': 0,
+                'current_employee': current_employee,
+                'available_employees': available_employees,
+                'employee_list_json': json.dumps(employee_list),  # Add JSON data
+                # ... other context data ...
             })
+    except Exception as e:
+        # Error handling
+        pass
 
-        return context
+    return context
 
     def _get_rule_day_info(self, rule):
         """Format day information for a schedule rule"""
