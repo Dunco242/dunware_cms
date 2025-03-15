@@ -6,12 +6,65 @@
 
 {% block extra_css %}
 <link href='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css' rel='stylesheet' />
-<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+
+<!-- Override problematic CSS for this page only -->
 <style>
+   /* Override the problematic select styles for this page */
+   select.form-control,
+   select,
+   #participantsSelect {
+       -webkit-appearance: menulist !important;
+       -moz-appearance: menulist !important;
+       appearance: menulist !important;
+       background: white !important;
+       padding-right: 20px !important;
+   }
+
+   /* Ensure the dropdown arrow appears */
+   select::-ms-expand {
+       display: inline !important;
+   }
+
+   /* Fix for responsiveness */
+   .calendar-container {
+       height: 650px;
+       max-width: 100%;
+       overflow: auto;
+   }
+
    #calendar {
        max-width: 100%;
-       height: 650px;
+       height: 100%;
    }
+
+   /* Ensuring content doesn't overflow */
+   .calendar-row {
+       display: flex;
+       flex-wrap: wrap;
+   }
+
+   .calendar-main {
+       flex: 1;
+       min-width: 300px;
+   }
+
+   .calendar-sidebar {
+       width: 100%;
+       max-width: 350px;
+   }
+
+   /* Responsive adjustments */
+   @media (max-width: 992px) {
+       .calendar-sidebar {
+           max-width: 100%;
+       }
+
+       .calendar-container {
+           height: 500px;
+       }
+   }
+
+   /* Calendar event styling */
    .fc-event {
        cursor: pointer;
        white-space: normal !important;
@@ -30,6 +83,8 @@
        overflow: visible !important;
        white-space: normal !important;
    }
+
+   /* Availability styling */
    .availability-slot {
        background-color: rgba(92, 184, 92, 0.2);
        border: 1px solid #5cb85c;
@@ -64,6 +119,21 @@
       vertical-align: middle;
       margin-left: 8px;
    }
+
+   /* Fix Select2 conflicts directly */
+   .select2-container {
+       display: none !important;
+   }
+
+   #participantsSelect {
+       display: block !important;
+       visibility: visible !important;
+       width: 100% !important;
+       height: 200px !important;
+       opacity: 1 !important;
+       position: static !important;
+       margin: 0 !important;
+   }
 </style>
 {% endblock %}
 
@@ -77,9 +147,9 @@
    </div>
    {% endif %}
 
-   <div class="row">
+   <div class="row calendar-row">
       <!-- Calendar Column -->
-      <div class="col-lg-9">
+      <div class="col-lg-9 mb-4 calendar-main">
          <div class="card shadow mb-4">
             <div class="card-header py-3 d-flex justify-content-between align-items-center">
                <h6 class="m-0 font-weight-bold text-primary">My Calendar</h6>
@@ -99,13 +169,15 @@
                </div>
             </div>
             <div class="card-body">
-               <div id="calendar"></div>
+               <div class="calendar-container">
+                  <div id="calendar"></div>
+               </div>
             </div>
          </div>
       </div>
 
       <!-- Sidebar Column -->
-      <div class="col-lg-3">
+      <div class="col-lg-3 calendar-sidebar">
          <!-- Availability Card -->
          <div class="card shadow mb-4">
             <div class="card-header py-3">
@@ -165,62 +237,67 @@
                {% endif %}
             </div>
          </div>
+
          <!-- Schedule Group Meeting Card -->
-<div class="card shadow mb-4">
-    <div class="card-header py-3">
-        <h6 class="m-0 font-weight-bold text-primary">
-           Schedule Group Meeting
-           <span class="badge bg-primary text-white employee-count-badge">{{ available_employees.count }} employees</span>
-        </h6>
-    </div>
-    <div class="card-body">
-        <form method="post" action="{% url 'calendar' %}" id="scheduleMeetingForm">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="suggest_meeting">
-
-            <div class="mb-3">
-                <label class="form-label">Select Participants ({{ available_employees.count }} available):</label>
-
-                <!-- Explicitly prevent Select2 from affecting this select -->
-                <select name="employees" multiple class="form-select no-select2" id="participantsSelect"
-                      style="height: 200px !important; width: 100% !important; display: block !important; visibility: visible !important; opacity: 1 !important;"
-                      data-select2-id="none">
-                    {% for emp in available_employees %}
-                        <option value="{{ emp.id }}">
-                            {% if emp.user.get_full_name %}
-                                {{ emp.user.get_full_name }}
-                            {% else %}
-                                {{ emp.user.username }}
-                            {% endif %}
-                            ({{ emp.employee_id }})
-                        </option>
-                    {% empty %}
-                        <option disabled>No employees available</option>
-                    {% endfor %}
-                </select>
-                <div class="form-text">Hold Ctrl to select multiple participants</div>
+         <div class="card shadow mb-4">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">
+                   Schedule Group Meeting
+                   {% if available_employees.count > 0 %}
+                   <span class="badge bg-primary text-white employee-count-badge">{{ available_employees.count }} employees</span>
+                   {% endif %}
+                </h6>
             </div>
+            <div class="card-body">
+                <form method="post" action="{% url 'calendar' %}" id="scheduleMeetingForm">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="suggest_meeting">
 
-            <div class="mb-3">
-                <label class="form-label">Duration:</label>
-                <select name="duration" class="form-select">
-                    <option value="30">30 minutes</option>
-                    <option value="60" selected>1 hour</option>
-                    <option value="90">1.5 hours</option>
-                    <option value="120">2 hours</option>
-                </select>
+                    <div class="mb-3">
+                        <label class="form-label">Select Participants:</label>
+                        {% if available_employees.count > 0 %}
+                           <!-- Native HTML select without any Select2 or extras -->
+                           <select name="employees" multiple="multiple" class="native-select" id="participantsSelect"
+                                  style="width: 100% !important; height: 200px !important; display: block !important; visibility: visible !important; opacity: 1 !important;">
+                               {% for emp in available_employees %}
+                                   <option value="{{ emp.id }}">
+                                       {% if emp.user.get_full_name %}
+                                           {{ emp.user.get_full_name }}
+                                       {% else %}
+                                           {{ emp.user.username }}
+                                       {% endif %}
+                                       ({{ emp.employee_id }})
+                                   </option>
+                               {% endfor %}
+                           </select>
+                           <div class="form-text">Hold Ctrl to select multiple participants</div>
+                        {% else %}
+                           <select class="form-select" multiple id="participantsSelect" disabled style="min-height: 100px;">
+                              <option>No employees available</option>
+                           </select>
+                           <div class="form-text text-danger">No employees available for meetings</div>
+                        {% endif %}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Duration:</label>
+                        <select name="duration" class="form-select">
+                            <option value="30">30 minutes</option>
+                            <option value="60" selected>1 hour</option>
+                            <option value="90">1.5 hours</option>
+                            <option value="120">2 hours</option>
+                        </select>
+                    </div>
+
+                    <div id="meetingResults" class="mt-3 d-none">
+                        <div class="alert" role="alert"></div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100" id="findTimeButton">
+                        <i class="fas fa-search"></i> Find Optimal Time
+                    </button>
+                </form>
             </div>
-
-            <div id="meetingResults" class="mt-3 d-none">
-                <div class="alert" role="alert"></div>
-            </div>
-
-            <button type="submit" class="btn btn-primary w-100" id="findTimeButton">
-                <i class="fas fa-search"></i> Find Optimal Time
-            </button>
-        </form>
-    </div>
-</div>
+        </div>
 
          <!-- Schedule Rules Summary -->
          {% if schedule_rules %}
@@ -334,60 +411,44 @@
 {% block extra_js %}
 <script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js'></script>
 <script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/locales-all.min.js'></script>
-<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
 <script>
+    // Disable Select2 if it exists
     document.addEventListener('DOMContentLoaded', function() {
-    // Disable Select2 for the participants select
-    if ($.fn.select2) {
-        try {
-            // Try to destroy any existing Select2 instance
-            $('#participantsSelect').select2('destroy');
-        } catch (e) {
-            console.log('Select2 not initialized or error destroying:', e);
+        // Prevent Select2 from initializing on our select element
+        if (typeof $.fn !== 'undefined' && $.fn.select2) {
+            try {
+                $('#participantsSelect').select2('destroy');
+            } catch (e) {
+                console.log('Select2 not initialized yet');
+            }
+
+            // Ensure the select is visible by force
+            const participantsSelect = document.getElementById('participantsSelect');
+            if (participantsSelect) {
+                console.log("Found participants select, ensuring it's visible");
+
+                // Force display CSS properties
+                participantsSelect.style.display = 'block';
+                participantsSelect.style.visibility = 'visible';
+                participantsSelect.style.opacity = '1';
+
+                // Remove aria attributes that might hide it
+                participantsSelect.removeAttribute('aria-hidden');
+                participantsSelect.removeAttribute('tabindex');
+
+                // Prevent Select2 from initializing on this element
+                $(document).on('select2:init', '#participantsSelect', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    return false;
+                });
+            } else {
+                console.log("Could not find participants select");
+            }
         }
 
-        // Prevent automatic initialization by Select2
-        $.fn.select2.defaults.set('debug', true);
-
-        // Add a class to prevent auto-initialization
-        $('#participantsSelect').addClass('no-select2');
-
-        // Override any global initialization for this specific element
-        $(document).on('select2:init', '#participantsSelect', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            return false;
-        });
-    }
-
-    // Print debug information about the select element
-    const participantsSelect = document.getElementById('participantsSelect');
-    if (participantsSelect) {
-        console.log('Participants select found:', participantsSelect);
-        console.log('Options count:', participantsSelect.options.length);
-        console.log('Current display style:', window.getComputedStyle(participantsSelect).display);
-        console.log('Current visibility:', window.getComputedStyle(participantsSelect).visibility);
-
-        // Force display properties
-        participantsSelect.style.display = 'block';
-        participantsSelect.style.visibility = 'visible';
-        participantsSelect.style.opacity = '1';
-        participantsSelect.removeAttribute('aria-hidden');
-        participantsSelect.removeAttribute('tabindex');
-    } else {
-        console.log('Participants select not found in DOM');
-    }
-});
-    // Initialize calendar configuration
-    document.addEventListener('DOMContentLoaded', function() {
-        // Initialize Select2
-        $('#participantsSelect').select2({
-            placeholder: "Select employees",
-            allowClear: true,
-            width: '100%'
-        });
-
+        // Initialize calendar configuration
         var calendarEl = document.getElementById('calendar');
 
         var calendar = new FullCalendar.Calendar(calendarEl, {
@@ -721,132 +782,118 @@
     });
 
     // Handle availability check form submission
-    $('#availabilityCheckForm').on('submit', function(e) {
-        e.preventDefault();
+    $(document).ready(function() {
+        $('#availabilityCheckForm').on('submit', function(e) {
+            e.preventDefault();
 
-        var form = $(this);
-        var resultsDiv = $('#availabilityResults');
-        var resultsAlert = resultsDiv.find('.alert');
+            var form = $(this);
+            var resultsDiv = $('#availabilityResults');
+            var resultsAlert = resultsDiv.find('.alert');
 
-        // Show loading message
-        resultsDiv.removeClass('d-none');
-        resultsAlert.removeClass('alert-success alert-warning alert-danger')
-                  .addClass('alert-info')
-                  .html('<i class="fas fa-spinner fa-spin"></i> Checking availability...');
+            // Show loading message
+            resultsDiv.removeClass('d-none');
+            resultsAlert.removeClass('alert-success alert-warning alert-danger')
+                      .addClass('alert-info')
+                      .html('<i class="fas fa-spinner fa-spin"></i> Checking availability...');
 
-        // Submit the form via AJAX
-        $.ajax({
-            url: form.attr('action'),
-            method: 'POST',
-            data: form.serialize(),
-            headers: {'X-Requested-With': 'XMLHttpRequest'},
-            success: function(response) {
-                // Handle response based on status
-                if (response.status === 'success') {
-                    resultsAlert.removeClass('alert-info alert-warning alert-danger')
-                              .addClass('alert-success')
-                              .html('<i class="fas fa-check-circle"></i> ' + response.message);
-                } else if (response.status === 'warning') {
-                    resultsAlert.removeClass('alert-info alert-success alert-danger')
-                              .addClass('alert-warning')
-                              .html('<i class="fas fa-exclamation-circle"></i> ' + response.message);
-                } else {
+            // Submit the form via AJAX
+            $.ajax({
+                url: form.attr('action'),
+                method: 'POST',
+                data: form.serialize(),
+                headers: {'X-Requested-With': 'XMLHttpRequest'},
+                success: function(response) {
+                    // Handle response based on status
+                    if (response.status === 'success') {
+                        resultsAlert.removeClass('alert-info alert-warning alert-danger')
+                                  .addClass('alert-success')
+                                  .html('<i class="fas fa-check-circle"></i> ' + response.message);
+                    } else if (response.status === 'warning') {
+                        resultsAlert.removeClass('alert-info alert-success alert-danger')
+                                  .addClass('alert-warning')
+                                  .html('<i class="fas fa-exclamation-circle"></i> ' + response.message);
+                    } else {
+                        resultsAlert.removeClass('alert-info alert-success alert-warning')
+                                  .addClass('alert-danger')
+                                  .html('<i class="fas fa-times-circle"></i> ' + (response.message || 'The selected time is not available.'));
+                    }
+                },
+                error: function(xhr, status, error) {
                     resultsAlert.removeClass('alert-info alert-success alert-warning')
                               .addClass('alert-danger')
-                              .html('<i class="fas fa-times-circle"></i> ' + (response.message || 'The selected time is not available.'));
+                              .html('<i class="fas fa-times-circle"></i> Error checking availability. Please try again.');
+                    console.error('Error checking availability:', error);
                 }
-            },
-            error: function(xhr, status, error) {
-                resultsAlert.removeClass('alert-info alert-success alert-warning')
-                          .addClass('alert-danger')
-                          .html('<i class="fas fa-times-circle"></i> Error checking availability. Please try again.');
-                console.error('Error checking availability:', error);
-            }
+            });
         });
-    });
 
-// Handle group meeting form submission
-document.addEventListener('DOMContentLoaded', function() {
-    // Select the form and other elements
-    const form = document.getElementById('scheduleMeetingForm');
-    const resultsDiv = document.getElementById('meetingResults');
-    const resultsAlert = resultsDiv.querySelector('.alert');
-    const submitBtn = document.getElementById('findTimeButton');
-    const participantsSelect = document.getElementById('participantsSelect');
-
-    // Log the select element for debugging
-    console.log('Participants select element:', participantsSelect);
-    if (participantsSelect) {
-        console.log('Options count:', participantsSelect.options.length);
-        console.log('Select style display:', window.getComputedStyle(participantsSelect).display);
-    }
-
-    // Check if Select2 is initialized
-    if ($.fn.select2 && participantsSelect) {
-        // Remove any existing Select2 initialization
-        try {
-            $(participantsSelect).select2('destroy');
-        } catch (e) {
-            console.log('Select2 not previously initialized');
-        }
-
-        // Initialize without any custom options that might hide the select
-        $(participantsSelect).select2({
-            width: '100%',
-            dropdownCssClass: 'select2-dropdown-open'
-        });
-    }
-
-    // Handle form submission
-    if (form) {
-        form.addEventListener('submit', function(e) {
+        // Handle group meeting form submission
+        $('#scheduleMeetingForm').on('submit', function(e) {
             e.preventDefault();
+
+            var form = $(this);
+            var resultsDiv = $('#meetingResults');
+            var resultsAlert = resultsDiv.find('.alert');
+            var submitBtn = $('#findTimeButton');
+            var participantsSelect = document.getElementById('participantsSelect');
+
+            console.log('Form submitted');
+            console.log('Select element:', participantsSelect);
+            console.log('Options selected:', participantsSelect.selectedOptions.length);
 
             // Check if participants are selected
             if (participantsSelect.selectedOptions.length === 0) {
-                resultsDiv.classList.remove('d-none');
-                resultsAlert.className = 'alert alert-danger';
-                resultsAlert.innerHTML = '<i class="fas fa-times-circle"></i> Please select at least one participant';
+                resultsDiv.removeClass('d-none');
+                resultsAlert.removeClass('alert-success alert-warning alert-info')
+                          .addClass('alert-danger')
+                          .html('<i class="fas fa-times-circle"></i> Please select at least one participant');
                 return;
             }
 
             // Show loading message
-            resultsDiv.classList.remove('d-none');
-            resultsAlert.className = 'alert alert-info';
-            resultsAlert.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Finding optimal meeting time...';
-            submitBtn.disabled = true;
+            resultsDiv.removeClass('d-none');
+            resultsAlert.removeClass('alert-success alert-danger alert-warning')
+                      .addClass('alert-info')
+                      .html('<i class="fas fa-spinner fa-spin"></i> Finding optimal meeting time...');
+            submitBtn.prop('disabled', true);
+
+            // Log form data for debugging
+            console.log('Form data:', form.serialize());
 
             // Submit the form via AJAX
             $.ajax({
-                url: form.action,
+                url: form.attr('action'),
                 method: 'POST',
-                data: $(form).serialize(),
+                data: form.serialize(),
                 headers: {'X-Requested-With': 'XMLHttpRequest'},
                 success: function(response) {
+                    console.log('Response:', response);
                     if (response.status === 'success') {
-                        resultsAlert.className = 'alert alert-success';
-                        resultsAlert.innerHTML = '<i class="fas fa-check-circle"></i> Suitable time found! Redirecting...';
+                        resultsAlert.removeClass('alert-info alert-warning alert-danger')
+                                  .addClass('alert-success')
+                                  .html('<i class="fas fa-check-circle"></i> Suitable time found! Redirecting...');
 
                         // Redirect to meeting creation page
                         setTimeout(function() {
                             window.location.href = response.redirect_url;
                         }, 1000);
                     } else {
-                        resultsAlert.className = 'alert alert-danger';
-                        resultsAlert.innerHTML = '<i class="fas fa-times-circle"></i> ' +
-                            (response.message || 'Could not find a suitable meeting time');
-                        submitBtn.disabled = false;
+                        resultsAlert.removeClass('alert-info alert-success alert-warning')
+                                  .addClass('alert-danger')
+                                  .html('<i class="fas fa-times-circle"></i> ' + (response.message || 'Could not find a suitable meeting time'));
+                        submitBtn.prop('disabled', false);
                     }
                 },
                 error: function(xhr, status, error) {
-                    resultsAlert.className = 'alert alert-danger';
-                    resultsAlert.innerHTML = '<i class="fas fa-times-circle"></i> Error suggesting meeting time. Please try again.';
-                    submitBtn.disabled = false;
+                    console.error('Error response:', xhr.responseText);
+                    resultsAlert.removeClass('alert-info alert-success alert-warning')
+                              .addClass('alert-danger')
+                              .html('<i class="fas fa-times-circle"></i> Error suggesting meeting time. Please try again.');
+                    submitBtn.prop('disabled', false);
                     console.error('Error suggesting meeting time:', error);
                 }
             });
         });
-    }
-});
+    });
 </script>
 {% endblock %}
