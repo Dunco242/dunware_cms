@@ -244,7 +244,7 @@
     <div class="card-header py-3">
         <h6 class="m-0 font-weight-bold text-primary">
            Schedule Group Meeting
-           <span class="badge bg-primary text-white employee-count-badge" id="employeeCountBadge">Loading...</span>
+           <span class="badge bg-primary text-white">{{ available_employees.count }} employees</span>
         </h6>
     </div>
     <div class="card-body">
@@ -254,16 +254,22 @@
 
             <div class="mb-3">
                 <label class="form-label">Select Participants:</label>
-                <select name="employees" multiple class="form-select" id="employeeSelect" style="height: 200px;">
-                    <option disabled>Loading employees...</option>
+                <!-- Simple, basic select element with no fancy styling -->
+                <select name="employees" multiple style="width: 100%; height: 200px; display: block !important">
+                    {% for emp in available_employees %}
+                        <option value="{{ emp.id }}">
+                            {{ emp.user.username }} ({{ emp.employee_id }})
+                        </option>
+                    {% empty %}
+                        <option disabled>No employees available</option>
+                    {% endfor %}
                 </select>
                 <div class="form-text">Hold Ctrl to select multiple participants</div>
             </div>
 
-            <!-- Rest of the form remains the same -->
             <div class="mb-3">
                 <label class="form-label">Duration:</label>
-                <select name="duration" class="form-select">
+                <select name="duration" style="width: 100%">
                     <option value="30">30 minutes</option>
                     <option value="60" selected>1 hour</option>
                     <option value="90">1.5 hours</option>
@@ -275,13 +281,10 @@
                 <div class="alert" role="alert"></div>
             </div>
 
-            <button type="submit" class="btn btn-primary w-100" id="findTimeButton">
-                <i class="fas fa-search"></i> Find Optimal Time
-            </button>
+            <button type="submit" class="btn btn-primary w-100">Find Optimal Time</button>
         </form>
     </div>
 </div>
-
          <!-- Schedule Rules Summary -->
          {% if schedule_rules %}
          <div class="card shadow mb-4">
@@ -396,6 +399,19 @@
               </div>
             {% endfor %}
           </div>
+    </div>
+    <div class="card mb-3">
+        <div class="card-header bg-warning">Debug Info</div>
+        <div class="card-body">
+            <p>Available employees count: {{ available_employees.count }}</p>
+            <ul>
+            {% for emp in available_employees %}
+                <li>{{ emp.id }} - {{ emp.user.username }}</li>
+            {% empty %}
+                <li>No employees in context!</li>
+            {% endfor %}
+            </ul>
+        </div>
     </div>
 </div>
 {% endblock %}
