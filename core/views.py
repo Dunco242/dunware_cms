@@ -1576,7 +1576,7 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
 
                 # Log each available employee for debugging
                 for emp in available_employees:
-                    logger.info(f"Available employee: {emp.id} - {emp.user.username if hasattr(emp, 'user') else 'No user'}")
+                    logger.info(f"Available employee: {employee.id} - {employee.user.username if hasattr(employee, 'user') else 'No user'}")
 
             except Exception as e:
                 logger.error(f"Error querying available employees: {str(e)}", exc_info=True)
