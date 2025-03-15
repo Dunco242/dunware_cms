@@ -199,6 +199,16 @@
         </h6>
     </div>
     <div class="card-body">
+        <!-- Debug Info (remove in production) -->
+        <div class="alert alert-info">
+            <strong>Debug Info:</strong><br>
+            Current Employee ID: {{ current_employee_id }}<br>
+            Available Employees Count: {{ available_employees.count }}<br>
+            Employee Form Field: {% if employee_form.employees %}Yes{% else %}No{% endif %}<br>
+            Employee Form Fields: {{ employee_form.fields.keys|join:", " }}<br>
+            Form is bound: {{ employee_form.is_bound }}<br>
+        </div>
+
         <form method="post" action="{% url 'calendar' %}" id="scheduleMeetingForm">
             {% csrf_token %}
             <input type="hidden" name="action" value="suggest_meeting">
@@ -206,28 +216,30 @@
             <div class="mb-3">
                 <label class="form-label">Select Participants:</label>
                 {% if available_employees.count > 0 %}
-                   {% if employee_form.employees %}
-                      {{ employee_form.employees }}
-                   {% else %}
-                      <!-- Direct rendering fallback -->
-                      <select name="employees" multiple class="form-select" id="participantsSelect" style="min-height: 100px; display: block !important;">
-                        {% for emp in available_employees %}
-                            <option value="{{ emp.id }}">
-                                {% if emp.user.get_full_name %}
-                                    {{ emp.user.get_full_name }}
-                                {% else %}
-                                    {{ emp.user.username }}
-                                {% endif %}
-                            </option>
-                        {% endfor %}
-                      </select>
-                   {% endif %}
-                   <div class="form-text">Hold Ctrl to select multiple participants</div>
+                   <!-- Print the raw form field for debugging -->
+                   {{ employee_form.as_p }}
+
+                   <!-- Direct rendering for debugging -->
+                   <select name="employees" multiple class="form-select" id="participantsSelect" style="min-height: 100px; display: block !important;">
+                     {% for emp in available_employees %}
+                         <option value="{{ emp.id }}">
+                             ID: {{ emp.id }} -
+                             {% if emp.user.get_full_name %}
+                                 {{ emp.user.get_full_name }}
+                             {% else %}
+                                 {{ emp.user.username }}
+                             {% endif %}
+                         </option>
+                     {% empty %}
+                         <option disabled>No employees in queryset</option>
+                     {% endfor %}
+                   </select>
+                   <div class="form-text">Hold Ctrl to select multiple participants (Debug IDs: {{ debug_employee_ids|join:", " }})</div>
                 {% else %}
                    <select class="form-select" multiple id="participantsSelect" disabled style="min-height: 100px; display: block !important;">
                       <option>No employees available</option>
                    </select>
-                   <div class="form-text text-danger">No employees available for meetings</div>
+                   <div class="form-text text-danger">No employees available for meetings (Current ID: {{ debug_employee_id }})</div>
                 {% endif %}
             </div>
             <div class="mb-3">
@@ -251,6 +263,8 @@
         </form>
     </div>
 </div>
+
+
          <!-- Schedule Rules Summary -->
          {% if schedule_rules %}
          <div class="card shadow mb-4">

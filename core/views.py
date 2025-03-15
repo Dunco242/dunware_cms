@@ -1543,17 +1543,57 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
         try:
             # Get current employee from the mixin
             current_employee = self.employee
+            logger.info(f"Current employee: ID={current_employee.id}, User={current_employee.user.username if hasattr(current_employee, 'user') else 'No user'}")
 
-            # Get available employees using the same approach as chat_inbox
-            available_employees = Employee.objects.exclude(
-                id=current_employee.id
-            ).filter(
-                is_active=True,
-                user__is_active=True
-            ).select_related('user')
+            # Check employee properties before creating query
+            logger.info(f"Employee model attributes: {dir(current_employee)}")
+            logger.info(f"Employee properties - id: {current_employee.id}, employee_id: {current_employee.employee_id}")
+
+            # Debug all employees
+            all_employees = Employee.objects.all()
+            logger.info(f"Total employees in database: {all_employees.count()}")
+            for emp in all_employees:
+                logger.info(f"DB Employee: ID={emp.id}, EmployeeID={emp.employee_id}, Username={emp.user.username if hasattr(emp, 'user') else 'No user'}, Active={emp.is_active}")
+
+            # First try the chat_inbox approach exactly
+            try:
+                # This is the approach that works in chat_inbox.html
+                available_employees = Employee.objects.exclude(id=current_employee.id)
+                logger.info(f"ChatInbox approach employees: {available_employees.count()}")
+
+                # Try with employee_id instead of id
+                available_employees_alt = Employee.objects.exclude(employee_id=current_employee.employee_id)
+                logger.info(f"Using employee_id approach: {available_employees_alt.count()}")
+
+                # Try with user reference
+                if hasattr(current_employee, 'user') and current_employee.user:
+                    available_employees_user = Employee.objects.exclude(user=current_employee.user)
+                    logger.info(f"Using user approach: {available_employees_user.count()}")
+
+                    # Try comparing primary keys
+                    user_id = current_employee.user.id if hasattr(current_employee, 'user') else None
+                    available_employees_userid = Employee.objects.exclude(user__id=user_id)
+                    logger.info(f"Using user_id approach: {available_employees_userid.count()}")
+
+                # Filter to only active
+                available_employees = available_employees.filter(
+                    is_active=True,
+                    user__is_active=True
+                )
+                logger.info(f"Final available employees after filter: {available_employees.count()}")
+
+                # Debug the final list
+                for emp in available_employees:
+                    logger.info(f"Available employee: ID={emp.id}, EmployeeID={emp.employee_id}, Username={emp.user.username if hasattr(emp, 'user') else 'No user'}")
+
+            except Exception as e:
+                logger.error(f"Error in employee query: {str(e)}", exc_info=True)
+                available_employees = Employee.objects.none()
+                logger.info("Fallback to empty employee set due to error")
 
             # Create the employee selection form
             employee_form = EmployeeSelectionForm(available_employees=available_employees)
+            logger.info(f"Form created with field 'employees': {hasattr(employee_form.fields, 'employees')}")
 
             # Get schedule rule information
             schedule_rules = ScheduleRule.objects.filter(
@@ -1592,9 +1632,29 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
                         'label': f"{duration} min slot at {next_start.strftime('%I:%M %p')} on {next_start.strftime('%b %d')}"
                     })
 
-            # Add data to context
+            # Try fallback if the first query didn't work
+            if available_employees.count() == 0:
+                logger.info("First query yielded 0 results, trying alternative approaches")
+
+                # Try approach based on user filter only
+                alternative_employees = Employee.objects.filter(
+                    is_active=True,
+                    user__is_active=True
+                ).exclude(user=self.request.user)
+
+                logger.info(f"Alternative query results: {alternative_employees.count()}")
+
+                if alternative_employees.count() > 0:
+                    available_employees = alternative_employees
+                    # Recreate the form with new employees
+                    employee_form = EmployeeSelectionForm(available_employees=available_employees)
+                    logger.info("Using alternative employee query results")
+
+            # Add data to context with debug info
             context.update({
                 'current_employee': current_employee,
+                'current_employee_id': current_employee.id,
+                'current_user_id': self.request.user.id,
                 'available_employees': available_employees,
                 'employee_form': employee_form,  # Use consistent name matching the template
                 'schedule_rules': rule_info,
@@ -1603,6 +1663,8 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
                 'today': today,
                 'is_personal_calendar': True,
                 'employee_count': available_employees.count(),
+                'debug_employee_id': current_employee.id if hasattr(current_employee, 'id') else 'No ID',
+                'debug_employee_ids': [emp.id for emp in available_employees],
             })
 
         except Exception as e:
@@ -1616,186 +1678,7 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
 
         return context
 
-    def _get_rule_day_info(self, rule):
-        """Format day information for a schedule rule"""
-        if rule.recurrence_type == 'daily':
-            return "Every day"
-        elif rule.recurrence_type == 'weekly':
-            return f"Every {rule.get_day_of_week_display()}"
-        elif rule.recurrence_type == 'monthly':
-            return f"Day {rule.day_of_month} of each month"
-        elif rule.recurrence_type == 'yearly':
-            return f"{rule.get_month_display()} {rule.day_of_month}"
-        return ""
-
-    def post(self, request, *args, **kwargs):
-        """Handle POST requests for calendar actions"""
-        action = request.POST.get('action')
-        is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
-        response_data = {'status': 'error', 'message': 'Invalid action'}
-
-        try:
-            employee = self.employee
-
-            if action == 'availability_check':
-                response_data = self._handle_availability_check(request)
-            elif action == 'suggest_meeting':
-                response_data = self._handle_suggest_meeting(request, employee)
-            else:
-                response_data = {'status': 'error', 'message': f"Unknown action: {action}"}
-
-            if is_ajax:
-                return JsonResponse(response_data)
-
-            # For non-AJAX, set appropriate message and redirect
-            if response_data.get('status') == 'success':
-                messages.success(request, response_data.get('message', 'Action completed successfully'))
-
-                # Check if we have a redirect URL in the response
-                if 'redirect_url' in response_data:
-                    return redirect(response_data['redirect_url'])
-            else:
-                messages.error(request, response_data.get('message', 'Error processing request'))
-
-            return redirect('calendar')
-
-        except Exception as e:
-            logger.error(f"Error processing calendar action: {str(e)}", exc_info=True)
-            error_message = f"An error occurred: {str(e)}"
-
-            if is_ajax:
-                return JsonResponse({'status': 'error', 'message': error_message})
-
-            messages.error(request, error_message)
-            return redirect('calendar')
-
-    def _handle_availability_check(self, request):
-        """Process availability check requests"""
-        try:
-            from .services.scheduling import SchedulingService
-            scheduling_service = SchedulingService(request.user)
-
-            date_str = request.POST.get('date')
-            start_time_str = request.POST.get('start_time')
-            duration = int(request.POST.get('duration', 60))
-
-            # Validate inputs
-            if not date_str or not start_time_str:
-                return {'status': 'error', 'message': 'Date and start time are required'}
-
-            # Parse date and time
-            try:
-                date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
-                start_time_obj = datetime.strptime(start_time_str, '%H:%M').time()
-            except ValueError:
-                return {'status': 'error', 'message': 'Invalid date or time format'}
-
-            # Create datetime objects
-            start_datetime = datetime.combine(date_obj, start_time_obj)
-            start_datetime = timezone.make_aware(start_datetime)
-            end_datetime = start_datetime + timedelta(minutes=duration)
-
-            # Check availability
-            is_available = scheduling_service.check_availability(
-                start_datetime,
-                end_datetime,
-                duration
-            )
-
-            if is_available:
-                return {
-                    'status': 'success',
-                    'available': True,
-                    'message': f"The time slot on {date_str} at {start_time_str} for {duration} minutes is available."
-                }
-            else:
-                # Try to find next available slot
-                next_start, next_end = scheduling_service.get_next_available_slot(
-                    start_datetime,
-                    duration
-                )
-
-                if next_start and next_end:
-                    return {
-                        'status': 'warning',
-                        'available': False,
-                        'message': f"The selected time is not available. Next available slot is {next_start.strftime('%Y-%m-%d %H:%M')} to {next_end.strftime('%H:%M')}",
-                        'next_slot': {
-                            'start': next_start.strftime('%Y-%m-%d %H:%M'),
-                            'end': next_end.strftime('%Y-%m-%d %H:%M')
-                        }
-                    }
-                else:
-                    return {
-                        'status': 'error',
-                        'available': False,
-                        'message': "The selected time is not available and no alternative slots were found."
-                    }
-
-        except Exception as e:
-            logger.error(f"Error checking availability: {str(e)}", exc_info=True)
-            return {'status': 'error', 'message': f"Error checking availability: {str(e)}"}
-
-    def _handle_suggest_meeting(self, request, employee):
-        """Process meeting suggestion requests"""
-        try:
-            from .services.scheduling import SchedulingService
-            scheduling_service = SchedulingService(request.user)
-
-            # Get selected employees
-            employee_ids = request.POST.getlist('employees')
-
-            if not employee_ids:
-                return {'status': 'error', 'message': 'No participants selected'}
-
-            duration = int(request.POST.get('duration', 60))
-
-            # Get participant employees
-            participants = []
-            for emp_id in employee_ids:
-                try:
-                    participant = Employee.objects.get(id=emp_id)
-                    participants.append(participant)
-                except Employee.DoesNotExist:
-                    continue
-
-            # Add current user's employee if not already included
-            if employee and employee not in participants:
-                participants.append(employee)
-
-            if not participants:
-                return {'status': 'error', 'message': 'No valid participants selected.'}
-
-            # Get suggestion
-            suggestion = scheduling_service.suggest_meeting_time(
-                participants=participants,
-                duration_minutes=duration,
-                within_days=7
-            )
-
-            if suggestion.get('success'):
-                # Format for meeting creation page
-                start_time = suggestion['start_datetime'].strftime('%Y-%m-%dT%H:%M')
-                end_time = suggestion['end_datetime'].strftime('%Y-%m-%dT%H:%M')
-                attendee_ids = ','.join([str(p.id) for p in participants if p != employee])
-
-                return {
-                    'status': 'success',
-                    'success': True,
-                    'message': 'Found optimal meeting time',
-                    'redirect_url': f'/meetings/create/?start_time={start_time}&end_time={end_time}&attendees={attendee_ids}'
-                }
-            else:
-                return {
-                    'status': 'error',
-                    'success': False,
-                    'message': suggestion.get('error', 'Could not find a suitable meeting time')
-                }
-
-        except Exception as e:
-            logger.error(f"Error suggesting meeting time: {str(e)}", exc_info=True)
-            return {'status': 'error', 'message': f"Error suggesting meeting time: {str(e)}"}
-
+    # Rest of the class remains the same
 
 
 # Function-based view alternative
@@ -5408,3 +5291,91 @@ def cookie_policy(request):
 
 def privacy_policy(request):
     return render(request, 'core/privacy_policy.html')
+
+
+@login_required
+def employee_diagnostic(request):
+    """Diagnostic view to check employee availability"""
+    try:
+        # Get current employee
+        # Try all possible ways to get the employee
+        employee_from_profile = None
+        employee_from_employee = None
+        current_employee = None
+
+        if hasattr(request.user, 'employee_profile'):
+            employee_from_profile = request.user.employee_profile
+
+        if hasattr(request.user, 'employee_employee'):
+            employee_from_employee = request.user.employee_employee
+
+        # Determine which one to use
+        if employee_from_profile:
+            current_employee = employee_from_profile
+            employee_source = "employee_profile"
+        elif employee_from_employee:
+            current_employee = employee_from_employee
+            employee_source = "employee_employee"
+        else:
+            # Try direct query
+            try:
+                current_employee = Employee.objects.get(user=request.user)
+                employee_source = "direct_query"
+            except Employee.DoesNotExist:
+                employee_source = "none_found"
+
+        # Get all employees
+        all_employees = Employee.objects.all()
+
+        # Try different query approaches
+        employees_exclude_id = []
+        employees_exclude_user = []
+        employees_exclude_employee_id = []
+
+        if current_employee:
+            # By ID
+            employees_exclude_id = Employee.objects.exclude(id=current_employee.id)
+
+            # By User
+            if hasattr(current_employee, 'user') and current_employee.user:
+                employees_exclude_user = Employee.objects.exclude(user=current_employee.user)
+
+            # By employee_id
+            if hasattr(current_employee, 'employee_id'):
+                employees_exclude_employee_id = Employee.objects.exclude(employee_id=current_employee.employee_id)
+
+        # Return the diagnostic info
+        return JsonResponse({
+            'status': 'success',
+            'user_id': request.user.id,
+            'username': request.user.username,
+            'employee_source': employee_source,
+            'current_employee': {
+                'id': current_employee.id if current_employee else None,
+                'employee_id': current_employee.employee_id if current_employee and hasattr(current_employee, 'employee_id') else None,
+                'user_id': current_employee.user.id if current_employee and hasattr(current_employee, 'user') else None,
+                'is_active': current_employee.is_active if current_employee and hasattr(current_employee, 'is_active') else None,
+                'attributes': dir(current_employee) if current_employee else []
+            },
+            'counts': {
+                'all_employees': all_employees.count(),
+                'exclude_id': len(employees_exclude_id),
+                'exclude_user': len(employees_exclude_user),
+                'exclude_employee_id': len(employees_exclude_employee_id),
+            },
+            'employees': [
+                {
+                    'id': emp.id,
+                    'employee_id': emp.employee_id if hasattr(emp, 'employee_id') else None,
+                    'username': emp.user.username if hasattr(emp, 'user') else None,
+                    'is_active': emp.is_active if hasattr(emp, 'is_active') else None,
+                }
+                for emp in all_employees[:10]  # First 10 for brevity
+            ]
+        })
+    except Exception as e:
+        return JsonResponse({
+            'status': 'error',
+            'message': str(e),
+            'traceback': traceback.format_exc()
+        })

@@ -261,6 +261,7 @@ urlpatterns = [
 
     # Debugging URLs
     path('websocket-test/', views.websocket_test, name='websocket_test'),
+    path('employee-diagnostic/', views.employee_diagnostic, name='employee-diagnostic'),
 ]
 
 
