@@ -77,6 +77,28 @@
    </div>
    {% endif %}
 
+   <!-- Debug information -->
+   <div class="card mb-4">
+       <div class="card-header py-3">
+           <h6 class="m-0 font-weight-bold text-primary">Debug Information</h6>
+       </div>
+       <div class="card-body">
+           <p><strong>Total employees in system:</strong> {{ all_employees.count }}</p>
+           <p><strong>Active employees count:</strong> {{ active_employees.count }}</p>
+           <p><strong>Available employees count:</strong> {{ available_employees.count }}</p>
+           <p><strong>Form exists:</strong> {% if employee_form %}Yes{% else %}No{% endif %}</p>
+
+           <h6>Available Employee IDs:</h6>
+           <ul>
+           {% for emp in available_employees %}
+               <li>ID: {{ emp.id }} - Username: {{ emp.user.username }} - Active: {{ emp.is_active }}</li>
+           {% empty %}
+               <li>No available employees found</li>
+           {% endfor %}
+           </ul>
+       </div>
+   </div>
+
    <div class="row">
       <!-- Calendar Column -->
       <div class="col-lg-9">
@@ -183,8 +205,23 @@
 
                     <div class="mb-3">
                         <label class="form-label">Select Participants:</label>
-                        {% if available_employees %}
-                           {{ employee_form.employees }}
+                        {% if available_employees.count > 0 %}
+                           {% if employee_form.employees %}
+                              {{ employee_form.employees }}
+                           {% else %}
+                              <!-- Direct rendering fallback -->
+                              <select name="employees" multiple class="form-select" id="participantsSelect" style="min-height: 100px; display: block !important;">
+                                {% for emp in available_employees %}
+                                    <option value="{{ emp.id }}">
+                                        {% if emp.user.get_full_name %}
+                                            {{ emp.user.get_full_name }}
+                                        {% else %}
+                                            {{ emp.user.username }}
+                                        {% endif %}
+                                    </option>
+                                {% endfor %}
+                              </select>
+                           {% endif %}
                            <div class="form-text">Hold Ctrl to select multiple participants</div>
                         {% else %}
                            <select class="form-select" multiple id="participantsSelect" disabled style="min-height: 100px; display: block !important;">
@@ -208,7 +245,7 @@
                     </div>
 
                     <button type="submit" class="btn btn-primary w-100" id="findTimeButton"
-                            {% if not available_employees %}disabled{% endif %}>
+                            {% if available_employees.count == 0 %}disabled{% endif %}>
                         <i class="fas fa-search"></i> Find Optimal Time
                     </button>
                 </form>
@@ -319,27 +356,6 @@
                    <button type="submit" class="btn btn-primary">Check Availability</button>
                 </form>
             </div>
-            <!-- Debug information -->
-<div class="card mb-4">
-    <div class="card-header py-3">
-        <h6 class="m-0 font-weight-bold text-primary">Debug Information</h6>
-    </div>
-    <div class="card-body">
-        <p><strong>Total employees in system:</strong> {{ all_employees.count }}</p>
-        <p><strong>Available employees count:</strong> {{ available_employees.count }}</p>
-        <p><strong>Form exists:</strong> {{ employee_form|yesno:"Yes,No" }}</p>
-        <p><strong>Form type:</strong> {{ employee_form.__class__.__name__ }}</p>
-
-        <h6>Available Employee IDs:</h6>
-        <ul>
-        {% for emp in available_employees %}
-            <li>ID: {{ emp.id }} - Username: {{ emp.user.username }} - Active: {{ emp.is_active }}</li>
-        {% empty %}
-            <li>No available employees found</li>
-        {% endfor %}
-        </ul>
-    </div>
-</div>
         </div>
     </div>
 </div>
@@ -371,7 +387,7 @@
                 right: 'dayGridMonth,timeGridWeek,timeGridDay'
             },
             themeSystem: 'bootstrap',
-            events: '{% url "user-calendar-events" %}', // API endpoint to fetch events
+            events: '{% url "user-calendar-events" %}', // Use your existing URL pattern
             editable: true,
             selectable: true,
             selectMirror: true,

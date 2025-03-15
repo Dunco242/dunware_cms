@@ -921,7 +921,7 @@ class EmployeeUsernameForm(forms.Form):
 class EmployeeSelectionForm(forms.Form):
     """Form for selecting employees in the calendar view"""
     employees = forms.ModelMultipleChoiceField(
-        queryset=Employee.objects.all(),  # Default queryset - will be overridden
+        queryset=Employee.objects.filter(is_active=True),
         required=False,
         widget=forms.SelectMultiple(attrs={
             'class': 'form-select',
@@ -934,10 +934,18 @@ class EmployeeSelectionForm(forms.Form):
         available_employees = kwargs.pop('available_employees', None)
         super().__init__(*args, **kwargs)
 
-        # Explicitly log what we're receiving
+        # Set the queryset if available_employees was provided
         if available_employees is not None:
-            print(f"EmployeeSelectionForm received {available_employees.count()} employees")
             self.fields['employees'].queryset = available_employees
 
-            # Force a more straightforward label method
-            self.fields['employees'].label_from_instance = lambda obj: f"{obj.user.username} ({obj.id})"
+        # Set how employees should be displayed in the dropdown
+        self.fields['employees'].label_from_instance = self.get_employee_label
+
+    def get_employee_label(self, employee):
+        """Return the display text for each employee in the dropdown"""
+        if hasattr(employee, 'user') and hasattr(employee.user, 'get_full_name'):
+            full_name = employee.user.get_full_name()
+            if full_name:
+                return full_name
+            return employee.user.username
+        return f"Employee {employee.id}"
