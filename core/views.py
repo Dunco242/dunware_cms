@@ -1534,24 +1534,93 @@ class CalendarView(LoginRequiredMixin, TemplateView):
     """
     Calendar view with employee selection capability
     """
-    template_name = 'core/calendar_revamped.html'
+    template_name = 'core/calendar.html'
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
-        # Get current employee directly - same as minimal_calendar_view
-        current_employee = self.request.user.employee_profile
+        try:
+            # Get current employee directly
+            current_employee = self.request.user.employee_profile
 
-        # Simple query - add employees to context
-        available_employees = list(Employee.objects.exclude(id=current_employee.id))
+            # Get active employees excluding the current one
+            available_employees = Employee.objects.exclude(
+                id=current_employee.id
+            ).filter(
+                is_active=True
+            ).select_related('user')  # Optimize query with select_related
 
-        # Add to context with other required data
-        context.update({
-            'current_employee': current_employee,
-            'available_employees': available_employees,
-            'employee_count': len(available_employees),
-            'today': timezone.now().date(),
-        })
+            # Get schedule rule information
+            schedule_rules = ScheduleRule.objects.filter(
+                user=self.request.user,
+                is_active=True
+            )
+
+            # Format rule information for display
+            rule_info = []
+            for rule in schedule_rules:
+                rule_info.append({
+                    'name': rule.name,
+                    'recurrence': rule.get_recurrence_type_display(),
+                    'time_range': f"{rule.start_time.strftime('%I:%M %p')} - {rule.end_time.strftime('%I:%M %p')}",
+                    'day_info': self._get_rule_day_info(rule),
+                    'duration_limits': f"{rule.min_booking_duration}-{rule.max_booking_duration} minutes",
+                    'buffer': f"{rule.buffer_before} min before, {rule.buffer_after} min after"
+                })
+
+            # Add scheduling service data if available
+            try:
+                from .scheduling_service import SchedulingService
+                scheduling_service = SchedulingService(self.request.user)
+
+                # Get availability for today
+                today = timezone.now().date()
+                availability_data = {
+                    'today': scheduling_service.get_availability(today)
+                }
+
+                # Get suggested meeting slots
+                available_slots = []
+                for duration in [30, 60]:
+                    next_start, next_end = scheduling_service.get_next_available_slot(
+                        from_datetime=timezone.now(),
+                        duration_minutes=duration
+                    )
+
+                    if next_start and next_end:
+                        available_slots.append({
+                            'duration': duration,
+                            'start': next_start,
+                            'end': next_end,
+                            'label': f"{duration} min at {next_start.strftime('%I:%M %p')} on {next_start.strftime('%b %d')}"
+                        })
+
+                context['availability_data'] = availability_data
+                context['available_slots'] = available_slots
+
+            except Exception as e:
+                logger.error(f"Error getting scheduling data: {str(e)}")
+
+            # Add to context with other required data
+            context.update({
+                'current_employee': current_employee,
+                'available_employees': available_employees,
+                'employee_count': available_employees.count(),
+                'schedule_rules': rule_info,
+                'today': timezone.now().date(),
+            })
+
+        except Exception as e:
+            logger.error(f"Error getting calendar data: {str(e)}")
+            messages.error(self.request, 'Error loading calendar data.')
+            context.update({
+                'current_employee': None,
+                'available_employees': [],
+                'employee_count': 0,
+                'schedule_rules': [],
+                'today': timezone.now().date(),
+                'error_message': str(e)
+            })
 
         return context
 
