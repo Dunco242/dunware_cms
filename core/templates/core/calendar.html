@@ -239,12 +239,12 @@
             </div>
          </div>
 
-        <!-- Schedule Group Meeting Card -->
+<!-- Schedule Group Meeting Card -->
 <div class="card shadow mb-4">
     <div class="card-header py-3">
         <h6 class="m-0 font-weight-bold text-primary">
            Schedule Group Meeting
-           <span class="badge bg-primary text-white employee-count-badge">{{ available_employees.count }} employees</span>
+           <span class="badge bg-primary text-white employee-count-badge" id="employeeCountBadge">Loading...</span>
         </h6>
     </div>
     <div class="card-body">
@@ -253,8 +253,7 @@
             <input type="hidden" name="action" value="suggest_meeting">
 
             <div class="mb-3">
-                <label class="form-label">Select Participants ({{ available_employees.count }} available):</label>
-                <!-- Empty select element that will be populated by JavaScript -->
+                <label class="form-label">Select Participants:</label>
                 <select name="employees" multiple class="form-select" id="employeeSelect" style="height: 200px;">
                     <option disabled>Loading employees...</option>
                 </select>
@@ -388,6 +387,15 @@
                 </form>
             </div>
         </div>
+        <div id="employeeData" style="display:none;" data-count="{{ available_employees.count }}">
+            {% for emp in available_employees %}
+              <div class="employee-item"
+                   data-id="{{ emp.id }}"
+                   data-name="{% if emp.user.get_full_name %}{{ emp.user.get_full_name }}{% else %}{{ emp.user.username }}{% endif %}"
+                   data-employee-id="{{ emp.employee_id }}">
+              </div>
+            {% endfor %}
+          </div>
     </div>
 </div>
 {% endblock %}
@@ -903,30 +911,47 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 </script>
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Get the select element
-        const employeeSelect = document.getElementById('employeeSelect');
+document.addEventListener('DOMContentLoaded', function() {
+    // Read employee data from hidden div
+    const employeeData = document.getElementById('employeeData');
+    if (!employeeData) {
+        console.error('Employee data div not found');
+        return;
+    }
 
-        // Get the employee data from the context
-        const employeeData = {{ employee_list_json|safe }};
+    const employeeCount = employeeData.getAttribute('data-count') || '0';
+    const employeeItems = employeeData.querySelectorAll('.employee-item');
 
-        // Clear any existing options
-        employeeSelect.innerHTML = '';
+    const employeeSelect = document.getElementById('employeeSelect');
+    const employeeCountBadge = document.getElementById('employeeCountBadge');
 
-        // Add options for each employee
-        if (employeeData && employeeData.length > 0) {
-            employeeData.forEach(function(emp) {
-                const option = document.createElement('option');
-                option.value = emp.id;
-                option.textContent = emp.name + ' (' + emp.employee_id + ')';
-                employeeSelect.appendChild(option);
-            });
-        } else {
+    if (!employeeSelect || !employeeCountBadge) {
+        console.error('Required elements not found');
+        return;
+    }
+
+    // Update badge
+    employeeCountBadge.textContent = employeeCount + ' employees';
+
+    // Clear select options
+    employeeSelect.innerHTML = '';
+
+    // Add options based on div data
+    if (employeeItems.length > 0) {
+        employeeItems.forEach(function(item) {
             const option = document.createElement('option');
-            option.disabled = true;
-            option.textContent = 'No employees available';
+            option.value = item.getAttribute('data-id');
+            option.textContent = item.getAttribute('data-name') + ' (' + item.getAttribute('data-employee-id') + ')';
             employeeSelect.appendChild(option);
-        }
-    });
+        });
+        console.log('Added ' + employeeItems.length + ' employees to select');
+    } else {
+        const option = document.createElement('option');
+        option.disabled = true;
+        option.textContent = 'No employees available';
+        employeeSelect.appendChild(option);
+        console.log('No employees found');
+    }
+});
 </script>
 {% endblock %}

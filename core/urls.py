@@ -266,6 +266,7 @@ urlpatterns = [
     path('employee-diagnostic/', views.employee_diagnostic, name='employee-diagnostic'),
     path('minimal-calendar/', views.minimal_calendar_view, name='minimal_calendar'),
     path('calendar-simplified/', CalendarViewSimplified.as_view(), name='calendar-simplified'),
+    path('get-employees-json/', views.get_employees_json, name='get-employees-json'),
 ]
 
 

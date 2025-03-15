@@ -5407,3 +5407,39 @@ class CalendarViewSimplified(LoginRequiredMixin, TemplateView):
             })
 
         return context
+
+@login_required
+def get_employees_json(request):
+    """API to get employees for a select dropdown"""
+    try:
+        if hasattr(request.user, 'employee_profile'):
+            current_employee = request.user.employee_profile
+            available_employees = Employee.objects.exclude(id=current_employee.id).filter(is_active=True)
+
+            employee_list = []
+            for emp in available_employees:
+                employee_list.append({
+                    'id': emp.id,
+                    'name': emp.user.get_full_name() or emp.user.username,
+                    'employee_id': emp.employee_id
+                })
+
+            return JsonResponse({
+                'status': 'success',
+                'employees': employee_list,
+                'count': len(employee_list)
+            })
+        else:
+            return JsonResponse({
+                'status': 'error',
+                'message': 'No employee profile found',
+                'employees': [],
+                'count': 0
+            })
+    except Exception as e:
+        return JsonResponse({
+            'status': 'error',
+            'message': str(e),
+            'employees': [],
+            'count': 0
+        })
