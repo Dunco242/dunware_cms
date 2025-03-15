@@ -239,7 +239,7 @@
             </div>
          </div>
 
-         <!-- Schedule Group Meeting Card -->
+        <!-- Schedule Group Meeting Card -->
 <div class="card shadow mb-4">
     <div class="card-header py-3">
         <h6 class="m-0 font-weight-bold text-primary">
@@ -254,18 +254,14 @@
 
             <div class="mb-3">
                 <label class="form-label">Select Participants ({{ available_employees.count }} available):</label>
-                <select name="employees" multiple class="form-select" style="height: 200px;">
-                    {% for emp in available_employees %}
-                        <option value="{{ emp.id }}">
-                            {{ emp.user.get_full_name|default:emp.user.username }} ({{ emp.employee_id }})
-                        </option>
-                    {% empty %}
-                        <option disabled>No employees available</option>
-                    {% endfor %}
+                <!-- Empty select element that will be populated by JavaScript -->
+                <select name="employees" multiple class="form-select" id="employeeSelect" style="height: 200px;">
+                    <option disabled>Loading employees...</option>
                 </select>
                 <div class="form-text">Hold Ctrl to select multiple participants</div>
             </div>
 
+            <!-- Rest of the form remains the same -->
             <div class="mb-3">
                 <label class="form-label">Duration:</label>
                 <select name="duration" class="form-select">
@@ -904,6 +900,33 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
         });
+    });
+</script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Get the select element
+        const employeeSelect = document.getElementById('employeeSelect');
+
+        // Get the employee data from the context
+        const employeeData = {{ employee_list_json|safe }};
+
+        // Clear any existing options
+        employeeSelect.innerHTML = '';
+
+        // Add options for each employee
+        if (employeeData && employeeData.length > 0) {
+            employeeData.forEach(function(emp) {
+                const option = document.createElement('option');
+                option.value = emp.id;
+                option.textContent = emp.name + ' (' + emp.employee_id + ')';
+                employeeSelect.appendChild(option);
+            });
+        } else {
+            const option = document.createElement('option');
+            option.disabled = true;
+            option.textContent = 'No employees available';
+            employeeSelect.appendChild(option);
+        }
     });
 </script>
 {% endblock %}
