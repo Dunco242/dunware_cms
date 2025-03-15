@@ -239,65 +239,53 @@
          </div>
 
          <!-- Schedule Group Meeting Card -->
-         <div class="card shadow mb-4">
-            <div class="card-header py-3">
-                <h6 class="m-0 font-weight-bold text-primary">
-                   Schedule Group Meeting
-                   {% if available_employees.count > 0 %}
-                   <span class="badge bg-primary text-white employee-count-badge">{{ available_employees.count }} employees</span>
-                   {% endif %}
-                </h6>
+<div class="card shadow mb-4">
+    <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">
+           Schedule Group Meeting
+           <span class="badge bg-primary text-white employee-count-badge">{{ available_employees.count }} employees</span>
+        </h6>
+    </div>
+    <div class="card-body">
+        <form method="post" action="{% url 'calendar' %}" id="scheduleMeetingForm">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="suggest_meeting">
+
+            <!-- Use EXACTLY the same markup that worked in minimal calendar -->
+            <div class="mb-3">
+                <label class="form-label">Select Participants ({{ available_employees.count }} available):</label>
+                <select name="employees" multiple class="form-select" id="participantsSelect" style="height: 200px;">
+                    {% for emp in available_employees %}
+                        <option value="{{ emp.id }}">
+                            {{ emp.user.get_full_name|default:emp.user.username }} ({{ emp.employee_id }})
+                        </option>
+                    {% empty %}
+                        <option disabled>No employees available</option>
+                    {% endfor %}
+                </select>
+                <div class="form-text">Hold Ctrl to select multiple participants</div>
             </div>
-            <div class="card-body">
-                <form method="post" action="{% url 'calendar' %}" id="scheduleMeetingForm">
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="suggest_meeting">
 
-                    <div class="mb-3">
-                        <label class="form-label">Select Participants:</label>
-                        {% if available_employees.count > 0 %}
-                           <!-- Native HTML select without any Select2 or extras -->
-                           <select name="employees" multiple="multiple" class="native-select" id="participantsSelect"
-                                  style="width: 100% !important; height: 200px !important; display: block !important; visibility: visible !important; opacity: 1 !important;">
-                               {% for emp in available_employees %}
-                                   <option value="{{ emp.id }}">
-                                       {% if emp.user.get_full_name %}
-                                           {{ emp.user.get_full_name }}
-                                       {% else %}
-                                           {{ emp.user.username }}
-                                       {% endif %}
-                                       ({{ emp.employee_id }})
-                                   </option>
-                               {% endfor %}
-                           </select>
-                           <div class="form-text">Hold Ctrl to select multiple participants</div>
-                        {% else %}
-                           <select class="form-select" multiple id="participantsSelect" disabled style="min-height: 100px;">
-                              <option>No employees available</option>
-                           </select>
-                           <div class="form-text text-danger">No employees available for meetings</div>
-                        {% endif %}
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Duration:</label>
-                        <select name="duration" class="form-select">
-                            <option value="30">30 minutes</option>
-                            <option value="60" selected>1 hour</option>
-                            <option value="90">1.5 hours</option>
-                            <option value="120">2 hours</option>
-                        </select>
-                    </div>
-
-                    <div id="meetingResults" class="mt-3 d-none">
-                        <div class="alert" role="alert"></div>
-                    </div>
-
-                    <button type="submit" class="btn btn-primary w-100" id="findTimeButton">
-                        <i class="fas fa-search"></i> Find Optimal Time
-                    </button>
-                </form>
+            <div class="mb-3">
+                <label class="form-label">Duration:</label>
+                <select name="duration" class="form-select">
+                    <option value="30">30 minutes</option>
+                    <option value="60" selected>1 hour</option>
+                    <option value="90">1.5 hours</option>
+                    <option value="120">2 hours</option>
+                </select>
             </div>
-        </div>
+
+            <div id="meetingResults" class="mt-3 d-none">
+                <div class="alert" role="alert"></div>
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100" id="findTimeButton">
+                <i class="fas fa-search"></i> Find Optimal Time
+            </button>
+        </form>
+    </div>
+</div>
 
          <!-- Schedule Rules Summary -->
          {% if schedule_rules %}
@@ -413,6 +401,28 @@
 <script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/locales-all.min.js'></script>
 
 <script>
+    // Disable Select2 for the participants select
+document.addEventListener('DOMContentLoaded', function() {
+    // Wait a brief moment for any Select2 initializations to complete
+    setTimeout(function() {
+        // Find the select element
+        var participantsSelect = document.getElementById('participantsSelect');
+
+        // Try to destroy any Select2 instances if jQuery and Select2 exist
+        if (window.jQuery && jQuery.fn.select2 && participantsSelect) {
+            try {
+                jQuery(participantsSelect).select2('destroy');
+                console.log("Destroyed Select2 on participants select");
+            } catch(e) {
+                console.log("Select2 not initialized or already destroyed");
+            }
+        }
+
+        // Log the original select element state
+        console.log("Select element visible after initialization:",
+            participantsSelect ? window.getComputedStyle(participantsSelect).display : "Element not found");
+    }, 100);
+});
     // Disable Select2 if it exists
     document.addEventListener('DOMContentLoaded', function() {
         // Prevent Select2 from initializing on our select element
