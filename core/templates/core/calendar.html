@@ -166,13 +166,13 @@
             </div>
          </div>
 
-<!-- Schedule Group Meeting Card -->
+<!-- Schedule Group Meeting Card - Direct Select Version -->
 <div class="card shadow mb-4">
     <div class="card-header py-3">
         <h6 class="m-0 font-weight-bold text-primary">
            Schedule Group Meeting
-           {% if employee_count %}
-           <span class="badge bg-primary text-white employee-count-badge">{{ employee_count }} employees</span>
+           {% if available_employees.count > 0 %}
+           <span class="badge bg-primary text-white employee-count-badge">{{ available_employees.count }} employees</span>
            {% endif %}
         </h6>
     </div>
@@ -183,28 +183,25 @@
 
             <div class="mb-3">
                 <label class="form-label">Select Participants:</label>
-                {% if available_employees.count > 0 %}
-                   <!-- Simplified form rendering -->
-                   <select name="employees" multiple class="form-select" id="participantsSelect" style="min-height: 100px; display: block !important;">
-                     {% for emp in available_employees %}
-                         <option value="{{ emp.id }}">
-                             {% if emp.user.get_full_name %}
-                                 {{ emp.user.get_full_name }}
-                             {% else %}
-                                 {{ emp.user.username }}
-                             {% endif %}
-                             ({{ emp.employee_id }})
-                         </option>
-                     {% endfor %}
-                   </select>
-                   <div class="form-text">Hold Ctrl to select multiple participants</div>
-                {% else %}
-                   <select class="form-select" multiple id="participantsSelect" disabled style="min-height: 100px; display: block !important;">
-                      <option>No employees available</option>
-                   </select>
-                   <div class="form-text text-danger">No employees available for meetings</div>
-                {% endif %}
+
+                <select name="employees" multiple class="form-select" id="participantsSelect"
+                      style="height: 200px !important; width: 100%; display: block !important;">
+                  {% for emp in available_employees %}
+                      <option value="{{ emp.id }}">
+                          {% if emp.user.get_full_name %}
+                              {{ emp.user.get_full_name }}
+                          {% else %}
+                              {{ emp.user.username }}
+                          {% endif %}
+                          ({{ emp.employee_id }})
+                      </option>
+                  {% empty %}
+                      <option disabled>No employees available</option>
+                  {% endfor %}
+                </select>
+                <div class="form-text">Hold Ctrl to select multiple participants</div>
             </div>
+
             <div class="mb-3">
                 <label class="form-label">Duration:</label>
                 <select name="duration" class="form-select">
@@ -219,14 +216,12 @@
                 <div class="alert" role="alert"></div>
             </div>
 
-            <button type="submit" class="btn btn-primary w-100" id="findTimeButton"
-                    {% if available_employees.count == 0 %}disabled{% endif %}>
+            <button type="submit" class="btn btn-primary w-100" id="findTimeButton">
                 <i class="fas fa-search"></i> Find Optimal Time
             </button>
         </form>
     </div>
 </div>
-
 
          <!-- Schedule Rules Summary -->
          {% if schedule_rules %}

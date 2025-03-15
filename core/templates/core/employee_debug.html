@@ -1,0 +1,32 @@
+@login_required
+def calendar_employee_debug(request):
+    """Standalone debug view to test employee selection"""
+
+    # Get current employee
+    try:
+        current_employee = request.user.employee_profile
+    except:
+        try:
+            current_employee = Employee.objects.get(user=request.user)
+        except:
+            current_employee = None
+
+    # Get all employees (no filtering)
+    all_employees = Employee.objects.all()
+
+    # Get available employees (all employees excluding current)
+    if current_employee:
+        available_employees = Employee.objects.exclude(id=current_employee.id)
+    else:
+        available_employees = Employee.objects.all()
+
+    # Prepare the context
+    context = {
+        'current_employee': current_employee,
+        'all_employees': all_employees,
+        'available_employees': available_employees,
+        'employee_count': available_employees.count(),
+    }
+
+    # Render a minimal template
+    return render(request, 'core/employee_debug.html', context)

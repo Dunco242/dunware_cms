@@ -1,0 +1,34 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="card shadow">
+        <div class="card-header">
+            <h4 class="mb-0">Minimal Calendar View</h4>
+        </div>
+        <div class="card-body">
+            <h5>Schedule Group Meeting</h5>
+            <form method="post" id="scheduleMeetingForm">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="suggest_meeting">
+
+                <div class="mb-3">
+                    <label class="form-label">Select Participants ({{ available_employees.count }} available):</label>
+                    <select name="employees" multiple class="form-select" id="participantsSelect" style="height: 200px;">
+                        {% for emp in available_employees %}
+                            <option value="{{ emp.id }}">
+                                {{ emp.user.get_full_name|default:emp.user.username }} ({{ emp.employee_id }})
+                            </option>
+                        {% empty %}
+                            <option disabled>No employees available</option>
+                        {% endfor %}
+                    </select>
+                    <div class="form-text">Hold Ctrl to select multiple participants</div>
+                </div>
+
+                <button type="submit" class="btn btn-primary">Find Optimal Time</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

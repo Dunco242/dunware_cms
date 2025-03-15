@@ -5493,3 +5493,79 @@ def employee_diagnostic(request):
             'message': str(e),
             'traceback': traceback.format_exc()
         })
+
+
+@login_required
+def calendar_employee_debug(request):
+    """Standalone debug view to test employee selection"""
+
+    # Get current employee
+    try:
+        current_employee = request.user.employee_profile
+    except:
+        try:
+            current_employee = Employee.objects.get(user=request.user)
+        except:
+            current_employee = None
+
+    # Get all employees (no filtering)
+    all_employees = Employee.objects.all()
+
+    # Get available employees (all employees excluding current)
+    if current_employee:
+        available_employees = Employee.objects.exclude(id=current_employee.id)
+    else:
+        available_employees = Employee.objects.all()
+
+    # Prepare the context
+    context = {
+        'current_employee': current_employee,
+        'all_employees': all_employees,
+        'available_employees': available_employees,
+        'employee_count': available_employees.count(),
+    }
+
+    # Render a minimal template
+    return render(request, 'core/employee_debug.html', context)
+
+
+@login_required
+def minimal_calendar_view(request):
+    """Simple calendar view to test employee selection"""
+
+    # Get current employee directly from request.user
+    try:
+        current_employee = request.user.employee_profile
+    except:
+        try:
+            current_employee = Employee.objects.get(user=request.user)
+        except:
+            messages.error(request, "You don't have an employee profile")
+            return redirect('dashboard')
+
+    # Get all active employees except current user
+    available_employees = Employee.objects.exclude(id=current_employee.id).filter(is_active=True)
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+
+        if action == 'suggest_meeting':
+            # Get selected employees
+            employee_ids = request.POST.getlist('employees')
+
+            if not employee_ids:
+                messages.error(request, "Please select at least one participant")
+                return redirect('minimal_calendar')
+
+            # Success message with selected IDs
+            messages.success(request, f"Selected employees: {', '.join(employee_ids)}")
+            return redirect('minimal_calendar')
+
+    # Simple context
+    context = {
+        'current_employee': current_employee,
+        'available_employees': available_employees,
+    }
+
+    # Render a minimal template
+    return render(request, 'core/minimal_calendar.html', context)
