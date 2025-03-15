@@ -7,6 +7,7 @@
 {% block extra_css %}
 <link href='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css' rel='stylesheet' />
 
+
 <!-- Override problematic CSS for this page only -->
 <style>
    /* Override the problematic select styles for this page */
@@ -251,10 +252,9 @@
             {% csrf_token %}
             <input type="hidden" name="action" value="suggest_meeting">
 
-            <!-- Use EXACTLY the same markup that worked in minimal calendar -->
             <div class="mb-3">
                 <label class="form-label">Select Participants ({{ available_employees.count }} available):</label>
-                <select name="employees" multiple class="form-select" id="participantsSelect" style="height: 200px;">
+                <select name="employees" multiple class="form-select" style="height: 200px;">
                     {% for emp in available_employees %}
                         <option value="{{ emp.id }}">
                             {{ emp.user.get_full_name|default:emp.user.username }} ({{ emp.employee_id }})

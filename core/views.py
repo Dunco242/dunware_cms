@@ -1530,9 +1530,9 @@ class MeetingDeleteView(LoginRequiredMixin, DeleteView):
 
 logger = logging.getLogger(__name__)
 
-class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
+class CalendarView(LoginRequiredMixin, TemplateView):
     """
-    Enhanced calendar view with employee selection and scheduling capabilities
+    Calendar view with employee selection capability
     """
     template_name = 'core/calendar_revamped.html'
 
@@ -1541,15 +1541,14 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
         today = timezone.now().date()
 
         try:
-            # Use request.user.employee_profile directly instead of self.employee from the mixin
-            # This matches the approach in minimal_calendar_view
+            # Direct access to employee profile without mixin - this works
             if hasattr(self.request.user, 'employee_profile'):
                 current_employee = self.request.user.employee_profile
 
-                # Use the same query that works in minimal_calendar_view
-                available_employees = Employee.objects.exclude(id=current_employee.id).filter(is_active=True)
+                # Simple query that works in simplified view
+                available_employees = Employee.objects.exclude(id=current_employee.id)
 
-                # Get schedule rule information
+                # Get schedule rule information and other calendar data
                 schedule_rules = ScheduleRule.objects.filter(
                     user=self.request.user,
                     is_active=True
@@ -1567,12 +1566,12 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
                         'buffer': f"{rule.buffer_before} min before, {rule.buffer_after} min after"
                     })
 
-                # Get today's availability
+                # Get availability data
                 from .services.scheduling import SchedulingService
                 scheduling_service = SchedulingService(self.request.user)
                 availability_data = {'today': scheduling_service.get_availability(today)}
 
-                # Get upcoming available slots
+                # Get available slots
                 available_slots = []
                 for duration in [30, 60]:
                     next_start, next_end = scheduling_service.get_next_available_slot(
@@ -1586,7 +1585,7 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
                             'label': f"{duration} min slot at {next_start.strftime('%I:%M %p')} on {next_start.strftime('%b %d')}"
                         })
 
-                # Add data to context
+                # Add all data to context
                 context.update({
                     'current_employee': current_employee,
                     'available_employees': available_employees,
@@ -1598,21 +1597,17 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
                     'employee_count': available_employees.count(),
                 })
             else:
-                messages.error(self.request, 'No employee profile found for this user.')
                 context.update({
-                    'today': today,
-                    'is_personal_calendar': True,
                     'error_message': 'No employee profile found',
                     'available_employees': [],
                     'employee_count': 0,
                 })
 
         except Exception as e:
-            logger.error(f"Error getting calendar data: {str(e)}", exc_info=True)
-            messages.error(self.request, 'Error loading calendar data.')
+            import traceback
+            print(f"Error getting calendar data: {str(e)}")
+            print(traceback.format_exc())
             context.update({
-                'today': today,
-                'is_personal_calendar': True,
                 'error_message': str(e),
                 'available_employees': [],
                 'employee_count': 0,
@@ -1632,174 +1627,6 @@ class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
             return f"{rule.get_month_display()} {rule.day_of_month}"
         return ""
 
-    def post(self, request, *args, **kwargs):
-        """Handle POST requests for calendar actions"""
-        action = request.POST.get('action')
-        is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
-        response_data = {'status': 'error', 'message': 'Invalid action'}
-
-        try:
-            # Use request.user.employee_profile for consistency with get_context_data
-            employee = request.user.employee_profile
-
-            if action == 'availability_check':
-                response_data = self._handle_availability_check(request)
-            elif action == 'suggest_meeting':
-                response_data = self._handle_suggest_meeting(request, employee)
-            else:
-                response_data = {'status': 'error', 'message': f"Unknown action: {action}"}
-
-            if is_ajax:
-                return JsonResponse(response_data)
-
-            # For non-AJAX, set appropriate message and redirect
-            if response_data.get('status') == 'success':
-                messages.success(request, response_data.get('message', 'Action completed successfully'))
-
-                # Check if we have a redirect URL in the response
-                if 'redirect_url' in response_data:
-                    return redirect(response_data['redirect_url'])
-            else:
-                messages.error(request, response_data.get('message', 'Error processing request'))
-
-            return redirect('calendar')
-
-        except Exception as e:
-            logger.error(f"Error processing calendar action: {str(e)}", exc_info=True)
-            error_message = f"An error occurred: {str(e)}"
-
-            if is_ajax:
-                return JsonResponse({'status': 'error', 'message': error_message})
-
-            messages.error(request, error_message)
-            return redirect('calendar')
-
-    def _handle_availability_check(self, request):
-        """Process availability check requests"""
-        try:
-            from .services.scheduling import SchedulingService
-            scheduling_service = SchedulingService(request.user)
-
-            date_str = request.POST.get('date')
-            start_time_str = request.POST.get('start_time')
-            duration = int(request.POST.get('duration', 60))
-
-            # Validate inputs
-            if not date_str or not start_time_str:
-                return {'status': 'error', 'message': 'Date and start time are required'}
-
-            # Parse date and time
-            try:
-                date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
-                start_time_obj = datetime.strptime(start_time_str, '%H:%M').time()
-            except ValueError:
-                return {'status': 'error', 'message': 'Invalid date or time format'}
-
-            # Create datetime objects
-            start_datetime = datetime.combine(date_obj, start_time_obj)
-            start_datetime = timezone.make_aware(start_datetime)
-            end_datetime = start_datetime + timedelta(minutes=duration)
-
-            # Check availability
-            is_available = scheduling_service.check_availability(
-                start_datetime,
-                end_datetime,
-                duration
-            )
-
-            if is_available:
-                return {
-                    'status': 'success',
-                    'available': True,
-                    'message': f"The time slot on {date_str} at {start_time_str} for {duration} minutes is available."
-                }
-            else:
-                # Try to find next available slot
-                next_start, next_end = scheduling_service.get_next_available_slot(
-                    start_datetime,
-                    duration
-                )
-
-                if next_start and next_end:
-                    return {
-                        'status': 'warning',
-                        'available': False,
-                        'message': f"The selected time is not available. Next available slot is {next_start.strftime('%Y-%m-%d %H:%M')} to {next_end.strftime('%H:%M')}",
-                        'next_slot': {
-                            'start': next_start.strftime('%Y-%m-%d %H:%M'),
-                            'end': next_end.strftime('%Y-%m-%d %H:%M')
-                        }
-                    }
-                else:
-                    return {
-                        'status': 'error',
-                        'available': False,
-                        'message': "The selected time is not available and no alternative slots were found."
-                    }
-
-        except Exception as e:
-            logger.error(f"Error checking availability: {str(e)}", exc_info=True)
-            return {'status': 'error', 'message': f"Error checking availability: {str(e)}"}
-
-    def _handle_suggest_meeting(self, request, employee):
-        """Process meeting suggestion requests"""
-        try:
-            from .services.scheduling import SchedulingService
-            scheduling_service = SchedulingService(request.user)
-
-            # Get selected employees
-            employee_ids = request.POST.getlist('employees')
-
-            if not employee_ids:
-                return {'status': 'error', 'message': 'No participants selected'}
-
-            duration = int(request.POST.get('duration', 60))
-
-            # Get participant employees
-            participants = []
-            for emp_id in employee_ids:
-                try:
-                    participant = Employee.objects.get(id=emp_id)
-                    participants.append(participant)
-                except Employee.DoesNotExist:
-                    continue
-
-            # Add current user's employee if not already included
-            if employee and employee not in participants:
-                participants.append(employee)
-
-            if not participants:
-                return {'status': 'error', 'message': 'No valid participants selected.'}
-
-            # Get suggestion
-            suggestion = scheduling_service.suggest_meeting_time(
-                participants=participants,
-                duration_minutes=duration,
-                within_days=7
-            )
-
-            if suggestion.get('success'):
-                # Format for meeting creation page
-                start_time = suggestion['start_datetime'].strftime('%Y-%m-%dT%H:%M')
-                end_time = suggestion['end_datetime'].strftime('%Y-%m-%dT%H:%M')
-                attendee_ids = ','.join([str(p.id) for p in participants if p != employee])
-
-                return {
-                    'status': 'success',
-                    'success': True,
-                    'message': 'Found optimal meeting time',
-                    'redirect_url': f'/meetings/create/?start_time={start_time}&end_time={end_time}&attendees={attendee_ids}'
-                }
-            else:
-                return {
-                    'status': 'error',
-                    'success': False,
-                    'message': suggestion.get('error', 'Could not find a suitable meeting time')
-                }
-
-        except Exception as e:
-            logger.error(f"Error suggesting meeting time: {str(e)}", exc_info=True)
-            return {'status': 'error', 'message': f"Error suggesting meeting time: {str(e)}"}
 
 # Function-based view alternative
 def calendar_view(request):
