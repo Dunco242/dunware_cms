@@ -10,219 +10,244 @@
 {% endblock %}
 
 {% block content %}
-<div class="container mx-auto px-4 py-8">
-    <div class="bg-white shadow-md rounded-lg p-6">
-        <h1 class="text-2xl font-bold mb-6">
-            {% if form.instance.pk %}
-                Edit Route {{ form.instance.route_id }}
-            {% else %}
-                Create New Route
-            {% endif %}
-        </h1>
-
-        <form method="post" class="space-y-6">
-            {% csrf_token %}
-
-            {% if form.non_field_errors %}
-                <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-                    {% for error in form.non_field_errors %}
-                        <p>{{ error }}</p>
-                    {% endfor %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">
+                        <i class="fas fa-route me-2"></i>
+                        {% if form.instance.pk %}
+                            Edit Route {{ form.instance.route_id }}
+                        {% else %}
+                            Create New Route
+                        {% endif %}
+                    </h4>
                 </div>
-            {% endif %}
+                <div class="card-body">
+                    <form method="post" class="needs-validation" novalidate>
+                        {% csrf_token %}
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div class="form-group">
-                    <label for="{{ form.name.id_for_label }}" class="block text-sm font-medium text-gray-700">
-                        Route Name <span class="text-red-500">*</span>
-                    </label>
-                    {{ form.name }}
-                    {% if form.name.errors %}
-                        <div class="text-red-500 text-sm mt-1">
-                            {{ form.name.errors }}
-                        </div>
-                    {% endif %}
-                </div>
-
-                <div class="form-group">
-                    <label for="{{ form.schedule.id_for_label }}" class="block text-sm font-medium text-gray-700">
-                        Route Schedule
-                    </label>
-                    {{ form.schedule }}
-                    {% if form.schedule.errors %}
-                        <div class="text-red-500 text-sm mt-1">
-                            {{ form.schedule.errors }}
-                        </div>
-                    {% endif %}
-                </div>
-
-                <div class="form-group">
-                    <label for="{{ form.technician.id_for_label }}" class="block text-sm font-medium text-gray-700">
-                        Technician <span class="text-red-500">*</span>
-                    </label>
-                    {{ form.technician }}
-                    {% if form.technician.errors %}
-                        <div class="text-red-500 text-sm mt-1">
-                            {{ form.technician.errors }}
-                        </div>
-                    {% endif %}
-                </div>
-
-                <div class="form-group">
-                    <label for="{{ form.date.id_for_label }}" class="block text-sm font-medium text-gray-700">
-                        Route Date <span class="text-red-500">*</span>
-                    </label>
-                    {{ form.date }}
-                    {% if form.date.errors %}
-                        <div class="text-red-500 text-sm mt-1">
-                            {{ form.date.errors }}
-                        </div>
-                    {% endif %}
-                </div>
-
-                <div class="form-group">
-                    <label for="{{ form.start_location.id_for_label }}" class="block text-sm font-medium text-gray-700">
-                        Start Location
-                    </label>
-                    {{ form.start_location }}
-                    {% if form.start_location.errors %}
-                        <div class="text-red-500 text-sm mt-1">
-                            {{ form.start_location.errors }}
-                        </div>
-                    {% endif %}
-                </div>
-
-                <div class="grid grid-cols-2 gap-4">
-                    <div class="form-group">
-                        <label for="{{ form.start_latitude.id_for_label }}" class="block text-sm font-medium text-gray-700">
-                            Start Latitude
-                        </label>
-                        {{ form.start_latitude }}
-                        {% if form.start_latitude.errors %}
-                            <div class="text-red-500 text-sm mt-1">
-                                {{ form.start_latitude.errors }}
+                        {% if form.non_field_errors %}
+                            <div class="alert alert-danger" role="alert">
+                                {% for error in form.non_field_errors %}
+                                    <p class="mb-0">{{ error }}</p>
+                                {% endfor %}
                             </div>
                         {% endif %}
-                    </div>
 
-                    <div class="form-group">
-                        <label for="{{ form.start_longitude.id_for_label }}" class="block text-sm font-medium text-gray-700">
-                            Start Longitude
-                        </label>
-                        {{ form.start_longitude }}
-                        {% if form.start_longitude.errors %}
-                            <div class="text-red-500 text-sm mt-1">
-                                {{ form.start_longitude.errors }}
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="{{ form.name.id_for_label }}" class="form-label">
+                                        Route Name <span class="text-danger">*</span>
+                                    </label>
+                                    {{ form.name|add_class:"form-control" }}
+                                    {% if form.name.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.name.errors }}
+                                        </div>
+                                    {% endif %}
+                                </div>
                             </div>
-                        {% endif %}
-                    </div>
-                </div>
 
-                <div class="form-group">
-                    <label for="{{ form.end_location.id_for_label }}" class="block text-sm font-medium text-gray-700">
-                        End Location
-                    </label>
-                    {{ form.end_location }}
-                    {% if form.end_location.errors %}
-                        <div class="text-red-500 text-sm mt-1">
-                            {{ form.end_location.errors }}
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="{{ form.schedule.id_for_label }}" class="form-label">
+                                        Route Schedule
+                                    </label>
+                                    {{ form.schedule|add_class:"form-select" }}
+                                    {% if form.schedule.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.schedule.errors }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="{{ form.technician.id_for_label }}" class="form-label">
+                                        Technician <span class="text-danger">*</span>
+                                    </label>
+                                    {{ form.technician|add_class:"form-select" }}
+                                    {% if form.technician.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.technician.errors }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="{{ form.date.id_for_label }}" class="form-label">
+                                        Route Date <span class="text-danger">*</span>
+                                    </label>
+                                    {{ form.date|add_class:"form-control" }}
+                                    {% if form.date.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.date.errors }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="{{ form.start_location.id_for_label }}" class="form-label">
+                                        Start Location
+                                    </label>
+                                    {{ form.start_location|add_class:"form-control" }}
+                                    {% if form.start_location.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.start_location.errors }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <div class="col-md-3">
+                                <div class="form-group">
+                                    <label for="{{ form.start_latitude.id_for_label }}" class="form-label">
+                                        Start Latitude
+                                    </label>
+                                    {{ form.start_latitude|add_class:"form-control" }}
+                                    {% if form.start_latitude.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.start_latitude.errors }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <div class="col-md-3">
+                                <div class="form-group">
+                                    <label for="{{ form.start_longitude.id_for_label }}" class="form-label">
+                                        Start Longitude
+                                    </label>
+                                    {{ form.start_longitude|add_class:"form-control" }}
+                                    {% if form.start_longitude.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.start_longitude.errors }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="{{ form.end_location.id_for_label }}" class="form-label">
+                                        End Location
+                                    </label>
+                                    {{ form.end_location|add_class:"form-control" }}
+                                    {% if form.end_location.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.end_location.errors }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <div class="col-md-3">
+                                <div class="form-group">
+                                    <label for="{{ form.end_latitude.id_for_label }}" class="form-label">
+                                        End Latitude
+                                    </label>
+                                    {{ form.end_latitude|add_class:"form-control" }}
+                                    {% if form.end_latitude.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.end_latitude.errors }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <div class="col-md-3">
+                                <div class="form-group">
+                                    <label for="{{ form.end_longitude.id_for_label }}" class="form-label">
+                                        End Longitude
+                                    </label>
+                                    {{ form.end_longitude|add_class:"form-control" }}
+                                    {% if form.end_longitude.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.end_longitude.errors }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="{{ form.estimated_start_time.id_for_label }}" class="form-label">
+                                        Estimated Start Time
+                                    </label>
+                                    {{ form.estimated_start_time|add_class:"form-control" }}
+                                    {% if form.estimated_start_time.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.estimated_start_time.errors }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="{{ form.estimated_end_time.id_for_label }}" class="form-label">
+                                        Estimated End Time
+                                    </label>
+                                    {{ form.estimated_end_time|add_class:"form-control" }}
+                                    {% if form.estimated_end_time.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.estimated_end_time.errors }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <div class="col-12">
+                                <div class="form-group">
+                                    <label for="{{ form.notes.id_for_label }}" class="form-label">
+                                        Additional Notes
+                                    </label>
+                                    {{ form.notes|add_class:"form-control" }}
+                                    {% if form.notes.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.notes.errors }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
                         </div>
-                    {% endif %}
-                </div>
 
-                <div class="grid grid-cols-2 gap-4">
-                    <div class="form-group">
-                        <label for="{{ form.end_latitude.id_for_label }}" class="block text-sm font-medium text-gray-700">
-                            End Latitude
-                        </label>
-                        {{ form.end_latitude }}
-                        {% if form.end_latitude.errors %}
-                            <div class="text-red-500 text-sm mt-1">
-                                {{ form.end_latitude.errors }}
-                            </div>
-                        {% endif %}
-                    </div>
-
-                    <div class="form-group">
-                        <label for="{{ form.end_longitude.id_for_label }}" class="block text-sm font-medium text-gray-700">
-                            End Longitude
-                        </label>
-                        {{ form.end_longitude }}
-                        {% if form.end_longitude.errors %}
-                            <div class="text-red-500 text-sm mt-1">
-                                {{ form.end_longitude.errors }}
-                            </div>
-                        {% endif %}
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-2 gap-4">
-                    <div class="form-group">
-                        <label for="{{ form.estimated_start_time.id_for_label }}" class="block text-sm font-medium text-gray-700">
-                            Estimated Start Time
-                        </label>
-                        {{ form.estimated_start_time }}
-                        {% if form.estimated_start_time.errors %}
-                            <div class="text-red-500 text-sm mt-1">
-                                {{ form.estimated_start_time.errors }}
-                            </div>
-                        {% endif %}
-                    </div>
-
-                    <div class="form-group">
-                        <label for="{{ form.estimated_end_time.id_for_label }}" class="block text-sm font-medium text-gray-700">
-                            Estimated End Time
-                        </label>
-                        {{ form.estimated_end_time }}
-                        {% if form.estimated_end_time.errors %}
-                            <div class="text-red-500 text-sm mt-1">
-                                {{ form.estimated_end_time.errors }}
-                            </div>
-                        {% endif %}
-                    </div>
-                </div>
-
-                <div class="form-group md:col-span-2">
-                    <label for="{{ form.notes.id_for_label }}" class="block text-sm font-medium text-gray-700">
-                        Additional Notes
-                    </label>
-                    {{ form.notes }}
-                    {% if form.notes.errors %}
-                        <div class="text-red-500 text-sm mt-1">
-                            {{ form.notes.errors }}
+                        <div class="mt-4 d-flex justify-content-end">
+                            <a href="{% url 'route_management:route_list' %}" class="btn btn-secondary me-2">
+                                <i class="fas fa-times me-1"></i> Cancel
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-1"></i>
+                                {% if form.instance.pk %}
+                                    Update Route
+                                {% else %}
+                                    Create Route
+                                {% endif %}
+                            </button>
                         </div>
-                    {% endif %}
+                    </form>
                 </div>
             </div>
-
-            <div class="flex justify-end space-x-4 mt-6">
-                <a href="{% url 'route_management:route_list' %}"
-                   class="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 transition">
-                    Cancel
-                </a>
-                <button type="submit"
-                        class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition">
-                    {% if form.instance.pk %}
-                        Update Route
-                    {% else %}
-                        Create Route
-                    {% endif %}
-                </button>
-            </div>
-        </form>
+        </div>
     </div>
 </div>
-
 {% endblock %}
 
 {% block extra_js %}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Optional: Add dynamic behaviors or validations
+        // Technician availability check
         const dateInput = document.getElementById('{{ form.date.id_for_label }}');
         const technicianSelect = document.getElementById('{{ form.technician.id_for_label }}');
 
-        // Example: Fetch technician availability when date is selected
         dateInput.addEventListener('change', function() {
             const selectedDate = this.value;
             const selectedTechnician = technicianSelect.value;
@@ -231,15 +256,38 @@
                 fetch(`/route_management/check_technician_availability/${selectedTechnician}/${selectedDate}/`)
                     .then(response => response.json())
                     .then(data => {
-                        const availabilityMessage = document.getElementById('technician-availability-message');
-                        if (availabilityMessage) {
-                            availabilityMessage.textContent = data.is_available
-                                ? 'Technician is available'
-                                : 'Technician is not available on this date';
+                        // Create or update availability message
+                        let availabilityMessage = document.getElementById('technician-availability-message');
+                        if (!availabilityMessage) {
+                            availabilityMessage = document.createElement('div');
+                            availabilityMessage.id = 'technician-availability-message';
+                            availabilityMessage.classList.add('mt-2', 'small');
+                            technicianSelect.closest('.form-group').appendChild(availabilityMessage);
                         }
+
+                        availabilityMessage.innerHTML = data.is_available
+                            ? '<span class="text-success"><i class="fas fa-check-circle me-1"></i>Technician is available</span>'
+                            : '<span class="text-danger"><i class="fas fa-times-circle me-1"></i>Technician is not available on this date</span>';
                     });
             }
         });
+
+        // Form validation
+        (function() {
+            'use strict';
+            window.addEventListener('load', function() {
+                var forms = document.getElementsByClassName('needs-validation');
+                var validation = Array.prototype.filter.call(forms, function(form) {
+                    form.addEventListener('submit', function(event) {
+                        if (form.checkValidity() === false) {
+                            event.preventDefault();
+                            event.stopPropagation();
+                        }
+                        form.classList.add('was-validated');
+                    }, false);
+                });
+            }, false);
+        })();
     });
 </script>
 {% endblock %}
