@@ -1,0 +1,245 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}
+    {% if form.instance.pk %}
+        Edit Route {{ form.instance.route_id }}
+    {% else %}
+        Create New Route
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="bg-white shadow-md rounded-lg p-6">
+        <h1 class="text-2xl font-bold mb-6">
+            {% if form.instance.pk %}
+                Edit Route {{ form.instance.route_id }}
+            {% else %}
+                Create New Route
+            {% endif %}
+        </h1>
+
+        <form method="post" class="space-y-6">
+            {% csrf_token %}
+
+            {% if form.non_field_errors %}
+                <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+                    {% for error in form.non_field_errors %}
+                        <p>{{ error }}</p>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="form-group">
+                    <label for="{{ form.name.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                        Route Name <span class="text-red-500">*</span>
+                    </label>
+                    {{ form.name }}
+                    {% if form.name.errors %}
+                        <div class="text-red-500 text-sm mt-1">
+                            {{ form.name.errors }}
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="form-group">
+                    <label for="{{ form.schedule.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                        Route Schedule
+                    </label>
+                    {{ form.schedule }}
+                    {% if form.schedule.errors %}
+                        <div class="text-red-500 text-sm mt-1">
+                            {{ form.schedule.errors }}
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="form-group">
+                    <label for="{{ form.technician.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                        Technician <span class="text-red-500">*</span>
+                    </label>
+                    {{ form.technician }}
+                    {% if form.technician.errors %}
+                        <div class="text-red-500 text-sm mt-1">
+                            {{ form.technician.errors }}
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="form-group">
+                    <label for="{{ form.date.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                        Route Date <span class="text-red-500">*</span>
+                    </label>
+                    {{ form.date }}
+                    {% if form.date.errors %}
+                        <div class="text-red-500 text-sm mt-1">
+                            {{ form.date.errors }}
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="form-group">
+                    <label for="{{ form.start_location.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                        Start Location
+                    </label>
+                    {{ form.start_location }}
+                    {% if form.start_location.errors %}
+                        <div class="text-red-500 text-sm mt-1">
+                            {{ form.start_location.errors }}
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="form-group">
+                        <label for="{{ form.start_latitude.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                            Start Latitude
+                        </label>
+                        {{ form.start_latitude }}
+                        {% if form.start_latitude.errors %}
+                            <div class="text-red-500 text-sm mt-1">
+                                {{ form.start_latitude.errors }}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="form-group">
+                        <label for="{{ form.start_longitude.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                            Start Longitude
+                        </label>
+                        {{ form.start_longitude }}
+                        {% if form.start_longitude.errors %}
+                            <div class="text-red-500 text-sm mt-1">
+                                {{ form.start_longitude.errors }}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="{{ form.end_location.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                        End Location
+                    </label>
+                    {{ form.end_location }}
+                    {% if form.end_location.errors %}
+                        <div class="text-red-500 text-sm mt-1">
+                            {{ form.end_location.errors }}
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="form-group">
+                        <label for="{{ form.end_latitude.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                            End Latitude
+                        </label>
+                        {{ form.end_latitude }}
+                        {% if form.end_latitude.errors %}
+                            <div class="text-red-500 text-sm mt-1">
+                                {{ form.end_latitude.errors }}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="form-group">
+                        <label for="{{ form.end_longitude.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                            End Longitude
+                        </label>
+                        {{ form.end_longitude }}
+                        {% if form.end_longitude.errors %}
+                            <div class="text-red-500 text-sm mt-1">
+                                {{ form.end_longitude.errors }}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="form-group">
+                        <label for="{{ form.estimated_start_time.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                            Estimated Start Time
+                        </label>
+                        {{ form.estimated_start_time }}
+                        {% if form.estimated_start_time.errors %}
+                            <div class="text-red-500 text-sm mt-1">
+                                {{ form.estimated_start_time.errors }}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="form-group">
+                        <label for="{{ form.estimated_end_time.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                            Estimated End Time
+                        </label>
+                        {{ form.estimated_end_time }}
+                        {% if form.estimated_end_time.errors %}
+                            <div class="text-red-500 text-sm mt-1">
+                                {{ form.estimated_end_time.errors }}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="form-group md:col-span-2">
+                    <label for="{{ form.notes.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                        Additional Notes
+                    </label>
+                    {{ form.notes }}
+                    {% if form.notes.errors %}
+                        <div class="text-red-500 text-sm mt-1">
+                            {{ form.notes.errors }}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="flex justify-end space-x-4 mt-6">
+                <a href="{% url 'route_management:route_list' %}"
+                   class="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 transition">
+                    Cancel
+                </a>
+                <button type="submit"
+                        class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition">
+                    {% if form.instance.pk %}
+                        Update Route
+                    {% else %}
+                        Create Route
+                    {% endif %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Optional: Add dynamic behaviors or validations
+        const dateInput = document.getElementById('{{ form.date.id_for_label }}');
+        const technicianSelect = document.getElementById('{{ form.technician.id_for_label }}');
+
+        // Example: Fetch technician availability when date is selected
+        dateInput.addEventListener('change', function() {
+            const selectedDate = this.value;
+            const selectedTechnician = technicianSelect.value;
+
+            if (selectedDate && selectedTechnician) {
+                fetch(`/route_management/check_technician_availability/${selectedTechnician}/${selectedDate}/`)
+                    .then(response => response.json())
+                    .then(data => {
+                        const availabilityMessage = document.getElementById('technician-availability-message');
+                        if (availabilityMessage) {
+                            availabilityMessage.textContent = data.is_available
+                                ? 'Technician is available'
+                                : 'Technician is not available on this date';
+                        }
+                    });
+            }
+        });
+    });
+</script>
+{% endblock %}
