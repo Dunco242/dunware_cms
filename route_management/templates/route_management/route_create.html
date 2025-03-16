@@ -1,0 +1,396 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Create New Route{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.9.0/css/bootstrap-datepicker.min.css">
+<style>
+    .form-card {
+        border-left: 4px solid #4e73df;
+    }
+    .required-field label:after {
+        content: " *";
+        color: red;
+    }
+    .field-help {
+        color: #858796;
+        font-size: 0.8rem;
+        margin-top: 0.25rem;
+    }
+    .technician-select-item {
+        display: flex;
+        align-items: center;
+    }
+    .technician-avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        margin-right: 10px;
+    }
+    .technician-info {
+        flex-grow: 1;
+    }
+    .technician-info small {
+        display: block;
+        color: #858796;
+    }
+    .technician-badge {
+        display: inline-block;
+        margin-left: 10px;
+        padding: 3px 8px;
+        border-radius: 12px;
+        background-color: #4e73df;
+        color: white;
+        font-size: 0.7rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Heading -->
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">Create New Route</h1>
+        <a href="{% url 'route_management:route_list' %}" class="d-none d-sm-inline-block btn btn-sm btn-secondary shadow-sm">
+            <i class="fas fa-arrow-left fa-sm text-white-50"></i> Back to Routes
+        </a>
+    </div>
+
+    <!-- Form Card -->
+    <div class="card shadow mb-4 form-card">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">Route Information</h6>
+        </div>
+        <div class="card-body">
+            <form method="post" id="routeForm">
+                {% csrf_token %}
+
+                <div class="row">
+                    <!-- Left Column -->
+                    <div class="col-lg-6">
+                        <!-- Route ID -->
+                        <div class="form-group required-field">
+                            <label for="route_id">Route ID</label>
+                            <input type="text" class="form-control" id="route_id" name="route_id" value="{{ form.route_id.value|default:'' }}" required>
+                            <div class="field-help">A unique identifier for this route</div>
+                            {% if form.route_id.errors %}
+                                <div class="text-danger">{{ form.route_id.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Name -->
+                        <div class="form-group">
+                            <label for="name">Route Name</label>
+                            <input type="text" class="form-control" id="name" name="name" value="{{ form.name.value|default:'' }}">
+                            <div class="field-help">Optional descriptive name for this route</div>
+                            {% if form.name.errors %}
+                                <div class="text-danger">{{ form.name.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Date -->
+                        <div class="form-group required-field">
+                            <label for="date">Route Date</label>
+                            <div class="input-group date">
+                                <input type="text" class="form-control" id="date" name="date" value="{{ form.date.value|default:'' }}" required>
+                                <div class="input-group-append">
+                                    <span class="input-group-text"><i class="fas fa-calendar"></i></span>
+                                </div>
+                            </div>
+                            {% if form.date.errors %}
+                                <div class="text-danger">{{ form.date.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Technician -->
+                        <div class="form-group required-field">
+                            <label for="technician">Assigned Technician</label>
+                            <select class="form-control" id="technician" name="technician" required>
+                                <option value="">Select a technician...</option>
+                                {% for tech in technicians %}
+                                    <option value="{{ tech.id }}" {% if form.technician.value == tech.id %}selected{% endif %}>
+                                        {{ tech.get_full_name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                            {% if form.technician.errors %}
+                                <div class="text-danger">{{ form.technician.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Technician Details (loaded via JS) -->
+                        <div id="technicianDetails" class="card mb-4" style="display: none;">
+                            <div class="card-body">
+                                <div class="technician-display d-flex align-items-center">
+                                    <img id="techAvatar" src="" alt="Technician" class="technician-avatar mr-3">
+                                    <div>
+                                        <h6 id="techName" class="mb-0"></h6>
+                                        <div class="small text-muted">
+                                            <span id="techSpecialty"></span>
+                                            <span id="techServiceArea"></span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="mt-2">
+                                    <a href="#" id="viewTechSchedule" class="btn btn-sm btn-info">
+                                        <i class="fas fa-calendar"></i> View Schedule
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right Column -->
+                    <div class="col-lg-6">
+                        <!-- Status -->
+                        <div class="form-group required-field">
+                            <label for="status">Status</label>
+                            <select class="form-control" id="status" name="status" required>
+                                <option value="draft" {% if form.status.value == 'draft' %}selected{% endif %}>Draft</option>
+                                <option value="published" {% if form.status.value == 'published' %}selected{% endif %}>Published</option>
+                                <option value="in_progress" {% if form.status.value == 'in_progress' %}selected{% endif %}>In Progress</option>
+                                <option value="completed" {% if form.status.value == 'completed' %}selected{% endif %}>Completed</option>
+                                <option value="cancelled" {% if form.status.value == 'cancelled' %}selected{% endif %}>Cancelled</option>
+                            </select>
+                            {% if form.status.errors %}
+                                <div class="text-danger">{{ form.status.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Start/End Times -->
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="estimated_start_time">Start Time</label>
+                                    <input type="time" class="form-control" id="estimated_start_time" name="estimated_start_time" value="{{ form.estimated_start_time.value|default:'' }}">
+                                    {% if form.estimated_start_time.errors %}
+                                        <div class="text-danger">{{ form.estimated_start_time.errors }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="estimated_end_time">End Time</label>
+                                    <input type="time" class="form-control" id="estimated_end_time" name="estimated_end_time" value="{{ form.estimated_end_time.value|default:'' }}">
+                                    {% if form.estimated_end_time.errors %}
+                                        <div class="text-danger">{{ form.estimated_end_time.errors }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Start/End Locations -->
+                        <div class="form-group">
+                            <label for="start_location">Start Location</label>
+                            <select class="form-control" id="start_location" name="start_location">
+                                <option value="">Select a start location...</option>
+                                <option value="office" {% if form.start_location.value == 'office' %}selected{% endif %}>Office</option>
+                                <option value="home" {% if form.start_location.value == 'home' %}selected{% endif %}>Technician's Home</option>
+                                <option value="custom" {% if form.start_location.value and form.start_location.value != 'office' and form.start_location.value != 'home' %}selected{% endif %}>Custom Location</option>
+                            </select>
+                            <div id="custom_start_location_container" class="mt-2" style="display: none;">
+                                <input type="text" class="form-control" id="custom_start_location" name="custom_start_location" placeholder="Enter custom start location" value="{{ form.custom_start_location.value|default:'' }}">
+                            </div>
+                            {% if form.start_location.errors %}
+                                <div class="text-danger">{{ form.start_location.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="form-group">
+                            <label for="end_location">End Location</label>
+                            <select class="form-control" id="end_location" name="end_location">
+                                <option value="">Select an end location...</option>
+                                <option value="office" {% if form.end_location.value == 'office' %}selected{% endif %}>Office</option>
+                                <option value="home" {% if form.end_location.value == 'home' %}selected{% endif %}>Technician's Home</option>
+                                <option value="custom" {% if form.end_location.value and form.end_location.value != 'office' and form.end_location.value != 'home' %}selected{% endif %}>Custom Location</option>
+                            </select>
+                            <div id="custom_end_location_container" class="mt-2" style="display: none;">
+                                <input type="text" class="form-control" id="custom_end_location" name="custom_end_location" placeholder="Enter custom end location" value="{{ form.custom_end_location.value|default:'' }}">
+                            </div>
+                            {% if form.end_location.errors %}
+                                <div class="text-danger">{{ form.end_location.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Notes -->
+                        <div class="form-group">
+                            <label for="notes">Notes</label>
+                            <textarea class="form-control" id="notes" name="notes" rows="3">{{ form.notes.value|default:'' }}</textarea>
+                            {% if form.notes.errors %}
+                                <div class="text-danger">{{ form.notes.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Form buttons -->
+                <div class="row mt-4">
+                    <div class="col-12 text-right">
+                        <a href="{% url 'route_management:route_list' %}" class="btn btn-secondary">Cancel</a>
+                        <button type="submit" name="save_draft" class="btn btn-primary">Save as Draft</button>
+                        <button type="submit" name="save_publish" class="btn btn-success">Save and Publish</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.9.0/js/bootstrap-datepicker.min.js"></script>
+<script>
+$(document).ready(function() {
+    // Initialize datepicker
+    $('#date').datepicker({
+        format: 'yyyy-mm-dd',
+        autoclose: true,
+        todayHighlight: true
+    });
+
+    // Handle technician selection
+    $('#technician').change(function() {
+        var techId = $(this).val();
+        if (techId) {
+            // Normally this would be an AJAX call to get technician details
+            // For demonstration, we'll show the div with placeholder data
+            $('#technicianDetails').show();
+            $('#techName').text($('#technician option:selected').text());
+
+            // Update view schedule link
+            $('#viewTechSchedule').attr('href', '{% url "route_management:technician_schedule" 0 %}'.replace('0', techId));
+
+            // Here you would normally fetch real data from the server
+            $('#techAvatar').attr('src', '/static/img/tech_avatar_placeholder.png');
+            $('#techSpecialty').text('General Maintenance');
+            $('#techServiceArea').text(' • North District');
+        } else {
+            $('#technicianDetails').hide();
+        }
+    });
+
+    // Trigger change if a technician is already selected (e.g., on form error)
+    if ($('#technician').val()) {
+        $('#technician').trigger('change');
+    }
+
+    // Handle custom location fields
+    $('#start_location').change(function() {
+        if ($(this).val() === 'custom') {
+            $('#custom_start_location_container').show();
+        } else {
+            $('#custom_start_location_container').hide();
+        }
+    });
+
+    $('#end_location').change(function() {
+        if ($(this).val() === 'custom') {
+            $('#custom_end_location_container').show();
+        } else {
+            $('#custom_end_location_container').hide();
+        }
+    });
+
+    // Trigger change for locations if they're already set (e.g., on form error)
+    if ($('#start_location').val() === 'custom') {
+        $('#custom_start_location_container').show();
+    }
+
+    if ($('#end_location').val() === 'custom') {
+        $('#custom_end_location_container').show();
+    }
+
+    // Form validation
+    $('#routeForm').submit(function(e) {
+        var isValid = true;
+
+        // Required fields validation
+        if (!$('#route_id').val()) {
+            $('#route_id').addClass('is-invalid');
+            isValid = false;
+        } else {
+            $('#route_id').removeClass('is-invalid');
+        }
+
+        if (!$('#date').val()) {
+            $('#date').addClass('is-invalid');
+            isValid = false;
+        } else {
+            $('#date').removeClass('is-invalid');
+        }
+
+        if (!$('#technician').val()) {
+            $('#technician').addClass('is-invalid');
+            isValid = false;
+        } else {
+            $('#technician').removeClass('is-invalid');
+        }
+
+        if (!$('#status').val()) {
+            $('#status').addClass('is-invalid');
+            isValid = false;
+        } else {
+            $('#status').removeClass('is-invalid');
+        }
+
+        // Custom start location validation
+        if ($('#start_location').val() === 'custom' && !$('#custom_start_location').val()) {
+            $('#custom_start_location').addClass('is-invalid');
+            isValid = false;
+        } else {
+            $('#custom_start_location').removeClass('is-invalid');
+        }
+
+        // Custom end location validation
+        if ($('#end_location').val() === 'custom' && !$('#custom_end_location').val()) {
+            $('#custom_end_location').addClass('is-invalid');
+            isValid = false;
+        } else {
+            $('#custom_end_location').removeClass('is-invalid');
+        }
+
+        // Time validation (if both are provided, make sure end time is after start time)
+        var startTime = $('#estimated_start_time').val();
+        var endTime = $('#estimated_end_time').val();
+
+        if (startTime && endTime && startTime >= endTime) {
+            $('#estimated_end_time').addClass('is-invalid');
+            alert('End time must be after start time');
+            isValid = false;
+        } else {
+            $('#estimated_end_time').removeClass('is-invalid');
+        }
+
+        if (!isValid) {
+            e.preventDefault();
+            $('html, body').animate({
+                scrollTop: $(".is-invalid").first().offset().top - 100
+            }, 500);
+        }
+    });
+
+    // Auto-generate Route ID based on date and technician
+    function generateRouteId() {
+        var date = $('#date').val();
+        var techId = $('#technician').val();
+
+        if (date && techId) {
+            // Format: YYYYMMDD-TECH##
+            var formattedDate = date.replace(/-/g, '');
+            var techName = $('#technician option:selected').text().split(' ')[0].substring(0, 3).toUpperCase();
+            var routeId = formattedDate + '-' + techName + techId;
+
+            // Only set if field is empty
+            if (!$('#route_id').val()) {
+                $('#route_id').val(routeId);
+            }
+        }
+    }
+
+    // Generate route ID when date or technician changes
+    $('#date, #technician').change(function() {
+        generateRouteId();
+    });
+});
+</script>
+{% endblock %}

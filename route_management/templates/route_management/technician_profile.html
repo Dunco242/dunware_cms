@@ -1,0 +1,752 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Technician Profile - {{ profile.employee.get_full_name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Heading -->
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">Technician Profile: {{ profile.employee.get_full_name }}</h1>
+        <div class="btn-group">
+            <a href="{% url 'route_management:technician_schedule' profile.employee.id %}" class="d-none d-sm-inline-block btn btn-sm btn-primary shadow-sm">
+                <i class="fas fa-calendar fa-sm text-white-50"></i> View Schedule
+            </a>
+            <a href="{% url 'route_management:route_create' %}?technician={{ profile.employee.id }}" class="d-none d-sm-inline-block btn btn-sm btn-success shadow-sm ml-2">
+                <i class="fas fa-plus fa-sm text-white-50"></i> Create Route
+            </a>
+        </div>
+    </div>
+
+    <!-- Content Row -->
+    <div class="row">
+        <!-- Basic Info Card -->
+        <div class="col-xl-4 col-lg-5">
+            <div class="card shadow mb-4">
+                <!-- Card Header -->
+                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                    <h6 class="m-0 font-weight-bold text-primary">Technician Information</h6>
+                    <a href="#" class="edit-profile-btn" data-toggle="modal" data-target="#editProfileModal">
+                        <i class="fas fa-edit"></i>
+                    </a>
+                </div>
+                <!-- Card Body -->
+                <div class="card-body">
+                    <div class="text-center mb-4">
+                        <img class="img-profile rounded-circle mb-3" width="150" height="150"
+                             src="{{ profile.employee.profile_image.url|default:'https://via.placeholder.com/150' }}">
+                        <h4>{{ profile.employee.get_full_name }}</h4>
+                        <p class="text-muted">
+                            {{ profile.employee.title|default:"Technician" }}
+                        </p>
+                        {% if profile.employee.is_active %}
+                            <span class="badge badge-success">Active</span>
+                        {% else %}
+                            <span class="badge badge-danger">Inactive</span>
+                        {% endif %}
+                    </div>
+
+                    <div class="profile-details">
+                        <div class="row mb-2">
+                            <div class="col-5 font-weight-bold text-gray-800">Employee ID:</div>
+                            <div class="col-7">{{ profile.employee.employee_id|default:"N/A" }}</div>
+                        </div>
+                        <div class="row mb-2">
+                            <div class="col-5 font-weight-bold text-gray-800">Email:</div>
+                            <div class="col-7">{{ profile.employee.email }}</div>
+                        </div>
+                        <div class="row mb-2">
+                            <div class="col-5 font-weight-bold text-gray-800">Phone:</div>
+                            <div class="col-7">{{ profile.employee.phone|default:"N/A" }}</div>
+                        </div>
+                        <div class="row mb-2">
+                            <div class="col-5 font-weight-bold text-gray-800">Max Travel:</div>
+                            <div class="col-7">{{ profile.max_travel_distance_miles }} miles</div>
+                        </div>
+                        <div class="row mb-2">
+                            <div class="col-5 font-weight-bold text-gray-800">Vehicle:</div>
+                            <div class="col-7">{{ profile.vehicle_type|default:"N/A" }}</div>
+                        </div>
+                        <div class="row mb-2">
+                            <div class="col-5 font-weight-bold text-gray-800">License Plate:</div>
+                            <div class="col-7">{{ profile.license_plate|default:"N/A" }}</div>
+                        </div>
+                        <div class="row mb-2">
+                            <div class="col-5 font-weight-bold text-gray-800">Location Tracking:</div>
+                            <div class="col-7">
+                                {% if profile.enable_location_tracking %}
+                                    <span class="text-success">Enabled</span>
+                                {% else %}
+                                    <span class="text-danger">Disabled</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% if profile.last_location_update %}
+                        <div class="row mb-2">
+                            <div class="col-5 font-weight-bold text-gray-800">Last Location:</div>
+                            <div class="col-7">
+                                {{ profile.last_known_latitude }}, {{ profile.last_known_longitude }}
+                                <br>
+                                <small class="text-muted">{{ profile.last_location_update|timesince }} ago</small>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Skills Card -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Skills & Certifications</h6>
+                </div>
+                <div class="card-body">
+                    <h6 class="font-weight-bold">Skills</h6>
+                    {% if profile.skills.all %}
+                        <div class="mb-3">
+                            {% for skill in profile.skills.all %}
+                                <span class="badge badge-primary p-2 mb-1">{{ skill.name }}</span>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-muted">No skills listed</p>
+                    {% endif %}
+
+                    <h6 class="font-weight-bold mt-3">Certifications</h6>
+                    {% if profile.certifications %}
+                        <div class="mb-3">
+                            {{ profile.certifications|linebreaks }}
+                        </div>
+                    {% else %}
+                        <p class="text-muted">No certifications listed</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column -->
+        <div class="col-xl-8 col-lg-7">
+            <!-- Service Areas Card -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Service Areas</h6>
+                </div>
+                <div class="card-body">
+                    {% if profile.employee.service_areas.all %}
+                        <div class="table-responsive">
+                            <table class="table table-bordered" id="service-areas-table" width="100%" cellspacing="0">
+                                <thead>
+                                    <tr>
+                                        <th>Area Name</th>
+                                        <th>Description</th>
+                                        <th>Status</th>
+                                        <th>Locations</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for area in profile.employee.service_areas.all %}
+                                    <tr>
+                                        <td>{{ area.name }}</td>
+                                        <td>{{ area.description|truncatechars:50 }}</td>
+                                        <td>
+                                            {% if area.is_active %}
+                                                <span class="badge badge-success">Active</span>
+                                            {% else %}
+                                                <span class="badge badge-danger">Inactive</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ area.locations.count }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <p class="text-muted">No service areas assigned to this technician.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Availability Schedule Card -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                    <h6 class="m-0 font-weight-bold text-primary">Weekly Availability</h6>
+                    <a href="#" class="btn btn-sm btn-primary" data-toggle="modal" data-target="#addAvailabilityModal">
+                        <i class="fas fa-plus fa-sm"></i> Add
+                    </a>
+                </div>
+                <div class="card-body">
+                    {% if weekly_availability %}
+                        <div class="table-responsive">
+                            <table class="table table-bordered" id="availability-table" width="100%" cellspacing="0">
+                                <thead>
+                                    <tr>
+                                        <th>Day</th>
+                                        <th>Start Time</th>
+                                        <th>End Time</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for avail in weekly_availability %}
+                                    <tr>
+                                        <td>{{ avail.get_day_of_week_display }}</td>
+                                        <td>{{ avail.start_time|time:"g:i A" }}</td>
+                                        <td>{{ avail.end_time|time:"g:i A" }}</td>
+                                        <td>
+                                            {% if avail.is_available %}
+                                                <span class="badge badge-success">Available</span>
+                                            {% else %}
+                                                <span class="badge badge-danger">Unavailable</span>
+                                                {% if avail.unavailability_reason %}
+                                                <br><small class="text-muted">{{ avail.unavailability_reason }}</small>
+                                                {% endif %}
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm">
+                                                <a href="#" class="btn btn-info edit-availability"
+                                                   data-id="{{ avail.id }}" data-toggle="modal"
+                                                   data-target="#editAvailabilityModal">
+                                                    <i class="fas fa-edit"></i>
+                                                </a>
+                                                <a href="#" class="btn btn-danger delete-availability"
+                                                   data-id="{{ avail.id }}">
+                                                    <i class="fas fa-trash"></i>
+                                                </a>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <p class="text-muted">No regular availability set for this technician.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Upcoming Routes Card -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Upcoming Routes</h6>
+                </div>
+                <div class="card-body">
+                    {% if upcoming_routes %}
+                        <div class="table-responsive">
+                            <table class="table table-bordered" id="upcoming-routes-table" width="100%" cellspacing="0">
+                                <thead>
+                                    <tr>
+                                        <th>Route ID</th>
+                                        <th>Date</th>
+                                        <th>Stops</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for route in upcoming_routes %}
+                                    <tr>
+                                        <td>{{ route.route_id }}</td>
+                                        <td>{{ route.date|date:"M d, Y" }}</td>
+                                        <td>{{ route.stops.count }}</td>
+                                        <td>
+                                            <span class="badge badge-pill
+                                            {% if route.status == 'draft' %}badge-secondary
+                                            {% elif route.status == 'published' %}badge-info
+                                            {% elif route.status == 'in_progress' %}badge-primary
+                                            {% elif route.status == 'completed' %}badge-success
+                                            {% elif route.status == 'cancelled' %}badge-danger
+                                            {% endif %}">
+                                                {{ route.get_status_display }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm">
+                                                <a href="{% url 'route_management:route_detail' route.id %}" class="btn btn-info">
+                                                    <i class="fas fa-eye"></i>
+                                                </a>
+                                                <a href="{% url 'route_management:route_map' route.id %}" class="btn btn-primary">
+                                                    <i class="fas fa-map-marked-alt"></i>
+                                                </a>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <p class="text-muted">No upcoming routes scheduled for this technician.</p>
+                            <a href="{% url 'route_management:route_create' %}?technician={{ profile.employee.id }}" class="btn btn-primary">
+                                <i class="fas fa-plus fa-sm"></i> Create Route
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Recent Service Completions Card -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Recent Service Completions</h6>
+                </div>
+                <div class="card-body">
+                    {% if recent_completions %}
+                        <div class="table-responsive">
+                            <table class="table table-bordered" id="completions-table" width="100%" cellspacing="0">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Service Type</th>
+                                        <th>Customer</th>
+                                        <th>Duration</th>
+                                        <th>Amount</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for completion in recent_completions %}
+                                    <tr>
+                                        <td>{{ completion.end_time|date:"M d, Y" }}</td>
+                                        <td>{{ completion.service_request.service_type.name }}</td>
+                                        <td>{{ completion.service_request.customer.company_name }}</td>
+                                        <td>{{ completion.duration_minutes }} min</td>
+                                        <td>${{ completion.total_amount|floatformat:2 }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <p class="text-muted">No recent service completions for this technician.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Profile Modal -->
+<div class="modal fade" id="editProfileModal" tabindex="-1" role="dialog" aria-labelledby="editProfileModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editProfileModalLabel">Edit Technician Profile</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form method="post" action="{% url 'route_management:technician_profile_update' profile.id %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="vehicle_type">Vehicle Type</label>
+                        <input type="text" class="form-control" id="vehicle_type" name="vehicle_type" value="{{ profile.vehicle_type }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="license_plate">License Plate</label>
+                        <input type="text" class="form-control" id="license_plate" name="license_plate" value="{{ profile.license_plate }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="max_travel_distance_miles">Max Travel Distance (miles)</label>
+                        <input type="number" class="form-control" id="max_travel_distance_miles" name="max_travel_distance_miles" value="{{ profile.max_travel_distance_miles }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="certifications">Certifications</label>
+                        <textarea class="form-control" id="certifications" name="certifications" rows="3">{{ profile.certifications }}</textarea>
+                    </div>
+                    <div class="form-group">
+                        <div class="custom-control custom-switch">
+                            <input type="checkbox" class="custom-control-input" id="enable_location_tracking" name="enable_location_tracking" {% if profile.enable_location_tracking %}checked{% endif %}>
+                            <label class="custom-control-label" for="enable_location_tracking">Enable Location Tracking</label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Skills</label>
+                        <div class="skills-checklist">
+                            {% for skill in all_skills %}
+                                <div class="custom-control custom-checkbox">
+                                    <input type="checkbox" class="custom-control-input" id="skill_{{ skill.id }}" name="skills" value="{{ skill.id }}"
+                                           {% if skill in profile.skills.all %}checked{% endif %}>
+                                    <label class="custom-control-label" for="skill_{{ skill.id }}">{{ skill.name }}</label>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Add Availability Modal -->
+<div class="modal fade" id="addAvailabilityModal" tabindex="-1" role="dialog" aria-labelledby="addAvailabilityModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addAvailabilityModalLabel">Add Weekly Availability</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form method="post" action="{% url 'route_management:technician_availability_create' %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <input type="hidden" name="technician" value="{{ profile.employee.id }}">
+                    <div class="form-group">
+                        <label for="day_of_week">Day of Week</label>
+                        <select class="form-control" id="day_of_week" name="day_of_week" required>
+                            <option value="">Select Day</option>
+                            <option value="0">Monday</option>
+                            <option value="1">Tuesday</option>
+                            <option value="2">Wednesday</option>
+                            <option value="3">Thursday</option>
+                            <option value="4">Friday</option>
+                            <option value="5">Saturday</option>
+                            <option value="6">Sunday</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="start_time">Start Time</label>
+                        <input type="time" class="form-control" id="start_time" name="start_time" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="end_time">End Time</label>
+                        <input type="time" class="form-control" id="end_time" name="end_time" required>
+                    </div>
+                    <div class="form-group">
+                        <div class="custom-control custom-checkbox">
+                            <input type="checkbox" class="custom-control-input" id="is_available" name="is_available" value="true" checked>
+                            <label class="custom-control-label" for="is_available">Available</label>
+                        </div>
+                    </div>
+                    <div class="form-group unavailability-reason-group" style="display: none;">
+                        <label for="unavailability_reason">Reason for Unavailability</label>
+                        <input type="text" class="form-control" id="unavailability_reason" name="unavailability_reason" placeholder="Reason for unavailability">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Add Availability</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Availability Modal -->
+<div class="modal fade" id="editAvailabilityModal" tabindex="-1" role="dialog" aria-labelledby="editAvailabilityModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editAvailabilityModalLabel">Edit Availability</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form method="post" id="edit-availability-form" action="">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <!-- Form fields will be populated via JavaScript -->
+                    <div class="form-group">
+                        <label for="edit_day_of_week">Day of Week</label>
+                        <select class="form-control" id="edit_day_of_week" name="day_of_week" required>
+                            <option value="">Select Day</option>
+                            <option value="0">Monday</option>
+                            <option value="1">Tuesday</option>
+                            <option value="2">Wednesday</option>
+                            <option value="3">Thursday</option>
+                            <option value="4">Friday</option>
+                            <option value="5">Saturday</option>
+                            <option value="6">Sunday</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit_start_time">Start Time</label>
+                        <input type="time" class="form-control" id="edit_start_time" name="start_time" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit_end_time">End Time</label>
+                        <input type="time" class="form-control" id="edit_end_time" name="end_time" required>
+                    </div>
+                    <div class="form-group">
+                        <div class="custom-control custom-checkbox">
+                            <input type="checkbox" class="custom-control-input" id="edit_is_available" name="is_available" value="true">
+                            <label class="custom-control-label" for="edit_is_available">Available</label>
+                        </div>
+                    </div>
+                    <div class="form-group edit-unavailability-reason-group">
+                        <label for="edit_unavailability_reason">Reason for Unavailability</label>
+                        <input type="text" class="form-control" id="edit_unavailability_reason" name="unavailability_reason" placeholder="Reason for unavailability">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'js/technician_profile.js' %}"></script>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    $(document).ready(function() {
+    // Initialize DataTables
+    $('#service-areas-table').DataTable({
+        "pageLength": 5,
+        "lengthMenu": [[5, 10, 25, -1], [5, 10, 25, "All"]]
+    });
+
+    $('#availability-table').DataTable({
+        "pageLength": 5,
+        "lengthMenu": [[5, 10, 25, -1], [5, 10, 25, "All"]]
+    });
+
+    $('#upcoming-routes-table').DataTable({
+        "pageLength": 5,
+        "lengthMenu": [[5, 10, 25, -1], [5, 10, 25, "All"]]
+    });
+
+    $('#completions-table').DataTable({
+        "pageLength": 5,
+        "lengthMenu": [[5, 10, 25, -1], [5, 10, 25, "All"]]
+    });
+
+    // Toggle unavailability reason field based on availability checkbox
+    $('#is_available').change(function() {
+        if(this.checked) {
+            $('.unavailability-reason-group').hide();
+        } else {
+            $('.unavailability-reason-group').show();
+        }
+    });
+
+    $('#edit_is_available').change(function() {
+        if(this.checked) {
+            $('.edit-unavailability-reason-group').hide();
+        } else {
+            $('.edit-unavailability-reason-group').show();
+        }
+    });
+
+    // Handle edit availability button clicks
+    $('.edit-availability').click(function() {
+        const availabilityId = $(this).data('id');
+
+        // This would normally be an AJAX request to get availability data
+        // For demonstration, we're simulating with placeholder logic
+
+        // Set the form action URL
+        $('#edit-availability-form').attr('action', '/route-management/technician-availability/' + availabilityId + '/update/');
+
+        // In a real implementation, you would fetch the data and populate the form
+        $.ajax({
+            url: '/route-management/technician-availability/' + availabilityId + '/get/',
+            type: 'GET',
+            success: function(data) {
+                // Populate form fields
+                $('#edit_day_of_week').val(data.day_of_week);
+                $('#edit_start_time').val(data.start_time);
+                $('#edit_end_time').val(data.end_time);
+                $('#edit_is_available').prop('checked', data.is_available);
+                $('#edit_unavailability_reason').val(data.unavailability_reason);
+
+                // Show/hide unavailability reason field
+                if(data.is_available) {
+                    $('.edit-unavailability-reason-group').hide();
+                } else {
+                    $('.edit-unavailability-reason-group').show();
+                }
+            },
+            error: function() {
+                toastr.error('Error loading availability data');
+            }
+        });
+    });
+
+    // Handle delete availability button clicks
+    $('.delete-availability').click(function(e) {
+        e.preventDefault();
+        const availabilityId = $(this).data('id');
+
+        if(confirm('Are you sure you want to delete this availability?')) {
+            // Send delete request
+            $.ajax({
+                url: '/route-management/technician-availability/' + availabilityId + '/delete/',
+                type: 'POST',
+                headers: {
+                    'X-CSRFToken': $('input[name="csrfmiddlewaretoken"]').val()
+                },
+                success: function() {
+                    // Reload the page on success
+                    toastr.success('Availability deleted successfully');
+                    window.location.reload();
+                },
+                error: function() {
+                    toastr.error('Error deleting availability');
+                }
+            });
+        }
+    });
+
+    // Initialize map if location data exists
+    if($('#location-map').length > 0) {
+        initializeLocationMap();
+    }
+
+    // Function to initialize map with technician location
+    function initializeLocationMap() {
+        const latitude = parseFloat($('#location-map').data('latitude'));
+        const longitude = parseFloat($('#location-map').data('longitude'));
+
+        if(isNaN(latitude) || isNaN(longitude)) {
+            return;
+        }
+
+        const mapOptions = {
+            center: { lat: latitude, lng: longitude },
+            zoom: 14
+        };
+
+        const map = new google.maps.Map(document.getElementById('location-map'), mapOptions);
+
+        // Add marker for technician location
+        new google.maps.Marker({
+            position: { lat: latitude, lng: longitude },
+            map: map,
+            title: 'Current Location'
+        });
+    }
+
+    // Update location functionality
+    $('#update-location-btn').click(function() {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(function(position) {
+                const latitude = position.coords.latitude;
+                const longitude = position.coords.longitude;
+
+                // Send update to server
+                $.ajax({
+                    url: '/route-management/technician-location/update/',
+                    type: 'POST',
+                    headers: {
+                        'X-CSRFToken': $('input[name="csrfmiddlewaretoken"]').val()
+                    },
+                    data: {
+                        'technician_id': $('#technician-id').val(),
+                        'latitude': latitude,
+                        'longitude': longitude
+                    },
+                    success: function() {
+                        toastr.success('Location updated successfully');
+                        // Refresh the map
+                        window.location.reload();
+                    },
+                    error: function() {
+                        toastr.error('Error updating location');
+                    }
+                });
+            }, function() {
+                toastr.error('Unable to get your location');
+            });
+        } else {
+            toastr.error('Geolocation is not supported by this browser');
+        }
+    });
+
+    // Performance metrics charts
+    if ($('#performance-chart').length > 0) {
+        const ctx = document.getElementById('performance-chart').getContext('2d');
+
+        // Sample data - in a real implementation, this would be fetched from the server
+        const performanceData = {
+            labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+            datasets: [{
+                label: 'Completed Jobs',
+                backgroundColor: 'rgba(78, 115, 223, 0.2)',
+                borderColor: 'rgba(78, 115, 223, 1)',
+                pointBackgroundColor: 'rgba(78, 115, 223, 1)',
+                pointBorderColor: '#fff',
+                pointHoverBackgroundColor: '#fff',
+                pointHoverBorderColor: 'rgba(78, 115, 223, 1)',
+                data: [15, 18, 12, 14, 19, 16]
+            }]
+        };
+
+        new Chart(ctx, {
+            type: 'line',
+            data: performanceData,
+            options: {
+                maintainAspectRatio: false,
+                responsive: true,
+                scales: {
+                    xAxes: [{
+                        gridLines: {
+                            display: false
+                        }
+                    }],
+                    yAxes: [{
+                        ticks: {
+                            beginAtZero: true
+                        }
+                    }]
+                }
+            }
+        });
+    }
+
+    // Customer feedback chart
+    if ($('#feedback-chart').length > 0) {
+        const ctx = document.getElementById('feedback-chart').getContext('2d');
+
+        // Sample data - in a real implementation, this would be fetched from the server
+        const feedbackData = {
+            labels: ['Overall', 'Punctuality', 'Quality', 'Communication', 'Value'],
+            datasets: [{
+                label: 'Average Rating',
+                backgroundColor: 'rgba(28, 200, 138, 0.2)',
+                borderColor: 'rgba(28, 200, 138, 1)',
+                pointBackgroundColor: 'rgba(28, 200, 138, 1)',
+                pointBorderColor: '#fff',
+                pointHoverBackgroundColor: '#fff',
+                pointHoverBorderColor: 'rgba(28, 200, 138, 1)',
+                data: [4.8, 4.6, 4.9, 4.7, 4.5]
+            }]
+        };
+
+        new Chart(ctx, {
+            type: 'radar',
+            data: feedbackData,
+            options: {
+                maintainAspectRatio: false,
+                responsive: true,
+                scale: {
+                    ticks: {
+                        beginAtZero: true,
+                        max: 5
+                    }
+                }
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

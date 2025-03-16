@@ -1,0 +1,421 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Route Schedules{% endblock %}
+
+{% block styles %}
+<style>
+    .schedule-card {
+        height: 100%;
+        position: relative;
+        overflow: hidden;
+    }
+    .schedule-card.draft {
+        border-left: 4px solid #858796;
+    }
+    .schedule-card.published {
+        border-left: 4px solid #4e73df;
+    }
+    .schedule-card.active {
+        border-left: 4px solid #1cc88a;
+    }
+    .schedule-card.archived {
+        border-left: 4px solid #e74a3b;
+    }
+    .schedule-badge {
+        position: absolute;
+        top: 15px;
+        right: 15px;
+    }
+    .date-badge {
+        font-size: 0.85rem;
+        padding: 0.25rem 0.5rem;
+        margin-bottom: 0.5rem;
+        display: inline-block;
+    }
+    .technician-item {
+        display: flex;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+    .technician-avatar {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        margin-right: 10px;
+        object-fit: cover;
+    }
+    .technician-info {
+        flex-grow: 1;
+    }
+    .technician-route-count {
+        background-color: #4e73df;
+        color: white;
+        border-radius: 10px;
+        padding: 2px 8px;
+        font-size: 0.7rem;
+    }
+    .filter-card {
+        margin-bottom: 20px;
+    }
+    .schedule-summary-stats {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 15px;
+    }
+    .stat-item {
+        text-align: center;
+        border-right: 1px solid #e3e6f0;
+        padding: 0 15px;
+        flex: 1;
+    }
+    .stat-item:last-child {
+        border-right: none;
+    }
+    .stat-value {
+        font-size: 1.5rem;
+        font-weight: bold;
+        color: #4e73df;
+    }
+    .stat-label {
+        font-size: 0.8rem;
+        color: #858796;
+    }
+    .add-button {
+        position: fixed;
+        bottom: 30px;
+        right: 30px;
+        z-index: 100;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Heading -->
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">Route Schedules</h1>
+        <a href="{% url 'route_management:schedule_create' %}" class="d-none d-sm-inline-block btn btn-sm btn-primary shadow-sm">
+            <i class="fas fa-plus fa-sm text-white-50"></i> Create New Schedule
+        </a>
+    </div>
+
+    <!-- Filters Card -->
+    <div class="card shadow filter-card">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">Filters</h6>
+        </div>
+        <div class="card-body">
+            <form method="get" action="{% url 'route_management:route_schedule_list' %}">
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="form-group">
+                            <label for="status">Status</label>
+                            <select class="form-control" id="status" name="status">
+                                <option value="">All Statuses</option>
+                                <option value="draft" {% if request.GET.status == 'draft' %}selected{% endif %}>Draft</option>
+                                <option value="published" {% if request.GET.status == 'published' %}selected{% endif %}>Published</option>
+                                <option value="active" {% if request.GET.status == 'active' %}selected{% endif %}>Active</option>
+                                <option value="archived" {% if request.GET.status == 'archived' %}selected{% endif %}>Archived</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="form-group">
+                            <label for="date_range">Date Range</label>
+                            <select class="form-control" id="date_range" name="date_range">
+                                <option value="">All Dates</option>
+                                <option value="current_week" {% if request.GET.date_range == 'current_week' %}selected{% endif %}>Current Week</option>
+                                <option value="next_week" {% if request.GET.date_range == 'next_week' %}selected{% endif %}>Next Week</option>
+                                <option value="current_month" {% if request.GET.date_range == 'current_month' %}selected{% endif %}>Current Month</option>
+                                <option value="next_month" {% if request.GET.date_range == 'next_month' %}selected{% endif %}>Next Month</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="form-group">
+                            <label for="service_area">Service Area</label>
+                            <select class="form-control" id="service_area" name="service_area">
+                                <option value="">All Service Areas</option>
+                                {% for area in service_areas %}
+                                    <option value="{{ area.id }}" {% if request.GET.service_area == area.id|stringformat:"i" %}selected{% endif %}>{{ area.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="form-group">
+                            <label>&nbsp;</label>
+                            <div class="d-flex">
+                                <button type="submit" class="btn btn-primary btn-block mr-2">Apply Filters</button>
+                                <a href="{% url 'route_management:route_schedule_list' %}" class="btn btn-secondary">Reset</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Summary Stats Card -->
+    <div class="card shadow mb-4">
+        <div class="card-body">
+            <div class="schedule-summary-stats">
+                <div class="stat-item">
+                    <div class="stat-value">{{ total_schedules }}</div>
+                    <div class="stat-label">Total Schedules</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">{{ active_schedules }}</div>
+                    <div class="stat-label">Active Schedules</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">{{ total_routes }}</div>
+                    <div class="stat-label">Total Routes</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">{{ total_technicians }}</div>
+                    <div class="stat-label">Technicians Assigned</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">{{ total_service_requests }}</div>
+                    <div class="stat-label">Service Requests</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Schedules Row -->
+    <div class="row">
+        {% for schedule in schedules %}
+            <div class="col-lg-4 col-md-6 mb-4">
+                <div class="card shadow schedule-card {{ schedule.status }}">
+                    <div class="card-header py-3">
+                        <h6 class="m-0 font-weight-bold text-primary">{{ schedule.name }}</h6>
+                        <span class="schedule-badge badge badge-pill
+                            {% if schedule.status == 'draft' %}badge-secondary
+                            {% elif schedule.status == 'published' %}badge-info
+                            {% elif schedule.status == 'active' %}badge-success
+                            {% elif schedule.status == 'archived' %}badge-danger
+                            {% endif %}">
+                            {{ schedule.get_status_display }}
+                        </span>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <span class="date-badge bg-primary text-white">
+                                {{ schedule.start_date|date:"M d, Y" }} to {{ schedule.end_date|date:"M d, Y" }}
+                            </span>
+
+                            {% if schedule.service_area %}
+                                <span class="badge badge-info">{{ schedule.service_area.name }}</span>
+                            {% endif %}
+                        </div>
+
+                        <p>{{ schedule.description|truncatechars:100 }}</p>
+
+                        <h6 class="font-weight-bold">Assigned Technicians ({{ schedule.technicians.count }})</h6>
+                        {% if schedule.technicians.exists %}
+                            <div class="mb-3">
+                                {% for tech in schedule.technicians.all|slice:":3" %}
+                                    <div class="technician-item">
+                                        <img src="{{ tech.profile_image.url|default:'/static/img/undraw_profile.svg' }}" alt="{{ tech.get_full_name }}" class="technician-avatar">
+                                        <div class="technician-info">
+                                            <span>{{ tech.get_full_name }}</span>
+                                            <span class="technician-route-count">{{ tech.routes_count }} routes</span>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+
+                                {% if schedule.technicians.count > 3 %}
+                                    <div class="text-center mt-2">
+                                        <a href="#" class="small" data-toggle="modal" data-target="#techListModal{{ schedule.id }}">
+                                            View all {{ schedule.technicians.count }} technicians
+                                        </a>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+
+                        <div class="row mt-3">
+                            <div class="col-6">
+                                <div class="text-center">
+                                    <h6 class="font-weight-bold">{{ schedule.routes.count }}</h6>
+                                    <div class="small text-muted">Routes</div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="text-center">
+                                    <h6 class="font-weight-bold">{{ schedule.service_requests_count }}</h6>
+                                    <div class="small text-muted">Service Requests</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="text-center mt-3">
+                            <a href="{% url 'route_management:schedule_detail' schedule.id %}" class="btn btn-sm btn-primary">
+                                <i class="fas fa-eye"></i> View Schedule
+                            </a>
+                            {% if schedule.status == 'draft' or schedule.status == 'published' %}
+                                <a href="{% url 'route_management:schedule_edit' schedule.id %}" class="btn btn-sm btn-warning">
+                                    <i class="fas fa-edit"></i> Edit
+                                </a>
+                            {% endif %}
+                            {% if schedule.status == 'published' %}
+                                <a href="{% url 'route_management:publish_schedule' schedule.id %}" class="btn btn-sm btn-success">
+                                    <i class="fas fa-paper-plane"></i> Activate
+                                </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% empty %}
+            <div class="col-12">
+                <div class="card shadow mb-4">
+                    <div class="card-body text-center py-5">
+                        <div class="mb-3">
+                            <i class="fas fa-calendar-alt fa-4x text-gray-300"></i>
+                        </div>
+                        <h5 class="text-gray-500">No Schedules Found</h5>
+                        <p class="mb-4">Create your first schedule to organize routes and assignments.</p>
+                        <a href="{% url 'route_management:schedule_create' %}" class="btn btn-primary">
+                            <i class="fas fa-plus fa-sm"></i> Create New Schedule
+                        </a>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+
+    <!-- Pagination -->
+    {% if schedules.has_other_pages %}
+        <div class="d-flex justify-content-center mb-4">
+            <nav aria-label="Page navigation">
+                <ul class="pagination">
+                    {% if schedules.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page=1{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}{% if request.GET.date_range %}&date_range={{ request.GET.date_range }}{% endif %}{% if request.GET.service_area %}&service_area={{ request.GET.service_area }}{% endif %}" aria-label="First">
+                                <span aria-hidden="true">&laquo;&laquo;</span>
+                            </a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ schedules.previous_page_number }}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}{% if request.GET.date_range %}&date_range={{ request.GET.date_range }}{% endif %}{% if request.GET.service_area %}&service_area={{ request.GET.service_area }}{% endif %}" aria-label="Previous">
+                                <span aria-hidden="true">&laquo;</span>
+                            </a>
+                        </li>
+                    {% else %}
+                        <li class="page-item disabled">
+                            <a class="page-link" href="#" aria-label="First">
+                                <span aria-hidden="true">&laquo;&laquo;</span>
+                            </a>
+                        </li>
+                        <li class="page-item disabled">
+                            <a class="page-link" href="#" aria-label="Previous">
+                                <span aria-hidden="true">&laquo;</span>
+                            </a>
+                        </li>
+                    {% endif %}
+
+                    {% for i in schedules.paginator.page_range %}
+                        {% if schedules.number == i %}
+                            <li class="page-item active">
+                                <a class="page-link" href="#">{{ i }}</a>
+                            </li>
+                        {% elif i >= schedules.number|add:'-2' and i <= schedules.number|add:'2' %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ i }}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}{% if request.GET.date_range %}&date_range={{ request.GET.date_range }}{% endif %}{% if request.GET.service_area %}&service_area={{ request.GET.service_area }}{% endif %}">{{ i }}</a>
+                            </li>
+                        {% endif %}
+                    {% endfor %}
+
+                    {% if schedules.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ schedules.next_page_number }}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}{% if request.GET.date_range %}&date_range={{ request.GET.date_range }}{% endif %}{% if request.GET.service_area %}&service_area={{ request.GET.service_area }}{% endif %}" aria-label="Next">
+                                <span aria-hidden="true">&raquo;</span>
+                            </a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ schedules.paginator.num_pages }}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}{% if request.GET.date_range %}&date_range={{ request.GET.date_range }}{% endif %}{% if request.GET.service_area %}&service_area={{ request.GET.service_area }}{% endif %}" aria-label="Last">
+                                <span aria-hidden="true">&raquo;&raquo;</span>
+                            </a>
+                        </li>
+                    {% else %}
+                        <li class="page-item disabled">
+                            <a class="page-link" href="#" aria-label="Next">
+                                <span aria-hidden="true">&raquo;</span>
+                            </a>
+                        </li>
+                        <li class="page-item disabled">
+                            <a class="page-link" href="#" aria-label="Last">
+                                <span aria-hidden="true">&raquo;&raquo;</span>
+                            </a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </nav>
+        </div>
+        <p class="text-center text-muted mb-4">
+            Showing {{ schedules.start_index }} - {{ schedules.end_index }} of {{ schedules.paginator.count }} schedules
+        </p>
+    {% endif %}
+
+    <!-- Mobile Add Button (visible on small screens) -->
+    <div class="d-block d-sm-none add-button">
+        <a href="{% url 'route_management:schedule_create' %}" class="btn btn-primary btn-circle btn-lg shadow">
+            <i class="fas fa-plus"></i>
+        </a>
+    </div>
+</div>
+
+<!-- Technician List Modals -->
+{% for schedule in schedules %}
+    {% if schedule.technicians.exists %}
+        <div class="modal fade" id="techListModal{{ schedule.id }}" tabindex="-1" role="dialog" aria-labelledby="techListModal{{ schedule.id }}Label" aria-hidden="true">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="techListModal{{ schedule.id }}Label">Technicians for {{ schedule.name }}</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="list-group">
+                            {% for tech in schedule.technicians.all %}
+                                <div class="list-group-item">
+                                    <div class="technician-item">
+                                        <img src="{{ tech.profile_image.url|default:'/static/img/undraw_profile.svg' }}" alt="{{ tech.get_full_name }}" class="technician-avatar">
+                                        <div class="technician-info">
+                                            <span>{{ tech.get_full_name }}</span>
+                                            <small class="text-muted">{{ tech.service_area.name|default:"No service area" }}</small>
+                                        </div>
+                                        <a href="{% url 'route_management:technician_profile' tech.id %}" class="btn btn-sm btn-info">
+                                            <i class="fas fa-user"></i>
+                                        </a>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+{% endfor %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    // Auto-submit filter form when status or date range changes
+    $('#status, #date_range, #service_area').change(function() {
+        if ($(this).val() != '') {
+            $(this).closest('form').submit();
+        }
+    });
+});
+</script>
+{% endblock %}

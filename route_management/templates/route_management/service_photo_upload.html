@@ -1,0 +1,544 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Upload Service Photos - {{ service_request.request_number }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Heading -->
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">Upload Service Photos</h1>
+        <a href="{% url 'route_management:service_request_detail' service_request.id %}" class="d-none d-sm-inline-block btn btn-sm btn-secondary shadow-sm">
+            <i class="fas fa-arrow-left fa-sm text-white-50"></i> Back to Service Request
+        </a>
+    </div>
+
+    <!-- Content Row -->
+    <div class="row">
+        <!-- Left Column -->
+        <div class="col-xl-4 col-lg-5">
+            <!-- Service Request Info Card -->
+            <div class="card shadow mb-4">
+                <!-- Card Header -->
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Service Request Information</h6>
+                </div>
+                <!-- Card Body -->
+                <div class="card-body">
+                    <div class="row mb-2">
+                        <div class="col-5 font-weight-bold text-gray-800">Request Number:</div>
+                        <div class="col-7">{{ service_request.request_number }}</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-5 font-weight-bold text-gray-800">Status:</div>
+                        <div class="col-7">
+                            <span class="badge badge-pill
+                                {% if service_request.status == 'pending' %}badge-warning
+                                {% elif service_request.status == 'scheduled' %}badge-info
+                                {% elif service_request.status == 'in_progress' %}badge-primary
+                                {% elif service_request.status == 'completed' %}badge-success
+                                {% elif service_request.status == 'cancelled' %}badge-danger
+                                {% endif %}">
+                                {{ service_request.get_status_display }}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-5 font-weight-bold text-gray-800">Service Type:</div>
+                        <div class="col-7">{{ service_request.service_type.name }}</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-5 font-weight-bold text-gray-800">Customer:</div>
+                        <div class="col-7">{{ service_request.customer.company_name }}</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-5 font-weight-bold text-gray-800">Location:</div>
+                        <div class="col-7">{{ service_request.service_location.name }}</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-5 font-weight-bold text-gray-800">Date:</div>
+                        <div class="col-7">{{ service_request.preferred_date|date:"M d, Y" }}</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-5 font-weight-bold text-gray-800">Technician:</div>
+                        <div class="col-7">
+                            {% if service_request.assigned_technician %}
+                                {{ service_request.assigned_technician.get_full_name }}
+                            {% else %}
+                                <span class="text-muted">Not assigned</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Existing Photos Card -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Existing Photos</h6>
+                </div>
+                <div class="card-body">
+                    {% if existing_photos %}
+                        <div class="row photo-gallery">
+                            {% for photo in existing_photos %}
+                            <div class="col-6 mb-3">
+                                <a href="{{ photo.image.url }}" class="lightbox" data-caption="{{ photo.caption }}">
+                                    <img src="{{ photo.image.url }}" alt="{{ photo.caption }}" class="img-thumbnail">
+                                    <div class="mt-1 small">
+                                        <span class="badge badge-pill
+                                            {% if photo.photo_type == 'before' %}badge-info
+                                            {% elif photo.photo_type == 'after' %}badge-success
+                                            {% elif photo.photo_type == 'issue' %}badge-warning
+                                            {% else %}badge-secondary
+                                            {% endif %}">
+                                            {{ photo.get_photo_type_display }}
+                                        </span>
+                                        {{ photo.caption|truncatechars:20 }}
+                                    </div>
+                                </a>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <div class="text-center mt-3">
+                            <a href="{% url 'route_management:service_request_detail' service_request.id %}#photos" class="btn btn-primary btn-sm">
+                                <i class="fas fa-images"></i> View All Photos
+                            </a>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <p class="text-muted">No photos have been uploaded yet.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Upload Guidelines Card -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Upload Guidelines</h6>
+                </div>
+                <div class="card-body">
+                    <ul class="mb-0">
+                        <li class="mb-2">Supported formats: JPG, PNG, GIF</li>
+                        <li class="mb-2">Maximum file size: 10MB per image</li>
+                        <li class="mb-2">Take clear, well-lit photos</li>
+                        <li class="mb-2">Capture relevant angles and details</li>
+                        <li class="mb-2">Include before/after photos for comparison</li>
+                        <li class="mb-2">Document any issues or damage thoroughly</li>
+                        <li class="mb-2">Ensure customer privacy (avoid capturing unrelated individuals)</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column - Upload Form -->
+        <div class="col-xl-8 col-lg-7">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Upload Photos</h6>
+                </div>
+                <div class="card-body">
+                    <form id="photo-upload-form" method="post" enctype="multipart/form-data" action="{% url 'route_management:service_photo_upload' service_request.id %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="service_request" value="{{ service_request.id }}">
+
+                        <div class="form-group">
+                            <label for="photo_type">Photo Type <span class="text-danger">*</span></label>
+                            <select class="form-control" id="photo_type" name="photo_type" required>
+                                <option value="">Select photo type...</option>
+                                <option value="before">Before Service</option>
+                                <option value="after">After Service</option>
+                                <option value="issue">Issue Documentation</option>
+                                <option value="other">Other</option>
+                            </select>
+                            <small class="form-text text-muted">Categorize your photos to help with organization and reporting.</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="images">Select Images <span class="text-danger">*</span></label>
+                            <div class="custom-file">
+                                <input type="file" class="custom-file-input" id="images" name="images" multiple accept="image/*" required>
+                                <label class="custom-file-label" for="images">Choose files...</label>
+                            </div>
+                            <small class="form-text text-muted">You can select multiple images at once. Hold Ctrl (or Cmd on Mac) to select multiple files.</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="caption">Caption</label>
+                            <input type="text" class="form-control" id="caption" name="caption" placeholder="Brief description of the photos">
+                            <small class="form-text text-muted">A short title or description for these photos.</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="notes">Notes</label>
+                            <textarea class="form-control" id="notes" name="notes" rows="3" placeholder="Additional details about the photos"></textarea>
+                            <small class="form-text text-muted">Include any additional information that might be helpful for context.</small>
+                        </div>
+
+                        <div class="form-group">
+                            <div class="custom-control custom-checkbox">
+                                <input type="checkbox" class="custom-control-input" id="use_location" name="use_location" value="1">
+                                <label class="custom-control-label" for="use_location">Include location data (if available)</label>
+                            </div>
+                            <small class="form-text text-muted">Automatically add GPS coordinates if available in the image metadata.</small>
+                        </div>
+
+                        <div class="form-group">
+                            <div class="card mb-4">
+                                <div class="card-header py-3">
+                                    <h6 class="m-0 font-weight-bold text-primary">Image Preview</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div id="image-preview" class="row">
+                                        <div class="col-12 text-center text-muted">
+                                            <p>Select images to preview</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group mb-0">
+                            <button type="button" class="btn btn-secondary" onclick="window.history.back();">Cancel</button>
+                            <button type="submit" class="btn btn-primary" id="upload-button">
+                                <i class="fas fa-cloud-upload-alt"></i> Upload Photos
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Camera Capture Card for Mobile -->
+            <div class="card shadow mb-4 d-md-none">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Take Photos</h6>
+                </div>
+                <div class="card-body">
+                    <p class="text-center mb-4">You can also take photos directly using your device camera.</p>
+                    <div class="text-center">
+                        <button id="capture-photo-btn" class="btn btn-lg btn-info">
+                            <i class="fas fa-camera"></i> Capture Photo
+                        </button>
+                    </div>
+                    <div id="camera-preview" class="mt-3" style="display: none;">
+                        <div class="text-center">
+                            <video id="camera-stream" class="img-fluid border rounded" autoplay></video>
+                        </div>
+                        <div class="text-center mt-2">
+                            <button id="take-photo-btn" class="btn btn-success">
+                                <i class="fas fa-camera"></i> Take Photo
+                            </button>
+                            <button id="cancel-photo-btn" class="btn btn-danger">
+                                <i class="fas fa-times"></i> Cancel
+                            </button>
+                        </div>
+                    </div>
+                    <div id="captured-photos" class="row mt-3"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Upload Progress Modal -->
+<div class="modal fade" id="uploadProgressModal" tabindex="-1" role="dialog" aria-labelledby="uploadProgressModalLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="uploadProgressModalLabel">Uploading Photos</h5>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-3">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="sr-only">Uploading...</span>
+                    </div>
+                </div>
+                <p class="text-center">Your photos are being uploaded. Please wait...</p>
+                <div class="progress">
+                    <div id="upload-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" style="width: 0%"></div>
+                </div>
+                <p class="text-center mt-2 small">
+                    <span id="uploaded-count">0</span> of <span id="total-count">0</span> photos uploaded
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'js/service_photo_upload.js' %}"></script>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    $(document).ready(function() {
+    // Initialize lightbox for photo gallery
+    if ($('.photo-gallery').length > 0) {
+        $('.lightbox').magnificPopup({
+            type: 'image',
+            gallery: {
+                enabled: true,
+                navigateByImgClick: true,
+                preload: [0, 1] // Will preload 0 - before current, and 1 after the current image
+            },
+            image: {
+                titleSrc: 'data-caption'
+            }
+        });
+    }
+
+    // Add filename to the custom file input label
+    $('.custom-file-input').on('change', function() {
+        let fileCount = $(this)[0].files.length;
+        let fileName = $(this).val().split('\\').pop();
+        if (fileCount > 1) {
+            $(this).next('.custom-file-label').html(fileCount + ' files selected');
+        } else {
+            $(this).next('.custom-file-label').html(fileName);
+        }
+
+        // Show image preview
+        updateImagePreview(this);
+    });
+
+    // Handle photo type selection to customize caption placeholder
+    $('#photo_type').change(function() {
+        const photoType = $(this).val();
+        let captionPlaceholder = "Brief description of the photos";
+        let notesPlaceholder = "Additional details about the photos";
+
+        switch(photoType) {
+            case 'before':
+                captionPlaceholder = "State of equipment/site before service";
+                notesPlaceholder = "Details about the condition before work began";
+                break;
+            case 'after':
+                captionPlaceholder = "Results after service completion";
+                notesPlaceholder = "Details about the completed work/results";
+                break;
+            case 'issue':
+                captionPlaceholder = "Description of the issue found";
+                notesPlaceholder = "Details about the problem, cause, and impact";
+                break;
+        }
+
+        $('#caption').attr('placeholder', captionPlaceholder);
+        $('#notes').attr('placeholder', notesPlaceholder);
+    });
+
+    // Function to preview selected images
+    function updateImagePreview(input) {
+        const $preview = $('#image-preview');
+        $preview.empty();
+
+        if (input.files && input.files.length > 0) {
+            $.each(input.files, function(i, file) {
+                if (!file.type.match('image.*')) return;
+
+                const reader = new FileReader();
+
+                reader.onload = function(e) {
+                    $preview.append(
+                        $('<div class="col-md-4 col-6 mb-3">').append(
+                            $('<div class="card h-100">').append(
+                                $('<img>').attr({
+                                    src: e.target.result,
+                                    class: 'card-img-top',
+                                    alt: file.name
+                                }),
+                                $('<div class="card-body p-2">').append(
+                                    $('<p class="card-text small text-truncate">').text(file.name),
+                                    $('<p class="card-text small text-muted">').text(
+                                        formatFileSize(file.size)
+                                    )
+                                )
+                            )
+                        )
+                    );
+                };
+
+                reader.readAsDataURL(file);
+            });
+        } else {
+            $preview.html('<div class="col-12 text-center text-muted"><p>Select images to preview</p></div>');
+        }
+    }
+
+    // Helper function to format file size
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    // Form validation before submit
+    $('#photo-upload-form').submit(function(e) {
+        const photoType = $('#photo_type').val();
+        const images = $('#images')[0].files;
+
+        if (!photoType) {
+            e.preventDefault();
+            alert('Please select a photo type');
+            return false;
+        }
+
+        if (!images || images.length === 0) {
+            e.preventDefault();
+            alert('Please select at least one image to upload');
+            return false;
+        }
+
+        // Check file sizes
+        let totalSize = 0;
+        let oversizedFiles = [];
+
+        for (let i = 0; i < images.length; i++) {
+            totalSize += images[i].size;
+            // Check if any file is over 10MB (10 * 1024 * 1024 bytes)
+            if (images[i].size > 10 * 1024 * 1024) {
+                oversizedFiles.push(images[i].name);
+            }
+        }
+
+        if (oversizedFiles.length > 0) {
+            e.preventDefault();
+            alert('The following files exceed the 10MB size limit:\n' + oversizedFiles.join('\n'));
+            return false;
+        }
+
+        // Show upload progress modal
+        $('#uploadProgressModal').modal('show');
+        $('#total-count').text(images.length);
+
+        // Simulate upload progress (in a real app, you'd track actual upload progress)
+        simulateUploadProgress(images.length);
+
+        return true;
+    });
+
+    // Function to simulate upload progress (in a real implementation, this would be replaced with actual progress tracking)
+    function simulateUploadProgress(totalFiles) {
+        let progress = 0;
+        const progressBar = $('#upload-progress-bar');
+        const uploadedCount = $('#uploaded-count');
+
+        const interval = setInterval(function() {
+            if (progress >= 100) {
+                clearInterval(interval);
+                return;
+            }
+
+            progress += (100 / (totalFiles * 10)); // Divide by 10 to make it take longer
+            if (progress > 100) progress = 100;
+
+            progressBar.css('width', progress + '%');
+            progressBar.attr('aria-valuenow', progress);
+
+            const filesUploaded = Math.ceil((progress / 100) * totalFiles);
+            uploadedCount.text(filesUploaded);
+        }, 200);
+    }
+
+    // Mobile camera capture functionality
+    if ('mediaDevices' in navigator && 'getUserMedia' in navigator.mediaDevices) {
+        // Show camera button only if the device has camera support
+        $('#capture-photo-btn').show();
+
+        // Handle camera capture button
+        $('#capture-photo-btn').click(function() {
+            startCamera();
+        });
+
+        // Handle take photo button
+        $('#take-photo-btn').click(function() {
+            capturePhoto();
+        });
+
+        // Handle cancel button
+        $('#cancel-photo-btn').click(function() {
+            stopCamera();
+        });
+    } else {
+        // Hide camera functionality if not supported
+        $('.d-md-none.card').hide();
+    }
+
+    // Camera stream variable
+    let cameraStream = null;
+
+    // Function to start the camera
+    function startCamera() {
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+            .then(function(stream) {
+                cameraStream = stream;
+                const video = document.getElementById('camera-stream');
+                video.srcObject = stream;
+                $('#camera-preview').show();
+                $('#capture-photo-btn').hide();
+            })
+            .catch(function(error) {
+                console.error('Error accessing camera:', error);
+                alert('Unable to access your camera. Please check permissions.');
+            });
+    }
+
+    // Function to stop the camera
+    function stopCamera() {
+        if (cameraStream) {
+            cameraStream.getTracks().forEach(track => track.stop());
+            cameraStream = null;
+        }
+        $('#camera-preview').hide();
+        $('#capture-photo-btn').show();
+    }
+
+    // Function to capture a photo
+    function capturePhoto() {
+        const video = document.getElementById('camera-stream');
+        const canvas = document.createElement('canvas');
+
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+
+        const context = canvas.getContext('2d');
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        const imgData = canvas.toDataURL('image/jpeg');
+
+        // Add to the captured photos section
+        $('#captured-photos').append(
+            $('<div class="col-6 mb-3">').append(
+                $('<div class="card h-100">').append(
+                    $('<img>').attr({
+                        src: imgData,
+                        class: 'card-img-top',
+                        alt: 'Captured photo'
+                    }),
+                    $('<div class="card-body p-2 text-center">').append(
+                        $('<button type="button" class="btn btn-sm btn-danger remove-captured">').html(
+                            '<i class="fas fa-trash"></i> Remove'
+                        )
+                    )
+                )
+            )
+        );
+
+        // In a real application, you would convert the image to a file and add it to the form data
+        // For demonstration, we're just showing the captured image
+
+        // Stop the camera after capturing
+        stopCamera();
+    }
+
+    // Handle removing captured photos
+    $(document).on('click', '.remove-captured', function() {
+        $(this).closest('.col-6').remove();
+    });
+
+    // Initialize any tooltips
+    $('[data-toggle="tooltip"]').tooltip();
+});
+</script>
+{% endblock %}

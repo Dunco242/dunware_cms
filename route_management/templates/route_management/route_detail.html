@@ -1,0 +1,657 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Route {{ route.route_id }}{% endblock %}
+
+{% block styles %}
+<style>
+    .route-map {
+        height: 500px;
+        width: 100%;
+    }
+    .stop-badge {
+        width: 30px;
+        height: 30px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        background-color: #4e73df;
+        color: white;
+        font-weight: bold;
+        margin-right: 10px;
+    }
+    .timeline {
+        position: relative;
+        padding-left: 60px;
+    }
+    .timeline::before {
+        content: '';
+        position: absolute;
+        left: 30px;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: #e3e6f0;
+    }
+    .timeline-item {
+        position: relative;
+        margin-bottom: 30px;
+    }
+    .timeline-badge {
+        position: absolute;
+        left: -50px;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        text-align: center;
+        line-height: 40px;
+        background-color: #4e73df;
+        color: white;
+        z-index: 1;
+    }
+    .timeline-content {
+        padding: 15px;
+        background-color: #f8f9fc;
+        border-radius: 5px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .status-pending { background-color: #f6c23e; }
+    .status-en_route { background-color: #36b9cc; }
+    .status-arrived { background-color: #4e73df; }
+    .status-in_progress { background-color: #4e73df; }
+    .status-completed { background-color: #1cc88a; }
+    .status-skipped { background-color: #858796; }
+    .status-cancelled { background-color: #e74a3b; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Heading -->
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">
+            Route {{ route.route_id }} - {{ route.date }}
+        </h1>
+        <div class="btn-group">
+            <a href="{% url 'route_management:route_map' route.id %}" class="d-none d-sm-inline-block btn btn-sm btn-primary shadow-sm">
+                <i class="fas fa-map-marked-alt fa-sm text-white-50"></i> Full Map
+            </a>
+            <a href="{% url 'route_management:route_stops' route.id %}" class="d-none d-sm-inline-block btn btn-sm btn-info shadow-sm ml-2">
+                <i class="fas fa-list fa-sm text-white-50"></i> Manage Stops
+            </a>
+            <a href="{% url 'route_management:route_update' route.id %}" class="d-none d-sm-inline-block btn btn-sm btn-warning shadow-sm ml-2">
+                <i class="fas fa-edit fa-sm text-white-50"></i> Edit Route
+            </a>
+            <a href="{% url 'route_management:optimize_route' route.id %}" class="d-none d-sm-inline-block btn btn-sm btn-success shadow-sm ml-2">
+                <i class="fas fa-magic fa-sm text-white-50"></i> Optimize Route
+            </a>
+        </div>
+    </div>
+
+    <!-- Content Row -->
+    <div class="row">
+        <!-- Route Information Column -->
+        <div class="col-lg-4">
+            <!-- Route Details Card -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Route Details</h6>
+                </div>
+                <div class="card-body">
+                    <dl class="row">
+                        <dt class="col-sm-4">Route ID:</dt>
+                        <dd class="col-sm-8">{{ route.route_id }}</dd>
+
+                        <dt class="col-sm-4">Name:</dt>
+                        <dd class="col-sm-8">{{ route.name }}</dd>
+
+                        <dt class="col-sm-4">Date:</dt>
+                        <dd class="col-sm-8">{{ route.date }}</dd>
+
+                        <dt class="col-sm-4">Technician:</dt>
+                        <dd class="col-sm-8">{{ route.technician.get_full_name }}</dd>
+
+                        <dt class="col-sm-4">Status:</dt>
+                        <dd class="col-sm-8">
+                            <span class="badge badge-pill
+                            {% if route.status == 'draft' %}badge-secondary
+                            {% elif route.status == 'published' %}badge-info
+                            {% elif route.status == 'in_progress' %}badge-primary
+                            {% elif route.status == 'completed' %}badge-success
+                            {% elif route.status == 'cancelled' %}badge-danger
+                            {% endif %}">
+                                {{ route.get_status_display }}
+                            </span>
+                        </dd>
+
+                        <dt class="col-sm-4">Start Time:</dt>
+                        <dd class="col-sm-8">{{ route.estimated_start_time|default:"Not set" }}</dd>
+
+                        <dt class="col-sm-4">End Time:</dt>
+                        <dd class="col-sm-8">{{ route.estimated_end_time|default:"Not set" }}</dd>
+
+                        <dt class="col-sm-4">Total Miles:</dt>
+                        <dd class="col-sm-8">{{ route.estimated_total_miles|default:"0"|floatformat:1 }} miles</dd>
+
+                        <dt class="col-sm-4">Drive Time:</dt>
+                        <dd class="col-sm-8">{{ route.estimated_drive_time_minutes|default:"0" }} minutes</dd>
+
+                        <dt class="col-sm-4">Stops:</dt>
+                        <dd class="col-sm-8">{{ stops|length }}</dd>
+
+                        <dt class="col-sm-4">Optimized:</dt>
+                        <dd class="col-sm-8">
+                            {% if route.is_optimized %}
+                                <span class="text-success"><i class="fas fa-check-circle"></i> Yes</span>
+                                <small class="text-muted d-block">{{ route.optimization_timestamp|date:"M d, Y h:i A" }}</small>
+                            {% else %}
+                                <span class="text-danger"><i class="fas fa-times-circle"></i> No</span>
+                            {% endif %}
+                        </dd>
+
+                        {% if route.start_location %}
+                        <dt class="col-sm-4">Start Location:</dt>
+                        <dd class="col-sm-8">{{ route.start_location }}</dd>
+                        {% endif %}
+
+                        {% if route.end_location %}
+                        <dt class="col-sm-4">End Location:</dt>
+                        <dd class="col-sm-8">{{ route.end_location }}</dd>
+                        {% endif %}
+                    </dl>
+
+                    {% if route.notes %}
+                    <h6 class="font-weight-bold">Notes:</h6>
+                    <p>{{ route.notes }}</p>
+                    {% endif %}
+
+                    <div class="progress mb-4">
+                        <div class="progress-bar bg-success" role="progressbar" style="width: {{ completion_percent }}%"
+                            aria-valuenow="{{ completion_percent }}" aria-valuemin="0" aria-valuemax="100">{{ completion_percent|floatformat:0 }}% Complete</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Activity Log Card -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Activity Log</h6>
+                </div>
+                <div class="card-body">
+                    <div class="timeline">
+                        {% for log in logs %}
+                            <div class="timeline-item">
+                                <div class="timeline-badge
+                                    {% if log.log_type == 'status_change' %}bg-info
+                                    {% elif log.log_type == 'location_update' %}bg-primary
+                                    {% elif log.log_type == 'note' %}bg-success
+                                    {% elif log.log_type == 'issue' %}bg-danger
+                                    {% elif log.log_type == 'delay' %}bg-warning
+                                    {% elif log.log_type == 'system' %}bg-secondary
+                                    {% endif %}">
+                                    <i class="fas
+                                        {% if log.log_type == 'status_change' %}fa-exchange-alt
+                                        {% elif log.log_type == 'location_update' %}fa-map-marker-alt
+                                        {% elif log.log_type == 'note' %}fa-sticky-note
+                                        {% elif log.log_type == 'issue' %}fa-exclamation-triangle
+                                        {% elif log.log_type == 'delay' %}fa-clock
+                                        {% elif log.log_type == 'system' %}fa-cog
+                                        {% endif %}"></i>
+                                </div>
+                                <div class="timeline-content">
+                                    <div class="d-flex justify-content-between">
+                                        <h6 class="font-weight-bold">{{ log.get_log_type_display }}</h6>
+                                        <small class="text-muted">{{ log.timestamp|date:"M d, Y h:i A" }}</small>
+                                    </div>
+                                    <p class="mb-0">{{ log.message }}</p>
+                                    {% if log.old_value and log.new_value %}
+                                        <small class="text-muted">Changed from {{ log.old_value }} to {{ log.new_value }}</small>
+                                    {% endif %}
+                                    {% if log.logged_by %}
+                                        <small class="text-muted d-block mt-1">By: {{ log.logged_by.get_full_name }}</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        {% empty %}
+                            <p class="text-muted text-center">No activity logs yet.</p>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Route Map and Stops Column -->
+        <div class="col-lg-8">
+            <!-- Map Card -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Route Map</h6>
+                </div>
+                <div class="card-body">
+                    {% if map_data.center %}
+                        <div id="routeMap" class="route-map"></div>
+                    {% else %}
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle"></i> No map data available. Make sure route locations are geocoded.
+                        </div>
+                        <div class="text-center py-4">
+                            <button id="geocode-locations" class="btn btn-warning">
+                                <i class="fas fa-map-marker-alt"></i> Geocode Locations
+                            </button>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Stops List Card -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                    <h6 class="m-0 font-weight-bold text-primary">Stops</h6>
+                    <a href="{% url 'route_management:route_stops' route.id %}" class="btn btn-sm btn-primary">
+                        <i class="fas fa-edit"></i> Manage Stops
+                    </a>
+                </div>
+                <div class="card-body">
+                    {% if stops %}
+                        <div class="table-responsive">
+                            <table class="table table-bordered" id="stopsTable" width="100%" cellspacing="0">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Customer</th>
+                                        <th>Location</th>
+                                        <th>Service Type</th>
+                                        <th>Status</th>
+                                        <th>ETA</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for stop in stops %}
+                                    <tr>
+                                        <td>{{ stop.stop_number }}</td>
+                                        <td>{{ stop.service_request.customer.company_name }}</td>
+                                        <td>{{ stop.service_request.service_location.name }}</td>
+                                        <td>{{ stop.service_request.service_type.name }}</td>
+                                        <td>
+                                            <span class="badge badge-pill status-{{ stop.status }}">
+                                                {{ stop.get_status_display }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            {% if stop.scheduled_arrival_time %}
+                                                {{ stop.scheduled_arrival_time|time:"h:i A" }}
+                                            {% else %}
+                                                N/A
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm">
+                                                <a href="{% url 'route_management:service_request_detail' stop.service_request.id %}" class="btn btn-info">
+                                                    <i class="fas fa-eye"></i>
+                                                </a>
+
+                                                <div class="btn-group btn-group-sm">
+                                                    <button type="button" class="btn btn-primary dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                                        <i class="fas fa-cog"></i>
+                                                    </button>
+                                                    <div class="dropdown-menu">
+                                                        <h6 class="dropdown-header">Update Status</h6>
+                                                        <a class="dropdown-item" href="{% url 'route_management:update_stop_status' stop.id 'en_route' %}">En Route</a>
+                                                        <a class="dropdown-item" href="{% url 'route_management:update_stop_status' stop.id 'arrived' %}">Arrived</a>
+                                                        <a class="dropdown-item" href="{% url 'route_management:update_stop_status' stop.id 'in_progress' %}">In Progress</a>
+                                                        <a class="dropdown-item" href="{% url 'route_management:update_stop_status' stop.id 'completed' %}">Completed</a>
+                                                        <a class="dropdown-item" href="{% url 'route_management:update_stop_status' stop.id 'skipped' %}">Skipped</a>
+                                                        <div class="dropdown-divider"></div>
+                                                        <a class="dropdown-item" href="{% url 'route_management:service_completion_create' stop.id %}">Record Completion</a>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <p class="text-muted">No stops added to this route yet.</p>
+                            <a href="{% url 'route_management:route_stops' route.id %}" class="btn btn-primary">Add Stops</a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if map_data.center %}
+<!-- HERE Maps API scripts -->
+<script src="https://js.api.here.com/v3/3.1/mapsjs-core.js"></script>
+<script src="https://js.api.here.com/v3/3.1/mapsjs-service.js"></script>
+<script src="https://js.api.here.com/v3/3.1/mapsjs-ui.js"></script>
+<script src="https://js.api.here.com/v3/3.1/mapsjs-mapevents.js"></script>
+<link rel="stylesheet" type="text/css" href="https://js.api.here.com/v3/3.1/mapsjs-ui.css" />
+
+<!-- Map initialization script -->
+<script>
+// Declare these variables once at the top level
+let map;
+let router;
+let routeLineGroup;
+let ui;
+const markers = [];
+const infoBubbles = [];
+const mapData = {{ map_data.stops|safe }};
+
+function initMap() {
+    // Initialize HERE Map
+    const platform = new H.service.Platform({
+        'apikey': '{{ here_maps_api_key }}' // Make sure to pass this from your view
+    });
+
+    // Obtain the default map types from the platform object
+    const defaultLayers = platform.createDefaultLayers();
+
+    // Use the map_data.center from Django template
+    const mapCenter = {
+        lat: {{ map_data.center.lat }},
+        lng: {{ map_data.center.lng }}
+    };
+
+    // Initialize map
+    map = new H.Map(
+        document.getElementById('routeMap'),
+        defaultLayers.vector.normal.map,
+        {
+            zoom: 12,
+            center: mapCenter
+        }
+    );
+
+    // Add map interaction and UI components
+    const behavior = new H.mapevents.Behavior(new H.mapevents.MapEvents(map));
+    ui = H.ui.UI.createDefault(map, defaultLayers);
+
+    // Initialize the router for directions
+    router = platform.getRoutingService(null, 8);
+
+    // Create group for route polylines
+    routeLineGroup = new H.map.Group();
+    map.addObject(routeLineGroup);
+
+    // Make the map responsive
+    window.addEventListener('resize', function() {
+        map.getViewPort().resize();
+    });
+
+    // Add markers for all stops
+    mapData.forEach(function(stop, index) {
+        let svgMarkup;
+
+        // Create different SVG markers based on stop type
+        if (stop.type === 'start') {
+            // Green start marker
+            svgMarkup = '<svg width="24" height="24" xmlns="http://www.w3.org/2000/svg">' +
+                '<rect stroke="white" fill="#4CAF50" x="1" y="1" width="22" height="22" />' +
+                '<text x="12" y="18" font-size="12pt" font-family="Arial" font-weight="bold" ' +
+                'text-anchor="middle" fill="white">S</text></svg>';
+        } else if (stop.type === 'end') {
+            // Red end marker
+            svgMarkup = '<svg width="24" height="24" xmlns="http://www.w3.org/2000/svg">' +
+                '<rect stroke="white" fill="#F44336" x="1" y="1" width="22" height="22" />' +
+                '<text x="12" y="18" font-size="12pt" font-family="Arial" font-weight="bold" ' +
+                'text-anchor="middle" fill="white">E</text></svg>';
+        } else {
+            // Circle with number for regular stops
+            const color = getMarkerColor(stop.type, stop.status);
+            svgMarkup = '<svg width="24" height="24" xmlns="http://www.w3.org/2000/svg">' +
+                '<circle cx="12" cy="12" r="10" stroke="white" stroke-width="2" fill="' + color + '"/>' +
+                '<text x="12" y="16" font-size="10pt" font-family="Arial" font-weight="bold" ' +
+                'text-anchor="middle" fill="white">' + index + '</text></svg>';
+        }
+
+        // Create icon from SVG string
+        const icon = new H.map.Icon(svgMarkup);
+
+        // Create the marker
+        const marker = new H.map.Marker({
+            lat: stop.lat,
+            lng: stop.lng
+        }, {
+            icon: icon
+        });
+
+        // Create info bubble content
+        const bubbleContent = document.createElement('div');
+        bubbleContent.style.padding = '10px';
+        bubbleContent.style.maxWidth = '200px';
+
+        const title = document.createElement('h4');
+        title.style.marginTop = '0';
+        title.textContent = stop.name;
+        bubbleContent.appendChild(title);
+
+        if (stop.address) {
+            const address = document.createElement('p');
+            address.style.margin = '5px 0';
+            const addressText = document.createElement('small');
+            addressText.textContent = stop.address;
+            address.appendChild(addressText);
+            bubbleContent.appendChild(address);
+        }
+
+        if (stop.status) {
+            const status = document.createElement('p');
+            status.style.margin = '5px 0';
+            const statusLabel = document.createElement('strong');
+            statusLabel.textContent = 'Status: ';
+            status.appendChild(statusLabel);
+            status.appendChild(document.createTextNode(stop.status));
+            bubbleContent.appendChild(status);
+        }
+
+        if (stop.scheduled_time) {
+            const eta = document.createElement('p');
+            eta.style.margin = '5px 0';
+            const etaLabel = document.createElement('strong');
+            etaLabel.textContent = 'ETA: ';
+            eta.appendChild(etaLabel);
+            eta.appendChild(document.createTextNode(stop.scheduled_time));
+            bubbleContent.appendChild(eta);
+        }
+
+        if (stop.stop_id) {
+            const linkContainer = document.createElement('p');
+            linkContainer.style.textAlign = 'center';
+            linkContainer.style.marginTop = '10px';
+
+            const link = document.createElement('a');
+            link.href = '#stop-' + stop.stop_id;
+            link.className = 'btn btn-sm btn-primary';
+            link.textContent = 'View Stop';
+
+            linkContainer.appendChild(link);
+            bubbleContent.appendChild(linkContainer);
+        }
+
+        // Create info bubble
+        const infoBubble = new H.ui.InfoBubble({ lat: stop.lat, lng: stop.lng }, {
+            content: bubbleContent
+        });
+
+        // Hide it initially
+        infoBubble.close();
+
+        // Save the infobubble and marker references
+        infoBubbles.push(infoBubble);
+        markers.push(marker);
+
+        // Add marker to map
+        map.addObject(marker);
+
+        // Add click event to marker
+        marker.addEventListener('tap', function() {
+            // Close any open info windows
+            infoBubbles.forEach(function(bubble) {
+                bubble.close();
+            });
+            // Open this info window
+            ui.addBubble(infoBubble);
+        });
+    });
+
+    // Calculate and display route
+    calculateAndDisplayRoute();
+}
+
+function getMarkerColor(type, status) {
+    if (type === 'start') return '#4CAF50';
+    if (type === 'end') return '#F44336';
+
+    // Status-based colors for stops
+    switch(status) {
+        case 'completed': return '#1cc88a';
+        case 'in_progress': return '#4e73df';
+        case 'en_route': return '#36b9cc';
+        case 'arrived': return '#4e73df';
+        case 'pending': return '#f6c23e';
+        case 'skipped': return '#858796';
+        case 'cancelled': return '#e74a3b';
+        default: return '#4e73df';
+    }
+}
+
+function calculateAndDisplayRoute() {
+    if (mapData.length < 2) return;
+
+    // Clear existing route lines
+    routeLineGroup.removeAll();
+
+    // Create waypoints array
+    var waypoints = [];
+    for (var i = 0; i < mapData.length; i++) {
+        waypoints.push({
+            lat: mapData[i].lat,
+            lng: mapData[i].lng
+        });
+    }
+
+    // Create routing parameters
+    var routingParameters = {
+        'routingMode': 'fast',
+        'transportMode': 'car',
+        // Add all waypoints - HERE API handles the first as start and last as destination
+        'waypoint0': waypoints[0].lat + ',' + waypoints[0].lng
+    };
+
+    // Add intermediate waypoints
+    for (var j = 1; j < waypoints.length - 1; j++) {
+        routingParameters['waypoint' + j] = waypoints[j].lat + ',' + waypoints[j].lng;
+    }
+
+    // Add final waypoint
+    if (waypoints.length > 1) {
+        var lastIndex = waypoints.length - 1;
+        routingParameters['waypoint' + lastIndex] = waypoints[lastIndex].lat + ',' + waypoints[lastIndex].lng;
+    }
+
+    // Add return type parameter
+    routingParameters['return'] = 'polyline,turnByTurnActions,actions,instructions,travelSummary';
+
+    // Calculate the route
+    router.calculateRoute(routingParameters, onRouteSuccess, onRouteError);
+}
+
+function onRouteSuccess(result) {
+    if (result.routes.length) {
+        var route = result.routes[0];
+
+        // Get route shape
+        var lineString = new H.geo.LineString();
+        route.sections.forEach(function(section) {
+            // Decode the polyline
+            section.polyline.forEach(function(point) {
+                lineString.pushLatLngAlt(point.lat, point.lng);
+            });
+        });
+
+        // Create a polyline from the shape
+        var routeLine = new H.map.Polyline(lineString, {
+            style: {
+                lineWidth: 5,
+                strokeColor: '#4e73df',
+                lineTailCap: 'arrow-tail',
+                lineHeadCap: 'arrow-head'
+            }
+        });
+
+        // Add the polyline to the map
+        routeLineGroup.addObject(routeLine);
+
+        // Zoom to the route bounds
+        map.getViewModel().setLookAtData({
+            bounds: routeLine.getBoundingBox()
+        });
+
+        // Calculate total distance and duration
+        var totalDistance = 0;
+        var totalDuration = 0;
+
+        route.sections.forEach(function(section) {
+            totalDistance += section.travelSummary.length;
+            totalDuration += section.travelSummary.duration;
+        });
+
+        // Convert to miles and minutes
+        var distanceMiles = (totalDistance / 1609.34).toFixed(1);
+        var durationMinutes = Math.round(totalDuration / 60);
+
+        // Log the results
+        console.log("Total Distance: " + distanceMiles + " miles");
+        console.log("Total Duration: " + durationMinutes + " minutes");
+    }
+}
+
+function onRouteError(error) {
+    console.error('Routing error:', error);
+}
+
+// Handle geocoding request
+$(document).ready(function() {
+    $('#geocode-locations').click(function() {
+        $(this).prop('disabled', true);
+        $(this).html('<i class="fas fa-spinner fa-spin"></i> Geocoding...');
+
+        $.ajax({
+            url: '{% url "route_management:geocode_locations" %}',
+            type: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            success: function(data) {
+                if (data.success) {
+                    toastr.success("Geocoded " + data.success_count + " locations successfully. " + data.error_count + " had errors.");
+                    setTimeout(function() { window.location.reload(); }, 1500);
+                } else {
+                    toastr.error('Error geocoding locations');
+                    $('#geocode-locations').prop('disabled', false);
+                    $('#geocode-locations').html('<i class="fas fa-map-marker-alt"></i> Geocode Locations');
+                }
+            },
+            error: function() {
+                toastr.error('Error geocoding locations');
+                $('#geocode-locations').prop('disabled', false);
+                $('#geocode-locations').html('<i class="fas fa-map-marker-alt"></i> Geocode Locations');
+            }
+        });
+    });
+});
+
+// Initialize the map when the document is ready
+document.addEventListener('DOMContentLoaded', initMap);
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,686 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Edit Service Request #{{ service_request.id }}{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.9.0/css/bootstrap-datepicker.min.css">
+<style>
+    .form-card {
+        border-left: 4px solid #f6c23e;
+    }
+    .required-field label:after {
+        content: " *";
+        color: red;
+    }
+    .field-help {
+        color: #858796;
+        font-size: 0.8rem;
+        margin-top: 0.25rem;
+    }
+    .custom-dropdown-toggle::after {
+        display: none;
+    }
+    .location-map {
+        height: 300px;
+        width: 100%;
+    }
+    .priority-selector .btn {
+        width: 100%;
+    }
+    .priority-selector .btn-outline-danger.active {
+        background-color: #e74a3b;
+        color: white;
+    }
+    .priority-selector .btn-outline-warning.active {
+        background-color: #f6c23e;
+        color: white;
+    }
+    .priority-selector .btn-outline-success.active {
+        background-color: #1cc88a;
+        color: white;
+    }
+    #selected-location-display {
+        padding: 10px;
+        border: 1px solid #e3e6f0;
+        border-radius: 5px;
+        margin-top: 10px;
+    }
+    .status-pending { background-color: #f6c23e; }
+    .status-scheduled { background-color: #4e73df; }
+    .status-in_progress { background-color: #36b9cc; }
+    .status-completed { background-color: #1cc88a; }
+    .status-cancelled { background-color: #e74a3b; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Heading -->
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">
+            Edit Service Request #{{ service_request.id }}
+            <span class="badge badge-pill
+                {% if service_request.status == 'pending' %}badge-warning
+                {% elif service_request.status == 'scheduled' %}badge-info
+                {% elif service_request.status == 'in_progress' %}badge-primary
+                {% elif service_request.status == 'completed' %}badge-success
+                {% elif service_request.status == 'cancelled' %}badge-danger
+                {% endif %}">
+                {{ service_request.get_status_display }}
+            </span>
+        </h1>
+        <div class="btn-group">
+            <a href="{% url 'route_management:service_request_detail' service_request.id %}" class="d-none d-sm-inline-block btn btn-sm btn-primary shadow-sm">
+                <i class="fas fa-arrow-left fa-sm text-white-50"></i> Back to Details
+            </a>
+            <a href="{% url 'route_management:service_request_list' %}" class="d-none d-sm-inline-block btn btn-sm btn-secondary shadow-sm ml-2">
+                <i class="fas fa-list fa-sm text-white-50"></i> All Requests
+            </a>
+        </div>
+    </div>
+
+    <!-- Form Card -->
+    <div class="card shadow mb-4 form-card">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">Service Request Details</h6>
+        </div>
+        <div class="card-body">
+            <form method="post" id="serviceRequestForm">
+                {% csrf_token %}
+
+                <div class="row">
+                    <!-- Customer & Location Section -->
+                    <div class="col-lg-6">
+                        <h5 class="mb-3">Customer & Location</h5>
+
+                        <!-- Customer -->
+                        <div class="form-group required-field">
+                            <label for="customer">Customer</label>
+                            <div class="input-group">
+                                <select class="form-control" id="customer" name="customer" required>
+                                    <option value="">Select a customer...</option>
+                                    {% for customer in customers %}
+                                        <option value="{{ customer.id }}" {% if form.customer.value == customer.id or service_request.customer.id == customer.id %}selected{% endif %}>
+                                            {{ customer.company_name }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                                <div class="input-group-append">
+                                    <button class="btn btn-outline-secondary custom-dropdown-toggle" type="button" data-toggle="dropdown">
+                                        <i class="fas fa-ellipsis-v"></i>
+                                    </button>
+                                    <div class="dropdown-menu">
+                                        <a class="dropdown-item" href="#" id="viewCustomerDetails">
+                                            <i class="fas fa-eye fa-sm fa-fw text-gray-400"></i> View Customer Details
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                            {% if form.customer.errors %}
+                                <div class="text-danger">{{ form.customer.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Customer Details (loaded via JS) -->
+                        <div id="customerDetails" class="card mb-4" style="display: none;">
+                            <div class="card-body">
+                                <h6 class="card-title">Customer Information</h6>
+                                <div id="customerInfo"></div>
+                            </div>
+                        </div>
+
+                        <!-- Service Location -->
+                        <div class="form-group required-field">
+                            <label for="service_location">Service Location</label>
+                            <div class="input-group">
+                                <select class="form-control" id="service_location" name="service_location" required>
+                                    <option value="">Select a location...</option>
+                                    <!-- Service locations will be populated via JavaScript based on selected customer -->
+                                </select>
+                                <div class="input-group-append">
+                                    <button class="btn btn-outline-secondary custom-dropdown-toggle" type="button" data-toggle="dropdown">
+                                        <i class="fas fa-ellipsis-v"></i>
+                                    </button>
+                                    <div class="dropdown-menu">
+                                        <a class="dropdown-item" href="#" id="viewLocationMap">
+                                            <i class="fas fa-map-marker-alt fa-sm fa-fw text-gray-400"></i> View on Map
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                            {% if form.service_location.errors %}
+                                <div class="text-danger">{{ form.service_location.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Selected Location Display -->
+                        <div id="selected-location-display" class="mb-4">
+                            <div id="location-details"></div>
+                        </div>
+
+                        <!-- Site Contact -->
+                        <div class="form-group">
+                            <label for="site_contact">Site Contact</label>
+                            <input type="text" class="form-control" id="site_contact" name="site_contact" value="{{ form.site_contact.value|default:service_request.site_contact }}">
+                            <div class="field-help">Contact person at the service location (leave blank to use customer contact)</div>
+                            {% if form.site_contact.errors %}
+                                <div class="text-danger">{{ form.site_contact.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Service Details Section -->
+                    <div class="col-lg-6">
+                        <h5 class="mb-3">Service Details</h5>
+
+                        <!-- Service Type -->
+                        <div class="form-group required-field">
+                            <label for="service_type">Service Type</label>
+                            <select class="form-control" id="service_type" name="service_type" required>
+                                <option value="">Select a service type...</option>
+                                {% for service_type in service_types %}
+                                    <option value="{{ service_type.id }}" {% if form.service_type.value == service_type.id or service_request.service_type.id == service_type.id %}selected{% endif %}
+                                            data-duration="{{ service_type.typical_duration_minutes }}">
+                                        {{ service_type.name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                            {% if form.service_type.errors %}
+                                <div class="text-danger">{{ form.service_type.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Priority -->
+                        <div class="form-group required-field">
+                            <label for="priority">Priority</label>
+                            <div class="priority-selector btn-group btn-group-toggle mb-3" data-toggle="buttons">
+                                <label class="btn btn-outline-danger {% if form.priority.value == 'high' or service_request.priority == 'high' %}active{% endif %}">
+                                    <input type="radio" name="priority" value="high" {% if form.priority.value == 'high' or service_request.priority == 'high' %}checked{% endif %}> High
+                                </label>
+                                <label class="btn btn-outline-warning {% if form.priority.value == 'medium' or service_request.priority == 'medium' %}active{% endif %}">
+                                    <input type="radio" name="priority" value="medium" {% if form.priority.value == 'medium' or service_request.priority == 'medium' %}checked{% endif %}> Medium
+                                </label>
+                                <label class="btn btn-outline-success {% if form.priority.value == 'low' or service_request.priority == 'low' %}active{% endif %}">
+                                    <input type="radio" name="priority" value="low" {% if form.priority.value == 'low' or service_request.priority == 'low' %}checked{% endif %}> Low
+                                </label>
+                            </div>
+                            {% if form.priority.errors %}
+                                <div class="text-danger">{{ form.priority.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Status -->
+                        <div class="form-group required-field">
+                            <label for="status">Status</label>
+                            <select class="form-control" id="status" name="status" required>
+                                <option value="pending" {% if form.status.value == 'pending' or service_request.status == 'pending' %}selected{% endif %}>Pending</option>
+                                <option value="scheduled" {% if form.status.value == 'scheduled' or service_request.status == 'scheduled' %}selected{% endif %}>Scheduled</option>
+                                <option value="in_progress" {% if form.status.value == 'in_progress' or service_request.status == 'in_progress' %}selected{% endif %}>In Progress</option>
+                                <option value="completed" {% if form.status.value == 'completed' or service_request.status == 'completed' %}selected{% endif %}>Completed</option>
+                                <option value="cancelled" {% if form.status.value == 'cancelled' or service_request.status == 'cancelled' %}selected{% endif %}>Cancelled</option>
+                            </select>
+                            {% if form.status.errors %}
+                                <div class="text-danger">{{ form.status.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Dates -->
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="requested_date">Requested Date</label>
+                                    <div class="input-group date">
+                                        <input type="text" class="form-control" id="requested_date" name="requested_date" value="{{ form.requested_date.value|default:service_request.requested_date|date:'Y-m-d' }}">
+                                        <div class="input-group-append">
+                                            <span class="input-group-text"><i class="fas fa-calendar"></i></span>
+                                        </div>
+                                    </div>
+                                    {% if form.requested_date.errors %}
+                                        <div class="text-danger">{{ form.requested_date.errors }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="due_date">Due Date</label>
+                                    <div class="input-group date">
+                                        <input type="text" class="form-control" id="due_date" name="due_date" value="{{ form.due_date.value|default:service_request.due_date|date:'Y-m-d' }}">
+                                        <div class="input-group-append">
+                                            <span class="input-group-text"><i class="fas fa-calendar"></i></span>
+                                        </div>
+                                    </div>
+                                    {% if form.due_date.errors %}
+                                        <div class="text-danger">{{ form.due_date.errors }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Estimated Duration -->
+                        <div class="form-group">
+                            <label for="estimated_duration_minutes">Estimated Duration (minutes)</label>
+                            <input type="number" class="form-control" id="estimated_duration_minutes" name="estimated_duration_minutes" value="{{ form.estimated_duration_minutes.value|default:service_request.estimated_duration_minutes }}" min="0">
+                            <div class="field-help">How long this service is expected to take</div>
+                            {% if form.estimated_duration_minutes.errors %}
+                                <div class="text-danger">{{ form.estimated_duration_minutes.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mt-4">
+                    <div class="col-lg-12">
+                        <h5 class="mb-3">Additional Information</h5>
+
+                        <!-- Description -->
+                        <div class="form-group required-field">
+                            <label for="description">Description</label>
+                            <textarea class="form-control" id="description" name="description" rows="3" required>{{ form.description.value|default:service_request.description }}</textarea>
+                            <div class="field-help">Describe the service needed</div>
+                            {% if form.description.errors %}
+                                <div class="text-danger">{{ form.description.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Special Instructions -->
+                        <div class="form-group">
+                            <label for="special_instructions">Special Instructions</label>
+                            <textarea class="form-control" id="special_instructions" name="special_instructions" rows="3">{{ form.special_instructions.value|default:service_request.special_instructions }}</textarea>
+                            <div class="field-help">Any special instructions or requirements for this service</div>
+                            {% if form.special_instructions.errors %}
+                                <div class="text-danger">{{ form.special_instructions.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Equipment -->
+                        <div class="form-group">
+                            <label for="equipment">Equipment</label>
+                            <select class="form-control" id="equipment" name="equipment" multiple>
+                                {% for equipment in equipment_list %}
+                                    <option value="{{ equipment.id }}"
+                                        {% if equipment.id in form.equipment.value or equipment in service_request.equipment.all %}selected{% endif %}>
+                                        {{ equipment.name }} ({{ equipment.model }})
+                                    </option>
+                                {% endfor %}
+                            </select>
+                            <div class="field-help">Select any equipment related to this service request</div>
+                            {% if form.equipment.errors %}
+                                <div class="text-danger">{{ form.equipment.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Scheduling Options -->
+                <div id="scheduling-options" class="row mt-4" {% if service_request.status != 'scheduled' and form.status.value != 'scheduled' %}style="display: none;"{% endif %}>
+                    <div class="col-lg-12">
+                        <div class="card mb-4">
+                            <div class="card-header py-3">
+                                <h6 class="m-0 font-weight-bold text-primary">Scheduling Options</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label for="technician">Assigned Technician</label>
+                                            <select class="form-control" id="technician" name="technician">
+                                                <option value="">Select a technician...</option>
+                                                {% for tech in technicians %}
+                                                    <option value="{{ tech.id }}"
+                                                        {% if form.technician.value == tech.id or service_request.assigned_technician.id == tech.id %}selected{% endif %}>
+                                                        {{ tech.get_full_name }}
+                                                    </option>
+                                                {% endfor %}
+                                            </select>
+                                            {% if form.technician.errors %}
+                                                <div class="text-danger">{{ form.technician.errors }}</div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label for="route">Assign to Route</label>
+                                            <select class="form-control" id="route" name="route">
+                                                <option value="">Select a route...</option>
+                                                {% for route in available_routes %}
+                                                    <option value="{{ route.id }}"
+                                                        {% if form.route.value == route.id or service_request.route_stop.route.id == route.id %}selected{% endif %}>
+                                                        Route {{ route.route_id }} - {{ route.date|date:"M d, Y" }} - {{ route.technician.get_full_name }}
+                                                    </option>
+                                                {% endfor %}
+                                            </select>
+                                            {% if form.route.errors %}
+                                                <div class="text-danger">{{ form.route.errors }}</div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label for="scheduled_date">Scheduled Date</label>
+                                            <div class="input-group date">
+                                                <input type="text" class="form-control" id="scheduled_date" name="scheduled_date"
+                                                    value="{{ form.scheduled_date.value|default:service_request.scheduled_date|date:'Y-m-d' }}">
+                                                <div class="input-group-append">
+                                                    <span class="input-group-text"><i class="fas fa-calendar"></i></span>
+                                                </div>
+                                            </div>
+                                            {% if form.scheduled_date.errors %}
+                                                <div class="text-danger">{{ form.scheduled_date.errors }}</div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label for="scheduled_time">Scheduled Time</label>
+                                            <input type="time" class="form-control" id="scheduled_time" name="scheduled_time"
+                                                value="{{ form.scheduled_time.value|default:service_request.scheduled_time|time:'H:i' }}">
+                                            {% if form.scheduled_time.errors %}
+                                                <div class="text-danger">{{ form.scheduled_time.errors }}</div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Form buttons -->
+                <div class="row mt-4">
+                    <div class="col-12 text-right">
+                        <a href="{% url 'route_management:service_request_detail' service_request.id %}" class="btn btn-secondary">Cancel</a>
+                        <button type="submit" name="save" class="btn btn-primary">Save Changes</button>
+                        {% if service_request.status != 'completed' %}
+                            <button type="submit" name="save_and_complete" class="btn btn-success">Save and Mark Completed</button>
+                        {% endif %}
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Location Map Modal -->
+<div class="modal fade" id="locationMapModal" tabindex="-1" role="dialog" aria-labelledby="locationMapModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="locationMapModalLabel">Location Map</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="locationMap" class="location-map"></div>
+                <div id="locationMapInfo" class="mt-3"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.9.0/js/bootstrap-datepicker.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css">
+<!-- HERE Maps API scripts -->
+<script src="https://js.api.here.com/v3/3.1/mapsjs-core.js"></script>
+<script src="https://js.api.here.com/v3/3.1/mapsjs-service.js"></script>
+<script src="https://js.api.here.com/v3/3.1/mapsjs-ui.js"></script>
+<script src="https://js.api.here.com/v3/3.1/mapsjs-mapevents.js"></script>
+<link rel="stylesheet" type="text/css" href="https://js.api.here.com/v3/3.1/mapsjs-ui.css" />
+
+<script>
+// Store Django template variables as JavaScript variables at the top
+var serviceRequestLocationId = {% if service_request.service_location %}{{ service_request.service_location.id }}{% else %}0{% endif %};
+var serviceRequestCustomerId = {% if service_request.customer %}{{ service_request.customer.id }}{% else %}0{% endif %};
+var customerDetailUrl = "{% url 'route_management:customer_detail' 9999 %}";
+var locationInfoUrl = "{% url 'route_management:get_location_info' %}";
+var customerInfoUrl = "{% url 'route_management:get_customer_info' %}";
+var hereApiKey = "{{ here_maps_api_key }}";
+
+$(document).ready(function() {
+    // Initialize datepickers
+    $('.date input').datepicker({
+        format: 'yyyy-mm-dd',
+        autoclose: true,
+        todayHighlight: true
+    });
+
+    // Initialize select2 for enhanced dropdowns
+    $('#customer, #service_location, #service_type, #technician, #route, #equipment').select2({
+        width: '100%'
+    });
+
+    // Set UI based on status
+    $('#status').change(function() {
+        if ($(this).val() === 'scheduled') {
+            $('#scheduling-options').slideDown();
+        } else {
+            $('#scheduling-options').slideUp();
+        }
+    });
+
+    // Auto-fill estimated duration based on service type
+    $('#service_type').change(function() {
+        var duration = $('option:selected', this).data('duration');
+        if (duration && !$('#estimated_duration_minutes').val()) {
+            $('#estimated_duration_minutes').val(duration);
+        }
+    });
+
+    // Customer selection
+    $('#customer').change(function() {
+        var customerId = $(this).val();
+        if (customerId) {
+            // Load customer details
+            $.ajax({
+                url: customerInfoUrl,
+                data: { customer_id: customerId },
+                success: function(data) {
+                    if (data.success) {
+                        // Display customer details
+                        var html = '<p><strong>Contact:</strong> ' + data.customer.contact_name + '</p>' +
+                                   '<p><strong>Email:</strong> ' + data.customer.contact_email + '</p>' +
+                                   '<p><strong>Phone:</strong> ' + data.customer.contact_phone + '</p>';
+
+                        $('#customerInfo').html(html);
+                        $('#customerDetails').slideDown();
+
+                        // Load service locations for this customer
+                        $('#service_location').empty().append('<option value="">Select a location...</option>');
+
+                        if (data.locations.length > 0) {
+                            $.each(data.locations, function(index, location) {
+                                var selected = (location.id == serviceRequestLocationId) ? 'selected' : '';
+                                $('#service_location').append('<option value="' + location.id + '" ' + selected + '>' + location.name + '</option>');
+                            });
+
+                            // Trigger change to load location details if this is the same customer as before
+                            if (data.customer.id == serviceRequestCustomerId) {
+                                $('#service_location').trigger('change');
+                            }
+                        } else {
+                            $('#service_location').append('<option value="" disabled>No locations available</option>');
+                        }
+                    } else {
+                        toastr.error('Error loading customer details');
+                    }
+                },
+                error: function() {
+                    toastr.error('Error loading customer details');
+                }
+            });
+        } else {
+            $('#customerDetails').slideUp();
+            $('#service_location').empty().append('<option value="">Select a location...</option>');
+        }
+    });
+
+    // Trigger change if customer is already selected
+    if ($('#customer').val()) {
+        $('#customer').trigger('change');
+    }
+
+    // Location selection
+    $('#service_location').change(function() {
+        var locationId = $(this).val();
+        if (locationId) {
+            // Load location details
+            $.ajax({
+                url: locationInfoUrl,
+                data: { location_id: locationId },
+                success: function(data) {
+                    if (data.success) {
+                        // Display location details
+                        var html = '<p><strong>' + data.location.name + '</strong></p>' +
+                                   '<p>' + data.location.address_line1 + '</p>';
+
+                        if (data.location.address_line2) {
+                            html += '<p>' + data.location.address_line2 + '</p>';
+                        }
+
+                        html += '<p>' + data.location.city + ', ' + data.location.state + ' ' + data.location.zip_code + '</p>';
+
+                        $('#location-details').html(html);
+                        $('#selected-location-display').slideDown();
+                    } else {
+                        toastr.error('Error loading location details');
+                    }
+                },
+                error: function() {
+                    toastr.error('Error loading location details');
+                }
+            });
+        } else {
+            $('#selected-location-display').slideUp();
+        }
+    });
+
+    // View customer details
+    $('#viewCustomerDetails').click(function(e) {
+        e.preventDefault();
+        var customerId = $('#customer').val();
+        if (customerId) {
+            var urlWithId = customerDetailUrl.replace('9999', customerId);
+            window.open(urlWithId, '_blank');
+        } else {
+            toastr.warning('Please select a customer first');
+        }
+    });
+
+    // View location map
+    $('#viewLocationMap').click(function(e) {
+        e.preventDefault();
+        var locationId = $('#service_location').val();
+        if (locationId) {
+            // Load location details for map
+            $.ajax({
+                url: locationInfoUrl,
+                data: { location_id: locationId },
+                success: function(data) {
+                    if (data.success && data.location.latitude && data.location.longitude) {
+                        initMap(data.location);
+                        $('#locationMapModal').modal('show');
+                    } else {
+                        toastr.warning('No map coordinates available for this location');
+                    }
+                },
+                error: function() {
+                    toastr.error('Error loading location details');
+                }
+            });
+        } else {
+            toastr.warning('Please select a location first');
+        }
+    });
+
+    // Initialize map
+    function initMap(location) {
+        // Initialize the HERE Map platform
+        var platform = new H.service.Platform({
+            'apikey': hereApiKey
+        });
+
+        var defaultLayers = platform.createDefaultLayers();
+
+        // Create a map centered on the location
+        var map = new H.Map(
+            document.getElementById('locationMap'),
+            defaultLayers.vector.normal.map,
+            {
+                zoom: 15,
+                center: { lat: parseFloat(location.latitude), lng: parseFloat(location.longitude) }
+            }
+        );
+
+        // Add interactive behavior to the map
+        var behavior = new H.mapevents.Behavior(new H.mapevents.MapEvents(map));
+
+        // Create the default UI components
+        var ui = H.ui.UI.createDefault(map, defaultLayers);
+
+        // Create a marker for the location
+        var marker = new H.map.Marker({
+            lat: parseFloat(location.latitude),
+            lng: parseFloat(location.longitude)
+        });
+
+        // Add the marker to the map
+        map.addObject(marker);
+
+        // Display location info
+        var html = '<h6>' + location.name + '</h6>' +
+                   '<p>' + location.address_line1;
+
+        if (location.address_line2) {
+            html += '<br>' + location.address_line2;
+        }
+
+        html += '<br>' + location.city + ', ' + location.state + ' ' + location.zip_code + '</p>';
+
+        $('#locationMapInfo').html(html);
+    }
+
+    // Form validation
+    $('#serviceRequestForm').submit(function(e) {
+        var isValid = true;
+
+        // Required fields validation
+        $('.required-field input, .required-field select, .required-field textarea').each(function() {
+            if (!$(this).val()) {
+                $(this).addClass('is-invalid');
+                isValid = false;
+            } else {
+                $(this).removeClass('is-invalid');
+            }
+        });
+
+        // Scheduling options validation
+        if ($('#status').val() === 'scheduled') {
+            if (!$('#technician').val() && !$('#route').val()) {
+                toastr.error('When status is "Scheduled", you must select either a technician or a route');
+                $('#technician, #route').addClass('is-invalid');
+                isValid = false;
+            } else {
+                $('#technician, #route').removeClass('is-invalid');
+            }
+        }
+
+        if (!isValid) {
+            e.preventDefault();
+            toastr.error('Please fill in all required fields');
+            // Scroll to the first invalid field
+            $('html, body').animate({
+                scrollTop: $('.is-invalid').first().offset().top - 100
+            }, 500);
+        }
+    });
+});
+</script>
+{% endblock %}

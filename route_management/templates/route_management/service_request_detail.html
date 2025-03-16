@@ -1,0 +1,1111 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Service Request - {{ service_request.request_number }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Heading -->
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">
+            Service Request: {{ service_request.request_number }}
+            <span class="badge badge-pill
+                {% if service_request.status == 'pending' %}badge-warning
+                {% elif service_request.status == 'scheduled' %}badge-info
+                {% elif service_request.status == 'in_progress' %}badge-primary
+                {% elif service_request.status == 'completed' %}badge-success
+                {% elif service_request.status == 'cancelled' %}badge-danger
+                {% endif %}">
+                {{ service_request.get_status_display }}
+            </span>
+        </h1>
+        <div class="btn-group">
+            <a href="{% url 'route_management:service_request_update' service_request.id %}" class="d-none d-sm-inline-block btn btn-sm btn-primary shadow-sm">
+                <i class="fas fa-edit fa-sm text-white-50"></i> Edit Request
+            </a>
+            {% if service_request.status == 'pending' or service_request.status == 'scheduled' %}
+            <button type="button" class="d-none d-sm-inline-block btn btn-sm btn-success shadow-sm ml-2" data-toggle="modal" data-target="#assignTechnicianModal">
+                <i class="fas fa-user-hard-hat fa-sm text-white-50"></i> Assign Technician
+            </button>
+            {% endif %}
+            <div class="dropdown d-none d-sm-inline-block ml-2">
+                <button class="btn btn-sm btn-secondary shadow-sm dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="fas fa-cog fa-sm text-white-50"></i> Actions
+                </button>
+                <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
+                    <button class="dropdown-item" type="button" data-toggle="modal" data-target="#photoUploadModal">
+                        <i class="fas fa-camera"></i> Upload Photos
+                    </button>
+                    {% if service_request.status != 'completed' and service_request.status != 'cancelled' %}
+                    <a class="dropdown-item" href="{% url 'route_management:service_request_complete' service_request.id %}">
+                        <i class="fas fa-check-circle"></i> Mark Completed
+                    </a>
+                    <button class="dropdown-item text-danger" type="button" data-toggle="modal" data-target="#cancelModal">
+                        <i class="fas fa-times-circle"></i> Cancel Request
+                    </button>
+                    {% endif %}
+                    <a class="dropdown-item" href="{% url 'route_management:service_request_pdf' service_request.id %}">
+                        <i class="fas fa-file-pdf"></i> Generate PDF
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Content Row -->
+    <div class="row">
+        <!-- Left Column -->
+        <div class="col-xl-4 col-lg-5">
+            <!-- Basic Info Card -->
+            <div class="card shadow mb-4">
+                <!-- Card Header -->
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Request Information</h6>
+                </div>
+                <!-- Card Body -->
+                <div class="card-body">
+                    <div class="row mb-2">
+                        <div class="col-5 font-weight-bold text-gray-800">Status:</div>
+                        <div class="col-7">
+                            <span class="badge badge-pill
+                                {% if service_request.status == 'pending' %}badge-warning
+                                {% elif service_request.status == 'scheduled' %}badge-info
+                                {% elif service_request.status == 'in_progress' %}badge-primary
+                                {% elif service_request.status == 'completed' %}badge-success
+                                {% elif service_request.status == 'cancelled' %}badge-danger
+                                {% endif %}">
+                                {{ service_request.get_status_display }}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-5 font-weight-bold text-gray-800">Priority:</div>
+                        <div class="col-7">
+                            <span class="badge badge-pill
+                                {% if service_request.priority == 'low' %}badge-info
+                                {% elif service_request.priority == 'medium' %}badge-warning
+                                {% elif service_request.priority == 'high' %}badge-danger
+                                {% elif service_request.priority == 'urgent' %}badge-danger text-white
+                                {% endif %}">
+                                {{ service_request.get_priority_display }}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-5 font-weight-bold text-gray-800">Service Type:</div>
+                        <div class="col-7">{{ service_request.service_type.name }}</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-5 font-weight-bold text-gray-800">Preferred Date:</div>
+                        <div class="col-7">{{ service_request.preferred_date|date:"M d, Y" }}</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-5 font-weight-bold text-gray-800">Time Window:</div>
+                        <div class="col-7">
+                            {% if service_request.preferred_time_start and service_request.preferred_time_end %}
+                                {{ service_request.preferred_time_start|time:"g:i A" }} - {{ service_request.preferred_time_end|time:"g:i A" }}
+                            {% else %}
+                                No specific time requested
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-5 font-weight-bold text-gray-800">Est. Duration:</div>
+                        <div class="col-7">{{ service_request.estimated_duration_minutes }} minutes</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-5 font-weight-bold text-gray-800">Created:</div>
+                        <div class="col-7">{{ service_request.created_at|date:"M d, Y g:i A" }}</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-5 font-weight-bold text-gray-800">Created By:</div>
+                        <div class="col-7">{{ service_request.created_by.get_full_name|default:"System" }}</div>
+                    </div>
+                    {% if service_request.completed_at %}
+                    <div class="row mb-2">
+                        <div class="col-5 font-weight-bold text-gray-800">Completed:</div>
+                        <div class="col-7">{{ service_request.completed_at|date:"M d, Y g:i A" }}</div>
+                    </div>
+                    {% endif %}
+                    {% if service_request.cancelled_at %}
+                    <div class="row mb-2">
+                        <div class="col-5 font-weight-bold text-gray-800">Cancelled:</div>
+                        <div class="col-7">{{ service_request.cancelled_at|date:"M d, Y g:i A" }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Customer Info Card -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Customer Information</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-2">
+                        <div class="col-5 font-weight-bold text-gray-800">Customer:</div>
+                        <div class="col-7">
+                            <a href="{% url 'customer_detail' service_request.customer.id %}">
+                                {{ service_request.customer.company_name }}
+                            </a>
+                        </div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-5 font-weight-bold text-gray-800">Contact Name:</div>
+                        <div class="col-7">{{ service_request.contact_name|default:service_request.customer.primary_contact_name }}</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-5 font-weight-bold text-gray-800">Contact Phone:</div>
+                        <div class="col-7">
+                            <a href="tel:{{ service_request.contact_phone|default:service_request.customer.phone }}">
+                                {{ service_request.contact_phone|default:service_request.customer.phone }}
+                            </a>
+                        </div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-5 font-weight-bold text-gray-800">Contact Email:</div>
+                        <div class="col-7">
+                            <a href="mailto:{{ service_request.contact_email|default:service_request.customer.email }}">
+                                {{ service_request.contact_email|default:service_request.customer.email }}
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Service Location Card -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Service Location</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-2">
+                        <div class="col-5 font-weight-bold text-gray-800">Location Name:</div>
+                        <div class="col-7">{{ service_request.service_location.name }}</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-5 font-weight-bold text-gray-800">Location Type:</div>
+                        <div class="col-7">{{ service_request.service_location.location_type.name|default:"Not specified" }}</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-5 font-weight-bold text-gray-800">Address:</div>
+                        <div class="col-7">{{ service_request.service_location.get_full_address }}</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-5 font-weight-bold text-gray-800">Service Area:</div>
+                        <div class="col-7">{{ service_request.service_location.service_area.name|default:"Not assigned" }}</div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-5 font-weight-bold text-gray-800">Access Info:</div>
+                        <div class="col-7">{{ service_request.service_location.access_instructions|default:"None provided" }}</div>
+                    </div>
+
+                    <!-- Location Map -->
+                    {% if service_request.service_location.latitude and service_request.service_location.longitude %}
+                    <div class="mt-3">
+                        <div id="location-map" class="map-container"
+                             data-latitude="{{ service_request.service_location.latitude }}"
+                             data-longitude="{{ service_request.service_location.longitude }}"
+                             style="height: 200px; width: 100%;"></div>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i> Location coordinates not available
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column -->
+        <div class="col-xl-8 col-lg-7">
+            <!-- Description Card -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Service Description</h6>
+                </div>
+                <div class="card-body">
+                    <p>{{ service_request.description|linebreaks }}</p>
+                </div>
+            </div>
+
+            <!-- Assigned Technician Card -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                    <h6 class="m-0 font-weight-bold text-primary">Assigned Technician</h6>
+                    {% if service_request.status != 'completed' and service_request.status != 'cancelled' %}
+                    <button class="btn btn-sm btn-primary" data-toggle="modal" data-target="#assignTechnicianModal">
+                        <i class="fas fa-user-edit fa-sm"></i> Change
+                    </button>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    {% if service_request.assigned_technician %}
+                    <div class="row">
+                        <div class="col-md-2 text-center">
+                            <img class="img-profile rounded-circle mb-3" width="80" height="80"
+                                 src="{{ service_request.assigned_technician.profile_image.url|default:'https://via.placeholder.com/80' }}">
+                        </div>
+                        <div class="col-md-6">
+                            <h5 class="font-weight-bold">{{ service_request.assigned_technician.get_full_name }}</h5>
+                            <p>{{ service_request.assigned_technician.title|default:"Technician" }}</p>
+                            <p>
+                                <strong>Email:</strong> {{ service_request.assigned_technician.email }}<br>
+                                <strong>Phone:</strong> {{ service_request.assigned_technician.phone|default:"Not provided" }}
+                            </p>
+                        </div>
+                        <div class="col-md-4 text-right">
+                            <a href="{% url 'route_management:technician_profile' service_request.assigned_technician.technician_profile.id %}" class="btn btn-info btn-sm">
+                                <i class="fas fa-user"></i> View Profile
+                            </a>
+                            <a href="{% url 'route_management:technician_schedule' service_request.assigned_technician.id %}" class="btn btn-primary btn-sm mt-2">
+                                <i class="fas fa-calendar"></i> View Schedule
+                            </a>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4">
+                        <p class="text-muted">No technician assigned yet.</p>
+                        <button class="btn btn-primary" data-toggle="modal" data-target="#assignTechnicianModal">
+                            <i class="fas fa-user-plus"></i> Assign Technician
+                        </button>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Route & Scheduling Card -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Route & Scheduling</h6>
+                </div>
+                <div class="card-body">
+                    {% if route_stops %}
+                    <div class="table-responsive">
+                        <table class="table table-bordered" id="route-stops-table" width="100%" cellspacing="0">
+                            <thead>
+                                <tr>
+                                    <th>Route ID</th>
+                                    <th>Date</th>
+                                    <th>Stop #</th>
+                                    <th>Arrival Time</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for stop in route_stops %}
+                                <tr>
+                                    <td>{{ stop.route.route_id }}</td>
+                                    <td>{{ stop.route.date|date:"M d, Y" }}</td>
+                                    <td>{{ stop.stop_number }}</td>
+                                    <td>
+                                        {% if stop.scheduled_arrival_time %}
+                                            {{ stop.scheduled_arrival_time|time:"g:i A" }}
+                                        {% else %}
+                                            Not scheduled
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="badge badge-pill
+                                            {% if stop.status == 'pending' %}badge-secondary
+                                            {% elif stop.status == 'en_route' %}badge-info
+                                            {% elif stop.status == 'arrived' %}badge-primary
+                                            {% elif stop.status == 'in_progress' %}badge-warning
+                                            {% elif stop.status == 'completed' %}badge-success
+                                            {% elif stop.status == 'skipped' %}badge-dark
+                                            {% elif stop.status == 'cancelled' %}badge-danger
+                                            {% endif %}">
+                                            {{ stop.get_status_display }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <a href="{% url 'route_management:route_detail' stop.route.id %}" class="btn btn-info">
+                                                <i class="fas fa-route"></i>
+                                            </a>
+                                            <a href="{% url 'route_management:route_map' stop.route.id %}" class="btn btn-primary">
+                                                <i class="fas fa-map-marked-alt"></i>
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4">
+                        <p class="text-muted">This service request has not been added to a route yet.</p>
+                        <a href="{% url 'route_management:route_create' %}?service_request={{ service_request.id }}" class="btn btn-primary">
+                            <i class="fas fa-plus"></i> Create Route
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Service Photos Card -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                    <h6 class="m-0 font-weight-bold text-primary">Service Photos</h6>
+                    <button class="btn btn-sm btn-primary" data-toggle="modal" data-target="#photoUploadModal">
+                        <i class="fas fa-camera fa-sm"></i> Upload Photos
+                    </button>
+                </div>
+                <div class="card-body">
+                    {% if photos %}
+                    <ul class="nav nav-tabs" id="photosTabs" role="tablist">
+                        <li class="nav-item">
+                            <a class="nav-link active" id="all-photos-tab" data-toggle="tab" href="#all-photos" role="tab" aria-controls="all-photos" aria-selected="true">All Photos</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" id="before-photos-tab" data-toggle="tab" href="#before-photos" role="tab" aria-controls="before-photos" aria-selected="false">Before</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" id="after-photos-tab" data-toggle="tab" href="#after-photos" role="tab" aria-controls="after-photos" aria-selected="false">After</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" id="issues-photos-tab" data-toggle="tab" href="#issues-photos" role="tab" aria-controls="issues-photos" aria-selected="false">Issues</a>
+                        </li>
+                    </ul>
+                    <div class="tab-content" id="photosTabsContent">
+                        <div class="tab-pane fade show active" id="all-photos" role="tabpanel" aria-labelledby="all-photos-tab">
+                            <div class="row mt-3 photo-gallery">
+                                {% for photo in photos %}
+                                <div class="col-md-3 mb-3">
+                                    <a href="{{ photo.image.url }}" class="lightbox" data-caption="{{ photo.caption }}">
+                                        <img src="{{ photo.image.url }}" alt="{{ photo.caption }}" class="img-thumbnail">
+                                        <div class="mt-1 small">
+                                            <span class="badge badge-pill
+                                                {% if photo.photo_type == 'before' %}badge-info
+                                                {% elif photo.photo_type == 'after' %}badge-success
+                                                {% elif photo.photo_type == 'issue' %}badge-warning
+                                                {% else %}badge-secondary
+                                                {% endif %}">
+                                                {{ photo.get_photo_type_display }}
+                                            </span>
+                                            {{ photo.caption|truncatechars:20 }}
+                                        </div>
+                                    </a>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <div class="tab-pane fade" id="before-photos" role="tabpanel" aria-labelledby="before-photos-tab">
+                            <div class="row mt-3 photo-gallery">
+                                {% for photo in photos %}
+                                {% if photo.photo_type == 'before' %}
+                                <div class="col-md-3 mb-3">
+                                    <a href="{{ photo.image.url }}" class="lightbox" data-caption="{{ photo.caption }}">
+                                        <img src="{{ photo.image.url }}" alt="{{ photo.caption }}" class="img-thumbnail">
+                                        <div class="mt-1 small">{{ photo.caption|truncatechars:20 }}</div>
+                                    </a>
+                                </div>
+                                {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <div class="tab-pane fade" id="after-photos" role="tabpanel" aria-labelledby="after-photos-tab">
+                            <div class="row mt-3 photo-gallery">
+                                {% for photo in photos %}
+                                {% if photo.photo_type == 'after' %}
+                                <div class="col-md-3 mb-3">
+                                    <a href="{{ photo.image.url }}" class="lightbox" data-caption="{{ photo.caption }}">
+                                        <img src="{{ photo.image.url }}" alt="{{ photo.caption }}" class="img-thumbnail">
+                                        <div class="mt-1 small">{{ photo.caption|truncatechars:20 }}</div>
+                                    </a>
+                                </div>
+                                {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <div class="tab-pane fade" id="issues-photos" role="tabpanel" aria-labelledby="issues-photos-tab">
+                            <div class="row mt-3 photo-gallery">
+                                {% for photo in photos %}
+                                {% if photo.photo_type == 'issue' %}
+                                <div class="col-md-3 mb-3">
+                                    <a href="{{ photo.image.url }}" class="lightbox" data-caption="{{ photo.caption }}">
+                                        <img src="{{ photo.image.url }}" alt="{{ photo.caption }}" class="img-thumbnail">
+                                        <div class="mt-1 small">{{ photo.caption|truncatechars:20 }}</div>
+                                    </a>
+                                </div>
+                                {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4">
+                        <p class="text-muted">No photos uploaded yet.</p>
+                        <button class="btn btn-primary" data-toggle="modal" data-target="#photoUploadModal">
+                            <i class="fas fa-camera"></i> Upload Photos
+                        </button>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Service Completion Card -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                    <h6 class="m-0 font-weight-bold text-primary">Service Completion</h6>
+                    {% if not service_completion and service_request.status != 'cancelled' %}
+                    <a href="{% url 'route_management:service_completion_create' %}?service_request={{ service_request.id }}" class="btn btn-sm btn-success">
+                        <i class="fas fa-check-circle fa-sm"></i> Record Completion
+                    </a>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    {% if service_completion %}
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="row mb-2">
+                                <div class="col-5 font-weight-bold text-gray-800">Completed On:</div>
+                                <div class="col-7">{{ service_completion.end_time|date:"M d, Y g:i A" }}</div>
+                            </div>
+                            <div class="row mb-2">
+                                <div class="col-5 font-weight-bold text-gray-800">Duration:</div>
+                                <div class="col-7">{{ service_completion.duration_minutes }} minutes</div>
+                            </div>
+                            <div class="row mb-2">
+                                <div class="col-5 font-weight-bold text-gray-800">Billable Hours:</div>
+                                <div class="col-7">{{ service_completion.billable_hours }}</div>
+                            </div>
+                            <div class="row mb-2">
+                                <div class="col-5 font-weight-bold text-gray-800">Total Amount:</div>
+                                <div class="col-7">${{ service_completion.total_amount|floatformat:2 }}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="row mb-2">
+                                <div class="col-5 font-weight-bold text-gray-800">Customer Name:</div>
+                                <div class="col-7">{{ service_completion.customer_name }}</div>
+                            </div>
+                            <div class="row mb-2">
+                                <div class="col-5 font-weight-bold text-gray-800">Customer Email:</div>
+                                <div class="col-7">{{ service_completion.customer_email }}</div>
+                            </div>
+                            <div class="row mb-2">
+                                <div class="col-5 font-weight-bold text-gray-800">Follow-up:</div>
+                                <div class="col-7">
+                                    {% if service_completion.follow_up_required %}
+                                    <span class="text-danger">Required</span>
+                                    {% else %}
+                                    <span class="text-success">Not needed</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="row mb-2">
+                                <div class="col-5 font-weight-bold text-gray-800">Invoice:</div>
+                                <div class="col-7">
+                                    {% if service_completion.invoice_number %}
+                                    #{{ service_completion.invoice_number }} ({{ service_completion.invoice_date|date:"M d, Y" }})
+                                    {% else %}
+                                    Not invoiced yet
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h6 class="font-weight-bold">Work Performed</h6>
+                    <p>{{ service_completion.work_performed|linebreaks }}</p>
+
+                    <h6 class="font-weight-bold">Materials Used</h6>
+                    <p>{{ service_completion.materials_used|default:"None recorded"|linebreaks }}</p>
+
+                    {% if service_completion.technician_comments %}
+                    <h6 class="font-weight-bold">Technician Comments</h6>
+                    <p>{{ service_completion.technician_comments|linebreaks }}</p>
+                    {% endif %}
+
+                    {% if service_completion.follow_up_required %}
+                    <h6 class="font-weight-bold text-danger">Follow-up Notes</h6>
+                    <p>{{ service_completion.follow_up_notes|linebreaks }}</p>
+                    {% endif %}
+
+                    {% if service_completion.customer_signature %}
+                    <div class="mt-3 mb-3">
+                        <h6 class="font-weight-bold">Customer Signature</h6>
+                        <img src="{{ service_completion.customer_signature.url }}" alt="Customer Signature" class="img-fluid border" style="max-height: 100px;">
+                    </div>
+                    {% endif %}
+                    {% else %}
+                    <div class="text-center py-4">
+                        <p class="text-muted">No service completion record yet.</p>
+                        {% if service_request.status != 'cancelled' %}
+                        <a href="{% url 'route_management:service_completion_create' %}?service_request={{ service_request.id }}" class="btn btn-success">
+                            <i class="fas fa-check-circle"></i> Record Completion
+                        </a>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Customer Feedback Card -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Customer Feedback</h6>
+                </div>
+                <div class="card-body">
+                    {% if feedback %}
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="row mb-2">
+                                <div class="col-5 font-weight-bold text-gray-800">Overall Rating:</div>
+                                <div class="col-7">
+                                    <div class="star-rating" data-rating="{{ feedback.overall_rating }}">
+                                        {% for i in "12345" %}
+                                        <i class="fas fa-star{% if forloop.counter > feedback.overall_rating %}-o{% endif %}"></i>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row mb-2">
+                                <div class="col-5 font-weight-bold text-gray-800">Technician:</div>
+                                <div class="col-7">
+                                    <div class="star-rating" data-rating="{{ feedback.technician_rating|default:0 }}">
+                                        {% for i in "12345" %}
+                                        <i class="fas fa-star{% if forloop.counter > feedback.technician_rating %}-o{% endif %}"></i>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row mb-2">
+                                <div class="col-5 font-weight-bold text-gray-800">Punctuality:</div>
+                                <div class="col-7">
+                                    <div class="star-rating" data-rating="{{ feedback.punctuality_rating|default:0 }}">
+                                        {% for i in "12345" %}
+                                        <i class="fas fa-star{% if forloop.counter > feedback.punctuality_rating %}-o{% endif %}"></i>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row mb-2">
+                                <div class="col-5 font-weight-bold text-gray-800">Quality:</div>
+                                <div class="col-7">
+                                    <div class="star-rating" data-rating="{{ feedback.quality_rating|default:0 }}">
+                                        {% for i in "12345" %}
+                                        <i class="fas fa-star{% if forloop.counter > feedback.quality_rating %}-o{% endif %}"></i>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="row mb-2">
+                                <div class="col-5 font-weight-bold text-gray-800">Would Recommend:</div>
+                                <div class="col-7">
+                                    {% if feedback.would_recommend %}
+                                    <span class="text-success"><i class="fas fa-thumbs-up"></i> Yes</span>
+                                    {% elif feedback.would_recommend == False %}
+                                    <span class="text-danger"><i class="fas fa-thumbs-down"></i> No</span>
+                                    {% else %}
+                                    <span class="text-muted">Not specified</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="row mb-2">
+                                <div class="col-5 font-weight-bold text-gray-800">Follow-up:</div>
+                                <div class="col-7">
+                                    {% if feedback.wants_follow_up %}
+                                    <span class="text-danger">Customer requests follow-up ({{ feedback.get_follow_up_contact_method_display }})</span>
+                                    {% else %}
+                                    <span class="text-success">Not requested</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="row mb-2">
+                                <div class="col-5 font-weight-bold text-gray-800">Submitted By:</div>
+                                <div class="col-7">{{ feedback.submitted_by|default:"Anonymous" }}</div>
+                            </div>
+                            <div class="row mb-2">
+                                <div class="col-5 font-weight-bold text-gray-800">Submitted:</div>
+                                <div class="col-7">{{ feedback.submitted_at|date:"M d, Y g:i A" }}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h6 class="font-weight-bold">Customer Comments</h6>
+                    <p>{{ feedback.comments|default:"No comments provided"|linebreaks }}</p>
+
+                    {% if feedback.is_public %}
+                    <div class="alert alert-info mt-3">
+                        <i class="fas fa-info-circle"></i> This feedback is marked as public and may be used for testimonials.
+                    </div>
+                    {% endif %}
+                    {% else %}
+                    <div class="text-center py-4">
+                        <p class="text-muted">No customer feedback received yet.</p>
+                        <button class="btn btn-primary" data-toggle="modal" data-target="#requestFeedbackModal">
+                            <i class="fas fa-envelope"></i> Request Feedback
+                        </button>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Assign Technician Modal -->
+<div class="modal fade" id="assignTechnicianModal" tabindex="-1" role="dialog" aria-labelledby="assignTechnicianModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="assignTechnicianModalLabel">Assign Technician</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form method="post" action="{% url 'route_management:service_request_assign_technician' service_request.id %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="technician_id">Select Technician</label>
+                        <select class="form-control" id="technician_id" name="technician_id" required>
+                            <option value="">Choose a technician...</option>
+                            {% for technician in available_technicians %}
+                            <option value="{{ technician.id }}" {% if service_request.assigned_technician.id == technician.id %}selected{% endif %}>
+                                {{ technician.get_full_name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <div class="custom-control custom-checkbox">
+                            <input type="checkbox" class="custom-control-input" id="notify_technician" name="notify_technician" value="1" checked>
+                            <label class="custom-control-label" for="notify_technician">Notify Technician</label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <div class="custom-control custom-checkbox">
+                            <input type="checkbox" class="custom-control-input" id="notify_customer" name="notify_customer" value="1">
+                            <label class="custom-control-label" for="notify_customer">Notify Customer</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Assign Technician</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Photo Upload Modal -->
+<div class="modal fade" id="photoUploadModal" tabindex="-1" role="dialog" aria-labelledby="photoUploadModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="photoUploadModalLabel">Upload Photos</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form method="post" action="{% url 'route_management:service_photo_upload' service_request.id %}" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="photo_type">Photo Type</label>
+                        <select class="form-control" id="photo_type" name="photo_type" required>
+                            <option value="before">Before Service</option>
+                            <option value="after">After Service</option>
+                            <option value="issue">Issue Documentation</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="images">Select Images</label>
+                        <input type="file" class="form-control-file" id="images" name="images" multiple required>
+                        <small class="form-text text-muted">You can select multiple images at once.</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="caption">Caption</label>
+                        <input type="text" class="form-control" id="caption" name="caption" placeholder="Brief description of the photos">
+                    </div>
+                    <div class="form-group">
+                        <label for="notes">Notes</label>
+                        <textarea class="form-control" id="notes" name="notes" rows="3" placeholder="Additional notes about these photos"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Upload Photos</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Request Feedback Modal -->
+<div class="modal fade" id="requestFeedbackModal" tabindex="-1" role="dialog" aria-labelledby="requestFeedbackModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="requestFeedbackModalLabel">Request Customer Feedback</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form method="post" action="{% url 'route_management:service_request_request_feedback' service_request.id %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="recipient_name">Recipient Name</label>
+                        <input type="text" class="form-control" id="recipient_name" name="recipient_name" value="{{ service_request.contact_name|default:service_request.customer.primary_contact_name }}" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="recipient_email">Recipient Email</label>
+                        <input type="email" class="form-control" id="recipient_email" name="recipient_email" value="{{ service_request.contact_email|default:service_request.customer.email }}" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="feedback_message">Custom Message (Optional)</label>
+                        <textarea class="form-control" id="feedback_message" name="feedback_message" rows="3" placeholder="Add a personalized message to the feedback request"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Send Request</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Cancel Request Modal -->
+<div class="modal fade" id="cancelModal" tabindex="-1" role="dialog" aria-labelledby="cancelModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="cancelModalLabel">Cancel Service Request</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form method="post" action="{% url 'route_management:service_request_cancel' service_request.id %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-triangle"></i> Are you sure you want to cancel this service request? This action cannot be undone.
+                    </div>
+                    <div class="form-group">
+                        <label for="cancellation_reason">Reason for Cancellation</label>
+                        <textarea class="form-control" id="cancellation_reason" name="cancellation_reason" rows="3" required></textarea>
+                    </div>
+                    <div class="form-group">
+                        <div class="custom-control custom-checkbox">
+                            <input type="checkbox" class="custom-control-input" id="notify_technician_cancel" name="notify_technician" value="1" {% if service_request.assigned_technician %}checked{% endif %}>
+                            <label class="custom-control-label" for="notify_technician_cancel">Notify Assigned Technician</label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <div class="custom-control custom-checkbox">
+                            <input type="checkbox" class="custom-control-input" id="notify_customer_cancel" name="notify_customer" value="1" checked>
+                            <label class="custom-control-label" for="notify_customer_cancel">Notify Customer</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">Cancel Service Request</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'js/service_request_detail.js' %}"></script>
+{% endblock %}
+<script>
+$(document).ready(function() {
+    // Initialize DataTables
+    $('#route-stops-table').DataTable({
+        "pageLength": 5,
+        "lengthMenu": [[5, 10, 25, -1], [5, 10, 25, "All"]],
+        "order": [[1, "asc"], [2, "asc"]] // Sort by date and then stop number
+    });
+
+    // Initialize lightbox for photo gallery
+    if ($('.photo-gallery').length > 0) {
+        $('.lightbox').magnificPopup({
+            type: 'image',
+            gallery: {
+                enabled: true,
+                navigateByImgClick: true,
+                preload: [0, 1] // Will preload 0 - before current, and 1 after the current image
+            },
+            image: {
+                titleSrc: 'data-caption'
+            }
+        });
+    }
+
+    // Initialize map if location coordinates are available
+    if ($('#location-map').length > 0) {
+        initializeLocationMap();
+    }
+
+    // Function to initialize the location map
+    function initializeLocationMap() {
+        const latitude = parseFloat($('#location-map').data('latitude'));
+        const longitude = parseFloat($('#location-map').data('longitude'));
+
+        if (isNaN(latitude) || isNaN(longitude)) {
+            return;
+        }
+
+        const mapOptions = {
+            center: { lat: latitude, lng: longitude },
+            zoom: 14
+        };
+
+        const map = new google.maps.Map(document.getElementById('location-map'), mapOptions);
+
+        // Add marker for service location
+        const marker = new google.maps.Marker({
+            position: { lat: latitude, lng: longitude },
+            map: map,
+            title: 'Service Location'
+        });
+
+        // Add circle to show service area if radius is available
+        if ($('#location-map').data('radius')) {
+            const radius = parseFloat($('#location-map').data('radius')) * 1609.34; // Convert miles to meters
+            new google.maps.Circle({
+                strokeColor: '#FF0000',
+                strokeOpacity: 0.8,
+                strokeWeight: 2,
+                fillColor: '#FF0000',
+                fillOpacity: 0.1,
+                map: map,
+                center: { lat: latitude, lng: longitude },
+                radius: radius
+            });
+        }
+    }
+
+    // Set up star ratings display
+    $('.star-rating').each(function() {
+        const rating = $(this).data('rating');
+        $(this).find('.fa-star').each(function(index) {
+            if (index < rating) {
+                $(this).addClass('text-warning');
+            } else {
+                $(this).addClass('text-muted');
+            }
+        });
+    });
+
+    // Handle status change buttons
+    $('.status-change-btn').click(function() {
+        const newStatus = $(this).data('status');
+        const statusText = $(this).text().trim();
+
+        if (confirm(`Are you sure you want to change the status to "${statusText}"?`)) {
+            $('#status-change-form input[name="status"]').val(newStatus);
+            $('#status-change-form').submit();
+        }
+    });
+
+    // Setup service timeline display
+    setupTimeline();
+
+    // Function to set up and animate the service timeline
+    function setupTimeline() {
+        if (!$('#service-timeline').length) return;
+
+        // Animate timeline on page load
+        setTimeout(function() {
+            $('.timeline-item').each(function(index) {
+                const $this = $(this);
+                setTimeout(function() {
+                    $this.addClass('show');
+                }, 200 * index);
+            });
+        }, 500);
+    }
+
+    // Handle photo type selection in the upload modal
+    $('#photo_type').change(function() {
+        const photoType = $(this).val();
+        let captionPlaceholder = "Brief description of the photos";
+
+        switch(photoType) {
+            case 'before':
+                captionPlaceholder = "State of equipment/site before service";
+                break;
+            case 'after':
+                captionPlaceholder = "Results after service completion";
+                break;
+            case 'issue':
+                captionPlaceholder = "Description of the issue found";
+                break;
+        }
+
+        $('#caption').attr('placeholder', captionPlaceholder);
+    });
+
+    // Show preview of uploaded images
+    $('#images').change(function() {
+        const $preview = $('#image-preview');
+        $preview.empty();
+
+        if (this.files) {
+            $.each(this.files, function(i, file) {
+                if (!file.type.match('image.*')) return;
+
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    $preview.append(
+                        $('<div class="col-4 mb-2">').append(
+                            $('<img>').attr({
+                                src: e.target.result,
+                                class: 'img-thumbnail',
+                                title: file.name
+                            })
+                        )
+                    );
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+    });
+
+    // Handle technician selection in assign modal
+    $('#technician_id').change(function() {
+        const technicianId = $(this).val();
+
+        if (technicianId) {
+            // Get technician availability data via AJAX
+            $.ajax({
+                url: '/route-management/technician/' + technicianId + '/availability/',
+                type: 'GET',
+                success: function(data) {
+                    if (data.conflicts.length > 0) {
+                        let message = 'Potential scheduling conflicts:<ul>';
+                        $.each(data.conflicts, function(i, conflict) {
+                            message += '<li>' + conflict + '</li>';
+                        });
+                        message += '</ul>';
+
+                        $('#technician-conflicts-warning').html(message).show();
+                    } else {
+                        $('#technician-conflicts-warning').hide();
+                    }
+                },
+                error: function() {
+                    $('#technician-conflicts-warning').hide();
+                }
+            });
+        } else {
+            $('#technician-conflicts-warning').hide();
+        }
+    });
+
+    // Create service request metrics chart
+    if ($('#metrics-chart').length > 0) {
+        const ctx = document.getElementById('metrics-chart').getContext('2d');
+
+        // Chart data would typically come from the server
+        // This is sample data for demonstration
+        const chartData = {
+            labels: ['Scheduled', 'Technician Arrival', 'Service Start', 'Service End'],
+            datasets: [{
+                label: 'Planned',
+                borderColor: 'rgba(78, 115, 223, 1)',
+                backgroundColor: 'rgba(78, 115, 223, 0.1)',
+                data: [0, 15, 30, 90]
+            }, {
+                label: 'Actual',
+                borderColor: 'rgba(28, 200, 138, 1)',
+                backgroundColor: 'rgba(28, 200, 138, 0.1)',
+                data: [0, 20, 35, 85]
+            }]
+        };
+
+        new Chart(ctx, {
+            type: 'line',
+            data: chartData,
+            options: {
+                scales: {
+                    xAxes: [{
+                        gridLines: {
+                            display: false
+                        }
+                    }],
+                    yAxes: [{
+                        ticks: {
+                            beginAtZero: true,
+                            callback: function(value) {
+                                return value + ' min';
+                            }
+                        },
+                        scaleLabel: {
+                            display: true,
+                            labelString: 'Time (minutes)'
+                        }
+                    }]
+                },
+                tooltips: {
+                    callbacks: {
+                        label: function(tooltipItem, data) {
+                            return data.datasets[tooltipItem.datasetIndex].label + ': ' +
+                                   tooltipItem.yLabel + ' min';
+                        }
+                    }
+                },
+                responsive: true,
+                maintainAspectRatio: false
+            }
+        });
+    }
+
+    // Handle service completion form validations
+    $('#complete-service-form').on('submit', function(e) {
+        const startTime = new Date($('#start_time').val());
+        const endTime = new Date($('#end_time').val());
+
+        if (endTime <= startTime) {
+            e.preventDefault();
+            alert('End time must be after start time');
+            return false;
+        }
+
+        // Calculate duration and billable hours automatically
+        const durationMinutes = Math.round((endTime - startTime) / (1000 * 60));
+        $('#duration_minutes').val(durationMinutes);
+
+        // Calculate billable hours (rounded to nearest quarter hour)
+        const billableHours = Math.round(durationMinutes / 15) / 4;
+        $('#billable_hours').val(billableHours);
+
+        return true;
+    });
+
+    // Handle customer feedback requests
+    $('#request-feedback-form').on('submit', function(e) {
+        const email = $('#recipient_email').val();
+        if (!validateEmail(email)) {
+            e.preventDefault();
+            alert('Please enter a valid email address');
+            return false;
+        }
+        return true;
+    });
+
+    // Email validation helper
+    function validateEmail(email) {
+        const re = /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
+        return re.test(String(email).toLowerCase());
+    }
+
+    // Initialize any tooltips
+    $('[data-toggle="tooltip"]').tooltip();
+});
+</script>
+{% endblock %}

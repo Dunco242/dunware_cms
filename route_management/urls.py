@@ -1,0 +1,55 @@
+from django.urls import path
+from . import views
+
+app_name = 'route_management'
+
+urlpatterns = [
+    # Dashboard
+    path('', views.DashboardView.as_view(), name='dashboard'),
+
+    # Service Requests
+    path('service-requests/', views.ServiceRequestListView.as_view(), name='service_request_list'),
+    path('service-requests/create/', views.ServiceRequestCreateView.as_view(), name='service_request_create'),
+    path('service-requests/<int:pk>/', views.ServiceRequestDetailView.as_view(), name='service_request_detail'),
+    path('service-requests/<int:pk>/update/', views.ServiceRequestUpdateView.as_view(), name='service_request_update'),
+
+    # Routes
+    path('routes/', views.RouteListView.as_view(), name='route_list'),
+    path('routes/create/', views.RouteCreateView.as_view(), name='route_create'),
+    path('routes/<int:pk>/', views.RouteDetailView.as_view(), name='route_detail'),
+    path('routes/<int:pk>/update/', views.RouteUpdateView.as_view(), name='route_update'),
+    path('routes/<int:pk>/stops/', views.RouteStopsView.as_view(), name='route_stops'),
+    path('routes/<int:pk>/map/', views.RouteMapView.as_view(), name='route_map'),
+    path('routes/<int:pk>/optimize/', views.optimize_route, name='optimize_route'),
+
+    # Route Stops
+    path('stops/<int:pk>/move/<str:direction>/', views.reorder_stop, name='reorder_stop'),
+    path('stops/<int:pk>/remove/', views.remove_stop, name='remove_stop'),
+    path('stops/<int:pk>/status/<str:status>/', views.update_stop_status, name='update_stop_status'),
+
+    # Service Completions
+    path('completions/create/<int:stop_id>/', views.ServiceCompletionCreateView.as_view(), name='service_completion_create'),
+
+    # Service Photos
+    path('photos/upload/<int:service_request_id>/', views.ServicePhotoUploadView.as_view(), name='service_photo_upload'),
+
+    # Technicians
+    path('technicians/<int:pk>/schedule/', views.technician_schedule_view, name='technician_schedule'),
+    path('technicians/<int:pk>/profile/', views.TechnicianProfileView.as_view(), name='technician_profile'),
+
+    # Service Areas
+    path('service-areas/', views.ServiceAreaListView.as_view(), name='service_area_list'),
+
+    # Route Schedules
+    path('schedules/', views.RouteScheduleListView.as_view(), name='route_schedule_list'),
+    path('schedules/<int:pk>/publish/', views.publish_schedule, name='publish_schedule'),
+
+    # Calendar
+    path('calendar/', views.service_calendar_view, name='service_calendar'),
+
+    # Analytics
+    path('analytics/', views.AnalyticsView.as_view(), name='analytics'),
+
+    # Utility functions
+    path('geocode-locations/', views.geocode_locations, name='geocode_locations'),
+]

@@ -1,0 +1,1041 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Route Stops - {{ route.route_id }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Heading -->
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">
+            Route Stops: {{ route.route_id }}
+            <span class="badge badge-pill
+                {% if route.status == 'draft' %}badge-secondary
+                {% elif route.status == 'published' %}badge-info
+                {% elif route.status == 'in_progress' %}badge-primary
+                {% elif route.status == 'completed' %}badge-success
+                {% elif route.status == 'cancelled' %}badge-danger
+                {% endif %}">
+                {{ route.get_status_display }}
+            </span>
+        </h1>
+        <div class="btn-group">
+            <a href="{% url 'route_management:route_detail' route.id %}" class="d-none d-sm-inline-block btn btn-sm btn-secondary shadow-sm">
+                <i class="fas fa-arrow-left fa-sm text-white-50"></i> Back to Route
+            </a>
+            <a href="{% url 'route_management:route_map' route.id %}" class="d-none d-sm-inline-block btn btn-sm btn-primary shadow-sm ml-2">
+                <i class="fas fa-map-marked-alt fa-sm text-white-50"></i> View Map
+            </a>
+            {% if route.status == 'draft' %}
+            <button type="button" id="optimize-route-btn" class="d-none d-sm-inline-block btn btn-sm btn-success shadow-sm ml-2">
+                <i class="fas fa-magic fa-sm text-white-50"></i> Optimize Route
+            </button>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Content Row -->
+    <div class="row">
+        <!-- Left Column -->
+        <div class="col-xl-4 col-lg-5">
+            <!-- Route Info Card -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Route Information</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-2">
+                        <div class="col-5 font-weight-bold text-gray-800">Route ID:</div>
+                        <div class="col-7">{{ route.route_id }}</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-5 font-weight-bold text-gray-800">Name:</div>
+                        <div class="col-7">{{ route.name }}</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-5 font-weight-bold text-gray-800">Date:</div>
+                        <div class="col-7">{{ route.date|date:"l, F j, Y" }}</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-5 font-weight-bold text-gray-800">Technician:</div>
+                        <div class="col-7">
+                            <a href="{% url 'route_management:technician_profile' route.technician.technician_profile.id %}">
+                                {{ route.technician.get_full_name }}
+                            </a>
+                        </div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-5 font-weight-bold text-gray-800">Start Time:</div>
+                        <div class="col-7">
+                            {% if route.estimated_start_time %}
+                                {{ route.estimated_start_time|time:"g:i A" }}
+                            {% else %}
+                                <span class="text-muted">Not set</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-5 font-weight-bold text-gray-800">End Time:</div>
+                        <div class="col-7">
+                            {% if route.estimated_end_time %}
+                                {{ route.estimated_end_time|time:"g:i A" }}
+                            {% else %}
+                                <span class="text-muted">Not set</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-5 font-weight-bold text-gray-800">Total Stops:</div>
+                        <div class="col-7">{{ stops|length }}</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-5 font-weight-bold text-gray-800">Estimated Miles:</div>
+                        <div class="col-7">
+                            {% if route.estimated_total_miles %}
+                                {{ route.estimated_total_miles|floatformat:1 }} miles
+                            {% else %}
+                                <span class="text-muted">Not calculated</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-5 font-weight-bold text-gray-800">Drive Time:</div>
+                        <div class="col-7">
+                            {% if route.estimated_drive_time_minutes %}
+                                {{ route.estimated_drive_time_minutes }} minutes
+                            {% else %}
+                                <span class="text-muted">Not calculated</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% if route.is_optimized %}
+                    <div class="row mb-2">
+                        <div class="col-5 font-weight-bold text-gray-800">Optimized:</div>
+                        <div class="col-7">
+                            <span class="text-success"><i class="fas fa-check-circle"></i> Yes</span>
+                            {% if route.optimization_timestamp %}
+                                <br><small class="text-muted">{{ route.optimization_timestamp|timesince }} ago</small>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Start/End Locations Card -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Start & End Locations</h6>
+                </div>
+                <div class="card-body">
+                    <h6 class="font-weight-bold">Start Location</h6>
+                    <p>{{ route.start_location|default:"Not specified" }}</p>
+                    {% if route.start_latitude and route.start_longitude %}
+                    <div id="start-location-map" class="map-container mb-4"
+                         data-latitude="{{ route.start_latitude }}"
+                         data-longitude="{{ route.start_longitude }}"
+                         style="height: 150px;"></div>
+                    {% endif %}
+
+                    <h6 class="font-weight-bold mt-3">End Location</h6>
+                    <p>{{ route.end_location|default:"Not specified" }}</p>
+                    {% if route.end_latitude and route.end_longitude %}
+                    <div id="end-location-map" class="map-container"
+                         data-latitude="{{ route.end_latitude }}"
+                         data-longitude="{{ route.end_longitude }}"
+                         style="height: 150px;"></div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Potential Stops Card -->
+            {% if route.status == 'draft' and potential_requests %}
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Potential Service Requests</h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered" id="potential-stops-table" width="100%" cellspacing="0">
+                            <thead>
+                                <tr>
+                                    <th>Request #</th>
+                                    <th>Customer</th>
+                                    <th>Service Type</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for request in potential_requests %}
+                                <tr>
+                                    <td>{{ request.request_number }}</td>
+                                    <td>{{ request.customer.company_name|truncatechars:15 }}</td>
+                                    <td>{{ request.service_type.name|truncatechars:15 }}</td>
+                                    <td>
+                                        <button type="button" class="btn btn-sm btn-primary add-stop-btn"
+                                                data-request-id="{{ request.id }}"
+                                                data-toggle="modal"
+                                                data-target="#addStopModal">
+                                            <i class="fas fa-plus"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Right Column - Stops Management -->
+        <div class="col-xl-8 col-lg-7">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                    <h6 class="m-0 font-weight-bold text-primary">Route Stops</h6>
+                    {% if route.status == 'draft' %}
+                    <button type="button" class="btn btn-sm btn-primary" data-toggle="modal" data-target="#addStopModal">
+                        <i class="fas fa-plus fa-sm"></i> Add Stop
+                    </button>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    {% if stops %}
+                    <div class="table-responsive">
+                        <table class="table table-bordered" id="route-stops-table" width="100%" cellspacing="0">
+                            <thead>
+                                <tr>
+                                    <th width="5%">#</th>
+                                    <th width="22%">Location</th>
+                                    <th width="22%">Service Type</th>
+                                    <th width="16%">ETA</th>
+                                    <th width="15%">Duration</th>
+                                    <th width="20%">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="{% if route.status == 'draft' %}sortable-stops{% endif %}">
+                                {% for stop in stops %}
+                                <tr data-stop-id="{{ stop.id }}">
+                                    <td>{{ stop.stop_number }}</td>
+                                    <td>
+                                        <div data-toggle="tooltip" title="{{ stop.service_request.service_location.get_full_address }}">
+                                            {{ stop.service_request.service_location.name|truncatechars:20 }}
+                                            <div class="small text-muted">{{ stop.service_request.customer.company_name|truncatechars:20 }}</div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div data-toggle="tooltip" title="{{ stop.service_request.description|truncatechars:100 }}">
+                                            {{ stop.service_request.service_type.name }}
+                                            <div class="small text-muted">
+                                                <span class="badge badge-pill
+                                                    {% if stop.service_request.priority == 'low' %}badge-info
+                                                    {% elif stop.service_request.priority == 'medium' %}badge-warning
+                                                    {% elif stop.service_request.priority == 'high' %}badge-danger
+                                                    {% elif stop.service_request.priority == 'urgent' %}badge-danger text-white
+                                                    {% endif %}">
+                                                    {{ stop.service_request.get_priority_display }}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        {% if stop.scheduled_arrival_time %}
+                                            {{ stop.scheduled_arrival_time|time:"g:i A" }}
+                                        {% else %}
+                                            <span class="text-muted">Not set</span>
+                                        {% endif %}
+
+                                        {% if stop.distance_from_previous_miles %}
+                                        <div class="small text-muted">
+                                            {{ stop.distance_from_previous_miles|floatformat:1 }} miles
+                                            {% if stop.drive_time_from_previous_minutes %}
+                                                ({{ stop.drive_time_from_previous_minutes }} min)
+                                            {% endif %}
+                                        </div>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if stop.estimated_duration_minutes %}
+                                            {{ stop.estimated_duration_minutes }} min
+                                        {% else %}
+                                            <span class="text-muted">Not set</span>
+                                        {% endif %}
+
+                                        {% if stop.scheduled_departure_time %}
+                                        <div class="small text-muted">
+                                            Until {{ stop.scheduled_departure_time|time:"g:i A" }}
+                                        </div>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <a href="{% url 'route_management:service_request_detail' stop.service_request.id %}" class="btn btn-info" data-toggle="tooltip" title="View Service Request">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                            {% if route.status == 'draft' %}
+                                                <button type="button" class="btn btn-primary edit-stop-btn"
+                                                        data-stop-id="{{ stop.id }}"
+                                                        data-toggle="modal"
+                                                        data-target="#editStopModal"
+                                                        data-toggle="tooltip" title="Edit Stop">
+                                                    <i class="fas fa-edit"></i>
+                                                </button>
+                                                {% if not forloop.first %}
+                                                <a href="{% url 'route_management:reorder_stop' stop.id 'up' %}" class="btn btn-secondary" data-toggle="tooltip" title="Move Up">
+                                                    <i class="fas fa-arrow-up"></i>
+                                                </a>
+                                                {% endif %}
+                                                {% if not forloop.last %}
+                                                <a href="{% url 'route_management:reorder_stop' stop.id 'down' %}" class="btn btn-secondary" data-toggle="tooltip" title="Move Down">
+                                                    <i class="fas fa-arrow-down"></i>
+                                                </a>
+                                                {% endif %}
+                                                <button type="button" class="btn btn-danger remove-stop-btn"
+                                                        data-stop-id="{{ stop.id }}"
+                                                        data-toggle="tooltip" title="Remove Stop">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {% if route.status == 'draft' %}
+                    <div class="alert alert-info mt-3">
+                        <i class="fas fa-info-circle"></i> You can drag and drop stops to reorder them.
+                    </div>
+                    {% endif %}
+
+                    {% else %}
+                    <div class="text-center py-5">
+                        <div class="mb-3">
+                            <i class="fas fa-map-signs fa-4x text-gray-300"></i>
+                        </div>
+                        <p class="text-muted">No stops have been added to this route yet.</p>
+                        <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#addStopModal">
+                            <i class="fas fa-plus"></i> Add First Stop
+                        </button>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Route Map Card -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Route Map</h6>
+                </div>
+                <div class="card-body">
+                    {% if stops %}
+                    <div id="route-map" class="map-container" style="height: 400px;"></div>
+                    {% else %}
+                    <div class="text-center py-5">
+                        <p class="text-muted">Add stops to see the route on a map.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Route Metrics Card -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Route Metrics</h6>
+                </div>
+                <div class="card-body">
+                    {% if stops %}
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card border-left-primary shadow h-100 py-2">
+                                <div class="card-body">
+                                    <div class="row no-gutters align-items-center">
+                                        <div class="col mr-2">
+                                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                                Total Distance</div>
+                                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                                {{ route.estimated_total_miles|default:"0"|floatformat:1 }} miles
+                                            </div>
+                                        </div>
+                                        <div class="col-auto">
+                                            <i class="fas fa-road fa-2x text-gray-300"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card border-left-success shadow h-100 py-2">
+                                <div class="card-body">
+                                    <div class="row no-gutters align-items-center">
+                                        <div class="col mr-2">
+                                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                                Total Drive Time</div>
+                                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                                {{ route.estimated_drive_time_minutes|default:"0" }} minutes
+                                            </div>
+                                        </div>
+                                        <div class="col-auto">
+                                            <i class="fas fa-clock fa-2x text-gray-300"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mt-4">
+                        <div class="col-md-6">
+                            <div class="card border-left-info shadow h-100 py-2">
+                                <div class="card-body">
+                                    <div class="row no-gutters align-items-center">
+                                        <div class="col mr-2">
+                                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                                Total Service Time</div>
+                                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                                {% with total_service_time=0 %}
+                                                    {% for stop in stops %}
+                                                        {% with total_service_time=total_service_time|add:stop.estimated_duration_minutes|default:0 %}
+                                                        {% endwith %}
+                                                    {% endfor %}
+                                                    {{ total_service_time }} minutes
+                                                {% endwith %}
+                                            </div>
+                                        </div>
+                                        <div class="col-auto">
+                                            <i class="fas fa-tools fa-2x text-gray-300"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card border-left-warning shadow h-100 py-2">
+                                <div class="card-body">
+                                    <div class="row no-gutters align-items-center">
+                                        <div class="col mr-2">
+                                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                                Total Route Duration</div>
+                                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                                {% with total_duration=route.estimated_drive_time_minutes|default:0 %}
+                                                    {% for stop in stops %}
+                                                        {% with total_duration=total_duration|add:stop.estimated_duration_minutes|default:0 %}
+                                                        {% endwith %}
+                                                    {% endfor %}
+                                                    {{ total_duration }} minutes
+                                                {% endwith %}
+                                            </div>
+                                        </div>
+                                        <div class="col-auto">
+                                            <i class="fas fa-hourglass-half fa-2x text-gray-300"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4">
+                        <p class="text-muted">Add stops to calculate route metrics.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Stop Modal -->
+<div class="modal fade" id="addStopModal" tabindex="-1" role="dialog" aria-labelledby="addStopModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addStopModalLabel">Add Stop to Route</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form method="post" action="{% url 'route_management:route_stops' route.id %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="service_request">Service Request</label>
+                        <select class="form-control" id="service_request" name="service_request" required>
+                            <option value="">Select a service request...</option>
+                            {% for request in potential_requests %}
+                            <option value="{{ request.id }}">
+                                {{ request.request_number }} - {{ request.customer.company_name }} - {{ request.service_type.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="scheduled_arrival_time">Scheduled Arrival Time</label>
+                        <input type="time" class="form-control" id="scheduled_arrival_time" name="scheduled_arrival_time">
+                    </div>
+                    <div class="form-group">
+                        <label for="scheduled_departure_time">Scheduled Departure Time</label>
+                        <input type="time" class="form-control" id="scheduled_departure_time" name="scheduled_departure_time">
+                    </div>
+                    <div class="form-group">
+                        <label for="estimated_duration_minutes">Estimated Duration (minutes)</label>
+                        <input type="number" class="form-control" id="estimated_duration_minutes" name="estimated_duration_minutes" min="1">
+                    </div>
+                    <div class="form-group">
+                        <label for="notes">Notes</label>
+                        <textarea class="form-control" id="notes" name="notes" rows="3"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <div class="custom-control custom-checkbox">
+                            <input type="checkbox" class="custom-control-input" id="optimize" name="optimize" value="1">
+                            <label class="custom-control-label" for="optimize">Optimize route after adding this stop</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Add Stop</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Stop Modal -->
+<div class="modal fade" id="editStopModal" tabindex="-1" role="dialog" aria-labelledby="editStopModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editStopModalLabel">Edit Stop</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form id="edit-stop-form" method="post" action="">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="edit_scheduled_arrival_time">Scheduled Arrival Time</label>
+                        <input type="time" class="form-control" id="edit_scheduled_arrival_time" name="scheduled_arrival_time">
+                    </div>
+                    <div class="form-group">
+                        <label for="edit_scheduled_departure_time">Scheduled Departure Time</label>
+                        <input type="time" class="form-control" id="edit_scheduled_departure_time" name="scheduled_departure_time">
+                    </div>
+                    <div class="form-group">
+                        <label for="edit_estimated_duration_minutes">Estimated Duration (minutes)</label>
+                        <input type="number" class="form-control" id="edit_estimated_duration_minutes" name="estimated_duration_minutes" min="1">
+                    </div>
+                    <div class="form-group">
+                        <label for="edit_notes">Notes</label>
+                        <textarea class="form-control" id="edit_notes" name="notes" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Stop Confirmation Modal -->
+<div class="modal fade" id="deleteStopModal" tabindex="-1" role="dialog" aria-labelledby="deleteStopModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteStopModalLabel">Confirm Remove Stop</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to remove this stop from the route?</p>
+                <p class="text-danger">This will return the service request to unscheduled status.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <a href="#" id="confirm-delete-btn" class="btn btn-danger">Remove Stop</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Optimization Settings Modal -->
+<div class="modal fade" id="optimizationSettingsModal" tabindex="-1" role="dialog" aria-labelledby="optimizationSettingsModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="optimizationSettingsModalLabel">Optimization Settings</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form id="optimization-form" method="post" action="{% url 'route_management:optimize_route' route.id %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="optimization_settings">Optimization Profile</label>
+                        <select class="form-control" id="optimization_settings" name="optimization_settings">
+                            <option value="">Use default settings</option>
+                            {% for setting in optimization_settings %}
+                            <option value="{{ setting.id }}">{{ setting.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Prioritize</label>
+                        <div class="custom-control custom-radio">
+                            <input type="radio" id="prioritize_distance" name="prioritize" value="distance" class="custom-control-input" checked>
+                            <label class="custom-control-label" for="prioritize_distance">Minimize Distance</label>
+                        </div>
+                        <div class="custom-control custom-radio">
+                            <input type="radio" id="prioritize_time" name="prioritize" value="time" class="custom-control-input">
+                            <label class="custom-control-label" for="prioritize_time">Minimize Time</label>
+                        </div>
+                        <div class="custom-control custom-radio">
+                            <input type="radio" id="prioritize_priority" name="prioritize" value="priority" class="custom-control-input">
+                            <label class="custom-control-label" for="prioritize_priority">Prioritize High Priority Requests</label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <div class="custom-control custom-checkbox">
+                            <input type="checkbox" class="custom-control-input" id="consider_time_windows" name="consider_time_windows" value="1" checked>
+                            <label class="custom-control-label" for="consider_time_windows">Consider Time Windows</label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <div class="custom-control custom-checkbox">
+                            <input type="checkbox" class="custom-control-input" id="use_traffic" name="use_traffic" value="1" checked>
+                            <label class="custom-control-label" for="use_traffic">Use Traffic Data</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Optimize Route</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Optimization Progress Modal -->
+<div class="modal fade" id="optimizationProgressModal" tabindex="-1" role="dialog" aria-labelledby="optimizationProgressModalLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="optimizationProgressModalLabel">Optimizing Route</h5>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-3">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="sr-only">Optimizing...</span>
+                    </div>
+                </div>
+                <p class="text-center">Please wait while we optimize your route...</p>
+                <div class="progress">
+                    <div id="optimization-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" style="width: 0%"></div>
+                </div>
+                <p class="text-center mt-2 small" id="optimization-status">
+                    Calculating optimal route order...
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'js/route_stops.js' %}"></script>
+<script>
+    $(document).ready(function() {
+    // Initialize DataTables
+    $('#route-stops-table').DataTable({
+        "paging": false,
+        "ordering": false,
+        "info": false,
+        "searching": false
+    });
+
+    $('#potential-stops-table').DataTable({
+        "pageLength": 5,
+        "lengthMenu": [[5, 10, 25, -1], [5, 10, 25, "All"]]
+    });
+
+    // Initialize maps if coordinates are available
+    if ($('#start-location-map').length > 0) {
+        initializeMap('start-location-map');
+    }
+
+    if ($('#end-location-map').length > 0) {
+        initializeMap('end-location-map');
+    }
+
+    if ($('#route-map').length > 0 && $('.sortable-stops tr').length > 0) {
+        initializeRouteMap();
+    }
+
+    // Function to initialize a simple map with a marker
+    function initializeMap(mapId) {
+        const $map = $('#' + mapId);
+        const latitude = parseFloat($map.data('latitude'));
+        const longitude = parseFloat($map.data('longitude'));
+
+        if (isNaN(latitude) || isNaN(longitude)) {
+            return;
+        }
+
+        const mapOptions = {
+            center: { lat: latitude, lng: longitude },
+            zoom: 13,
+            mapTypeId: google.maps.MapTypeId.ROADMAP
+        };
+
+        const map = new google.maps.Map(document.getElementById(mapId), mapOptions);
+
+        // Add marker
+        new google.maps.Marker({
+            position: { lat: latitude, lng: longitude },
+            map: map,
+            title: mapId === 'start-location-map' ? 'Start Location' : 'End Location'
+        });
+    }
+
+    // Function to initialize route map with all stops
+    function initializeRouteMap() {
+        // Extract route information
+        const stops = [];
+        let bounds = new google.maps.LatLngBounds();
+
+        // Add start location if available
+        if ($('#start-location-map').length > 0) {
+            const $startMap = $('#start-location-map');
+            const startLat = parseFloat($startMap.data('latitude'));
+            const startLng = parseFloat($startMap.data('longitude'));
+
+            if (!isNaN(startLat) && !isNaN(startLng)) {
+                stops.push({
+                    position: { lat: startLat, lng: startLng },
+                    type: 'start',
+                    label: 'S',
+                    title: 'Start Location'
+                });
+                bounds.extend(new google.maps.LatLng(startLat, startLng));
+            }
+        }
+
+        // Add all stop locations
+        $('.stop-location').each(function(index) {
+            const $this = $(this);
+            const lat = parseFloat($this.data('latitude'));
+            const lng = parseFloat($this.data('longitude'));
+            const stopNum = $this.data('stop-number');
+            const title = $this.data('title');
+
+            if (!isNaN(lat) && !isNaN(lng)) {
+                stops.push({
+                    position: { lat: lat, lng: lng },
+                    type: 'stop',
+                    label: stopNum.toString(),
+                    title: title
+                });
+                bounds.extend(new google.maps.LatLng(lat, lng));
+            }
+        });
+
+        // Add end location if available
+        if ($('#end-location-map').length > 0) {
+            const $endMap = $('#end-location-map');
+            const endLat = parseFloat($endMap.data('latitude'));
+            const endLng = parseFloat($endMap.data('longitude'));
+
+            if (!isNaN(endLat) && !isNaN(endLng)) {
+                stops.push({
+                    position: { lat: endLat, lng: endLng },
+                    type: 'end',
+                    label: 'E',
+                    title: 'End Location'
+                });
+                bounds.extend(new google.maps.LatLng(endLat, endLng));
+            }
+        }
+
+        // Create map
+        const mapOptions = {
+            zoom: 10,
+            mapTypeId: google.maps.MapTypeId.ROADMAP
+        };
+
+        const map = new google.maps.Map(document.getElementById('route-map'), mapOptions);
+
+        // Add markers for all stops
+        const markers = stops.map(function(stop, i) {
+            return new google.maps.Marker({
+                position: stop.position,
+                map: map,
+                label: stop.label,
+                title: stop.title,
+                icon: getMarkerIcon(stop.type)
+            });
+        });
+
+        // Fit map to bounds
+        map.fitBounds(bounds);
+
+        // Draw route line if we have at least 2 stops
+        if (stops.length >= 2) {
+            const routePath = new google.maps.Polyline({
+                path: stops.map(stop => stop.position),
+                geodesic: true,
+                strokeColor: '#3498db',
+                strokeOpacity: 1.0,
+                strokeWeight: 3
+            });
+
+            routePath.setMap(map);
+        }
+    }
+
+    // Helper function to get marker icon based on type
+    function getMarkerIcon(type) {
+        switch(type) {
+            case 'start':
+                return {
+                    url: 'https://maps.google.com/mapfiles/ms/icons/green-dot.png',
+                    labelOrigin: new google.maps.Point(16, 10)
+                };
+            case 'end':
+                return {
+                    url: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png',
+                    labelOrigin: new google.maps.Point(16, 10)
+                };
+            default:
+                return {
+                    url: 'https://maps.google.com/mapfiles/ms/icons/blue-dot.png',
+                    labelOrigin: new google.maps.Point(16, 10)
+                };
+        }
+    }
+
+    // Make stops sortable (if editable)
+    if ($('.sortable-stops').length > 0) {
+        $('.sortable-stops').sortable({
+            items: 'tr',
+            cursor: 'move',
+            axis: 'y',
+            update: function(event, ui) {
+                // Update the stop numbers
+                $('.sortable-stops tr').each(function(index) {
+                    $(this).find('td:first').text(index + 1);
+                });
+
+                // Save the new order
+                const stopOrder = [];
+                $('.sortable-stops tr').each(function() {
+                    stopOrder.push($(this).data('stop-id'));
+                });
+
+                // Send the new order to the server
+                $.ajax({
+                    url: window.location.pathname + '/reorder/',
+                    type: 'POST',
+                    data: {
+                        'stop_order': stopOrder.join(','),
+                        'csrfmiddlewaretoken': $('input[name="csrfmiddlewaretoken"]').val()
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            toastr.success('Route stops reordered successfully');
+
+                            // Update route metrics
+                            if (response.route_metrics) {
+                                // Update displayed metrics with new values
+                                // This depends on your specific metric display structure
+                                if (response.route_metrics.total_miles) {
+                                    $('.total-miles').text(response.route_metrics.total_miles.toFixed(1) + ' miles');
+                                }
+                                if (response.route_metrics.drive_time_minutes) {
+                                    $('.total-drive-time').text(response.route_metrics.drive_time_minutes + ' minutes');
+                                }
+                            }
+                        } else {
+                            toastr.error('Error reordering stops');
+                            // Reload the page to restore the original order
+                            window.location.reload();
+                        }
+                    },
+                    error: function() {
+                        toastr.error('Error reordering stops');
+                        // Reload the page to restore the original order
+                        window.location.reload();
+                    }
+                });
+            }
+        });
+    }
+
+    // Handle add stop button click
+    $('.add-stop-btn').click(function() {
+        const requestId = $(this).data('request-id');
+        $('#service_request').val(requestId);
+
+        // Fetch service request details to pre-populate fields
+        $.ajax({
+            url: '/route-management/service-request/' + requestId + '/details/',
+            type: 'GET',
+            success: function(data) {
+                if (data.estimated_duration_minutes) {
+                    $('#estimated_duration_minutes').val(data.estimated_duration_minutes);
+                }
+
+                // If preferred time is available, set arrival time
+                if (data.preferred_time_start) {
+                    $('#scheduled_arrival_time').val(data.preferred_time_start);
+                }
+
+                // Calculate departure time based on duration
+                if (data.preferred_time_start && data.estimated_duration_minutes) {
+                    // Parse time and add duration
+                    const arrivalTime = new Date('1970-01-01T' + data.preferred_time_start);
+                    arrivalTime.setMinutes(arrivalTime.getMinutes() + parseInt(data.estimated_duration_minutes));
+
+                    // Format as HH:MM
+                    const hours = arrivalTime.getHours().toString().padStart(2, '0');
+                    const minutes = arrivalTime.getMinutes().toString().padStart(2, '0');
+                    $('#scheduled_departure_time').val(hours + ':' + minutes);
+                }
+            }
+        });
+    });
+
+    // Handle edit stop button click
+    $('.edit-stop-btn').click(function() {
+        const stopId = $(this).data('stop-id');
+
+        // Set the form action URL
+        $('#edit-stop-form').attr('action', '/route-management/route-stop/' + stopId + '/update/');
+
+        // Fetch stop details to populate the form
+        $.ajax({
+            url: '/route-management/route-stop/' + stopId + '/details/',
+            type: 'GET',
+            success: function(data) {
+                if (data.scheduled_arrival_time) {
+                    $('#edit_scheduled_arrival_time').val(data.scheduled_arrival_time);
+                }
+                if (data.scheduled_departure_time) {
+                    $('#edit_scheduled_departure_time').val(data.scheduled_departure_time);
+                }
+                if (data.estimated_duration_minutes) {
+                    $('#edit_estimated_duration_minutes').val(data.estimated_duration_minutes);
+                }
+                if (data.notes) {
+                    $('#edit_notes').val(data.notes);
+                }
+            }
+        });
+    });
+
+    // Handle remove stop button click
+    $('.remove-stop-btn').click(function() {
+        const stopId = $(this).data('stop-id');
+        $('#deleteStopModal').modal('show');
+        $('#confirm-delete-btn').attr('href', '/route-management/route-stop/' + stopId + '/remove/');
+    });
+
+    // Handle optimize route button click
+    $('#optimize-route-btn').click(function() {
+        $('#optimizationSettingsModal').modal('show');
+    });
+
+    // Handle optimization form submit
+    $('#optimization-form').submit(function() {
+        $('#optimizationSettingsModal').modal('hide');
+        $('#optimizationProgressModal').modal('show');
+
+        // Simulate optimization progress
+        simulateOptimizationProgress();
+    });
+
+    // Function to simulate optimization progress (for demo purposes)
+    function simulateOptimizationProgress() {
+        let progress = 0;
+        const progressBar = $('#optimization-progress-bar');
+        const statusText = $('#optimization-status');
+        const statuses = [
+            'Calculating optimal route order...',
+            'Determining best travel routes...',
+            'Calculating drive times...',
+            'Adjusting for time windows...',
+            'Finalizing route optimization...'
+        ];
+
+        const interval = setInterval(function() {
+            progress += 5;
+
+            if (progress >= 100) {
+                clearInterval(interval);
+                // In a real implementation, the server would return when done
+                // window.location.reload();
+                return;
+            }
+
+            progressBar.css('width', progress + '%');
+            progressBar.attr('aria-valuenow', progress);
+
+            // Update status text at certain points
+            if (progress === 20) {
+                statusText.text(statuses[1]);
+            } else if (progress === 40) {
+                statusText.text(statuses[2]);
+            } else if (progress === 60) {
+                statusText.text(statuses[3]);
+            } else if (progress === 80) {
+                statusText.text(statuses[4]);
+            }
+        }, 200);
+    }
+
+    // Calculate estimated departure time based on arrival time and duration
+    $('#scheduled_arrival_time, #estimated_duration_minutes').change(function() {
+        const arrivalTime = $('#scheduled_arrival_time').val();
+        const duration = $('#estimated_duration_minutes').val();
+
+        if (arrivalTime && duration) {
+            // Parse time and add duration
+            const arrivalDate = new Date('1970-01-01T' + arrivalTime);
+            arrivalDate.setMinutes(arrivalDate.getMinutes() + parseInt(duration));
+
+            // Format as HH:MM
+            const hours = arrivalDate.getHours().toString().padStart(2, '0');
+            const minutes = arrivalDate.getMinutes().toString().padStart(2, '0');
+            $('#scheduled_departure_time').val(hours + ':' + minutes);
+        }
+    });
+
+    // Same functionality for edit form
+    $('#edit_scheduled_arrival_time, #edit_estimated_duration_minutes').change(function() {
+        const arrivalTime = $('#edit_scheduled_arrival_time').val();
+        const duration = $('#edit_estimated_duration_minutes').val();
+
+        if (arrivalTime && duration) {
+            // Parse time and add duration
+            const arrivalDate = new Date('1970-01-01T' + arrivalTime);
+            arrivalDate.setMinutes(arrivalDate.getMinutes() + parseInt(duration));
+
+            // Format as HH:MM
+            const hours = arrivalDate.getHours().toString().padStart(2, '0');
+            const minutes = arrivalDate.getMinutes().toString().padStart(2, '0');
+            $('#edit_scheduled_departure_time').val(hours + ':' + minutes);
+        }
+    });
+
+    // Initialize any tooltips
+    $('[data-toggle="tooltip"]').tooltip();
+});
+</script>
+{% endblock %}

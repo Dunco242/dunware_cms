@@ -16,7 +16,7 @@ urlpatterns = [
     path('documents/', include('document_editor.urls', namespace='document_editor')),
     path('video_meetings/', include('video_conference.urls', namespace='video_meetings')),
     path('onboarding/', include('onboarding.urls', namespace='onboarding')),
-
+    path('route_management/', include('route_management.urls', namespace='route_management')),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
 if settings.DEBUG:
