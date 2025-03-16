@@ -1530,7 +1530,7 @@ class MeetingDeleteView(LoginRequiredMixin, DeleteView):
 
 logger = logging.getLogger(__name__)
 
-class CalendarView(LoginRequiredMixin, TemplateView):
+class CalendarView(LoginRequiredMixin, EmployeeRequiredMixin, TemplateView):
     """
     Calendar view with employee selection capability
     """
@@ -1540,8 +1540,8 @@ class CalendarView(LoginRequiredMixin, TemplateView):
         context = super().get_context_data(**kwargs)
 
         try:
-            # Get current employee directly
-            current_employee = self.request.user.employee_profile
+            # Get current employee from the mixin
+            current_employee = self.employee
 
             # Get active employees excluding the current one
             available_employees = Employee.objects.exclude(
@@ -1564,7 +1564,6 @@ class CalendarView(LoginRequiredMixin, TemplateView):
                     'recurrence': rule.get_recurrence_type_display(),
                     'time_range': f"{rule.start_time.strftime('%I:%M %p')} - {rule.end_time.strftime('%I:%M %p')}",
                     'day_info': self._get_rule_day_info(rule),
-                    'duration_limits': f"{rule.min_booking_duration}-{rule.max_booking_duration} minutes",
                     'buffer': f"{rule.buffer_before} min before, {rule.buffer_after} min after"
                 })
 
@@ -1635,7 +1634,6 @@ class CalendarView(LoginRequiredMixin, TemplateView):
         elif rule.recurrence_type == 'yearly':
             return f"{rule.get_month_display()} {rule.day_of_month}"
         return ""
-
 
 # Function-based view alternative
 def calendar_view(request):
