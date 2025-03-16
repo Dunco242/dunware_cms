@@ -5371,7 +5371,7 @@ def calendar_employee_debug(request):
 
 @login_required
 def minimal_calendar_view(request):
-    """Enhanced minimal calendar view with additional functionality"""
+    """Enhanced minimal calendar view with scheduling functionality"""
 
     # Get current employee directly from request.user (PRESERVED)
     try:
@@ -5439,15 +5439,106 @@ def minimal_calendar_view(request):
         action = request.POST.get('action')
 
         if action == 'suggest_meeting':
-            # Get selected employees
+            # Get selected employees and duration
             employee_ids = request.POST.getlist('employees')
+            duration = int(request.POST.get('duration', 60))  # Default to 1 hour
 
             if not employee_ids:
                 messages.error(request, "Please select at least one participant")
                 return redirect('minimal_calendar')
 
-            # Success message with selected IDs
-            messages.success(request, f"Selected employees: {', '.join(employee_ids)}")
+            # Get Employee objects for selected IDs
+            selected_employees = Employee.objects.filter(id__in=employee_ids)
+
+            # Find optimal time for all participants
+            try:
+                from .scheduling_service import SchedulingService
+                scheduling_service = SchedulingService(request.user)
+
+                # Find optimal time for all participants
+                suggestion = scheduling_service.suggest_meeting_time(
+                    participants=list(selected_employees) + [current_employee],
+                    duration_minutes=duration,
+                    within_days=7
+                )
+
+                # If successful, redirect to meeting creation
+                if suggestion.get('success'):
+                    start_datetime = suggestion['start_datetime']
+                    end_datetime = suggestion['end_datetime']
+
+                    # Format for URL
+                    start_str = start_datetime.strftime('%Y-%m-%dT%H:%M')
+                    end_str = end_datetime.strftime('%Y-%m-%dT%H:%M')
+
+                    # Create attendee param string for all selected employees
+                    attendee_params = '&'.join([f'attendees={emp_id}' for emp_id in employee_ids])
+
+                    # Success message
+                    messages.success(
+                        request,
+                        f"Found optimal time: {start_datetime.strftime('%Y-%m-%d %H:%M')} to {end_datetime.strftime('%H:%M')}"
+                    )
+
+                    # Redirect to meeting creation with suggested time and attendees
+                    return redirect(f'/meetings/create/?start_time={start_str}&end_time={end_str}&{attendee_params}')
+                else:
+                    # Could not find a time
+                    error_reason = suggestion.get('reason', 'No available time slots found')
+                    messages.warning(request, f"Could not find a time that works for all participants: {error_reason}")
+            except ImportError:
+                messages.error(request, "Scheduling service not available")
+            except Exception as e:
+                logger.error(f"Error suggesting meeting time: {str(e)}")
+                messages.error(request, f"Error finding optimal meeting time: {str(e)}")
+
+            return redirect('minimal_calendar')
+
+        elif action == 'availability_check':
+            # Handle availability check form
+            date_str = request.POST.get('date')
+            start_time_str = request.POST.get('start_time')
+            duration = int(request.POST.get('duration', 60))
+
+            try:
+                # Parse date and time
+                date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
+                start_time_obj = datetime.strptime(start_time_str, '%H:%M').time()
+
+                # Combine to create datetime
+                start_datetime = timezone.make_aware(datetime.combine(date_obj, start_time_obj))
+                end_datetime = start_datetime + timedelta(minutes=duration)
+
+                # Check availability using scheduling service
+                scheduling_service = SchedulingService(request.user)
+                is_available = scheduling_service.check_availability(
+                    start_datetime,
+                    end_datetime,
+                    duration
+                )
+
+                if is_available:
+                    messages.success(request, f"Time slot is available on {date_str} at {start_time_str}")
+                else:
+                    # Get next available slot
+                    next_start, next_end = scheduling_service.get_next_available_slot(
+                        from_datetime=start_datetime,
+                        duration_minutes=duration
+                    )
+
+                    if next_start and next_end:
+                        messages.warning(
+                            request,
+                            f"Selected time is not available. Next available: {next_start.strftime('%Y-%m-%d %H:%M')}"
+                        )
+                    else:
+                        messages.error(request, "Selected time is not available and no alternative found")
+            except ValueError:
+                messages.error(request, "Invalid date or time format")
+            except Exception as e:
+                logger.error(f"Error checking availability: {str(e)}")
+                messages.error(request, f"Error checking availability: {str(e)}")
+
             return redirect('minimal_calendar')
 
     # Comprehensive context with all required data
@@ -5476,6 +5567,7 @@ def _get_rule_day_info(rule):
     elif rule.recurrence_type == 'yearly':
         return f"{rule.get_month_display()} {rule.day_of_month}"
     return ""
+
 
 
 class CalendarViewSimplified(LoginRequiredMixin, TemplateView):
