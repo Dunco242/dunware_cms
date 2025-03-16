@@ -40,61 +40,7 @@
        padding: 2px 4px !important;
    }
 
-   .fc-event-time {
-       font-weight: bold;
-   }
-
-   .fc-daygrid-event-dot {
-       display: none;
-   }
-
-   .fc-event-title {
-       display: block;
-       overflow: visible !important;
-       white-space: normal !important;
-   }
-
-   /* Availability styling */
-   .availability-slot {
-       background-color: rgba(92, 184, 92, 0.2);
-       border: 1px solid #5cb85c;
-       padding: 2px 4px;
-       margin: 2px 0;
-       border-radius: 3px;
-   }
-
-   .availability-unavailable {
-       background-color: rgba(217, 83, 79, 0.2);
-       border: 1px solid #d9534f;
-       padding: 2px 4px;
-       margin: 2px 0;
-       border-radius: 3px;
-       color: #d9534f;
-   }
-
-   .schedule-rule-item {
-       background-color: rgba(91, 192, 222, 0.1);
-       border: 1px solid #5bc0de;
-       padding: 8px;
-       margin-bottom: 8px;
-       border-radius: 4px;
-   }
-
-   .error-container {
-      background-color: rgba(220, 53, 69, 0.1);
-      border: 1px solid #dc3545;
-      border-radius: 5px;
-      padding: 15px;
-      margin-bottom: 15px;
-   }
-
-   .employee-count-badge {
-      font-size: 0.9rem;
-      vertical-align: middle;
-      margin-left: 8px;
-   }
-
-   /* Force native select appearance */
+   /* Force native select appearance - PRESERVED from minimal calendar */
    select[name="employees"] {
        display: block !important;
        visibility: visible !important;
@@ -109,37 +55,6 @@
        -moz-appearance: menulist !important;
        appearance: menulist !important;
    }
-
-   /* Hide any Select2 containers */
-   body .select2-container {
-       display: none !important;
-       visibility: hidden !important;
-       opacity: 0 !important;
-   }
-
-   /* Fix Select2 hidden elements */
-   .select2-hidden-accessible {
-       display: block !important;
-       position: static !important;
-       width: auto !important;
-       height: auto !important;
-       opacity: 1 !important;
-       margin: 0 !important;
-       overflow: visible !important;
-       clip: auto !important;
-       border: 1px solid #ced4da !important;
-   }
-
-   /* Responsive adjustments */
-   @media (max-width: 992px) {
-       .calendar-sidebar {
-           max-width: 100%;
-       }
-
-       #calendar {
-           height: 500px;
-       }
-   }
 </style>
 {% endblock %}
 
@@ -152,6 +67,14 @@
       <p>Please try refreshing the page or contact support if the issue persists.</p>
    </div>
    {% endif %}
+
+   <!-- Debug Information - For troubleshooting only -->
+   <div style="background: #f8f9fa; padding: 10px; margin-bottom: 15px; border: 1px solid #ddd;">
+     <h6>Debug Information:</h6>
+     <p>Employee Count: {{ employee_count }}</p>
+     <p>Current Employee: {% if current_employee %}{{ current_employee.id }} - {{ current_employee.user.username }}{% else %}None{% endif %}</p>
+     <p>Available Employees: {{ available_employees|length }}</p>
+   </div>
 
    <div class="row calendar-row">
       <!-- Calendar Column -->
@@ -169,9 +92,6 @@
                   <a href="{% url 'event-create' %}" class="btn btn-sm btn-outline-primary">
                      <i class="fas fa-calendar"></i> New Event
                   </a>
-                  <a href="{% url 'schedule-rule-list' %}" class="btn btn-sm btn-outline-primary">
-                     <i class="fas fa-calendar-alt"></i> Scheduling Rules
-                  </a>
                </div>
             </div>
             <div class="card-body">
@@ -182,7 +102,7 @@
 
       <!-- Sidebar Column -->
       <div class="col-lg-3 calendar-sidebar">
-         <!-- Availability Card -->
+         <!-- Availability Card - Added from Calendar View -->
          <div class="card shadow mb-4">
             <div class="card-header py-3">
                <h6 class="m-0 font-weight-bold text-primary">Today's Availability</h6>
@@ -222,7 +142,7 @@
             </div>
          </div>
 
-         <!-- Suggested Meeting Slots Card -->
+         <!-- Suggested Meeting Slots Card - Added from Calendar View -->
          <div class="card shadow mb-4">
             <div class="card-header py-3">
                <h6 class="m-0 font-weight-bold text-primary">Suggested Meeting Times</h6>
@@ -241,33 +161,40 @@
                {% endif %}
             </div>
          </div>
-        <div class="card-body">
-            <h5>Schedule Group Meeting</h5>
-            <form method="post" id="scheduleMeetingForm">
-                {% csrf_token %}
-                <input type="hidden" name="action" value="suggest_meeting">
 
-                <div class="mb-3">
-                    <label class="form-label">Select Participants ({{ available_employees.count }} available):</label>
-                    <select name="employees" multiple class="form-select" id="participantsSelect" style="height: 200px;">
-                        {% for emp in available_employees %}
-                            <option value="{{ emp.id }}">
-                                {{ emp.user.get_full_name|default:emp.user.username }} ({{ emp.employee_id }})
-                            </option>
-                        {% empty %}
-                            <option disabled>No employees available</option>
-                        {% endfor %}
-                    </select>
-                    <div class="form-text">Hold Ctrl to select multiple participants</div>
-                </div>
+         <!-- Schedule Group Meeting Card - PRESERVED from minimal calendar -->
+         <div class="card shadow mb-4">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">
+                   Schedule Group Meeting
+                   <span class="badge bg-primary text-white">{{ employee_count }} employees</span>
+                </h6>
+            </div>
+            <div class="card-body">
+                <form method="post" id="scheduleMeetingForm">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="suggest_meeting">
 
-                <button type="submit" class="btn btn-primary">Find Optimal Time</button>
-            </form>
-        </div>
-    </div>
-</div>
+                    <div class="mb-3">
+                        <label class="form-label">Select Participants:</label>
+                        <select name="employees" multiple class="form-select" id="participantsSelect" style="height: 200px;">
+                            {% for emp in available_employees %}
+                                <option value="{{ emp.id }}">
+                                    {{ emp.user.get_full_name|default:emp.user.username }} ({{ emp.employee_id }})
+                                </option>
+                            {% empty %}
+                                <option disabled>No employees available</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">Hold Ctrl to select multiple participants</div>
+                    </div>
 
-         <!-- Schedule Rules Summary -->
+                    <button type="submit" class="btn btn-primary">Find Optimal Time</button>
+                </form>
+            </div>
+         </div>
+
+         <!-- Schedule Rules Summary - Added from Calendar View -->
          {% if schedule_rules %}
          <div class="card shadow mb-4">
             <div class="card-header py-3">
@@ -290,89 +217,9 @@
                </div>
             </div>
          </div>
-         {% else %}
-         <div class="card shadow mb-4">
-            <div class="card-header py-3">
-               <h6 class="m-0 font-weight-bold text-primary">Schedule Rules</h6>
-            </div>
-            <div class="card-body">
-               <p class="text-muted">You don't have any schedule rules set up yet.</p>
-               <p>Schedule rules help you define your availability for meetings and tasks.</p>
-               <a href="{% url 'schedule-rule-create' %}" class="btn btn-sm btn-primary w-100">
-                  <i class="fas fa-plus"></i> Create Schedule Rule
-               </a>
-            </div>
-         </div>
          {% endif %}
       </div>
    </div>
-</div>
-
-<!-- Event Details Modal -->
-<div class="modal fade" id="eventDetailsModal" tabindex="-1" role="dialog">
-   <div class="modal-dialog" role="document">
-       <div class="modal-content">
-           <div class="modal-header">
-               <h5 class="modal-title" id="eventModalTitle">Event Details</h5>
-               <button type="button" class="close" data-dismiss="modal">
-                   <span>&times;</span>
-               </button>
-           </div>
-           <div class="modal-body" id="eventModalBody">
-               <!-- Dynamic content will be inserted here -->
-           </div>
-           <div class="modal-footer">
-               <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-               <a href="#" id="eventEditLink" class="btn btn-primary">Edit</a>
-           </div>
-       </div>
-   </div>
-</div>
-
-<!-- Availability Check Modal -->
-<div class="modal fade" id="availabilityCheckModal" tabindex="-1" role="dialog">
-    <div class="modal-dialog" role="document">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Check Time Slot Availability</h5>
-                <button type="button" class="close" data-dismiss="modal">
-                    <span>&times;</span>
-                </button>
-            </div>
-            <div class="modal-body">
-                <form method="post" action="{% url 'calendar' %}" id="availabilityCheckForm">
-                   {% csrf_token %}
-                   <input type="hidden" name="action" value="availability_check">
-
-                   <div class="mb-3">
-                      <label for="availabilityDate" class="form-label">Date:</label>
-                      <input type="date" id="availabilityDate" name="date" class="form-control" required>
-                   </div>
-
-                   <div class="mb-3">
-                      <label for="availabilityTime" class="form-label">Start Time:</label>
-                      <input type="time" id="availabilityTime" name="start_time" class="form-control" required>
-                   </div>
-
-                   <div class="mb-3">
-                      <label for="availabilityDuration" class="form-label">Duration:</label>
-                      <select id="availabilityDuration" name="duration" class="form-select">
-                         <option value="30">30 minutes</option>
-                         <option value="60" selected>1 hour</option>
-                         <option value="90">1.5 hours</option>
-                         <option value="120">2 hours</option>
-                      </select>
-                   </div>
-
-                   <div id="availabilityResults" class="mt-3 d-none">
-                      <div class="alert" role="alert"></div>
-                   </div>
-
-                   <button type="submit" class="btn btn-primary">Check Availability</button>
-                </form>
-            </div>
-        </div>
-    </div>
 </div>
 {% endblock %}
 
@@ -381,63 +228,7 @@
 <script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/locales-all.min.js'></script>
 
 <script>
-    // Disable Select2 for the participants select
-document.addEventListener('DOMContentLoaded', function() {
-    // Wait a brief moment for any Select2 initializations to complete
-    setTimeout(function() {
-        // Find the select element
-        var participantsSelect = document.getElementById('participantsSelect');
-
-        // Try to destroy any Select2 instances if jQuery and Select2 exist
-        if (window.jQuery && jQuery.fn.select2 && participantsSelect) {
-            try {
-                jQuery(participantsSelect).select2('destroy');
-                console.log("Destroyed Select2 on participants select");
-            } catch(e) {
-                console.log("Select2 not initialized or already destroyed");
-            }
-        }
-
-        // Log the original select element state
-        console.log("Select element visible after initialization:",
-            participantsSelect ? window.getComputedStyle(participantsSelect).display : "Element not found");
-    }, 100);
-});
-    // Disable Select2 if it exists
     document.addEventListener('DOMContentLoaded', function() {
-        // Prevent Select2 from initializing on our select element
-        if (typeof $.fn !== 'undefined' && $.fn.select2) {
-            try {
-                $('#participantsSelect').select2('destroy');
-            } catch (e) {
-                console.log('Select2 not initialized yet');
-            }
-
-            // Ensure the select is visible by force
-            const participantsSelect = document.getElementById('participantsSelect');
-            if (participantsSelect) {
-                console.log("Found participants select, ensuring it's visible");
-
-                // Force display CSS properties
-                participantsSelect.style.display = 'block';
-                participantsSelect.style.visibility = 'visible';
-                participantsSelect.style.opacity = '1';
-
-                // Remove aria attributes that might hide it
-                participantsSelect.removeAttribute('aria-hidden');
-                participantsSelect.removeAttribute('tabindex');
-
-                // Prevent Select2 from initializing on this element
-                $(document).on('select2:init', '#participantsSelect', function(e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    return false;
-                });
-            } else {
-                console.log("Could not find participants select");
-            }
-        }
-
         // Initialize calendar configuration
         var calendarEl = document.getElementById('calendar');
 
@@ -450,440 +241,25 @@ document.addEventListener('DOMContentLoaded', function() {
                 right: 'dayGridMonth,timeGridWeek,timeGridDay'
             },
             themeSystem: 'bootstrap',
-            events: '{% url "user-calendar-events" %}', // Use your existing URL pattern
+            events: '{% url "user-calendar-events" %}',
             editable: true,
             selectable: true,
             selectMirror: true,
             dayMaxEvents: true,
             eventDisplay: 'block',
-
-            // Customize event rendering
-            eventContent: function(arg) {
-                let eventEl = document.createElement('div');
-                eventEl.classList.add('fc-event-custom');
-
-                // Helper function to determine text color based on background color
-                function getContrastYIQ(hexcolor) {
-                    if (!hexcolor || hexcolor.indexOf('#') !== 0) return 'white';
-                    hexcolor = hexcolor.replace("#", "");
-                    var r = parseInt(hexcolor.substr(0,2), 16);
-                    var g = parseInt(hexcolor.substr(2,2), 16);
-                    var b = parseInt(hexcolor.substr(4,2), 16);
-                    var yiq = ((r*299)+(g*587)+(b*114))/1000;
-                    return (yiq >= 128) ? 'black' : 'white';
-                }
-
-                // Get background color and determine contrast color
-                const bgColor = arg.event.backgroundColor || '#3788d8';
-                const textColor = getContrastYIQ(bgColor);
-
-                // Style the event element
-                eventEl.style.backgroundColor = bgColor;
-                eventEl.style.color = textColor;
-                eventEl.style.padding = '4px';
-                eventEl.style.borderRadius = '3px';
-                eventEl.style.display = 'block';
-                eventEl.style.width = '100%';
-                eventEl.style.wordWrap = 'break-word';
-                eventEl.style.whiteSpace = 'normal';
-
-                // Create title span
-                let titleSpan = document.createElement('span');
-                titleSpan.textContent = arg.event.title;
-                titleSpan.style.fontWeight = 'bold';
-                titleSpan.style.display = 'block';
-                eventEl.appendChild(titleSpan);
-
-                // Add type-specific icons and information
-                if (arg.event.extendedProps.type) {
-                    let typeSpan = document.createElement('small');
-                    switch (arg.event.extendedProps.type) {
-                        case 'task':
-                            typeSpan.textContent = '📋 Task - ' + (arg.event.extendedProps.status || '');
-                            break;
-                        case 'meeting':
-                            typeSpan.textContent = '🤝 Meeting - ' + (arg.event.extendedProps.meeting_type || '');
-                            break;
-                        case 'event':
-                            typeSpan.textContent = '📅 Event - ' + (arg.event.extendedProps.event_type || '');
-                            break;
-                    }
-                    typeSpan.style.display = 'block';
-                    typeSpan.style.opacity = '0.8';
-                    eventEl.appendChild(typeSpan);
-                }
-
-                // Add location if available
-                if (arg.event.extendedProps.location) {
-                    let locationSpan = document.createElement('small');
-                    locationSpan.textContent = '📍 ' + arg.event.extendedProps.location;
-                    locationSpan.style.display = 'block';
-                    locationSpan.style.opacity = '0.8';
-                    eventEl.appendChild(locationSpan);
-                }
-
-                return { domNodes: [eventEl] };
-            },
-
-            // Handle event click
-            eventClick: function(info) {
-                showEventDetails(info.event);
-            },
-
-            // Handle date click to add new event
-            dateClick: function(info) {
-                let date = info.dateStr;
-                showDateOptions(date);
-            },
-
-            // Handle date selection
-            select: function(info) {
-                let startStr = info.startStr;
-                let endStr = info.endStr;
-                showDateRangeOptions(startStr, endStr);
-
-                calendar.unselect(); // Clear selection
-            },
-
-            // Handle event drag/drop
-            eventDrop: function(info) {
-                handleEventMove(info.event, info.oldEvent);
-            }
         });
 
         calendar.render();
 
-        // Function to show event details
-        function showEventDetails(event) {
-            let modalTitle = document.getElementById('eventModalTitle');
-            let modalBody = document.getElementById('eventModalBody');
-            let editLink = document.getElementById('eventEditLink');
-
-            // Set modal title
-            modalTitle.textContent = event.title;
-
-            // Build event details content
-            let detailsHtml = '';
-
-            // Add type-specific information
-            switch (event.extendedProps.type) {
-                case 'task':
-                    detailsHtml += `<p><strong>Type:</strong> Task</p>`;
-                    detailsHtml += `<p><strong>Status:</strong> ${event.extendedProps.status || 'N/A'}</p>`;
-                    detailsHtml += `<p><strong>Priority:</strong> ${event.extendedProps.priority || 'N/A'}</p>`;
-                    detailsHtml += `<p><strong>Due Date:</strong> ${new Date(event.start).toLocaleString()}</p>`;
-                    detailsHtml += `<p><strong>Assigned To:</strong> ${event.extendedProps.assigned_to || 'Unassigned'}</p>`;
-                    editLink.href = `/tasks/${event.id.split('_')[1]}/update/`;
-                    break;
-
-                case 'meeting':
-                    detailsHtml += `<p><strong>Type:</strong> ${event.extendedProps.meeting_type || 'Meeting'}</p>`;
-                    detailsHtml += `<p><strong>Status:</strong> ${event.extendedProps.status || 'N/A'}</p>`;
-                    detailsHtml += `<p><strong>Start:</strong> ${new Date(event.start).toLocaleString()}</p>`;
-                    detailsHtml += `<p><strong>End:</strong> ${new Date(event.end).toLocaleString()}</p>`;
-                    detailsHtml += `<p><strong>Organizer:</strong> ${event.extendedProps.organizer || 'N/A'}</p>`;
-                    editLink.href = `/meetings/${event.id.split('_')[1]}/update/`;
-                    break;
-
-                case 'event':
-                    detailsHtml += `<p><strong>Type:</strong> ${event.extendedProps.event_type || 'Event'}</p>`;
-                    detailsHtml += `<p><strong>Start:</strong> ${new Date(event.start).toLocaleString()}</p>`;
-                    detailsHtml += `<p><strong>End:</strong> ${new Date(event.end).toLocaleString()}</p>`;
-
-                    if (event.extendedProps.location) {
-                        detailsHtml += `<p><strong>Location:</strong> ${event.extendedProps.location}</p>`;
-                    }
-
-                    if (event.extendedProps.description) {
-                        detailsHtml += `<p><strong>Description:</strong> ${event.extendedProps.description}</p>`;
-                    }
-
-                    if (event.extendedProps.customer) {
-                        detailsHtml += `<p><strong>Customer:</strong> ${event.extendedProps.customer}</p>`;
-                    }
-
-                    editLink.href = `/events/${event.id.split('_')[1]}/update/`;
-                    break;
-
-                default:
-                    detailsHtml += `<p>No additional details available.</p>`;
-                    editLink.href = '#';
-            }
-
-            // Set modal content
-            modalBody.innerHTML = detailsHtml;
-
-            // Show modal
-            $('#eventDetailsModal').modal('show');
+        // Make sure the select element is not interfered with by Select2
+        // PRESERVED from minimal calendar - ensure select visibility
+        const participantsSelect = document.getElementById('participantsSelect');
+        if (participantsSelect) {
+            console.log("Found participants select, ensuring it's visible");
+            participantsSelect.style.display = 'block';
+            participantsSelect.style.visibility = 'visible';
+            participantsSelect.style.opacity = '1';
         }
-
-        // Function to show date options when clicking on a date
-        function showDateOptions(date) {
-            if (confirm(`Add an item on ${date}?`)) {
-                let itemType = prompt("What would you like to add? (task, meeting, event)");
-
-                if (itemType) {
-                    itemType = itemType.toLowerCase().trim();
-
-                    switch (itemType) {
-                        case 'task':
-                            window.location.href = `/tasks/create/?due_date=${date}`;
-                            break;
-
-                        case 'meeting':
-                            // Format for datetime-local input
-                            let formattedDate = date + 'T09:00'; // Default to 9 AM
-                            window.location.href = `/meetings/create/?start_time=${formattedDate}`;
-                            break;
-
-                        case 'event':
-                            // Format for datetime-local input
-                            let formattedEventDate = date + 'T09:00'; // Default to 9 AM
-                            window.location.href = `/events/create/?start_time=${formattedEventDate}`;
-                            break;
-
-                        default:
-                            alert("Invalid option. Please choose task, meeting, or event.");
-                    }
-                }
-            }
-        }
-
-        // Function to show options when selecting a date range
-        function showDateRangeOptions(startStr, endStr) {
-            if (confirm(`Add an item from ${startStr} to ${endStr}?`)) {
-                let itemType = prompt("What would you like to add? (meeting, event)");
-
-                if (itemType) {
-                    itemType = itemType.toLowerCase().trim();
-
-                    switch (itemType) {
-                        case 'meeting':
-                            // Format for datetime-local input
-                            let startDateTime = startStr + 'T09:00'; // Default to 9 AM
-                            let endDateTime = startStr + 'T10:00';   // Default to 1 hour meeting
-                            window.location.href = `/meetings/create/?start_time=${startDateTime}&end_time=${endDateTime}`;
-                            break;
-
-                        case 'event':
-                            // Format for datetime-local input
-                            let startEventTime = startStr + 'T09:00'; // Default to 9 AM
-                            let endEventTime = startStr + 'T17:00';   // Default to all-day (9 AM - 5 PM)
-                            window.location.href = `/events/create/?start_time=${startEventTime}&end_time=${endEventTime}`;
-                            break;
-
-                        default:
-                            alert("Invalid option. Please choose meeting or event.");
-                    }
-                }
-            }
-        }
-
-        // Function to handle event movement
-        function handleEventMove(event, oldEvent) {
-            let eventId = event.id;
-            let newStart = event.start;
-            let newEnd = event.end || event.start;
-            let oldStart = oldEvent.start;
-
-            // Confirm the change
-            if (confirm(`Move this ${event.extendedProps.type} from ${oldStart.toLocaleString()} to ${newStart.toLocaleString()}?`)) {
-                // Send to backend
-                let eventType = eventId.split('_')[0];
-                let itemId = eventId.split('_')[1];
-
-                let endpoint = '';
-                switch (eventType) {
-                    case 'task':
-                        endpoint = '/api/tasks/update-date/';
-                        break;
-                    case 'meeting':
-                        endpoint = '/api/meetings/update-date/';
-                        break;
-                    case 'event':
-                        endpoint = '/api/events/update-date/';
-                        break;
-                }
-
-                // AJAX request to update the event date/time
-                fetch(endpoint, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': getCookie('csrftoken')
-                    },
-                    body: JSON.stringify({
-                        id: itemId,
-                        start: newStart.toISOString(),
-                        end: newEnd.toISOString()
-                    })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === 'success') {
-                        // Success
-                        toastr.success('Item updated successfully');
-                    } else {
-                        // Error
-                        toastr.error(data.message || 'Error updating item');
-                        // Revert the event
-                        calendar.getEventById(eventId).setDates(oldStart, oldEvent.end);
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    toastr.error('Failed to update item');
-                    // Revert the event
-                    calendar.getEventById(eventId).setDates(oldStart, oldEvent.end);
-                });
-            } else {
-                // Revert the event if user cancels
-                calendar.getEventById(eventId).setDates(oldStart, oldEvent.end);
-            }
-        }
-
-        // CSRF cookie utility function
-        function getCookie(name) {
-            let cookieValue = null;
-            if (document.cookie && document.cookie !== '') {
-                let cookies = document.cookie.split(';');
-                for (let i = 0; i < cookies.length; i++) {
-                    let cookie = cookies[i].trim();
-                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                        break;
-                    }
-                }
-            }
-            return cookieValue;
-        }
-
-        // Add availability checker button to calendar header
-        const headerRight = document.querySelector('.fc-toolbar-chunk:last-child');
-        if (headerRight) {
-            const checkBtn = document.createElement('button');
-            checkBtn.textContent = 'Check Availability';
-            checkBtn.className = 'btn btn-sm btn-outline-primary ms-2';
-            checkBtn.onclick = function() {
-                $('#availabilityCheckModal').modal('show');
-            };
-            headerRight.appendChild(checkBtn);
-        }
-    });
-
-    // Handle availability check form submission
-    $(document).ready(function() {
-        $('#availabilityCheckForm').on('submit', function(e) {
-            e.preventDefault();
-
-            var form = $(this);
-            var resultsDiv = $('#availabilityResults');
-            var resultsAlert = resultsDiv.find('.alert');
-
-            // Show loading message
-            resultsDiv.removeClass('d-none');
-            resultsAlert.removeClass('alert-success alert-warning alert-danger')
-                      .addClass('alert-info')
-                      .html('<i class="fas fa-spinner fa-spin"></i> Checking availability...');
-
-            // Submit the form via AJAX
-            $.ajax({
-                url: form.attr('action'),
-                method: 'POST',
-                data: form.serialize(),
-                headers: {'X-Requested-With': 'XMLHttpRequest'},
-                success: function(response) {
-                    // Handle response based on status
-                    if (response.status === 'success') {
-                        resultsAlert.removeClass('alert-info alert-warning alert-danger')
-                                  .addClass('alert-success')
-                                  .html('<i class="fas fa-check-circle"></i> ' + response.message);
-                    } else if (response.status === 'warning') {
-                        resultsAlert.removeClass('alert-info alert-success alert-danger')
-                                  .addClass('alert-warning')
-                                  .html('<i class="fas fa-exclamation-circle"></i> ' + response.message);
-                    } else {
-                        resultsAlert.removeClass('alert-info alert-success alert-warning')
-                                  .addClass('alert-danger')
-                                  .html('<i class="fas fa-times-circle"></i> ' + (response.message || 'The selected time is not available.'));
-                    }
-                },
-                error: function(xhr, status, error) {
-                    resultsAlert.removeClass('alert-info alert-success alert-warning')
-                              .addClass('alert-danger')
-                              .html('<i class="fas fa-times-circle"></i> Error checking availability. Please try again.');
-                    console.error('Error checking availability:', error);
-                }
-            });
-        });
-
-        // Handle group meeting form submission
-        $('#scheduleMeetingForm').on('submit', function(e) {
-            e.preventDefault();
-
-            var form = $(this);
-            var resultsDiv = $('#meetingResults');
-            var resultsAlert = resultsDiv.find('.alert');
-            var submitBtn = $('#findTimeButton');
-            var participantsSelect = document.getElementById('participantsSelect');
-
-            console.log('Form submitted');
-            console.log('Select element:', participantsSelect);
-            console.log('Options selected:', participantsSelect.selectedOptions.length);
-
-            // Check if participants are selected
-            if (participantsSelect.selectedOptions.length === 0) {
-                resultsDiv.removeClass('d-none');
-                resultsAlert.removeClass('alert-success alert-warning alert-info')
-                          .addClass('alert-danger')
-                          .html('<i class="fas fa-times-circle"></i> Please select at least one participant');
-                return;
-            }
-
-            // Show loading message
-            resultsDiv.removeClass('d-none');
-            resultsAlert.removeClass('alert-success alert-danger alert-warning')
-                      .addClass('alert-info')
-                      .html('<i class="fas fa-spinner fa-spin"></i> Finding optimal meeting time...');
-            submitBtn.prop('disabled', true);
-
-            // Log form data for debugging
-            console.log('Form data:', form.serialize());
-
-            // Submit the form via AJAX
-            $.ajax({
-                url: form.attr('action'),
-                method: 'POST',
-                data: form.serialize(),
-                headers: {'X-Requested-With': 'XMLHttpRequest'},
-                success: function(response) {
-                    console.log('Response:', response);
-                    if (response.status === 'success') {
-                        resultsAlert.removeClass('alert-info alert-warning alert-danger')
-                                  .addClass('alert-success')
-                                  .html('<i class="fas fa-check-circle"></i> Suitable time found! Redirecting...');
-
-                        // Redirect to meeting creation page
-                        setTimeout(function() {
-                            window.location.href = response.redirect_url;
-                        }, 1000);
-                    } else {
-                        resultsAlert.removeClass('alert-info alert-success alert-warning')
-                                  .addClass('alert-danger')
-                                  .html('<i class="fas fa-times-circle"></i> ' + (response.message || 'Could not find a suitable meeting time'));
-                        submitBtn.prop('disabled', false);
-                    }
-                },
-                error: function(xhr, status, error) {
-                    console.error('Error response:', xhr.responseText);
-                    resultsAlert.removeClass('alert-info alert-success alert-warning')
-                              .addClass('alert-danger')
-                              .html('<i class="fas fa-times-circle"></i> Error suggesting meeting time. Please try again.');
-                    submitBtn.prop('disabled', false);
-                    console.error('Error suggesting meeting time:', error);
-                }
-            });
-        });
     });
 </script>
 {% endblock %}

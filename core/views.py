@@ -5371,9 +5371,9 @@ def calendar_employee_debug(request):
 
 @login_required
 def minimal_calendar_view(request):
-    """Simple calendar view to test employee selection"""
+    """Enhanced minimal calendar view with additional functionality"""
 
-    # Get current employee directly from request.user
+    # Get current employee directly from request.user (PRESERVED)
     try:
         current_employee = request.user.employee_profile
     except:
@@ -5385,6 +5385,55 @@ def minimal_calendar_view(request):
 
     # Get all active employees except current user
     available_employees = Employee.objects.exclude(id=current_employee.id).filter(is_active=True)
+
+    # Get schedule rule information
+    schedule_rules = ScheduleRule.objects.filter(
+        user=request.user,
+        is_active=True
+    )
+
+    # Format rule information for display
+    rule_info = []
+    for rule in schedule_rules:
+        rule_info.append({
+            'name': rule.name,
+            'recurrence': rule.get_recurrence_type_display(),
+            'time_range': f"{rule.start_time.strftime('%I:%M %p')} - {rule.end_time.strftime('%I:%M %p')}",
+            'day_info': _get_rule_day_info(rule),
+            'buffer': f"{rule.buffer_before} min before, {rule.buffer_after} min after"
+        })
+
+    # Add scheduling service data if available
+    try:
+        from .scheduling_service import SchedulingService
+        scheduling_service = SchedulingService(request.user)
+
+        # Get availability for today
+        today = timezone.now().date()
+        availability_data = {
+            'today': scheduling_service.get_availability(today)
+        }
+
+        # Get suggested meeting slots
+        available_slots = []
+        for duration in [30, 60]:
+            next_start, next_end = scheduling_service.get_next_available_slot(
+                from_datetime=timezone.now(),
+                duration_minutes=duration
+            )
+
+            if next_start and next_end:
+                available_slots.append({
+                    'duration': duration,
+                    'start': next_start,
+                    'end': next_end,
+                    'label': f"{duration} min at {next_start.strftime('%I:%M %p')} on {next_start.strftime('%b %d')}"
+                })
+
+    except Exception as e:
+        logger.error(f"Error getting scheduling data: {str(e)}")
+        availability_data = {}
+        available_slots = []
 
     if request.method == 'POST':
         action = request.POST.get('action')
@@ -5401,14 +5450,32 @@ def minimal_calendar_view(request):
             messages.success(request, f"Selected employees: {', '.join(employee_ids)}")
             return redirect('minimal_calendar')
 
-    # Simple context
+    # Comprehensive context with all required data
     context = {
         'current_employee': current_employee,
         'available_employees': available_employees,
+        'employee_count': available_employees.count(),
+        'schedule_rules': rule_info,
+        'availability_data': availability_data,
+        'available_slots': available_slots,
+        'today': timezone.now().date(),
     }
 
-    # Render a minimal template
+    # Render the minimal template with enhanced context
     return render(request, 'core/minimal_calendar.html', context)
+
+# Helper function for formatting rule day info (moved outside the view)
+def _get_rule_day_info(rule):
+    """Format day information for a schedule rule"""
+    if rule.recurrence_type == 'daily':
+        return "Every day"
+    elif rule.recurrence_type == 'weekly':
+        return f"Every {rule.get_day_of_week_display()}"
+    elif rule.recurrence_type == 'monthly':
+        return f"Day {rule.day_of_month} of each month"
+    elif rule.recurrence_type == 'yearly':
+        return f"{rule.get_month_display()} {rule.day_of_month}"
+    return ""
 
 
 class CalendarViewSimplified(LoginRequiredMixin, TemplateView):
