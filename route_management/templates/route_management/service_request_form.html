@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}
+    {% if form.instance.pk %}
+        Edit Service Request {{ form.instance.request_number }}
+    {% else %}
+        Create New Service Request
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="bg-white shadow-md rounded-lg p-6">
+        <h1 class="text-2xl font-bold mb-6">
+            {% if form.instance.pk %}
+                Edit Service Request {{ form.instance.request_number }}
+            {% else %}
+                Create New Service Request
+            {% endif %}
+        </h1>
+
+        <form method="post" class="space-y-6">
+            {% csrf_token %}
+
+            {% if form.non_field_errors %}
+                <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+                    {% for error in form.non_field_errors %}
+                        <p>{{ error }}</p>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="form-group">
+                    <label for="{{ form.customer.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                        Customer <span class="text-red-500">*</span>
+                    </label>
+                    {{ form.customer }}
+                    {% if form.customer.errors %}
+                        <div class="text-red-500 text-sm mt-1">
+                            {{ form.customer.errors }}
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="form-group">
+                    <label for="{{ form.service_location.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                        Service Location <span class="text-red-500">*</span>
+                    </label>
+                    {{ form.service_location }}
+                    {% if form.service_location.errors %}
+                        <div class="text-red-500 text-sm mt-1">
+                            {{ form.service_location.errors }}
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="form-group">
+                    <label for="{{ form.service_type.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                        Service Type <span class="text-red-500">*</span>
+                    </label>
+                    {{ form.service_type }}
+                    {% if form.service_type.errors %}
+                        <div class="text-red-500 text-sm mt-1">
+                            {{ form.service_type.errors }}
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="form-group">
+                    <label for="{{ form.priority.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                        Priority
+                    </label>
+                    <div class="mt-2">
+                        {{ form.priority }}
+                    </div>
+                    {% if form.priority.errors %}
+                        <div class="text-red-500 text-sm mt-1">
+                            {{ form.priority.errors }}
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="form-group">
+                    <label for="{{ form.preferred_date.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                        Preferred Date <span class="text-red-500">*</span>
+                    </label>
+                    {{ form.preferred_date }}
+                    {% if form.preferred_date.errors %}
+                        <div class="text-red-500 text-sm mt-1">
+                            {{ form.preferred_date.errors }}
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="form-group">
+                    <label for="{{ form.assigned_technician.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                        Assigned Technician
+                    </label>
+                    {{ form.assigned_technician }}
+                    {% if form.assigned_technician.errors %}
+                        <div class="text-red-500 text-sm mt-1">
+                            {{ form.assigned_technician.errors }}
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="form-group md:col-span-2">
+                    <label for="{{ form.description.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                        Description <span class="text-red-500">*</span>
+                    </label>
+                    {{ form.description }}
+                    {% if form.description.errors %}
+                        <div class="text-red-500 text-sm mt-1">
+                            {{ form.description.errors }}
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="form-group">
+                        <label for="{{ form.preferred_time_start.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                            Preferred Start Time
+                        </label>
+                        {{ form.preferred_time_start }}
+                        {% if form.preferred_time_start.errors %}
+                            <div class="text-red-500 text-sm mt-1">
+                                {{ form.preferred_time_start.errors }}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="form-group">
+                        <label for="{{ form.preferred_time_end.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                            Preferred End Time
+                        </label>
+                        {{ form.preferred_time_end }}
+                        {% if form.preferred_time_end.errors %}
+                            <div class="text-red-500 text-sm mt-1">
+                                {{ form.preferred_time_end.errors }}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="{{ form.estimated_duration_minutes.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                        Estimated Duration (minutes)
+                    </label>
+                    {{ form.estimated_duration_minutes }}
+                    {% if form.estimated_duration_minutes.errors %}
+                        <div class="text-red-500 text-sm mt-1">
+                            {{ form.estimated_duration_minutes.errors }}
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="form-group">
+                        <label for="{{ form.contact_name.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                            Contact Name
+                        </label>
+                        {{ form.contact_name }}
+                        {% if form.contact_name.errors %}
+                            <div class="text-red-500 text-sm mt-1">
+                                {{ form.contact_name.errors }}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="form-group">
+                        <label for="{{ form.contact_phone.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                            Contact Phone
+                        </label>
+                        {{ form.contact_phone }}
+                        {% if form.contact_phone.errors %}
+                            <div class="text-red-500 text-sm mt-1">
+                                {{ form.contact_phone.errors }}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="form-group md:col-span-2">
+                    <label for="{{ form.contact_email.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                        Contact Email
+                    </label>
+                    {{ form.contact_email }}
+                    {% if form.contact_email.errors %}
+                        <div class="text-red-500 text-sm mt-1">
+                            {{ form.contact_email.errors }}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="flex justify-end space-x-4 mt-6">
+                <a href="{% url 'route_management:service_request_list' %}"
+                   class="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 transition">
+                    Cancel
+                </a>
+                <button type="submit"
+                        class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition">
+                    {% if form.instance.pk %}
+                        Update Service Request
+                    {% else %}
+                        Create Service Request
+                    {% endif %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Dynamic customer-location filtering
+        const customerSelect = document.getElementById('{{ form.customer.id_for_label }}');
+        const locationSelect = document.getElementById('{{ form.service_location.id_for_label }}');
+
+        customerSelect.addEventListener('change', function() {
+            const selectedCustomerId = this.value;
+
+            // Reset location options
+            locationSelect.innerHTML = '<option value="">---------</option>';
+
+            // If a customer is selected, fetch their locations via AJAX
+            if (selectedCustomerId) {
+                fetch(`/route_management/get_customer_locations/${selectedCustomerId}/`)
+                    .then(response => response.json())
+                    .then(locations => {
+                        locations.forEach(location => {
+                            const option = document.createElement('option');
+                            option.value = location.id;
+                            option.textContent = location.name;
+                            locationSelect.appendChild(option);
+                        });
+                    });
+            }
+        });
+    });
+</script>
+{% endblock %}
