@@ -22,6 +22,7 @@ from .forms import (
     TechnicianProfileForm, TechnicianAvailabilityForm, CustomerFeedbackForm,
     OptimizationSettingsForm, ServicePhotoUploadForm
 )
+from core.models import Employee, Customer
 from .services.geocoding import GeocodingService
 from .services.optimization import RouteOptimizationService
 from .services.analytics import AnalyticsService
