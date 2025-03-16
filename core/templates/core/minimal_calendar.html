@@ -40,6 +40,55 @@
        padding: 2px 4px !important;
    }
 
+   .fc-event-time {
+       font-weight: bold;
+   }
+
+   .fc-daygrid-event-dot {
+       display: none;
+   }
+
+   .fc-event-title {
+       display: block;
+       overflow: hidden !important;
+       white-space: nowrap !important;
+       text-overflow: ellipsis !important;
+   }
+
+   /* Custom event styling */
+   .fc-event-custom {
+       padding: 2px 4px;
+       border-radius: 3px;
+       max-height: 28px;
+       overflow: hidden;
+   }
+
+   /* Availability styling */
+   .availability-slot {
+       background-color: rgba(92, 184, 92, 0.2);
+       border: 1px solid #5cb85c;
+       padding: 2px 4px;
+       margin: 2px 0;
+       border-radius: 3px;
+   }
+
+   .availability-unavailable {
+       background-color: rgba(217, 83, 79, 0.2);
+       border: 1px solid #d9534f;
+       padding: 2px 4px;
+       margin: 2px 0;
+       border-radius: 3px;
+       color: #d9534f;
+   }
+
+   .schedule-rule-item {
+       background-color: rgba(91, 192, 222, 0.1);
+       border: 1px solid #5bc0de;
+       padding: 8px;
+       margin-bottom: 8px;
+       border-radius: 4px;
+   }
+
    /* Force native select appearance - PRESERVED from minimal calendar */
    select[name="employees"] {
        display: block !important;
@@ -67,14 +116,6 @@
       <p>Please try refreshing the page or contact support if the issue persists.</p>
    </div>
    {% endif %}
-
-   <!-- Debug Information - For troubleshooting only -->
-   <div style="background: #f8f9fa; padding: 10px; margin-bottom: 15px; border: 1px solid #ddd;">
-     <h6>Debug Information:</h6>
-     <p>Employee Count: {{ employee_count }}</p>
-     <p>Current Employee: {% if current_employee %}{{ current_employee.id }} - {{ current_employee.user.username }}{% else %}None{% endif %}</p>
-     <p>Available Employees: {{ available_employees|length }}</p>
-   </div>
 
    <div class="row calendar-row">
       <!-- Calendar Column -->
@@ -221,6 +262,27 @@
       </div>
    </div>
 </div>
+
+<!-- Event Details Modal -->
+<div class="modal fade" id="eventDetailsModal" tabindex="-1" role="dialog">
+   <div class="modal-dialog" role="document">
+       <div class="modal-content">
+           <div class="modal-header">
+               <h5 class="modal-title" id="eventModalTitle">Event Details</h5>
+               <button type="button" class="close" data-dismiss="modal">
+                   <span>&times;</span>
+               </button>
+           </div>
+           <div class="modal-body" id="eventModalBody">
+               <!-- Dynamic content will be inserted here -->
+           </div>
+           <div class="modal-footer">
+               <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+               <a href="#" id="eventEditLink" class="btn btn-primary">Edit</a>
+           </div>
+       </div>
+   </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -247,9 +309,177 @@
             selectMirror: true,
             dayMaxEvents: true,
             eventDisplay: 'block',
+
+            // Customize event rendering to show only compact information
+            eventContent: function(arg) {
+                let eventEl = document.createElement('div');
+                eventEl.classList.add('fc-event-custom');
+
+                // Helper function to determine text color based on background color
+                function getContrastYIQ(hexcolor) {
+                    if (!hexcolor || hexcolor.indexOf('#') !== 0) return 'white';
+                    hexcolor = hexcolor.replace("#", "");
+                    var r = parseInt(hexcolor.substr(0,2), 16);
+                    var g = parseInt(hexcolor.substr(2,2), 16);
+                    var b = parseInt(hexcolor.substr(4,2), 16);
+                    var yiq = ((r*299)+(g*587)+(b*114))/1000;
+                    return (yiq >= 128) ? 'black' : 'white';
+                }
+
+                // Get background color and determine contrast color
+                const bgColor = arg.event.backgroundColor || '#3788d8';
+                const textColor = getContrastYIQ(bgColor);
+
+                // Style the event element
+                eventEl.style.backgroundColor = bgColor;
+                eventEl.style.color = textColor;
+                eventEl.style.padding = '2px 4px';
+                eventEl.style.borderRadius = '3px';
+                eventEl.style.display = 'block';
+                eventEl.style.width = '100%';
+                eventEl.style.whiteSpace = 'nowrap';
+                eventEl.style.overflow = 'hidden';
+                eventEl.style.textOverflow = 'ellipsis';
+
+                // Create compact title - Show only type and time, not full details
+                let titleSpan = document.createElement('span');
+
+                // Format based on event type from extendedProps
+                if (arg.event.extendedProps.type) {
+                    switch (arg.event.extendedProps.type) {
+                        case 'task':
+                            titleSpan.innerHTML = '📋 Task';
+                            break;
+                        case 'meeting':
+                            titleSpan.innerHTML = '🤝 Meeting';
+                            break;
+                        case 'event':
+                            titleSpan.innerHTML = '📅 Event';
+                            break;
+                        default:
+                            titleSpan.innerHTML = arg.event.title;
+                    }
+                } else {
+                    titleSpan.innerHTML = arg.event.title;
+                }
+
+                // Add time if available
+                if (arg.timeText) {
+                    titleSpan.innerHTML += ' - ' + arg.timeText;
+                }
+
+                titleSpan.style.fontWeight = 'bold';
+                titleSpan.style.display = 'block';
+                eventEl.appendChild(titleSpan);
+
+                return { domNodes: [eventEl] };
+            },
+
+            // Handle event click to show details
+            eventClick: function(info) {
+                showEventDetails(info.event);
+            },
+
+            // Handle date click to add new event
+            dateClick: function(info) {
+                let date = info.dateStr;
+                showDateOptions(date);
+            }
         });
 
         calendar.render();
+
+        // Function to show event details
+        function showEventDetails(event) {
+            let modalTitle = document.getElementById('eventModalTitle');
+            let modalBody = document.getElementById('eventModalBody');
+            let editLink = document.getElementById('eventEditLink');
+
+            // Set modal title
+            modalTitle.textContent = event.title;
+
+            // Build event details content
+            let detailsHtml = '';
+
+            // Add type-specific information
+            switch (event.extendedProps.type) {
+                case 'task':
+                    detailsHtml += `<p><strong>Type:</strong> Task</p>`;
+                    detailsHtml += `<p><strong>Status:</strong> ${event.extendedProps.status || 'N/A'}</p>`;
+                    detailsHtml += `<p><strong>Priority:</strong> ${event.extendedProps.priority || 'N/A'}</p>`;
+                    detailsHtml += `<p><strong>Due Date:</strong> ${new Date(event.start).toLocaleString()}</p>`;
+                    detailsHtml += `<p><strong>Assigned To:</strong> ${event.extendedProps.assigned_to || 'Unassigned'}</p>`;
+                    editLink.href = `/tasks/${event.id.split('_')[1]}/update/`;
+                    break;
+
+                case 'meeting':
+                    detailsHtml += `<p><strong>Type:</strong> ${event.extendedProps.meeting_type || 'Meeting'}</p>`;
+                    detailsHtml += `<p><strong>Status:</strong> ${event.extendedProps.status || 'N/A'}</p>`;
+                    detailsHtml += `<p><strong>Start:</strong> ${new Date(event.start).toLocaleString()}</p>`;
+                    detailsHtml += `<p><strong>End:</strong> ${new Date(event.end).toLocaleString()}</p>`;
+                    detailsHtml += `<p><strong>Organizer:</strong> ${event.extendedProps.organizer || 'N/A'}</p>`;
+                    editLink.href = `/meetings/${event.id.split('_')[1]}/update/`;
+                    break;
+
+                case 'event':
+                    detailsHtml += `<p><strong>Type:</strong> ${event.extendedProps.event_type || 'Event'}</p>`;
+                    detailsHtml += `<p><strong>Start:</strong> ${new Date(event.start).toLocaleString()}</p>`;
+                    detailsHtml += `<p><strong>End:</strong> ${new Date(event.end).toLocaleString()}</p>`;
+
+                    if (event.extendedProps.location) {
+                        detailsHtml += `<p><strong>Location:</strong> ${event.extendedProps.location}</p>`;
+                    }
+
+                    if (event.extendedProps.description) {
+                        detailsHtml += `<p><strong>Description:</strong> ${event.extendedProps.description}</p>`;
+                    }
+
+                    editLink.href = `/events/${event.id.split('_')[1]}/update/`;
+                    break;
+
+                default:
+                    detailsHtml += `<p>No additional details available.</p>`;
+                    editLink.href = '#';
+            }
+
+            // Set modal content
+            modalBody.innerHTML = detailsHtml;
+
+            // Show modal
+            $('#eventDetailsModal').modal('show');
+        }
+
+        // Function to show date options when clicking on a date
+        function showDateOptions(date) {
+            if (confirm(`Add an item on ${date}?`)) {
+                let itemType = prompt("What would you like to add? (task, meeting, event)");
+
+                if (itemType) {
+                    itemType = itemType.toLowerCase().trim();
+
+                    switch (itemType) {
+                        case 'task':
+                            window.location.href = `/tasks/create/?due_date=${date}`;
+                            break;
+
+                        case 'meeting':
+                            // Format for datetime-local input
+                            let formattedDate = date + 'T09:00'; // Default to 9 AM
+                            window.location.href = `/meetings/create/?start_time=${formattedDate}`;
+                            break;
+
+                        case 'event':
+                            // Format for datetime-local input
+                            let formattedEventDate = date + 'T09:00'; // Default to 9 AM
+                            window.location.href = `/events/create/?start_time=${formattedEventDate}`;
+                            break;
+
+                        default:
+                            alert("Invalid option. Please choose task, meeting, or event.");
+                    }
+                }
+            }
+        }
 
         // Make sure the select element is not interfered with by Select2
         // PRESERVED from minimal calendar - ensure select visibility
