@@ -1,0 +1,137 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Duplicate Service Request{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <!-- Left Sidebar Navigation -->
+        <nav class="col-md-2 d-md-block bg-light sidebar">
+            <div class="sidebar-sticky pt-3">
+                <ul class="nav flex-column">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'route_management:dashboard' %}">
+                            <i class="fas fa-tachometer-alt mr-2"></i>Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{% url 'route_management:service_request_list' %}">
+                            <i class="fas fa-clipboard-list mr-2"></i>Service Requests
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'route_management:route_list' %}">
+                            <i class="fas fa-route mr-2"></i>Routes
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'route_management:service_calendar' %}">
+                            <i class="fas fa-calendar-alt mr-2"></i>Calendar
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'route_management:route_schedule_list' %}">
+                            <i class="fas fa-calendar-week mr-2"></i>Schedules
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'route_management:service_area_list' %}">
+                            <i class="fas fa-map-marked-alt mr-2"></i>Service Areas
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'route_management:analytics' %}">
+                            <i class="fas fa-chart-bar mr-2"></i>Analytics
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </nav>
+
+        <!-- Main Content Area -->
+        <main role="main" class="col-md-10 ml-sm-auto px-4">
+            <!-- Page Heading -->
+            <div class="d-sm-flex align-items-center justify-content-between mb-4 mt-4">
+                <h1 class="h3 mb-0 text-gray-800">Duplicate Service Request</h1>
+                <a href="{% url 'route_management:service_request_detail' original_request.id %}" class="d-none d-sm-inline-block btn btn-sm btn-secondary shadow-sm">
+                    <i class="fas fa-arrow-left fa-sm text-white-50"></i> Back to Original Request
+                </a>
+            </div>
+
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Original Request Details</h6>
+                </div>
+                <div class="card-body">
+                    <dl class="row">
+                        <dt class="col-sm-3">Request Number</dt>
+                        <dd class="col-sm-9">{{ original_request.request_number }}</dd>
+
+                        <dt class="col-sm-3">Customer</dt>
+                        <dd class="col-sm-9">{{ original_request.customer.company_name }}</dd>
+
+                        <dt class="col-sm-3">Service Location</dt>
+                        <dd class="col-sm-9">{{ original_request.service_location.name }}</dd>
+
+                        <dt class="col-sm-3">Service Type</dt>
+                        <dd class="col-sm-9">{{ original_request.service_type.name }}</dd>
+
+                        <dt class="col-sm-3">Description</dt>
+                        <dd class="col-sm-9">{{ original_request.description }}</dd>
+
+                        <dt class="col-sm-3">Priority</dt>
+                        <dd class="col-sm-9">
+                            <span class="badge badge-pill
+                            {% if original_request.priority == 'low' %}badge-info
+                            {% elif original_request.priority == 'medium' %}badge-warning
+                            {% elif original_request.priority == 'high' %}badge-danger
+                            {% elif original_request.priority == 'urgent' %}badge-danger text-white
+                            {% endif %}">
+                                {{ original_request.get_priority_display }}
+                            </span>
+                        </dd>
+
+                        <dt class="col-sm-3">Original Date</dt>
+                        <dd class="col-sm-9">{{ original_request.preferred_date|date:"Y-m-d" }}</dd>
+                    </dl>
+                </div>
+            </div>
+
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Create Duplicate Request</h6>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+
+                        <div class="form-group row">
+                            <label for="preferred_date" class="col-sm-3 col-form-label">Preferred Date for New Request</label>
+                            <div class="col-sm-9">
+                                <input type="date" class="form-control" id="preferred_date" name="preferred_date"
+                                       value="{{ suggested_date|date:'Y-m-d' }}" required>
+                                <small class="form-text text-muted">Select the date for this new service request.</small>
+                            </div>
+                        </div>
+
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle mr-1"></i> A new service request will be created with the same details as the original request, but with the date you specify above.
+                        </div>
+
+                        <div class="form-group row">
+                            <div class="col-sm-9 offset-sm-3">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-copy mr-1"></i> Create Duplicate Request
+                                </button>
+                                <a href="{% url 'route_management:service_request_detail' original_request.id %}" class="btn btn-secondary">
+                                    <i class="fas fa-times mr-1"></i> Cancel
+                                </a>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+{% endblock %}

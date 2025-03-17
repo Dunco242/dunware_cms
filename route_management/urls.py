@@ -14,6 +14,7 @@ urlpatterns = [
     path('service-requests/<int:pk>/update/', views.ServiceRequestUpdateView.as_view(), name='service_request_update'),
     path('service-requests/bulk-add-to-route/', views.BulkAddToRouteView.as_view(), name='bulk_add_to_route'),
     path('service-requests/bulk-update-status/', views.BulkUpdateStatusView.as_view(), name='bulk_update_status'),
+    path('service-requests/<int:pk>/duplicate/', views.duplicate_service_request, name='duplicate_service_request'),
 
     path('ajax/load-service-locations/', views.load_service_locations, name='ajax_load_service_locations'),
 

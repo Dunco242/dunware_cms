@@ -2283,3 +2283,36 @@ def load_service_locations(request):
     ).values('id', 'name')
 
     return JsonResponse(list(locations), safe=False)
+
+
+@login_required
+def duplicate_service_request(request, pk):
+    """Duplicate an existing service request"""
+    original_request = get_object_or_404(ServiceRequest, pk=pk)
+
+    if request.method == 'POST':
+        # Create a new service request based on the original
+        new_request = ServiceRequest(
+            customer=original_request.customer,
+            service_location=original_request.service_location,
+            service_type=original_request.service_type,
+            description=original_request.description,
+            priority=original_request.priority,
+            preferred_date=request.POST.get('preferred_date') or timezone.now().date(),
+            preferred_time_start=original_request.preferred_time_start,
+            preferred_time_end=original_request.preferred_time_end,
+            contact_name=original_request.contact_name,
+            contact_phone=original_request.contact_phone,
+            contact_email=original_request.contact_email,
+            created_by=request.user
+        )
+        new_request.save()
+
+        messages.success(request, f"Service request duplicated successfully. New request number: {new_request.request_number}")
+        return redirect('route_management:service_request_detail', pk=new_request.pk)
+
+    # GET request - show confirmation form
+    return render(request, 'route_management/duplicate_service_request.html', {
+        'original_request': original_request,
+        'suggested_date': timezone.now().date() + timezone.timedelta(days=1)  # Suggest tomorrow as default
+    })
