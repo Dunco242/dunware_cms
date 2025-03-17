@@ -17,6 +17,7 @@ urlpatterns = [
     path('service-requests/<int:pk>/duplicate/', views.duplicate_service_request, name='duplicate_service_request'),
     path('service-requests/<int:pk>/cancel/', views.cancel_service_request, name='cancel_service_request'),
     path('get_customer_locations/<int:customer_id>/', views.get_customer_locations, name='get_customer_locations'),
+    path('service-requests/<int:pk>/pdf/', views.ServiceRequestPDFView.as_view(), name='service_request_pdf'),
 
     path('ajax/load-service-locations/', views.ajax_load_service_locations, name='ajax_load_service_locations'),
     path('get-customer-info/', views.get_customer_info, name='get_customer_info'),

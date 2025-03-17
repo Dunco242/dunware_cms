@@ -1,5 +1,5 @@
 from django.shortcuts import render, redirect, get_object_or_404
-from django.views.generic import ListView, DetailView, CreateView, UpdateView, DeleteView, TemplateView
+from django.views.generic import ListView, DetailView, CreateView, UpdateView, DeleteView, TemplateView, View
 from django.views.generic.edit import FormView
 from django.urls import reverse_lazy, reverse
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -8,7 +8,9 @@ from django.http import JsonResponse, HttpResponseRedirect
 from django.utils import timezone
 from django.db.models import Q, Count, Avg, Sum, F, ExpressionWrapper, fields
 from django.db import transaction, models
+from django.template.loader import get_template
 from django.db.models.functions import ExtractHour
+from xhtml2pdf import pisa
 from django.core.paginator import Paginator
 from django.contrib.auth.decorators import login_required
 
@@ -2446,3 +2448,50 @@ def get_customer_locations(request, customer_id):
     except Exception as e:
         print(f"Error loading service locations: {str(e)}")
         return JsonResponse({'error': str(e)}, status=400)
+
+
+class ServiceRequestPDFView(LoginRequiredMixin, View):
+    """Generate PDF for a service request"""
+
+    def get(self, request, pk):
+        # Get the service request
+        service_request = get_object_or_404(ServiceRequest, pk=pk)
+
+        # Get related data
+        route_stops = RouteStop.objects.filter(
+            service_request=service_request
+        ).select_related('route', 'route__technician')
+
+        service_completion = ServiceCompletion.objects.filter(
+            service_request=service_request
+        ).first()
+
+        photos = ServicePhoto.objects.filter(
+            service_request=service_request
+        ).order_by('photo_type', '-created_at')
+
+        feedback = CustomerFeedback.objects.filter(
+            service_request=service_request
+        ).first()
+
+        # Render template to string
+        template = get_template('route_management/service_request_pdf.html')
+        html = template.render({
+            'service_request': service_request,
+            'route_stops': route_stops,
+            'service_completion': service_completion,
+            'photos': photos,
+            'feedback': feedback,
+        })
+
+        # Create PDF
+        response = HttpResponse(content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="service_request_{service_request.request_number}.pdf"'
+
+        # Generate PDF
+        pisa_status = pisa.CreatePDF(html, dest=response)
+
+        # Return response
+        if pisa_status.err:
+            return HttpResponse('Error generating PDF', status=500)
+        return response

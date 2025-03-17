@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Service Request {{ service_request.request_number }}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+        h1 {
+            font-size: 18px;
+            margin-bottom: 10px;
+            color: #4e73df;
+        }
+        h2 {
+            font-size: 16px;
+            margin-top: 20px;
+            margin-bottom: 8px;
+            color: #4e73df;
+        }
+        .header {
+            border-bottom: 2px solid #4e73df;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        .section {
+            margin-bottom: 15px;
+        }
+        .row {
+            margin-bottom: 5px;
+            display: table;
+            width: 100%;
+        }
+        .label {
+            font-weight: bold;
+            width: 30%;
+            display: table-cell;
+        }
+        .value {
+            width: 70%;
+            display: table-cell;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 10px;
+            color: white;
+        }
+        .pending { background-color: #f6c23e; }
+        .scheduled { background-color: #36b9cc; }
+        .in_progress { background-color: #4e73df; }
+        .completed { background-color: #1cc88a; }
+        .cancelled { background-color: #e74a3b; }
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 15px;
+        }
+        .table th, .table td {
+            border: 1px solid #ddd;
+            padding: 5px;
+            text-align: left;
+        }
+        .table th {
+            background-color: #f2f2f2;
+        }
+        .page-break {
+            page-break-after: always;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Service Request: {{ service_request.request_number }}</h1>
+        <div class="row">
+            <div class="label">Status:</div>
+            <div class="value">
+                <span class="status-badge {{ service_request.status }}">
+                    {{ service_request.get_status_display }}
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Request Information</h2>
+        <div class="row">
+            <div class="label">Priority:</div>
+            <div class="value">{{ service_request.get_priority_display }}</div>
+        </div>
+        <div class="row">
+            <div class="label">Service Type:</div>
+            <div class="value">{{ service_request.service_type.name }}</div>
+        </div>
+        <div class="row">
+            <div class="label">Preferred Date:</div>
+            <div class="value">{{ service_request.preferred_date|date:"M d, Y" }}</div>
+        </div>
+        <div class="row">
+            <div class="label">Est. Duration:</div>
+            <div class="value">{{ service_request.estimated_duration_minutes }} minutes</div>
+        </div>
+        <div class="row">
+            <div class="label">Created:</div>
+            <div class="value">{{ service_request.created_at|date:"M d, Y g:i A" }}</div>
+        </div>
+        {% if service_request.completed_at %}
+        <div class="row">
+            <div class="label">Completed:</div>
+            <div class="value">{{ service_request.completed_at|date:"M d, Y g:i A" }}</div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="section">
+        <h2>Customer Information</h2>
+        <div class="row">
+            <div class="label">Customer:</div>
+            <div class="value">{{ service_request.customer.company_name }}</div>
+        </div>
+        <div class="row">
+            <div class="label">Contact Name:</div>
+            <div class="value">{{ service_request.contact_name|default:service_request.customer.primary_contact_name }}</div>
+        </div>
+        <div class="row">
+            <div class="label">Contact Phone:</div>
+            <div class="value">{{ service_request.contact_phone|default:service_request.customer.phone }}</div>
+        </div>
+        <div class="row">
+            <div class="label">Contact Email:</div>
+            <div class="value">{{ service_request.contact_email|default:service_request.customer.email }}</div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Service Location</h2>
+        <div class="row">
+            <div class="label">Location Name:</div>
+            <div class="value">{{ service_request.service_location.name }}</div>
+        </div>
+        <div class="row">
+            <div class="label">Address:</div>
+            <div class="value">{{ service_request.service_location.get_full_address }}</div>
+        </div>
+        <div class="row">
+            <div class="label">Service Area:</div>
+            <div class="value">{{ service_request.service_location.service_area.name|default:"Not assigned" }}</div>
+        </div>
+        <div class="row">
+            <div class="label">Access Info:</div>
+            <div class="value">{{ service_request.service_location.access_instructions|default:"None provided" }}</div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Service Description</h2>
+        <p>{{ service_request.description }}</p>
+    </div>
+
+    {% if service_request.assigned_technician %}
+    <div class="section">
+        <h2>Assigned Technician</h2>
+        <div class="row">
+            <div class="label">Name:</div>
+            <div class="value">{{ service_request.assigned_technician.get_full_name }}</div>
+        </div>
+        <div class="row">
+            <div class="label">Title:</div>
+            <div class="value">{{ service_request.assigned_technician.title|default:"Technician" }}</div>
+        </div>
+        <div class="row">
+            <div class="label">Email:</div>
+            <div class="value">{{ service_request.assigned_technician.email }}</div>
+        </div>
+        <div class="row">
+            <div class="label">Phone:</div>
+            <div class="value">{{ service_request.assigned_technician.phone|default:"Not provided" }}</div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if route_stops %}
+    <div class="section page-break">
+        <h2>Route Information</h2>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Route ID</th>
+                    <th>Date</th>
+                    <th>Stop #</th>
+                    <th>Arrival Time</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for stop in route_stops %}
+                <tr>
+                    <td>{{ stop.route.route_id }}</td>
+                    <td>{{ stop.route.date|date:"M d, Y" }}</td>
+                    <td>{{ stop.stop_number }}</td>
+                    <td>
+                        {% if stop.scheduled_arrival_time %}
+                            {{ stop.scheduled_arrival_time|time:"g:i A" }}
+                        {% else %}
+                            Not scheduled
+                        {% endif %}
+                    </td>
+                    <td>{{ stop.get_status_display }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    {% if service_completion %}
+    <div class="section">
+        <h2>Service Completion</h2>
+        <div class="row">
+            <div class="label">Completed On:</div>
+            <div class="value">{{ service_completion.end_time|date:"M d, Y g:i A" }}</div>
+        </div>
+        <div class="row">
+            <div class="label">Duration:</div>
+            <div class="value">{{ service_completion.duration_minutes }} minutes</div>
+        </div>
+        <div class="row">
+            <div class="label">Billable Hours:</div>
+            <div class="value">{{ service_completion.billable_hours }}</div>
+        </div>
+        <div class="row">
+            <div class="label">Total Amount:</div>
+            <div class="value">${{ service_completion.total_amount|floatformat:2 }}</div>
+        </div>
+
+        <h3>Work Performed</h3>
+        <p>{{ service_completion.work_performed }}</p>
+
+        <h3>Materials Used</h3>
+        <p>{{ service_completion.materials_used|default:"None recorded" }}</p>
+
+        {% if service_completion.technician_comments %}
+        <h3>Technician Comments</h3>
+        <p>{{ service_completion.technician_comments }}</p>
+        {% endif %}
+
+        {% if service_completion.follow_up_required %}
+        <h3>Follow-up Notes</h3>
+        <p>{{ service_completion.follow_up_notes }}</p>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if feedback %}
+    <div class="section">
+        <h2>Customer Feedback</h2>
+        <div class="row">
+            <div class="label">Overall Rating:</div>
+            <div class="value">{{ feedback.overall_rating }}/5</div>
+        </div>
+        <div class="row">
+            <div class="label">Technician Rating:</div>
+            <div class="value">{{ feedback.technician_rating|default:"Not provided" }}/5</div>
+        </div>
+        <div class="row">
+            <div class="label">Punctuality Rating:</div>
+            <div class="value">{{ feedback.punctuality_rating|default:"Not provided" }}/5</div>
+        </div>
+        <div class="row">
+            <div class="label">Quality Rating:</div>
+            <div class="value">{{ feedback.quality_rating|default:"Not provided" }}/5</div>
+        </div>
+        <div class="row">
+            <div class="label">Would Recommend:</div>
+            <div class="value">
+                {% if feedback.would_recommend %}Yes
+                {% elif feedback.would_recommend == False %}No
+                {% else %}Not specified
+                {% endif %}
+            </div>
+        </div>
+
+        <h3>Customer Comments</h3>
+        <p>{{ feedback.comments|default:"No comments provided" }}</p>
+    </div>
+    {% endif %}
+
+    <div class="footer" style="position: fixed; bottom: 0; width: 100%; text-align: center; font-size: 10px; color: #888;">
+        Generated on {{ now|date:"F d, Y" }} at {{ now|time:"H:i" }} | Service Request #{{ service_request.request_number }}
+    </div>
+</body>
+</html>
