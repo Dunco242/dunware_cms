@@ -815,5 +815,59 @@ $(document).ready(function() {
         }
     });
 });
+$(document).ready(function() {
+    // Function to update service locations based on selected customer
+    function updateServiceLocations() {
+        var customerId = $('#id_customer').val();
+        if (customerId) {
+            // Show loading indicator
+            $('#id_service_location').html('<option value="">Loading...</option>');
+
+            // Make AJAX call to fetch locations
+            $.ajax({
+                url: '/ajax/load-service-locations/',
+                data: {
+                    'customer_id': customerId
+                },
+                dataType: 'json',
+                success: function(data) {
+                    // Populate dropdown with returned data
+                    var options = '<option value="">---------</option>';
+                    $.each(data, function(index, item) {
+                        options += '<option value="' + item.id + '">' + item.name + '</option>';
+                    });
+                    $('#id_service_location').html(options);
+
+                    // If there's a previously selected value, restore it
+                    var previouslySelected = $('#id_service_location').data('selected');
+                    if (previouslySelected) {
+                        $('#id_service_location').val(previouslySelected);
+                    }
+                },
+                error: function(error) {
+                    console.log("Error loading service locations:", error);
+                    $('#id_service_location').html('<option value="">Error loading locations</option>');
+                }
+            });
+        } else {
+            // If no customer selected, empty the service location dropdown
+            $('#id_service_location').html('<option value="">---------</option>');
+        }
+    }
+
+    // Store initially selected service location if any
+    var initialServiceLocation = $('#id_service_location').val();
+    if (initialServiceLocation) {
+        $('#id_service_location').data('selected', initialServiceLocation);
+    }
+
+    // Update service locations when customer changes
+    $('#id_customer').change(updateServiceLocations);
+
+    // If customer is already selected on page load, update service locations
+    if ($('#id_customer').val()) {
+        updateServiceLocations();
+    }
+});
 </script>
 {% endblock %}

@@ -2268,3 +2268,18 @@ class ServiceAreaUpdateView(LoginRequiredMixin, UpdateView):
         context['title'] = 'Update Service Area'
         context['submit_text'] = 'Update'
         return context
+
+
+@login_required
+def load_service_locations(request):
+    """AJAX view to load service locations for a customer"""
+    customer_id = request.GET.get('customer_id')
+
+    if not customer_id:
+        return JsonResponse([], safe=False)
+
+    locations = ServiceLocation.objects.filter(
+        customer_id=customer_id
+    ).values('id', 'name')
+
+    return JsonResponse(list(locations), safe=False)

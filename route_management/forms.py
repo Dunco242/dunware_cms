@@ -28,38 +28,12 @@ class MultipleFileField(forms.FileField):
 
 class ServiceRequestForm(forms.ModelForm):
     """Form for creating and updating service requests"""
-
-    def __init__(self, *args, **kwargs):
-        self.user = kwargs.pop('user', None)
-        super().__init__(*args, **kwargs)
-
-        # Make certain fields optional
-        self.fields['preferred_date'].required = True
-        self.fields['priority'].widget = forms.RadioSelect(choices=ServiceRequest.PRIORITY_CHOICES)
-
-        # Filter service locations based on selected customer
-        if 'customer' in self.data:
-            try:
-                customer_id = int(self.data.get('customer'))
-                self.fields['service_location'].queryset = ServiceLocation.objects.filter(
-                    customer_id=customer_id
-                )
-            except (ValueError, TypeError):
-                pass
-        elif self.instance.pk and self.instance.customer:
-            self.fields['service_location'].queryset = ServiceLocation.objects.filter(
-                customer=self.instance.customer
-            )
-        else:
-            self.fields['service_location'].queryset = ServiceLocation.objects.none()
-
     class Meta:
         model = ServiceRequest
         fields = [
             'customer', 'service_location', 'service_type', 'description',
             'priority', 'preferred_date', 'preferred_time_start', 'preferred_time_end',
-            'estimated_duration_minutes', 'contact_name', 'contact_phone', 'contact_email',
-            'assigned_technician'
+            'contact_name', 'contact_phone', 'contact_email'
         ]
         widgets = {
             'preferred_date': forms.DateInput(attrs={'type': 'date'}),
@@ -68,35 +42,46 @@ class ServiceRequestForm(forms.ModelForm):
             'description': forms.Textarea(attrs={'rows': 4}),
         }
 
+    def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop('user', None)
+        super().__init__(*args, **kwargs)
+
+        # Initialize service_location field with empty queryset to avoid loading all locations
+        self.fields['service_location'].queryset = ServiceLocation.objects.none()
+
+        # If there's an initial customer or instance with customer, load the locations
+        initial_customer = None
+        if self.initial.get('customer'):
+            initial_customer = self.initial.get('customer')
+        elif self.instance and self.instance.pk and self.instance.customer:
+            initial_customer = self.instance.customer.id
+
+        if initial_customer:
+            self.fields['service_location'].queryset = ServiceLocation.objects.filter(
+                customer_id=initial_customer
+            )
+
+        # If form is bound and has data, reload locations based on selected customer
+        if self.is_bound and self.data.get('customer'):
+            try:
+                customer_id = int(self.data.get('customer'))
+                self.fields['service_location'].queryset = ServiceLocation.objects.filter(
+                    customer_id=customer_id
+                )
+            except (ValueError, TypeError):
+                pass
+
     def clean(self):
         cleaned_data = super().clean()
 
-        # Check that preferred time range makes sense
-        start_time = cleaned_data.get('preferred_time_start')
-        end_time = cleaned_data.get('preferred_time_end')
+        # Ensure service location belongs to selected customer
+        customer = cleaned_data.get('customer')
+        service_location = cleaned_data.get('service_location')
 
-        if start_time and end_time and start_time >= end_time:
-            self.add_error('preferred_time_end', 'End time must be after start time')
-
-        # Check that preferred date is not in the past
-        preferred_date = cleaned_data.get('preferred_date')
-        if preferred_date and preferred_date < timezone.now().date():
-            self.add_error('preferred_date', 'Preferred date cannot be in the past')
+        if customer and service_location and service_location.customer_id != customer.id:
+            self.add_error('service_location', 'Service location must belong to the selected customer.')
 
         return cleaned_data
-
-    def save(self, commit=True):
-        instance = super().save(commit=False)
-
-        # Set created_by if this is a new instance
-        if not instance.pk and self.user:
-            instance.created_by = self.user
-
-        if commit:
-            instance.save()
-
-        return instance
-
 class RouteForm(forms.ModelForm):
     """Form for creating and updating routes"""
 
