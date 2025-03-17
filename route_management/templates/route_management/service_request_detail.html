@@ -37,7 +37,7 @@
                         <i class="fas fa-camera"></i> Upload Photos
                     </button>
                     {% if service_request.status != 'completed' and service_request.status != 'cancelled' %}
-                    <a class="dropdown-item" href="{% url 'route_management:service_request_complete' service_request.id %}">
+                    <a class="dropdown-item" href="{% url 'route_management:service_completion_create' %}?service_request={{ service_request.id }}">
                         <i class="fas fa-check-circle"></i> Mark Completed
                     </a>
                     <button class="dropdown-item text-danger" type="button" data-toggle="modal" data-target="#cancelModal">
