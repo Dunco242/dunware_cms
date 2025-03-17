@@ -20,7 +20,7 @@ from .models import (
 from .forms import (
     ServiceRequestForm, RouteForm, RouteStopForm, ServiceCompletionForm,
     TechnicianProfileForm, TechnicianAvailabilityForm, CustomerFeedbackForm,
-    OptimizationSettingsForm, ServicePhotoUploadForm
+    OptimizationSettingsForm, ServicePhotoUploadForm, BulkAssignTechnicianForm
 )
 from core.models import Employee, Customer
 from .services.geocoding import GeocodingService
