@@ -1,0 +1,175 @@
+{% extends 'core/base.html' %}
+{% load static %}
+{% load custom_tags %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <!-- Left Sidebar Navigation -->
+        <nav class="col-md-2 d-md-block bg-light sidebar">
+            <div class="sidebar-sticky pt-3">
+                <ul class="nav flex-column">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'route_management:dashboard' %}">
+                            <i class="fas fa-tachometer-alt mr-2"></i>Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'route_management:service_request_list' %}">
+                            <i class="fas fa-clipboard-list mr-2"></i>Service Requests
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'route_management:route_list' %}">
+                            <i class="fas fa-route mr-2"></i>Routes
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'route_management:service_calendar' %}">
+                            <i class="fas fa-calendar-alt mr-2"></i>Calendar
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'route_management:route_schedule_list' %}">
+                            <i class="fas fa-calendar-week mr-2"></i>Schedules
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{% url 'route_management:service_area_list' %}">
+                            <i class="fas fa-map-marked-alt mr-2"></i>Service Areas
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'route_management:analytics' %}">
+                            <i class="fas fa-chart-bar mr-2"></i>Analytics
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </nav>
+
+        <!-- Main Content Area -->
+        <main role="main" class="col-md-10 ml-sm-auto px-4">
+            <!-- Page Heading -->
+            <div class="d-sm-flex align-items-center justify-content-between mb-4 mt-4">
+                <h1 class="h3 mb-0 text-gray-800">{{ title }}</h1>
+                <a href="{% url 'route_management:service_area_list' %}" class="d-none d-sm-inline-block btn btn-sm btn-secondary shadow-sm">
+                    <i class="fas fa-arrow-left fa-sm text-white-50"></i> Back to Service Areas
+                </a>
+            </div>
+
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Service Area Details</h6>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+
+                        <div class="form-group row">
+                            <label for="id_name" class="col-sm-2 col-form-label">Name</label>
+                            <div class="col-sm-10">
+                                {{ form.name|add_class:"form-control" }}
+                                {% if form.name.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.name.errors }}
+                                    </div>
+                                {% endif %}
+                                <small class="form-text text-muted">Enter a name for this service area</small>
+                            </div>
+                        </div>
+
+                        <div class="form-group row">
+                            <label for="id_code" class="col-sm-2 col-form-label">Code</label>
+                            <div class="col-sm-10">
+                                {{ form.code|add_class:"form-control" }}
+                                {% if form.code.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.code.errors }}
+                                    </div>
+                                {% endif %}
+                                <small class="form-text text-muted">Short code for this service area (e.g. NYC, LA, CHI)</small>
+                            </div>
+                        </div>
+
+                        <div class="form-group row">
+                            <label for="id_description" class="col-sm-2 col-form-label">Description</label>
+                            <div class="col-sm-10">
+                                {{ form.description|add_class:"form-control" }}
+                                {% if form.description.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.description.errors }}
+                                    </div>
+                                {% endif %}
+                                <small class="form-text text-muted">Description of this service area</small>
+                            </div>
+                        </div>
+
+                        <div class="form-group row">
+                            <label for="id_is_active" class="col-sm-2 col-form-label">Active</label>
+                            <div class="col-sm-10">
+                                <div class="custom-control custom-switch mt-2">
+                                    {{ form.is_active|add_class:"custom-control-input" }}
+                                    <label class="custom-control-label" for="id_is_active">Active status</label>
+                                </div>
+                                {% if form.is_active.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.is_active.errors }}
+                                    </div>
+                                {% endif %}
+                                <small class="form-text text-muted">Whether this service area is currently active</small>
+                            </div>
+                        </div>
+
+                        <div class="form-group row">
+                            <label for="id_notes" class="col-sm-2 col-form-label">Notes</label>
+                            <div class="col-sm-10">
+                                {{ form.notes|add_class:"form-control" }}
+                                {% if form.notes.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.notes.errors }}
+                                    </div>
+                                {% endif %}
+                                <small class="form-text text-muted">Additional notes for this service area</small>
+                            </div>
+                        </div>
+
+                        <div class="form-group row">
+                            <div class="col-sm-10 offset-sm-2">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save mr-1"></i> {{ submit_text }}
+                                </button>
+                                <a href="{% url 'route_management:service_area_list' %}" class="btn btn-secondary">
+                                    <i class="fas fa-times mr-1"></i> Cancel
+                                </a>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Make sidebar menu highlight current page
+    const path = window.location.pathname;
+    $('.sidebar .nav-link').each(function() {
+        const href = $(this).attr('href');
+        if (path === href) {
+            $(this).addClass('active');
+            $(this).css('font-weight', 'bold');
+        }
+    });
+});
+</script>
+{% endblock %}

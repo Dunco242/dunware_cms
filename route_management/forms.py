@@ -586,3 +586,40 @@ class OptimizationSettingsForm(forms.ModelForm):
             instance.save()
 
         return instance
+
+
+from django import forms
+from core.models import Employee
+
+class BulkAssignTechnicianForm(forms.Form):
+    """Form for bulk assigning technicians to service requests"""
+    technician = forms.ModelChoiceField(
+        queryset=Employee.objects.filter(is_active=True),
+        required=True,
+        label="Technician"
+    )
+    service_requests = forms.CharField(
+        widget=forms.HiddenInput(),
+        required=True
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Filter technicians to only those with appropriate skills if needed
+        self.fields['technician'].queryset = Employee.objects.filter(
+            is_active=True,
+            service_areas__isnull=False
+        ).distinct()
+
+    def clean_service_requests(self):
+        """Validate that service_requests contains valid IDs"""
+        service_requests = self.cleaned_data.get('service_requests', '')
+        if not service_requests:
+            raise forms.ValidationError("You must select at least one service request.")
+
+        # Check if the string contains valid IDs
+        request_ids = service_requests.split(',')
+        if not all(rid.strip().isdigit() for rid in request_ids if rid.strip()):
+            raise forms.ValidationError("Invalid service request IDs provided.")
+
+        return service_requests

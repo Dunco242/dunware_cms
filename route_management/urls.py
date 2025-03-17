@@ -36,13 +36,17 @@ urlpatterns = [
     # Technicians
     path('technicians/<int:pk>/schedule/', views.technician_schedule_view, name='technician_schedule'),
     path('technicians/<int:pk>/profile/', views.TechnicianProfileView.as_view(), name='technician_profile'),
+    path('technicians/bulk-assign/', views.BulkAssignTechnicianView.as_view(), name='bulk_assign_technician'),
+
 
     # Service Areas
     path('service-areas/', views.ServiceAreaListView.as_view(), name='service_area_list'),
+    path('service-areas/create/', views.ServiceAreaCreateView.as_view(), name='service_area_create'),
 
     # Route Schedules
     path('schedules/', views.RouteScheduleListView.as_view(), name='route_schedule_list'),
     path('schedules/<int:pk>/publish/', views.publish_schedule, name='publish_schedule'),
+    path('schedules/create/', views.RouteScheduleCreateView.as_view(), name='route_schedule_create'),
 
     # Calendar
     path('calendar/', views.service_calendar_view, name='service_calendar'),

@@ -23,6 +23,12 @@
         padding: 2px;
         border-radius: 3px;
         font-size: 0.8rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    .calendar-event:hover {
+        transform: scale(1.02);
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
     }
     .service-request-event {
         background-color: #007bff;
@@ -32,17 +38,99 @@
         background-color: #28a745;
         color: white;
     }
+    .today {
+        background-color: rgba(255, 243, 205, 0.5);
+        border: 2px solid #ffc107;
+    }
+    .calendar-actions {
+        position: absolute;
+        top: 5px;
+        right: 5px;
+        display: none;
+    }
+    .calendar-cell:hover .calendar-actions {
+        display: block;
+    }
+    .event-type-toggle {
+        margin-right: 15px;
+    }
+    .tooltip-inner {
+        max-width: 300px;
+        text-align: left;
+    }
+    .filter-section {
+        background-color: #f8f9fa;
+        padding: 15px;
+        border-radius: 5px;
+        margin-bottom: 15px;
+    }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="container-fluid">
+    <!-- Filter Section -->
+    <div class="filter-section mb-3 collapse" id="filterSection">
+        <div class="card">
+            <div class="card-body">
+                <form id="calendarFilterForm" class="row g-3">
+                    <div class="col-md-4">
+                        <label for="serviceTypeFilter" class="form-label">Service Type</label>
+                        <select class="form-select" id="serviceTypeFilter">
+                            <option value="all">All Service Types</option>
+                            {% for service_type in service_types %}
+                                <option value="{{ service_type.id }}">{{ service_type.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="technicianFilter" class="form-label">Technician</label>
+                        <select class="form-select" id="technicianFilter">
+                            <option value="all">All Technicians</option>
+                            <!-- Technicians would be populated via JavaScript -->
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="displayOptions" class="form-label">Display Options</label>
+                        <div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="showRoutes" checked>
+                                <label class="form-check-label" for="showRoutes">Routes</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="showRequests" checked>
+                                <label class="form-check-label" for="showRequests">Service Requests</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 text-end">
+                        <button type="button" id="applyFilters" class="btn btn-primary">Apply Filters</button>
+                        <button type="button" id="resetFilters" class="btn btn-secondary">Reset</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <div class="card shadow-sm">
         <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
             <h2 class="mb-0">
                 <i class="fas fa-calendar-alt me-2"></i>Service Calendar
             </h2>
             <div class="d-flex align-items-center">
+                <button class="btn btn-light btn-sm me-3" data-bs-toggle="collapse" data-bs-target="#filterSection">
+                    <i class="fas fa-filter"></i> Filters
+                </button>
+                <div class="event-type-toggle">
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="checkbox" id="toggleRoutes" checked>
+                        <label class="form-check-label text-light" for="toggleRoutes">Routes</label>
+                    </div>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="checkbox" id="toggleRequests" checked>
+                        <label class="form-check-label text-light" for="toggleRequests">Requests</label>
+                    </div>
+                </div>
                 <a href="?{{ prev_month_link }}" class="btn btn-light btn-sm me-2">
                     <i class="fas fa-chevron-left"></i>
                 </a>
@@ -71,25 +159,49 @@
                         {% for day in week %}
                         <td class="p-1">
                             {% if day.day %}
-                                <div class="calendar-cell {{ 'bg-light' if day.is_today }}">
+                                <div class="calendar-cell {% if day.is_today %}today{% endif %}" data-date="{{ day.date|date:'Y-m-d' }}">
                                     <div class="calendar-day text-end pe-1">
                                         {{ day.day }}
+                                        <div class="calendar-actions">
+                                            <div class="btn-group btn-group-sm">
+                                                <button type="button" class="btn btn-outline-primary add-service-request"
+                                                        data-date="{{ day.date|date:'Y-m-d' }}">
+                                                    <i class="fas fa-plus"></i>
+                                                </button>
+                                            </div>
+                                        </div>
                                     </div>
-                                    {% for service_request in day.service_requests %}
-                                        <div class="calendar-event service-request-event"
-                                             title="{{ service_request.description }}">
-                                            <i class="fas fa-file-alt me-1"></i>
-                                            {{ service_request.service_type.name }}
-                                            ({{ service_request.customer.company_name }})
-                                        </div>
-                                    {% endfor %}
-                                    {% for route in day.routes %}
-                                        <div class="calendar-event route-event"
-                                             title="{{ route.name }}">
-                                            <i class="fas fa-route me-1"></i>
-                                            {{ route.technician.get_full_name }} Route
-                                        </div>
-                                    {% endfor %}
+                                    <div class="service-requests-container">
+                                        {% for service_request in day.service_requests %}
+                                            <div class="calendar-event service-request-event"
+                                                 data-id="{{ service_request.id }}"
+                                                 data-service-type="{{ service_request.service_type.id }}"
+                                                 data-bs-toggle="tooltip"
+                                                 data-bs-html="true"
+                                                 title="<strong>{{ service_request.service_type.name }}</strong><br>
+                                                        Customer: {{ service_request.customer.company_name }}<br>
+                                                        Priority: {{ service_request.get_priority_display }}<br>
+                                                        Status: {{ service_request.get_status_display }}">
+                                                <i class="fas fa-file-alt me-1"></i>
+                                                {{ service_request.service_type.name|truncatechars:15 }}
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                    <div class="routes-container">
+                                        {% for route in day.routes %}
+                                            <div class="calendar-event route-event"
+                                                 data-id="{{ route.id }}"
+                                                 data-technician="{{ route.technician.id }}"
+                                                 data-bs-toggle="tooltip"
+                                                 data-bs-html="true"
+                                                 title="<strong>{{ route.technician.get_full_name }} Route</strong><br>
+                                                        Stops: {{ route.stops.count }}<br>
+                                                        Status: {{ route.get_status_display }}">
+                                                <i class="fas fa-route me-1"></i>
+                                                {{ route.technician.get_full_name|truncatechars:15 }}
+                                            </div>
+                                        {% endfor %}
+                                    </div>
                                 </div>
                             {% endif %}
                         </td>
@@ -105,12 +217,89 @@
                     <h5>Service Types</h5>
                     <div class="d-flex flex-wrap">
                         {% for service_type in service_types %}
-                            <span class="badge bg-primary me-2 mb-2">
+                            <span class="badge bg-primary me-2 mb-2" data-id="{{ service_type.id }}">
                                 {{ service_type.name }}
                             </span>
                         {% endfor %}
                     </div>
                 </div>
+                <div class="col-md-6 text-end">
+                    <a href="{% url 'route_management:service_request_create' %}" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> New Service Request
+                    </a>
+                    <a href="{% url 'route_management:route_create' %}" class="btn btn-success">
+                        <i class="fas fa-plus"></i> New Route
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create Service Request Modal -->
+<div class="modal fade" id="createServiceRequestModal" tabindex="-1" aria-labelledby="createServiceRequestModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="createServiceRequestModalLabel">Create Service Request</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="quickServiceRequestForm">
+                    <input type="hidden" id="preferred_date" name="preferred_date">
+                    <div class="mb-3">
+                        <label for="customer" class="form-label">Customer</label>
+                        <select class="form-select" id="customer" name="customer" required>
+                            <option value="">Select Customer</option>
+                            <!-- Customers will be populated via JavaScript -->
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="service_type" class="form-label">Service Type</label>
+                        <select class="form-select" id="service_type" name="service_type" required>
+                            <option value="">Select Service Type</option>
+                            {% for service_type in service_types %}
+                                <option value="{{ service_type.id }}">{{ service_type.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="priority" class="form-label">Priority</label>
+                        <select class="form-select" id="priority" name="priority" required>
+                            <option value="low">Low</option>
+                            <option value="medium" selected>Medium</option>
+                            <option value="high">High</option>
+                            <option value="urgent">Urgent</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        <textarea class="form-control" id="description" name="description" rows="3" required></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="submitServiceRequest">Create Service Request</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Event Details Modal -->
+<div class="modal fade" id="eventDetailsModal" tabindex="-1" aria-labelledby="eventDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="eventDetailsModalLabel">Event Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="eventDetailsContent">
+                <!-- Content will be populated via JavaScript -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <a href="#" class="btn btn-primary" id="viewDetailsButton">View Details</a>
             </div>
         </div>
     </div>
@@ -120,7 +309,352 @@
 {% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Optional: Add any interactive calendar features here
+    // Initialize tooltips
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    const tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl, {
+            html: true
+        });
+    });
+
+    // Toggle event types visibility
+    const toggleRoutes = document.getElementById('toggleRoutes');
+    const toggleRequests = document.getElementById('toggleRequests');
+    const routesContainers = document.querySelectorAll('.routes-container');
+    const requestsContainers = document.querySelectorAll('.service-requests-container');
+
+    toggleRoutes.addEventListener('change', function() {
+        routesContainers.forEach(container => {
+            container.style.display = this.checked ? 'block' : 'none';
+        });
+    });
+
+    toggleRequests.addEventListener('change', function() {
+        requestsContainers.forEach(container => {
+            container.style.display = this.checked ? 'block' : 'none';
+        });
+    });
+
+    // Handle clicking on a calendar event
+    document.querySelectorAll('.calendar-event').forEach(event => {
+        event.addEventListener('click', function(e) {
+            e.preventDefault();
+            const eventId = this.getAttribute('data-id');
+            const isServiceRequest = this.classList.contains('service-request-event');
+
+            // Show appropriate modal with details
+            const modal = new bootstrap.Modal(document.getElementById('eventDetailsModal'));
+            const modalTitle = document.getElementById('eventDetailsModalLabel');
+            const modalContent = document.getElementById('eventDetailsContent');
+            const viewDetailsButton = document.getElementById('viewDetailsButton');
+
+            if (isServiceRequest) {
+                // It's a service request
+                modalTitle.textContent = 'Service Request Details';
+
+                // Get the tooltip content as a starting point
+                const tooltipContent = this.getAttribute('title');
+
+                // Create a more detailed content
+                modalContent.innerHTML = `
+                    <div class="d-flex justify-content-between">
+                        <span class="badge bg-primary mb-3">Service Request</span>
+                        <span class="badge bg-secondary">#${eventId}</span>
+                    </div>
+                    <div>${tooltipContent}</div>
+                    <hr>
+                    <p>Click "View Details" to see the full service request information and take actions.</p>
+                `;
+
+                // Set the view details link
+                viewDetailsButton.textContent = 'View Service Request';
+                viewDetailsButton.href = `/route_management/service-requests/${eventId}/`;
+
+            } else {
+                // It's a route
+                modalTitle.textContent = 'Route Details';
+
+                // Get the tooltip content as a starting point
+                const tooltipContent = this.getAttribute('title');
+
+                // Create a more detailed content
+                modalContent.innerHTML = `
+                    <div class="d-flex justify-content-between">
+                        <span class="badge bg-success mb-3">Route</span>
+                        <span class="badge bg-secondary">#${eventId}</span>
+                    </div>
+                    <div>${tooltipContent}</div>
+                    <hr>
+                    <p>Click "View Details" to see the full route information and manage stops.</p>
+                `;
+
+                // Set the view details link
+                viewDetailsButton.textContent = 'View Route';
+                viewDetailsButton.href = `/route_management/routes/${eventId}/`;
+            }
+
+            modal.show();
+        });
+    });
+
+    // Handle "Add Service Request" button
+    document.querySelectorAll('.add-service-request').forEach(button => {
+        button.addEventListener('click', function() {
+            const date = this.getAttribute('data-date');
+            const modal = new bootstrap.Modal(document.getElementById('createServiceRequestModal'));
+
+            // Set the date in the form
+            document.getElementById('preferred_date').value = date;
+            document.getElementById('createServiceRequestModalLabel').textContent = `Create Service Request for ${date}`;
+
+            // Fetch customers for dropdown
+            fetchCustomers().then(customers => {
+                const customerSelect = document.getElementById('customer');
+                customerSelect.innerHTML = '<option value="">Select Customer</option>';
+
+                customers.forEach(customer => {
+                    const option = document.createElement('option');
+                    option.value = customer.id;
+                    option.textContent = customer.company_name;
+                    customerSelect.appendChild(option);
+                });
+            });
+
+            modal.show();
+        });
+    });
+
+    // Submit service request form
+    document.getElementById('submitServiceRequest').addEventListener('click', function() {
+        const form = document.getElementById('quickServiceRequestForm');
+
+        // Simple validation
+        const requiredFields = form.querySelectorAll('[required]');
+        let isValid = true;
+
+        requiredFields.forEach(field => {
+            if (!field.value.trim()) {
+                field.classList.add('is-invalid');
+                isValid = false;
+            } else {
+                field.classList.remove('is-invalid');
+            }
+        });
+
+        if (isValid) {
+            // Collect form data
+            const formData = new FormData(form);
+
+            // Submit form via AJAX
+            fetch('{% url "route_management:service_request_create" %}', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken')
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Show success message and refresh page
+                    alert('Service request created successfully!');
+                    location.reload();
+                } else {
+                    // Show error message
+                    alert('Error creating service request: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while creating the service request.');
+            });
+        }
+    });
+
+    // Apply calendar filters
+    document.getElementById('applyFilters').addEventListener('click', function() {
+        const serviceTypeFilter = document.getElementById('serviceTypeFilter').value;
+        const technicianFilter = document.getElementById('technicianFilter').value;
+        const showRoutes = document.getElementById('showRoutes').checked;
+        const showRequests = document.getElementById('showRequests').checked;
+
+        // Update toggle checkboxes to match filter settings
+        toggleRoutes.checked = showRoutes;
+        toggleRequests.checked = showRequests;
+
+        // Apply service type filter
+        document.querySelectorAll('.service-request-event').forEach(event => {
+            const serviceTypeId = event.getAttribute('data-service-type');
+            if (serviceTypeFilter === 'all' || serviceTypeId === serviceTypeFilter) {
+                event.style.display = showRequests ? 'block' : 'none';
+            } else {
+                event.style.display = 'none';
+            }
+        });
+
+        // Apply technician filter
+        document.querySelectorAll('.route-event').forEach(event => {
+            const technicianId = event.getAttribute('data-technician');
+            if (technicianFilter === 'all' || technicianId === technicianFilter) {
+                event.style.display = showRoutes ? 'block' : 'none';
+            } else {
+                event.style.display = 'none';
+            }
+        });
+
+        // Toggle containers based on filters
+        routesContainers.forEach(container => {
+            container.style.display = showRoutes ? 'block' : 'none';
+        });
+
+        requestsContainers.forEach(container => {
+            container.style.display = showRequests ? 'block' : 'none';
+        });
+    });
+
+    // Reset filters
+    document.getElementById('resetFilters').addEventListener('click', function() {
+        document.getElementById('serviceTypeFilter').value = 'all';
+        document.getElementById('technicianFilter').value = 'all';
+        document.getElementById('showRoutes').checked = true;
+        document.getElementById('showRequests').checked = true;
+
+        // Reset display
+        toggleRoutes.checked = true;
+        toggleRequests.checked = true;
+
+        document.querySelectorAll('.service-request-event, .route-event').forEach(event => {
+            event.style.display = 'block';
+        });
+
+        routesContainers.forEach(container => {
+            container.style.display = 'block';
+        });
+
+        requestsContainers.forEach(container => {
+            container.style.display = 'block';
+        });
+    });
+
+    // Load technicians for filter dropdown
+    fetchTechnicians().then(technicians => {
+        const technicianFilter = document.getElementById('technicianFilter');
+
+        technicians.forEach(technician => {
+            const option = document.createElement('option');
+            option.value = technician.id;
+            option.textContent = technician.full_name;
+            technicianFilter.appendChild(option);
+        });
+    });
+
+    // Drag-and-drop for events (advanced feature)
+    enableDragAndDrop();
+
+    // Helper functions
+    async function fetchCustomers() {
+        try {
+            const response = await fetch('/api/customers/');
+            if (!response.ok) {
+                throw new Error('Failed to fetch customers');
+            }
+            return await response.json();
+        } catch (error) {
+            console.error('Error fetching customers:', error);
+            // Fallback to sample data if API not available
+            return [
+                { id: 1, company_name: 'Acme Corp' },
+                { id: 2, company_name: 'Globex Inc' },
+                { id: 3, company_name: 'Initech' }
+            ];
+        }
+    }
+
+    async function fetchTechnicians() {
+        try {
+            const response = await fetch('/api/technicians/');
+            if (!response.ok) {
+                throw new Error('Failed to fetch technicians');
+            }
+            return await response.json();
+        } catch (error) {
+            console.error('Error fetching technicians:', error);
+            // Fallback to sample data if API not available
+            return [
+                { id: 1, full_name: 'John Smith' },
+                { id: 2, full_name: 'Jane Doe' },
+                { id: 3, full_name: 'Robert Johnson' }
+            ];
+        }
+    }
+
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    function enableDragAndDrop() {
+        // This is a placeholder for drag and drop functionality
+        // Implementing full drag-and-drop would require a library like interact.js or dragula
+        console.log('Drag and drop functionality would be implemented here');
+
+        // Example implementation with HTML5 draggable API (basic functionality)
+        document.querySelectorAll('.calendar-event').forEach(event => {
+            event.setAttribute('draggable', 'true');
+
+            event.addEventListener('dragstart', function(e) {
+                e.dataTransfer.setData('text/plain', JSON.stringify({
+                    id: this.getAttribute('data-id'),
+                    type: this.classList.contains('service-request-event') ? 'service-request' : 'route'
+                }));
+                this.classList.add('dragging');
+            });
+
+            event.addEventListener('dragend', function() {
+                this.classList.remove('dragging');
+            });
+        });
+
+        document.querySelectorAll('.calendar-cell').forEach(cell => {
+            cell.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                this.classList.add('drag-over');
+            });
+
+            cell.addEventListener('dragleave', function() {
+                this.classList.remove('drag-over');
+            });
+
+            cell.addEventListener('drop', function(e) {
+                e.preventDefault();
+                this.classList.remove('drag-over');
+
+                try {
+                    const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+                    const targetDate = this.getAttribute('data-date');
+
+                    // In a real implementation, you would send this to the server
+                    console.log(`Moving ${data.type} ID:${data.id} to date ${targetDate}`);
+
+                    // Show feedback to user
+                    alert(`This would reschedule the ${data.type} to ${targetDate}. Server-side implementation required.`);
+
+                } catch (error) {
+                    console.error('Error during drag and drop:', error);
+                }
+            });
+        });
+    }
 });
 </script>
 {% endblock %}

@@ -1,0 +1,312 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Bulk Assign Technician{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <!-- Left Sidebar Navigation -->
+        <nav class="col-md-2 d-md-block bg-light sidebar">
+            <div class="sidebar-sticky pt-3">
+                <ul class="nav flex-column">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'route_management:dashboard' %}">
+                            <i class="fas fa-tachometer-alt mr-2"></i>Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{% url 'route_management:service_request_list' %}">
+                            <i class="fas fa-clipboard-list mr-2"></i>Service Requests
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'route_management:route_list' %}">
+                            <i class="fas fa-route mr-2"></i>Routes
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'route_management:service_calendar' %}">
+                            <i class="fas fa-calendar-alt mr-2"></i>Calendar
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'route_management:route_schedule_list' %}">
+                            <i class="fas fa-calendar-week mr-2"></i>Schedules
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'route_management:service_area_list' %}">
+                            <i class="fas fa-map-marked-alt mr-2"></i>Service Areas
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'route_management:analytics' %}">
+                            <i class="fas fa-chart-bar mr-2"></i>Analytics
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </nav>
+
+        <!-- Main Content Area -->
+        <main role="main" class="col-md-10 ml-sm-auto px-4">
+            <!-- Page Heading -->
+            <div class="d-sm-flex align-items-center justify-content-between mb-4 mt-4">
+                <h1 class="h3 mb-0 text-gray-800">Bulk Assign Technician</h1>
+                <a href="{% url 'route_management:service_request_list' %}" class="d-none d-sm-inline-block btn btn-sm btn-secondary shadow-sm">
+                    <i class="fas fa-arrow-left fa-sm text-white-50"></i> Back to Service Requests
+                </a>
+            </div>
+
+            <!-- Filter Card -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Filter Service Requests</h6>
+                </div>
+                <div class="card-body">
+                    <form method="get" class="mb-4">
+                        <div class="row">
+                            <div class="col-md-3 mb-3">
+                                <label for="service_area">Service Area</label>
+                                <select name="service_area" id="service_area" class="form-control">
+                                    <option value="">All Service Areas</option>
+                                    {% for area in service_areas %}
+                                        <option value="{{ area.id }}" {% if filter_values.service_area == area.id|stringformat:"i" %}selected{% endif %}>
+                                            {{ area.name }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <label for="start_date">From Date</label>
+                                <input type="date" name="start_date" id="start_date" class="form-control"
+                                       value="{{ filter_values.start_date }}">
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <label for="end_date">To Date</label>
+                                <input type="date" name="end_date" id="end_date" class="form-control"
+                                       value="{{ filter_values.end_date }}">
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <label for="status">Status</label>
+                                <select name="status" id="status" class="form-control">
+                                    <option value="pending" {% if filter_values.status == 'pending' %}selected{% endif %}>Pending</option>
+                                    <option value="scheduled" {% if filter_values.status == 'scheduled' %}selected{% endif %}>Scheduled</option>
+                                    <option value="in_progress" {% if filter_values.status == 'in_progress' %}selected{% endif %}>In Progress</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-12">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-filter mr-1"></i> Apply Filters
+                                </button>
+                                <a href="{% url 'route_management:bulk_assign_technician' %}" class="btn btn-secondary">
+                                    <i class="fas fa-redo mr-1"></i> Reset Filters
+                                </a>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Service Requests List Card -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                    <h6 class="m-0 font-weight-bold text-primary">Service Requests</h6>
+                    <div>
+                        <button class="btn btn-sm btn-secondary" id="clear-selection">Clear Selection</button>
+                        <button class="btn btn-sm btn-info" id="select-all">Select All</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% if service_requests %}
+                        <div class="table-responsive">
+                            <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
+                                <thead>
+                                    <tr>
+                                        <th width="5%">Select</th>
+                                        <th>Request #</th>
+                                        <th>Customer</th>
+                                        <th>Service Type</th>
+                                        <th>Location</th>
+                                        <th>Preferred Date</th>
+                                        <th>Priority</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for request in service_requests %}
+                                    <tr>
+                                        <td class="text-center">
+                                            <input type="checkbox" class="request-checkbox" value="{{ request.id }}">
+                                        </td>
+                                        <td>
+                                            <a href="{% url 'route_management:service_request_detail' request.id %}">
+                                                {{ request.request_number }}
+                                            </a>
+                                        </td>
+                                        <td>{{ request.customer.company_name }}</td>
+                                        <td>{{ request.service_type.name }}</td>
+                                        <td>{{ request.service_location.name }}</td>
+                                        <td>{{ request.preferred_date|date:"Y-m-d" }}</td>
+                                        <td>
+                                            <span class="badge badge-pill
+                                            {% if request.priority == 'low' %}badge-info
+                                            {% elif request.priority == 'medium' %}badge-warning
+                                            {% elif request.priority == 'high' %}badge-danger
+                                            {% elif request.priority == 'urgent' %}badge-danger text-white
+                                            {% endif %}">
+                                                {{ request.get_priority_display }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span class="badge badge-pill
+                                            {% if request.status == 'pending' %}badge-secondary
+                                            {% elif request.status == 'scheduled' %}badge-info
+                                            {% elif request.status == 'in_progress' %}badge-primary
+                                            {% elif request.status == 'completed' %}badge-success
+                                            {% elif request.status == 'cancelled' %}badge-danger
+                                            {% endif %}">
+                                                {{ request.get_status_display }}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <p class="text-muted">No service requests found matching your criteria.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Technician Assignment Form -->
+            {% if service_requests %}
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Assign Technician</h6>
+                </div>
+                <div class="card-body">
+                    <form method="post" id="assign-form">
+                        {% csrf_token %}
+                        <input type="hidden" name="service_requests" id="selected-requests">
+
+                        <div class="form-group row">
+                            <label for="technician" class="col-sm-2 col-form-label">Select Technician</label>
+                            <div class="col-sm-10">
+                                <select name="technician" id="technician" class="form-control" required>
+                                    <option value="">-- Select Technician --</option>
+                                    {% for tech in technicians %}
+                                        <option value="{{ tech.id }}">{{ tech.get_full_name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <small class="form-text text-muted">Select a technician to assign to the selected service requests</small>
+                            </div>
+                        </div>
+
+                        <div class="form-group row">
+                            <div class="col-sm-10 offset-sm-2">
+                                <button type="submit" class="btn btn-primary" id="assign-button" disabled>
+                                    <i class="fas fa-user-plus mr-1"></i> Assign Technician
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+        </main>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Initialize datatable
+    $('#dataTable').DataTable({
+        "order": [[ 5, "asc" ], [ 6, "desc" ]],  // Sort by preferred date then priority
+        "pageLength": 25,
+        "language": {
+            "emptyTable": "No service requests found matching your criteria."
+        }
+    });
+
+    // Select all button
+    $('#select-all').click(function() {
+        $('.request-checkbox').prop('checked', true);
+        updateSelectedRequests();
+    });
+
+    // Clear selection button
+    $('#clear-selection').click(function() {
+        $('.request-checkbox').prop('checked', false);
+        updateSelectedRequests();
+    });
+
+    // Handle checkbox changes
+    $('.request-checkbox').change(function() {
+        updateSelectedRequests();
+    });
+
+    // Update hidden field with selected request IDs and button state
+    function updateSelectedRequests() {
+        const selectedRequests = [];
+        $('.request-checkbox:checked').each(function() {
+            selectedRequests.push($(this).val());
+        });
+
+        $('#selected-requests').val(selectedRequests.join(','));
+
+        // Enable/disable assign button based on selection
+        if (selectedRequests.length > 0) {
+            $('#assign-button').prop('disabled', false);
+        } else {
+            $('#assign-button').prop('disabled', true);
+        }
+
+        // Update UI to show selection count
+        const count = selectedRequests.length;
+        if (count > 0) {
+            $('#assign-button').text(`Assign Technician (${count} selected)`);
+        } else {
+            $('#assign-button').text('Assign Technician');
+        }
+    }
+
+    // Form submission validation
+    $('#assign-form').submit(function(e) {
+        const selectedRequests = $('#selected-requests').val();
+        const technician = $('#technician').val();
+
+        if (!selectedRequests) {
+            e.preventDefault();
+            alert('Please select at least one service request.');
+            return false;
+        }
+
+        if (!technician) {
+            e.preventDefault();
+            alert('Please select a technician.');
+            return false;
+        }
+
+        return true;
+    });
+
+    // Make sidebar menu highlight current page
+    const path = window.location.pathname;
+    $('.sidebar .nav-link').each(function() {
+        const href = $(this).attr('href');
+        if (path === href) {
+            $(this).addClass('active');
+            $(this).css('font-weight', 'bold');
+        }
+    });
+});
+</script>
+{% endblock %}

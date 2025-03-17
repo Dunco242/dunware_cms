@@ -12,7 +12,7 @@ from django.core.paginator import Paginator
 from django.contrib.auth.decorators import login_required
 
 from .models import (
-    ServiceArea, ServiceLocationType, ServiceLocation, ServiceType,
+    ServiceArea, ServiceLocationType, ServiceLocation, ServiceType, AnalyticsSnapshot,
     ServiceRequest, TechnicianSkill, TechnicianProfile, TechnicianAvailability,
     RouteSchedule, Route, RouteStop, RouteLog, ServiceCompletion,
     ServicePhoto, CustomerNotification, CustomerFeedback, OptimizationSettings, ServicePhotoUpload
@@ -1808,3 +1808,145 @@ def geocode_locations(request):
             Q(latitude__isnull=True) | Q(longitude__isnull=True)
         ).count()
     })
+
+
+class RouteScheduleCreateView(LoginRequiredMixin, CreateView):
+    """Create a new route schedule"""
+    model = RouteSchedule
+    template_name = 'route_management/route_schedule_create.html'
+    fields = ['name', 'date', 'description', 'notes']
+
+    def form_valid(self, form):
+        # Set created_by to current user
+        form.instance.created_by = self.request.user
+        form.instance.status = 'draft'
+
+        response = super().form_valid(form)
+        messages.success(self.request, f"Route schedule '{self.object.name}' created successfully.")
+        return response
+
+    def get_success_url(self):
+        return reverse('route_management:route_schedule_detail', kwargs={'pk': self.object.pk})
+
+
+class BulkAssignTechnicianView(LoginRequiredMixin, FormView):
+    """View to bulk assign technicians to service requests"""
+    template_name = 'route_management/bulk_assign_technician.html'
+    form_class = BulkAssignTechnicianForm  # You'll need to create this form
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        # Get filter parameters from GET request
+        service_area_id = self.request.GET.get('service_area')
+        start_date = self.request.GET.get('start_date')
+        end_date = self.request.GET.get('end_date')
+        status = self.request.GET.get('status', 'pending')
+
+        # Build queryset based on filters
+        queryset = ServiceRequest.objects.filter(status=status)
+
+        if service_area_id:
+            queryset = queryset.filter(service_location__service_area_id=service_area_id)
+
+        if start_date and end_date:
+            queryset = queryset.filter(preferred_date__range=[start_date, end_date])
+        elif start_date:
+            queryset = queryset.filter(preferred_date__gte=start_date)
+        elif end_date:
+            queryset = queryset.filter(preferred_date__lte=end_date)
+
+        # Get the service requests
+        context['service_requests'] = queryset.select_related(
+            'customer', 'service_location', 'service_type'
+        ).order_by('preferred_date', 'priority')
+
+        # Get available technicians
+        context['technicians'] = Employee.objects.filter(
+            is_active=True,
+            service_areas__isnull=False
+        ).distinct()
+
+        # Get service areas for filter
+        context['service_areas'] = ServiceArea.objects.filter(is_active=True)
+
+        # Pass filter values to template
+        context['filter_values'] = {
+            'service_area': service_area_id,
+            'start_date': start_date,
+            'end_date': end_date,
+            'status': status,
+        }
+
+        return context
+
+    def form_valid(self, form):
+        technician_id = form.cleaned_data['technician']
+        service_request_ids = form.cleaned_data['service_requests'].split(',')
+
+        try:
+            technician = Employee.objects.get(pk=technician_id)
+
+            # Update each service request
+            success_count = 0
+            for req_id in service_request_ids:
+                if req_id:
+                    try:
+                        service_request = ServiceRequest.objects.get(pk=req_id)
+                        service_request.assigned_technician = technician
+                        service_request.save()
+                        success_count += 1
+                    except ServiceRequest.DoesNotExist:
+                        continue
+
+            messages.success(
+                self.request,
+                f"Successfully assigned {success_count} service requests to {technician.get_full_name()}"
+            )
+
+        except Employee.DoesNotExist:
+            messages.error(self.request, "Selected technician not found.")
+            return self.form_invalid(form)
+
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        # Preserve filter parameters in redirect
+        params = {
+            'service_area': self.request.GET.get('service_area', ''),
+            'start_date': self.request.GET.get('start_date', ''),
+            'end_date': self.request.GET.get('end_date', ''),
+            'status': self.request.GET.get('status', 'pending'),
+        }
+
+        base_url = reverse('route_management:bulk_assign_technician')
+        query_string = '&'.join([f"{k}={v}" for k, v in params.items() if v])
+
+        if query_string:
+            return f"{base_url}?{query_string}"
+        return base_url
+
+
+class ServiceAreaCreateView(LoginRequiredMixin, CreateView):
+    """Create a new service area"""
+    model = ServiceArea
+    template_name = 'route_management/service_area_form.html'
+    fields = ['name', 'description', 'code', 'is_active', 'notes']
+
+    def form_valid(self, form):
+        # Set created_by to current user if the field exists
+        if hasattr(form.instance, 'created_by'):
+            form.instance.created_by = self.request.user
+
+        response = super().form_valid(form)
+        messages.success(self.request, f"Service area '{self.object.name}' created successfully.")
+        return response
+
+    def get_success_url(self):
+        return reverse('route_management:service_area_list')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Create Service Area'
+        context['submit_text'] = 'Create'
+        return context
