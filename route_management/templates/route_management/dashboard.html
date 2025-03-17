@@ -4,293 +4,366 @@
 
 {% block content %}
 <div class="container-fluid">
-    <!-- Page Heading -->
-    <div class="d-sm-flex align-items-center justify-content-between mb-4">
-        <h1 class="h3 mb-0 text-gray-800">Route Management Dashboard</h1>
-        <div class="btn-group">
-            <a href="{% url 'route_management:route_create' %}" class="d-none d-sm-inline-block btn btn-sm btn-primary shadow-sm">
-                <i class="fas fa-plus fa-sm text-white-50"></i> Create Route
-            </a>
-            <a href="{% url 'route_management:service_request_create' %}" class="d-none d-sm-inline-block btn btn-sm btn-success shadow-sm ml-2">
-                <i class="fas fa-plus fa-sm text-white-50"></i> Create Service Request
-            </a>
-        </div>
-    </div>
-
-    <!-- Content Row -->
     <div class="row">
-        <!-- Today's Routes Card -->
-        <div class="col-xl-3 col-md-6 mb-4">
-            <div class="card border-left-primary shadow h-100 py-2">
-                <div class="card-body">
-                    <div class="row no-gutters align-items-center">
-                        <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
-                                Today's Routes</div>
-                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ today_routes|length }}</div>
-                        </div>
-                        <div class="col-auto">
-                            <i class="fas fa-route fa-2x text-gray-300"></i>
-                        </div>
-                    </div>
+        <!-- Left Sidebar Navigation -->
+        <nav class="col-md-2 d-md-block bg-light sidebar">
+            <div class="sidebar-sticky pt-3">
+                <ul class="nav flex-column">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{% url 'route_management:dashboard' %}">
+                            <i class="fas fa-tachometer-alt mr-2"></i>Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'route_management:service_request_list' %}">
+                            <i class="fas fa-clipboard-list mr-2"></i>Service Requests
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'route_management:route_list' %}">
+                            <i class="fas fa-route mr-2"></i>Routes
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'route_management:service_calendar' %}">
+                            <i class="fas fa-calendar-alt mr-2"></i>Calendar
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'route_management:route_schedule_list' %}">
+                            <i class="fas fa-calendar-week mr-2"></i>Schedules
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'route_management:service_area_list' %}">
+                            <i class="fas fa-map-marked-alt mr-2"></i>Service Areas
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'route_management:analytics' %}">
+                            <i class="fas fa-chart-bar mr-2"></i>Analytics
+                        </a>
+                    </li>
+                </ul>
+
+                <h6 class="sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted">
+                    <span>Quick Actions</span>
+                </h6>
+                <ul class="nav flex-column mb-2">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'route_management:service_request_create' %}">
+                            <i class="fas fa-plus-circle mr-2"></i>New Service Request
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'route_management:route_create' %}">
+                            <i class="fas fa-plus-circle mr-2"></i>New Route
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" id="geocode-link">
+                            <i class="fas fa-map-marker-alt mr-2"></i>Geocode Locations
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </nav>
+
+        <!-- Main Content Area -->
+        <main role="main" class="col-md-10 ml-sm-auto px-4">
+            <!-- Page Heading -->
+            <div class="d-sm-flex align-items-center justify-content-between mb-4 mt-4">
+                <h1 class="h3 mb-0 text-gray-800">Route Management Dashboard</h1>
+                <div class="btn-group">
+                    <a href="{% url 'route_management:route_create' %}" class="d-none d-sm-inline-block btn btn-sm btn-primary shadow-sm">
+                        <i class="fas fa-plus fa-sm text-white-50"></i> Create Route
+                    </a>
+                    <a href="{% url 'route_management:service_request_create' %}" class="d-none d-sm-inline-block btn btn-sm btn-success shadow-sm ml-2">
+                        <i class="fas fa-plus fa-sm text-white-50"></i> Create Service Request
+                    </a>
                 </div>
             </div>
-        </div>
 
-        <!-- Pending Service Requests Card -->
-        <div class="col-xl-3 col-md-6 mb-4">
-            <div class="card border-left-warning shadow h-100 py-2">
-                <div class="card-body">
-                    <div class="row no-gutters align-items-center">
-                        <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
-                                Pending Service Requests</div>
-                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ unscheduled_requests }}</div>
-                        </div>
-                        <div class="col-auto">
-                            <i class="fas fa-clipboard-list fa-2x text-gray-300"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Technicians On Duty Card -->
-        <div class="col-xl-3 col-md-6 mb-4">
-            <div class="card border-left-success shadow h-100 py-2">
-                <div class="card-body">
-                    <div class="row no-gutters align-items-center">
-                        <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
-                                Technicians On Duty</div>
-                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ technicians_on_duty|length }}</div>
-                        </div>
-                        <div class="col-auto">
-                            <i class="fas fa-user-hard-hat fa-2x text-gray-300"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Average Stops Per Route Card -->
-        <div class="col-xl-3 col-md-6 mb-4">
-            <div class="card border-left-info shadow h-100 py-2">
-                <div class="card-body">
-                    <div class="row no-gutters align-items-center">
-                        <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
-                                Avg. Stops Per Route</div>
-                            <div class="h5 mb-0 font-weight-bold text-gray-800">
-                                {% if avg_stops_per_route %}
-                                    {{ avg_stops_per_route|floatformat:1 }}
-                                {% else %}
-                                    N/A
-                                {% endif %}
-                            </div>
-                        </div>
-                        <div class="col-auto">
-                            <i class="fas fa-map-marked-alt fa-2x text-gray-300"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Content Row -->
-    <div class="row">
-        <!-- Today's Routes -->
-        <div class="col-lg-6 mb-4">
-            <div class="card shadow mb-4">
-                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
-                    <h6 class="m-0 font-weight-bold text-primary">Today's Routes</h6>
-                    <a href="{% url 'route_management:route_list' %}" class="btn btn-sm btn-primary">View All</a>
-                </div>
-                <div class="card-body">
-                    {% if today_routes %}
-                        <div class="table-responsive">
-                            <table class="table table-bordered" width="100%" cellspacing="0">
-                                <thead>
-                                    <tr>
-                                        <th>Route ID</th>
-                                        <th>Technician</th>
-                                        <th>Stops</th>
-                                        <th>Status</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for route in today_routes %}
-                                    <tr>
-                                        <td>{{ route.route_id }}</td>
-                                        <td>{{ route.technician.get_full_name }}</td>
-                                        <td>{{ route.stops.count }}</td>
-                                        <td>
-                                            <span class="badge badge-pill
-                                            {% if route.status == 'draft' %}badge-secondary
-                                            {% elif route.status == 'published' %}badge-info
-                                            {% elif route.status == 'in_progress' %}badge-primary
-                                            {% elif route.status == 'completed' %}badge-success
-                                            {% elif route.status == 'cancelled' %}badge-danger
-                                            {% endif %}">
-                                                {{ route.get_status_display }}
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <div class="btn-group btn-group-sm">
-                                                <a href="{% url 'route_management:route_detail' route.id %}" class="btn btn-info">View</a>
-                                                <a href="{% url 'route_management:route_map' route.id %}" class="btn btn-primary">Map</a>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                    {% else %}
-                        <div class="text-center py-4">
-                            <p class="text-muted">No routes scheduled for today.</p>
-                            <a href="{% url 'route_management:route_create' %}" class="btn btn-primary">Create Route</a>
-                        </div>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-
-        <!-- Pending Service Requests -->
-        <div class="col-lg-6 mb-4">
-            <div class="card shadow mb-4">
-                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
-                    <h6 class="m-0 font-weight-bold text-warning">Pending Service Requests</h6>
-                    <a href="{% url 'route_management:service_request_list' %}" class="btn btn-sm btn-warning">View All</a>
-                </div>
-                <div class="card-body">
-                    {% if service_requests %}
-                        <div class="table-responsive">
-                            <table class="table table-bordered" width="100%" cellspacing="0">
-                                <thead>
-                                    <tr>
-                                        <th>Request #</th>
-                                        <th>Customer</th>
-                                        <th>Service Type</th>
-                                        <th>Priority</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for request in service_requests %}
-                                    <tr>
-                                        <td>{{ request.request_number }}</td>
-                                        <td>{{ request.customer.company_name }}</td>
-                                        <td>{{ request.service_type.name }}</td>
-                                        <td>
-                                            <span class="badge badge-pill
-                                            {% if request.priority == 'low' %}badge-info
-                                            {% elif request.priority == 'medium' %}badge-warning
-                                            {% elif request.priority == 'high' %}badge-danger
-                                            {% elif request.priority == 'urgent' %}badge-danger text-white
-                                            {% endif %}">
-                                                {{ request.get_priority_display }}
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <div class="btn-group btn-group-sm">
-                                                <a href="{% url 'route_management:service_request_detail' request.id %}" class="btn btn-info">View</a>
-                                                <button type="button" class="btn btn-success assign-request" data-request-id="{{ request.id }}">Assign</button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                    {% else %}
-                        <div class="text-center py-4">
-                            <p class="text-muted">No pending service requests.</p>
-                            <a href="{% url 'route_management:service_request_create' %}" class="btn btn-warning">Create Service Request</a>
-                        </div>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Efficiency Metrics Row -->
-    <div class="row">
-        <div class="col-lg-12 mb-4">
-            <div class="card shadow mb-4">
-                <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-primary">Efficiency Metrics</h6>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-4 mb-4">
-                            <div class="card border-left-info shadow h-100 py-2">
-                                <div class="card-body">
-                                    <div class="row no-gutters align-items-center">
-                                        <div class="col mr-2">
-                                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
-                                                Avg Service Duration</div>
-                                            <div class="h5 mb-0 font-weight-bold text-gray-800">
-                                                {% if avg_service_duration %}
-                                                    {{ avg_service_duration|floatformat:0 }} min
-                                                {% else %}
-                                                    N/A
-                                                {% endif %}
-                                            </div>
-                                        </div>
-                                        <div class="col-auto">
-                                            <i class="fas fa-clock fa-2x text-gray-300"></i>
-                                        </div>
-                                    </div>
+            <!-- Content Row -->
+            <div class="row">
+                <!-- Today's Routes Card -->
+                <div class="col-xl-3 col-md-6 mb-4">
+                    <div class="card border-left-primary shadow h-100 py-2">
+                        <div class="card-body">
+                            <div class="row no-gutters align-items-center">
+                                <div class="col mr-2">
+                                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                        Today's Routes</div>
+                                    <div class="h5 mb-0 font-weight-bold text-gray-800">{{ today_routes|length }}</div>
+                                </div>
+                                <div class="col-auto">
+                                    <i class="fas fa-route fa-2x text-gray-300"></i>
                                 </div>
                             </div>
                         </div>
-                        <div class="col-md-4 mb-4">
-                            <div class="card border-left-success shadow h-100 py-2">
-                                <div class="card-body">
-                                    <div class="row no-gutters align-items-center">
-                                        <div class="col mr-2">
-                                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
-                                                Routes Completed Today</div>
-                                            <div class="h5 mb-0 font-weight-bold text-gray-800">
-                                                {{ today_routes|length }}
-                                            </div>
-                                        </div>
-                                        <div class="col-auto">
-                                            <i class="fas fa-check-circle fa-2x text-gray-300"></i>
-                                        </div>
-                                    </div>
+                    </div>
+                </div>
+
+                <!-- Pending Service Requests Card -->
+                <div class="col-xl-3 col-md-6 mb-4">
+                    <div class="card border-left-warning shadow h-100 py-2">
+                        <div class="card-body">
+                            <div class="row no-gutters align-items-center">
+                                <div class="col mr-2">
+                                    <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                        Pending Service Requests</div>
+                                    <div class="h5 mb-0 font-weight-bold text-gray-800">{{ unscheduled_requests }}</div>
+                                </div>
+                                <div class="col-auto">
+                                    <i class="fas fa-clipboard-list fa-2x text-gray-300"></i>
                                 </div>
                             </div>
                         </div>
-                        <div class="col-md-4 mb-4">
-                            <div class="card border-left-warning shadow h-100 py-2">
-                                <div class="card-body">
-                                    <div class="row no-gutters align-items-center">
-                                        <div class="col mr-2">
-                                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
-                                                Service Locations Needing Geocoding</div>
+                    </div>
+                </div>
+
+                <!-- Technicians On Duty Card -->
+                <div class="col-xl-3 col-md-6 mb-4">
+                    <div class="card border-left-success shadow h-100 py-2">
+                        <div class="card-body">
+                            <div class="row no-gutters align-items-center">
+                                <div class="col mr-2">
+                                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                        Technicians On Duty</div>
+                                    <div class="h5 mb-0 font-weight-bold text-gray-800">{{ technicians_on_duty|length }}</div>
+                                </div>
+                                <div class="col-auto">
+                                    <i class="fas fa-user-hard-hat fa-2x text-gray-300"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Average Stops Per Route Card -->
+                <div class="col-xl-3 col-md-6 mb-4">
+                    <div class="card border-left-info shadow h-100 py-2">
+                        <div class="card-body">
+                            <div class="row no-gutters align-items-center">
+                                <div class="col mr-2">
+                                    <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                        Avg. Stops Per Route</div>
+                                    <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                        {% if avg_stops_per_route %}
+                                            {{ avg_stops_per_route|floatformat:1 }}
+                                        {% else %}
+                                            N/A
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="col-auto">
+                                    <i class="fas fa-map-marked-alt fa-2x text-gray-300"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Content Row -->
+            <div class="row">
+                <!-- Today's Routes -->
+                <div class="col-lg-6 mb-4">
+                    <div class="card shadow mb-4">
+                        <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                            <h6 class="m-0 font-weight-bold text-primary">Today's Routes</h6>
+                            <a href="{% url 'route_management:route_list' %}" class="btn btn-sm btn-primary">View All</a>
+                        </div>
+                        <div class="card-body">
+                            {% if today_routes %}
+                                <div class="table-responsive">
+                                    <table class="table table-bordered" width="100%" cellspacing="0">
+                                        <thead>
+                                            <tr>
+                                                <th>Route ID</th>
+                                                <th>Technician</th>
+                                                <th>Stops</th>
+                                                <th>Status</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for route in today_routes %}
+                                            <tr>
+                                                <td>{{ route.route_id }}</td>
+                                                <td>
+                                                    <a href="{% url 'route_management:technician_schedule' route.technician.id %}">
+                                                        {{ route.technician.get_full_name }}
+                                                    </a>
+                                                </td>
+                                                <td>{{ route.stops.count }}</td>
+                                                <td>
+                                                    <span class="badge badge-pill
+                                                    {% if route.status == 'draft' %}badge-secondary
+                                                    {% elif route.status == 'published' %}badge-info
+                                                    {% elif route.status == 'in_progress' %}badge-primary
+                                                    {% elif route.status == 'completed' %}badge-success
+                                                    {% elif route.status == 'cancelled' %}badge-danger
+                                                    {% endif %}">
+                                                        {{ route.get_status_display }}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <div class="btn-group btn-group-sm">
+                                                        <a href="{% url 'route_management:route_detail' route.id %}" class="btn btn-info">View</a>
+                                                        <a href="{% url 'route_management:route_map' route.id %}" class="btn btn-primary">Map</a>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            {% else %}
+                                <div class="text-center py-4">
+                                    <p class="text-muted">No routes scheduled for today.</p>
+                                    <a href="{% url 'route_management:route_create' %}" class="btn btn-primary">Create Route</a>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pending Service Requests -->
+                <div class="col-lg-6 mb-4">
+                    <div class="card shadow mb-4">
+                        <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                            <h6 class="m-0 font-weight-bold text-warning">Pending Service Requests</h6>
+                            <a href="{% url 'route_management:service_request_list' %}" class="btn btn-sm btn-warning">View All</a>
+                        </div>
+                        <div class="card-body">
+                            {% if service_requests %}
+                                <div class="table-responsive">
+                                    <table class="table table-bordered" width="100%" cellspacing="0">
+                                        <thead>
+                                            <tr>
+                                                <th>Request #</th>
+                                                <th>Customer</th>
+                                                <th>Service Type</th>
+                                                <th>Priority</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for request in service_requests %}
+                                            <tr>
+                                                <td>{{ request.request_number }}</td>
+                                                <td>{{ request.customer.company_name }}</td>
+                                                <td>{{ request.service_type.name }}</td>
+                                                <td>
+                                                    <span class="badge badge-pill
+                                                    {% if request.priority == 'low' %}badge-info
+                                                    {% elif request.priority == 'medium' %}badge-warning
+                                                    {% elif request.priority == 'high' %}badge-danger
+                                                    {% elif request.priority == 'urgent' %}badge-danger text-white
+                                                    {% endif %}">
+                                                        {{ request.get_priority_display }}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <div class="btn-group btn-group-sm">
+                                                        <a href="{% url 'route_management:service_request_detail' request.id %}" class="btn btn-info">View</a>
+                                                        <button type="button" class="btn btn-success assign-request" data-request-id="{{ request.id }}">Assign</button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            {% else %}
+                                <div class="text-center py-4">
+                                    <p class="text-muted">No pending service requests.</p>
+                                    <a href="{% url 'route_management:service_request_create' %}" class="btn btn-warning">Create Service Request</a>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Efficiency Metrics Row -->
+            <div class="row">
+                <div class="col-lg-12 mb-4">
+                    <div class="card shadow mb-4">
+                        <div class="card-header py-3">
+                            <h6 class="m-0 font-weight-bold text-primary">Efficiency Metrics</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-4 mb-4">
+                                    <div class="card border-left-info shadow h-100 py-2">
+                                        <div class="card-body">
                                             <div class="row no-gutters align-items-center">
-                                                <div class="col-auto">
-                                                    <div class="h5 mb-0 mr-3 font-weight-bold text-gray-800" id="locations-to-geocode">
-                                                        {% if locations_to_geocode %}
-                                                            {{ locations_to_geocode }}
+                                                <div class="col mr-2">
+                                                    <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                                        Avg Service Duration</div>
+                                                    <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                                        {% if avg_service_duration %}
+                                                            {{ avg_service_duration|floatformat:0 }} min
                                                         {% else %}
-                                                            0
+                                                            N/A
                                                         {% endif %}
                                                     </div>
                                                 </div>
-                                                <div class="col">
-                                                    <button id="geocode-button" class="btn btn-sm btn-warning">
-                                                        Geocode Locations
-                                                    </button>
+                                                <div class="col-auto">
+                                                    <i class="fas fa-clock fa-2x text-gray-300"></i>
                                                 </div>
                                             </div>
                                         </div>
-                                        <div class="col-auto">
-                                            <i class="fas fa-map-marker-alt fa-2x text-gray-300"></i>
+                                    </div>
+                                </div>
+                                <div class="col-md-4 mb-4">
+                                    <div class="card border-left-success shadow h-100 py-2">
+                                        <div class="card-body">
+                                            <div class="row no-gutters align-items-center">
+                                                <div class="col mr-2">
+                                                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                                        Routes Completed Today</div>
+                                                    <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                                        {{ today_routes|length }}
+                                                    </div>
+                                                </div>
+                                                <div class="col-auto">
+                                                    <i class="fas fa-check-circle fa-2x text-gray-300"></i>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4 mb-4">
+                                    <div class="card border-left-warning shadow h-100 py-2">
+                                        <div class="card-body">
+                                            <div class="row no-gutters align-items-center">
+                                                <div class="col mr-2">
+                                                    <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                                        Service Locations Needing Geocoding</div>
+                                                    <div class="row no-gutters align-items-center">
+                                                        <div class="col-auto">
+                                                            <div class="h5 mb-0 mr-3 font-weight-bold text-gray-800" id="locations-to-geocode">
+                                                                {% if locations_to_geocode %}
+                                                                    {{ locations_to_geocode }}
+                                                                {% else %}
+                                                                    0
+                                                                {% endif %}
+                                                            </div>
+                                                        </div>
+                                                        <div class="col">
+                                                            <button id="geocode-button" class="btn btn-sm btn-warning">
+                                                                Geocode Locations
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="col-auto">
+                                                    <i class="fas fa-map-marker-alt fa-2x text-gray-300"></i>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -299,16 +372,26 @@
                     </div>
                 </div>
             </div>
-        </div>
+        </main>
     </div>
 </div>
 {% endblock %}
 
-{% block scripts %}
+{% block extra_js %}
 <script>
 $(document).ready(function() {
-    // Geocoding request
+    // Geocoding request via button
     $('#geocode-button').click(function() {
+        geocodeLocations();
+    });
+
+    // Also handle the sidebar link
+    $('#geocode-link').click(function(e) {
+        e.preventDefault();
+        geocodeLocations();
+    });
+
+    function geocodeLocations() {
         $.ajax({
             url: '{% url "route_management:geocode_locations" %}',
             type: 'POST',
@@ -327,7 +410,7 @@ $(document).ready(function() {
                 toastr.error('Error geocoding locations');
             }
         });
-    });
+    }
 
     // Request assignment modal
     $('.assign-request').click(function() {
@@ -335,6 +418,16 @@ $(document).ready(function() {
         // Here you would open a modal to select a route to assign this request to
         // For simplicity, we'll just redirect to the route list
         window.location.href = '{% url "route_management:route_list" %}?service_request=' + requestId;
+    });
+
+    // Make sidebar menu highlight current page
+    const path = window.location.pathname;
+    $('.sidebar .nav-link').each(function() {
+        const href = $(this).attr('href');
+        if (path === href) {
+            $(this).addClass('active');
+            $(this).css('font-weight', 'bold');
+        }
     });
 });
 </script>

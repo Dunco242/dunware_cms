@@ -1,0 +1,83 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Delete Service Area{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="card shadow-sm border-danger">
+        <div class="card-header bg-danger text-white">
+            <h2 class="mb-0">
+                <i class="fas fa-exclamation-triangle me-2"></i>Confirm Service Area Deletion
+            </h2>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-danger">
+                <h4>Are you absolutely sure you want to delete this service area?</h4>
+                <p>This action cannot be undone. Deleting this service area will:</p>
+                <ul>
+                    <li>Remove the service area "{{ object.name }}"</li>
+                    <li>Unassign all technicians from this area</li>
+                    <li>Disassociate all service locations</li>
+                    <li>Delete all related historical data</li>
+                </ul>
+            </div>
+
+            <div class="row">
+                <div class="col-md-6">
+                    <h5>Service Area Details</h5>
+                    <table class="table table-bordered">
+                        <tr>
+                            <th>Name</th>
+                            <td>{{ object.name }}</td>
+                        </tr>
+                        <tr>
+                            <th>Status</th>
+                            <td>
+                                {% if object.is_active %}
+                                    <span class="badge bg-success">Active</span>
+                                {% else %}
+                                    <span class="badge bg-warning">Inactive</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Assigned Locations</th>
+                            <td>{{ object.locations.count }}</td>
+                        </tr>
+                        <tr>
+                            <th>Assigned Technicians</th>
+                            <td>{{ object.technicians.count }}</td>
+                        </tr>
+                    </table>
+                </div>
+                <div class="col-md-6">
+                    <h5>Impact Assessment</h5>
+                    <div class="card bg-light">
+                        <div class="card-body">
+                            <p><strong>Warning:</strong> This action will:</p>
+                            <ul class="text-danger">
+                                <li>Delete all historical routes in this area</li>
+                                <li>Remove service request associations</li>
+                                <li>Potentially affect scheduling and reporting</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <form method="post">
+                {% csrf_token %}
+                <div class="d-flex justify-content-end mt-3">
+                    <a href="{% url 'route_management:service_area_detail' object.pk %}" class="btn btn-secondary me-2">
+                        <i class="fas fa-times me-1"></i>Cancel
+                    </a>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-trash me-1"></i>Permanently Delete Service Area
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

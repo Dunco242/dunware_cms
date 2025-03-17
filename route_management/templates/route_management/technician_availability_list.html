@@ -1,0 +1,212 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Technician Availability{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <h2 class="mb-0">
+                <i class="fas fa-calendar-check me-2"></i>Technician Availability
+            </h2>
+            <div class="d-flex">
+                <form method="get" class="d-flex me-2">
+                    <select name="technician" class="form-select form-select-sm me-2">
+                        <option value="">All Technicians</option>
+                        {% for technician in technicians %}
+                            <option value="{{ technician.id }}"
+                                    {% if request.GET.technician == technician.id|stringformat:'s' %}selected{% endif %}>
+                                {{ technician.get_full_name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                    <select name="availability_type" class="form-select form-select-sm me-2">
+                        <option value="">All Types</option>
+                        <option value="weekly" {% if request.GET.availability_type == 'weekly' %}selected{% endif %}>
+                            Weekly Recurring
+                        </option>
+                        <option value="specific" {% if request.GET.availability_type == 'specific' %}selected{% endif %}>
+                            Specific Dates
+                        </option>
+                    </select>
+                    <button type="submit" class="btn btn-light btn-sm">
+                        <i class="fas fa-filter me-1"></i>Filter
+                    </button>
+                </form>
+                <a href="{% url 'route_management:technician_availability_create' %}" class="btn btn-success btn-sm">
+                    <i class="fas fa-plus me-1"></i>Add Availability
+                </a>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Technician</th>
+                            <th>Availability Type</th>
+                            <th>Day/Date</th>
+                            <th>Time Range</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for availability in technician_availabilities %}
+                        <tr>
+                            <td>
+                                <a href="{% url 'route_management:technician_profile' availability.technician.technician_profile.pk %}">
+                                    {{ availability.technician.get_full_name }}
+                                </a>
+                            </td>
+                            <td>
+                                {% if availability.day_of_week is not None %}
+                                    <span class="badge bg-primary">Weekly</span>
+                                {% elif availability.specific_date %}
+                                    <span class="badge bg-secondary">Specific Date</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if availability.day_of_week is not None %}
+                                    {{ availability.get_day_of_week_display }}
+                                {% elif availability.specific_date %}
+                                    {{ availability.specific_date|date:"M d, Y" }}
+                                {% endif %}
+                            </td>
+                            <td>
+                                {{ availability.start_time|time:"H:i" }} -
+                                {{ availability.end_time|time:"H:i" }}
+                            </td>
+                            <td>
+                                {% if availability.is_available %}
+                                    <span class="badge bg-success">Available</span>
+                                {% else %}
+                                    <span class="badge bg-danger">Unavailable</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <a href="{% url 'route_management:technician_availability_detail' availability.pk %}"
+                                       class="btn btn-info">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    <a href="{% url 'route_management:technician_availability_update' availability.pk %}"
+                                       class="btn btn-warning">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <button type="button" class="btn btn-danger"
+                                            data-bs-toggle="modal"
+                                            data-bs-target="#deleteAvailabilityModal{{ availability.pk }}">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-center text-muted">
+                                <i class="fas fa-calendar-times fa-2x mb-3"></i>
+                                <p>No technician availability records found.</p>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% if is_paginated %}
+            <nav aria-label="Availability pagination">
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.technician %}&technician={{ request.GET.technician }}{% endif %}{% if request.GET.availability_type %}&availability_type={{ request.GET.availability_type }}{% endif %}">
+                                Previous
+                            </a>
+                        </li>
+                    {% endif %}
+
+                    {% for num in page_obj.paginator.page_range %}
+                        {% if page_obj.number == num %}
+                            <li class="page-item active">
+                                <span class="page-link">{{ num }}</span>
+                            </li>
+                        {% else %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ num }}{% if request.GET.technician %}&technician={{ request.GET.technician }}{% endif %}{% if request.GET.availability_type %}&availability_type={{ request.GET.availability_type }}{% endif %}">
+                                    {{ num }}
+                                </a>
+                            </li>
+                        {% endif %}
+                    {% endfor %}
+
+                    {% if page_obj.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.technician %}&technician={{ request.GET.technician }}{% endif %}{% if request.GET.availability_type %}&availability_type={{ request.GET.availability_type }}{% endif %}">
+                                Next
+                            </a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+        </div>
+    </div>
+
+    {% for availability in technician_availabilities %}
+    <!-- Delete Availability Modal -->
+    <div class="modal fade" id="deleteAvailabilityModal{{ availability.pk }}" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">
+                        <i class="fas fa-exclamation-triangle me-2"></i>Confirm Availability Deletion
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Are you sure you want to delete this availability record?</p>
+                    <p class="text-muted">
+                        Technician: {{ availability.technician.get_full_name }}
+                        {% if availability.day_of_week is not None %}
+                            ({{ availability.get_day_of_week_display }})
+                        {% elif availability.specific_date %}
+                            ({{ availability.specific_date|date:"M d, Y" }})
+                        {% endif %}
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <form method="post" action="{% url 'route_management:technician_availability_delete' availability.pk %}">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-danger">
+                            <i class="fas fa-trash me-1"></i>Delete Availability
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Optional: Add any additional interactivity
+    const filterForm = document.querySelector('form');
+
+    // Clear filter functionality
+    const clearFilterBtn = document.createElement('button');
+    clearFilterBtn.className = 'btn btn-secondary btn-sm ms-2';
+    clearFilterBtn.innerHTML = '<i class="fas fa-times me-1"></i>Clear Filters';
+    clearFilterBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        window.location.href = "{% url 'route_management:technician_availability_list' %}";
+    });
+
+    filterForm.appendChild(clearFilterBtn);
+});
+</script>
+{% endblock %}

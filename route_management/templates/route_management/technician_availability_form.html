@@ -1,0 +1,249 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}
+    {% if form.instance.pk %}
+        Edit Technician Availability
+    {% else %}
+        Create Technician Availability
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white">
+            <h2 class="mb-0">
+                <i class="fas fa-calendar-check me-2"></i>
+                {% if form.instance.pk %}
+                    Edit Technician Availability
+                {% else %}
+                    Create Technician Availability
+                {% endif %}
+            </h2>
+        </div>
+
+        <form method="post" class="needs-validation" novalidate>
+            {% csrf_token %}
+            <div class="card-body">
+                {% if form.non_field_errors %}
+                    <div class="alert alert-danger">
+                        {% for error in form.non_field_errors %}
+                            <p>{{ error }}</p>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="{{ form.technician.id_for_label }}" class="form-label">
+                                Technician <span class="text-danger">*</span>
+                            </label>
+                            {{ form.technician|add_class:"form-control" }}
+                            {% if form.technician.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.technician.errors }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">
+                                Availability Type
+                            </label>
+                            <div class="d-flex">
+                                <div class="form-check me-3">
+                                    <input class="form-check-input" type="radio" name="availability_type"
+                                           id="weeklyAvailability"
+                                           {% if form.day_of_week.value or not form.specific_date.value %}checked{% endif %}>
+                                    <label class="form-check-label" for="weeklyAvailability">
+                                        Weekly Recurring
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="availability_type"
+                                           id="specificDateAvailability"
+                                           {% if form.specific_date.value %}checked{% endif %}>
+                                    <label class="form-check-label" for="specificDateAvailability">
+                                        Specific Date
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6" id="weeklyAvailabilitySection"
+                         {% if form.specific_date.value %}style="display:none;"{% endif %}>
+                        <div class="mb-3">
+                            <label for="{{ form.day_of_week.id_for_label }}" class="form-label">
+                                Day of Week
+                            </label>
+                            {{ form.day_of_week|add_class:"form-control" }}
+                            {% if form.day_of_week.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.day_of_week.errors }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="col-md-6" id="specificDateSection"
+                         {% if not form.specific_date.value %}style="display:none;"{% endif %}>
+                        <div class="mb-3">
+                            <label for="{{ form.specific_date.id_for_label }}" class="form-label">
+                                Specific Date
+                            </label>
+                            {{ form.specific_date|add_class:"form-control" }}
+                            {% if form.specific_date.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.specific_date.errors }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="{{ form.start_time.id_for_label }}" class="form-label">
+                                Start Time <span class="text-danger">*</span>
+                            </label>
+                            {{ form.start_time|add_class:"form-control" }}
+                            {% if form.start_time.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.start_time.errors }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="{{ form.end_time.id_for_label }}" class="form-label">
+                                End Time <span class="text-danger">*</span>
+                            </label>
+                            {{ form.end_time|add_class:"form-control" }}
+                            {% if form.end_time.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.end_time.errors }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="col-12">
+                        <div class="mb-3">
+                            <div class="form-check">
+                                {{ form.is_available|add_class:"form-check-input" }}
+                                <label class="form-check-label" for="{{ form.is_available.id_for_label }}">
+                                    Technician is Available
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-12">
+                        <div class="mb-3">
+                            <label for="{{ form.unavailability_reason.id_for_label }}" class="form-label">
+                                Unavailability Reason (if not available)
+                            </label>
+                            {{ form.unavailability_reason|add_class:"form-control" }}
+                            {% if form.unavailability_reason.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.unavailability_reason.errors }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card-footer d-flex justify-content-end">
+                <a href="{% url 'route_management:technician_availability_list' %}" class="btn btn-secondary me-2">
+                    <i class="fas fa-times me-1"></i>Cancel
+                </a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save me-1"></i>
+                    {% if form.instance.pk %}
+                        Update Availability
+                    {% else %}
+                        Create Availability
+                    {% endif %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Form validation
+    (function() {
+        'use strict';
+        window.addEventListener('load', function() {
+            var forms = document.getElementsByClassName('needs-validation');
+            var validation = Array.prototype.filter.call(forms, function(form) {
+                form.addEventListener('submit', function(event) {
+                    if (form.checkValidity() === false) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                    }
+                    form.classList.add('was-validated');
+                }, false);
+            });
+        }, false);
+    })();
+
+    // Availability type toggle
+    const weeklyRadio = document.getElementById('weeklyAvailability');
+    const specificDateRadio = document.getElementById('specificDateAvailability');
+    const weeklySection = document.getElementById('weeklyAvailabilitySection');
+    const specificDateSection = document.getElementById('specificDateSection');
+    const dayOfWeekInput = document.querySelector('[name="day_of_week"]');
+    const specificDateInput = document.querySelector('[name="specific_date"]');
+
+    function toggleAvailabilityType() {
+        if (weeklyRadio.checked) {
+            weeklySection.style.display = 'block';
+            specificDateSection.style.display = 'none';
+            specificDateInput.value = '';
+            dayOfWeekInput.required = true;
+            specificDateInput.required = false;
+        } else {
+            weeklySection.style.display = 'none';
+            specificDateSection.style.display = 'block';
+            dayOfWeekInput.value = '';
+            specificDateInput.required = true;
+            dayOfWeekInput.required = false;
+        }
+    }
+
+    weeklyRadio.addEventListener('change', toggleAvailabilityType);
+    specificDateRadio.addEventListener('change', toggleAvailabilityType);
+
+    // Time validation
+    const startTimeInput = document.querySelector('[name="start_time"]');
+    const endTimeInput = document.querySelector('[name="end_time"]');
+
+    function validateTimes() {
+        const startTime = startTimeInput.value;
+        const endTime = endTimeInput.value;
+
+        if (startTime && endTime) {
+            if (startTime >= endTime) {
+                endTimeInput.setCustomValidity('End time must be after start time');
+            } else {
+                endTimeInput.setCustomValidity('');
+            }
+        }
+    }
+
+    startTimeInput.addEventListener('change', validateTimes);
+    endTimeInput.addEventListener('change', validateTimes);
+});
+</script>
+{% endblock %}

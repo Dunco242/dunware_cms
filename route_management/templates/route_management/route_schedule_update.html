@@ -1,0 +1,245 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}
+    {% if form.instance.pk %}
+        Edit Route Schedule {{ form.instance.name }}
+    {% else %}
+        Create New Route Schedule
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white">
+            <h2 class="mb-0">
+                <i class="fas fa-calendar-alt me-2"></i>
+                {% if form.instance.pk %}
+                    Edit Route Schedule
+                {% else %}
+                    Create New Route Schedule
+                {% endif %}
+            </h2>
+        </div>
+
+        <form method="post" class="needs-validation" novalidate>
+            {% csrf_token %}
+            <div class="card-body">
+                {% if form.non_field_errors %}
+                    <div class="alert alert-danger">
+                        {% for error in form.non_field_errors %}
+                            <p>{{ error }}</p>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="{{ form.name.id_for_label }}" class="form-label">
+                                Schedule Name <span class="text-danger">*</span>
+                            </label>
+                            {{ form.name|add_class:"form-control" }}
+                            {% if form.name.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.name.errors }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="{{ form.date.id_for_label }}" class="form-label">
+                                Schedule Date <span class="text-danger">*</span>
+                            </label>
+                            {{ form.date|add_class:"form-control" }}
+                            {% if form.date.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.date.errors }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="col-12">
+                        <div class="mb-3">
+                            <label for="{{ form.description.id_for_label }}" class="form-label">
+                                Description
+                            </label>
+                            {{ form.description|add_class:"form-control" }}
+                            {% if form.description.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.description.errors }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card-footer d-flex justify-content-end">
+                <a href="{% url 'route_management:route_schedule_list' %}" class="btn btn-secondary me-2">
+                    <i class="fas fa-times me-1"></i>Cancel
+                </a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save me-1"></i>
+                    {% if form.instance.pk %}
+                        Update Schedule
+                    {% else %}
+                        Create Schedule
+                    {% endif %}
+                </button>
+            </div>
+        </form>
+    </div>
+
+    {% if form.instance.pk %}
+    <div class="card mt-4 shadow-sm">
+        <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+            <h4 class="mb-0">
+                <i class="fas fa-route me-2"></i>Routes in this Schedule
+            </h4>
+            <a href="{% url 'route_management:route_create' %}?schedule={{ form.instance.pk }}" class="btn btn-success btn-sm">
+                <i class="fas fa-plus me-1"></i>Add Route
+            </a>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Route ID</th>
+                            <th>Technician</th>
+                            <th>Date</th>
+                            <th>Stops</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for route in form.instance.routes.all %}
+                        <tr>
+                            <td>{{ route.route_id }}</td>
+                            <td>{{ route.technician.get_full_name }}</td>
+                            <td>{{ route.date }}</td>
+                            <td>
+                                <span class="badge bg-info">
+                                    {{ route.stops.count }} Stops
+                                </span>
+                            </td>
+                            <td>
+                                {% if route.status == 'draft' %}
+                                    <span class="badge bg-secondary">Draft</span>
+                                {% elif route.status == 'published' %}
+                                    <span class="badge bg-success">Published</span>
+                                {% elif route.status == 'in_progress' %}
+                                    <span class="badge bg-warning">In Progress</span>
+                                {% elif route.status == 'completed' %}
+                                    <span class="badge bg-primary">Completed</span>
+                                {% else %}
+                                    <span class="badge bg-danger">{{ route.status }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <a href="{% url 'route_management:route_detail' route.pk %}" class="btn btn-info">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    <a href="{% url 'route_management:route_update' route.pk %}" class="btn btn-warning">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <button type="button" class="btn btn-danger"
+                                            data-bs-toggle="modal"
+                                            data-bs-target="#deleteRouteModal{{ route.pk }}">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-center text-muted">
+                                No routes in this schedule yet
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    {% for route in form.instance.routes.all %}
+    <!-- Delete Route Modal -->
+    <div class="modal fade" id="deleteRouteModal{{ route.pk }}" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">
+                        <i class="fas fa-exclamation-triangle me-2"></i>Confirm Route Deletion
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Are you sure you want to delete the route "{{ route.route_id }}"?</p>
+                    <p class="text-danger">
+                        <strong>Warning:</strong> This will remove the route and its stops from the schedule.
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <form method="post" action="{% url 'route_management:route_delete' route.pk %}">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-danger">
+                            <i class="fas fa-trash me-1"></i>Delete Route
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Form validation
+    (function() {
+        'use strict';
+        window.addEventListener('load', function() {
+            var forms = document.getElementsByClassName('needs-validation');
+            var validation = Array.prototype.filter.call(forms, function(form) {
+                form.addEventListener('submit', function(event) {
+                    if (form.checkValidity() === false) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                    }
+                    form.classList.add('was-validated');
+                }, false);
+            });
+        }, false);
+    })();
+
+    // Optional: Add additional interactivity
+    const dateInput = document.getElementById('{{ form.date.id_for_label }}');
+
+    // Optional date validation to prevent past dates
+    dateInput.addEventListener('change', function() {
+        const selectedDate = new Date(this.value);
+        const today = new Date();
+
+        if (selectedDate < today) {
+            this.setCustomValidity('Date cannot be in the past');
+            this.reportValidity();
+        } else {
+            this.setCustomValidity('');
+        }
+    });
+});
+</script>
+{% endblock %}

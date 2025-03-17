@@ -970,7 +970,7 @@ class RouteMapView(LoginRequiredMixin, DetailView):
             }
 
         context['map_data'] = map_data
-        context['api_key'] = settings.GOOGLE_MAPS_API_KEY
+        context['api_key'] = settings.HERE_MAPS_API_KEY
 
         return context
 

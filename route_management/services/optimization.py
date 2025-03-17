@@ -11,12 +11,12 @@ from ..models import Route, RouteStop, DistanceMatrixCache, OptimizationSettings
 logger = logging.getLogger(__name__)
 
 class RouteOptimizationService:
-    """Service for optimizing routes"""
+    """Service for optimizing routes using Here Maps"""
 
     @classmethod
     def optimize_route(cls, route):
         """
-        Optimize the ordering of stops in a route
+        Optimize the ordering of stops in a route using Here Maps routing
 
         Args:
             route (Route): The route to optimize
@@ -49,63 +49,153 @@ class RouteOptimizationService:
         stop_data = {}
 
         # Start location
+        start_point = None
         if route.start_latitude and route.start_longitude:
-            locations.append({
+            start_point = {
                 'lat': float(route.start_latitude),
                 'lng': float(route.start_longitude),
-                'id': 'start'
-            })
+                'name': 'Start: ' + (route.start_location or 'Route Start')
+            }
+            locations.append(start_point)
 
         # Stop locations
+        stop_locations = []
         for stop in stops:
             location = stop.service_request.service_location
             if location.latitude and location.longitude:
-                loc_id = f"stop_{stop.id}"
-                locations.append({
+                stop_location = {
                     'lat': float(location.latitude),
                     'lng': float(location.longitude),
-                    'id': loc_id
-                })
-                stop_data[loc_id] = stop
+                    'name': f"Stop: {location.name}",
+                    'stop_id': stop.id
+                }
+                stop_locations.append(stop_location)
+                stop_data[stop.id] = stop
 
         # End location (if different from start)
+        end_point = None
         if route.end_latitude and route.end_longitude:
             if route.start_latitude != route.end_latitude or route.start_longitude != route.end_longitude:
-                locations.append({
+                end_point = {
                     'lat': float(route.end_latitude),
                     'lng': float(route.end_longitude),
-                    'id': 'end'
-                })
+                    'name': 'End: ' + (route.end_location or 'Route End')
+                }
 
-        # If we have at least 3 locations (start, one stop, end), optimize
-        if len(locations) < 3:
-            logger.warning(f"Not enough geocoded locations for route {route.route_id}")
+        # Validate locations
+        if not start_point or len(stop_locations) == 0:
+            logger.warning(f"Insufficient locations for route optimization: {route.route_id}")
             return False
 
         try:
-            # Build distance matrix
-            distance_matrix = cls._build_distance_matrix(locations)
+            # Prepare full waypoints list
+            full_waypoints = ([start_point] +
+                              stop_locations +
+                              ([end_point] if end_point else []))
 
-            # Call optimization algorithm
-            if settings.prioritize == 'distance':
-                optimized_order = cls._optimize_tsp(distance_matrix, 'distance')
-            else:
-                optimized_order = cls._optimize_tsp(distance_matrix, 'time')
+            # Attempt to get optimal route from Here Maps
+            route_optimization = cls._optimize_route_with_here_maps(full_waypoints)
+
+            if not route_optimization:
+                logger.warning(f"Route optimization failed for route {route.route_id}")
+                return False
+
+            # Update route with optimization details
+            route.route_polyline = route_optimization.get('polyline')
+            route.total_route_distance = route_optimization.get('total_distance')
+            route.total_route_duration = route_optimization.get('total_duration')
+
+            # Reorder stops based on optimized route
+            optimized_stops = cls._reorder_stops_from_optimized_route(
+                full_waypoints,
+                route_optimization.get('waypoint_order', []),
+                stop_data
+            )
 
             # Update stop order
-            return cls._update_stop_order(route, optimized_order, stop_data)
+            for index, stop in enumerate(optimized_stops, 1):
+                stop.stop_number = index
+                stop.save()
+
+            # Save route with optimization details
+            route.save()
+
+            # Log successful optimization
+            RouteLog.objects.create(
+                route=route,
+                log_type='system',
+                message=f"Route optimized. Total distance: {route.total_route_distance} meters"
+            )
+
+            return True
 
         except Exception as e:
-            logger.exception(f"Error optimizing route {route.route_id}: {str(e)}")
+            logger.exception(f"Comprehensive route optimization error for route {route.route_id}: {str(e)}")
 
             # Create error log
             RouteLog.objects.create(
                 route=route,
                 log_type='issue',
-                message=f"Optimization error: {str(e)}"
+                message=f"Comprehensive optimization error: {str(e)}"
             )
 
             return False
+
+    @classmethod
+    def _optimize_route_with_here_maps(cls, waypoints):
+        """
+        Use Here Maps to calculate optimal route
+
+        Args:
+            waypoints (list): List of location dictionaries
+
+        Returns:
+            dict: Optimized route details or None
+        """
+        # Prepare waypoint coordinates for Here Maps routing
+        coordinates = [(wp['lat'], wp['lng']) for wp in waypoints]
+
+        # Use GeocodingService to calculate route
+        route_details = GeocodingService.calculate_route(coordinates)
+
+        if not route_details:
+            logger.warning("Here Maps route calculation failed")
+            return None
+
+        # Enhance route details with additional information
+        return {
+            'polyline': route_details.get('polyline'),
+            'total_distance': route_details.get('total_distance'),
+            'total_duration': route_details.get('total_duration'),
+            'waypoint_order': list(range(len(coordinates)))  # Here Maps typically returns original order
+        }
+
+    @classmethod
+    def _reorder_stops_from_optimized_route(cls, full_waypoints, waypoint_order, stop_data):
+        """
+        Reorder route stops based on optimized route
+
+        Args:
+            full_waypoints (list): All waypoints in route order
+            waypoint_order (list): Optimized waypoint indices
+            stop_data (dict): Mapping of stop data
+
+        Returns:
+            list: Reordered route stops
+        """
+        optimized_stops = []
+
+        # Skip first (start) and last (end) waypoints
+        for index in waypoint_order[1:-1]:
+            waypoint = full_waypoints[index]
+
+            # Find the corresponding stop
+            if 'stop_id' in waypoint:
+                stop = stop_data.get(waypoint['stop_id'])
+                if stop:
+                    optimized_stops.append(stop)
+
+        return optimized_stops
 
     @classmethod
     def _build_distance_matrix(cls, locations):

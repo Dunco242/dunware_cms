@@ -281,7 +281,8 @@ WEASYPRINT_TEMP_DIR = os.path.join(tempfile.gettempdir(), "weasyprint")
 os.makedirs(WEASYPRINT_TEMP_DIR, exist_ok=True)
 
 
-
+HERE_MAPS_API_KEY = os.getenv('HERE_MAPS_API_KEY')
+HERE_MAPS_APP_ID = os.getenv('HERE_MAPS_APP_ID')
 MESSAGE_STORAGE = 'django.contrib.messages.storage.session.SessionStorage'
 
 # Message tags

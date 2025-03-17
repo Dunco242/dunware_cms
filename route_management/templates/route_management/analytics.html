@@ -1,0 +1,173 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}Route Management Analytics{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/chart.js/dist/chart.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h2 class="mb-0">
+                        <i class="fas fa-chart-line me-2"></i>Route Management Analytics
+                    </h2>
+                    <form method="get" class="d-flex align-items-center">
+                        <input type="date" name="start_date" class="form-control form-control-sm me-2"
+                               value="{{ start_date|date:'Y-m-d' }}">
+                        <input type="date" name="end_date" class="form-control form-control-sm me-2"
+                               value="{{ end_date|date:'Y-m-d' }}">
+                        <button type="submit" class="btn btn-light btn-sm">
+                            <i class="fas fa-filter me-1"></i>Filter
+                        </button>
+                    </form>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="card mb-3">
+                                <div class="card-body text-center">
+                                    <h5 class="card-title">Completed Routes</h5>
+                                    <h2 class="text-primary">{{ total_completed_routes|default:0 }}</h2>
+                                    <p class="text-muted">Total routes in period</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card mb-3">
+                                <div class="card-body text-center">
+                                    <h5 class="card-title">Completed Services</h5>
+                                    <h2 class="text-success">{{ total_completed_service_requests|default:0 }}</h2>
+                                    <p class="text-muted">Total services in period</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card mb-3">
+                                <div class="card-body text-center">
+                                    <h5 class="card-title">Average Rating</h5>
+                                    <h2 class="text-warning">{{ avg_rating|floatformat:2 }}</h2>
+                                    <p class="text-muted">Out of 5 stars</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card mb-3">
+                                <div class="card-body text-center">
+                                    <h5 class="card-title">Analysis Period</h5>
+                                    <h2 class="text-info">{{ date_range_days|default:0 }}</h2>
+                                    <p class="text-muted">Days</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mt-4">
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">Completed Routes</div>
+                                <div class="card-body">
+                                    <canvas id="completedRoutesChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">Average Stops per Route</div>
+                                <div class="card-body">
+                                    <canvas id="avgStopsChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mt-4">
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">Service Duration</div>
+                                <div class="card-body">
+                                    <canvas id="serviceDurationChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">Customer Ratings</div>
+                                <div class="card-body">
+                                    <canvas id="customerRatingChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Completed Routes Chart
+    new Chart(document.getElementById('completedRoutesChart'), {
+        type: 'line',
+        data: {
+            labels: {{ chart_dates|safe }},
+            datasets: [{
+                label: 'Completed Routes',
+                data: {{ chart_completed_routes|safe }},
+                borderColor: 'rgb(75, 192, 192)',
+                tension: 0.1
+            }]
+        }
+    });
+
+    // Average Stops per Route Chart
+    new Chart(document.getElementById('avgStopsChart'), {
+        type: 'bar',
+        data: {
+            labels: {{ chart_dates|safe }},
+            datasets: [{
+                label: 'Avg Stops per Route',
+                data: {{ chart_avg_stops_per_route|safe }},
+                backgroundColor: 'rgba(54, 162, 235, 0.5)'
+            }]
+        }
+    });
+
+    // Service Duration Chart
+    new Chart(document.getElementById('serviceDurationChart'), {
+        type: 'line',
+        data: {
+            labels: {{ chart_dates|safe }},
+            datasets: [{
+                label: 'Service Duration (minutes)',
+                data: {{ chart_avg_service_duration|safe }},
+                borderColor: 'rgb(255, 99, 132)',
+                tension: 0.1
+            }]
+        }
+    });
+
+    // Customer Ratings Chart
+    new Chart(document.getElementById('customerRatingChart'), {
+        type: 'line',
+        data: {
+            labels: {{ chart_dates|safe }},
+            datasets: [{
+                label: 'Average Customer Rating',
+                data: {{ chart_avg_customer_rating|safe }},
+                borderColor: 'rgb(255, 206, 86)',
+                tension: 0.1
+            }]
+        }
+    });
+});
+</script>
+{% endblock %}
