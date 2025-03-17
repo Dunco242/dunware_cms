@@ -2319,7 +2319,7 @@ def duplicate_service_request(request, pk):
 
 
 @login_required
-def load_service_locations(request):
+def ajax_load_service_locations(request):
     """AJAX view to load service locations for a customer"""
     customer_id = request.GET.get('customer_id')
 
@@ -2330,10 +2330,42 @@ def load_service_locations(request):
         locations = ServiceLocation.objects.filter(
             customer_id=customer_id
         ).values('id', 'name')
+
+        # For debugging, log the number of locations found
+        print(f"Found {len(locations)} locations for customer ID {customer_id}")
+
         return JsonResponse(list(locations), safe=False)
     except Exception as e:
+        print(f"Error loading service locations: {str(e)}")
         return JsonResponse({'error': str(e)}, status=400)
 
+
+@login_required
+def get_customer_info(request):
+    """AJAX view to get customer information"""
+    customer_id = request.GET.get('customer_id')
+
+    if not customer_id:
+        return JsonResponse({'success': False, 'error': 'No customer ID provided'})
+
+    try:
+        customer = Customer.objects.get(id=customer_id)
+
+        # Return customer details
+        return JsonResponse({
+            'success': True,
+            'customer': {
+                'id': customer.id,
+                'company_name': customer.company_name,
+                'contact_name': customer.primary_contact_name,
+                'contact_email': customer.email,
+                'contact_phone': customer.phone
+            }
+        })
+    except Customer.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Customer not found'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
 
 @login_required
 def cancel_service_request(request, pk):
@@ -2362,3 +2394,35 @@ def cancel_service_request(request, pk):
         return JsonResponse({'success': True})
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+def get_location_info(request):
+    """AJAX view to get service location information"""
+    location_id = request.GET.get('location_id')
+
+    if not location_id:
+        return JsonResponse({'success': False, 'error': 'No location ID provided'})
+
+    try:
+        location = ServiceLocation.objects.get(id=location_id)
+
+        # Return location details
+        return JsonResponse({
+            'success': True,
+            'location': {
+                'id': location.id,
+                'name': location.name,
+                'address_line1': location.address,
+                'address_line2': location.address_line2,
+                'city': location.city,
+                'state': location.state,
+                'zip_code': location.zip_code,
+                'latitude': float(location.latitude) if location.latitude else None,
+                'longitude': float(location.longitude) if location.longitude else None
+            }
+        })
+    except ServiceLocation.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Location not found'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})

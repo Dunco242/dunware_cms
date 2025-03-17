@@ -17,7 +17,9 @@ urlpatterns = [
     path('service-requests/<int:pk>/duplicate/', views.duplicate_service_request, name='duplicate_service_request'),
     path('service-requests/<int:pk>/cancel/', views.cancel_service_request, name='cancel_service_request'),
 
-    path('ajax/load-service-locations/', views.load_service_locations, name='ajax_load_service_locations'),
+    path('ajax/load-service-locations/', views.ajax_load_service_locations, name='ajax_load_service_locations'),
+    path('get-customer-info/', views.get_customer_info, name='get_customer_info'),
+    path('get-location-info/', views.get_location_info, name='get_location_info'),
 
 
     # Routes
