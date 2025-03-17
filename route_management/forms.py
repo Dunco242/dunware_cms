@@ -43,34 +43,46 @@ class ServiceRequestForm(forms.ModelForm):
         }
 
     def __init__(self, *args, **kwargs):
-        self.user = kwargs.pop('user', None)
-        super().__init__(*args, **kwargs)
+    self.user = kwargs.pop('user', None)
+    super().__init__(*args, **kwargs)
 
-        # Initialize service_location field with empty queryset to avoid loading all locations
-        self.fields['service_location'].queryset = ServiceLocation.objects.none()
+    # Initialize service_location field with empty queryset to avoid loading all locations
+    self.fields['service_location'].queryset = ServiceLocation.objects.none()
 
-        # If there's an initial customer or instance with customer, load the locations
-        initial_customer = None
-        if self.initial.get('customer'):
-            initial_customer = self.initial.get('customer')
-        elif self.instance and self.instance.pk and self.instance.customer:
-            initial_customer = self.instance.customer.id
+    # If there's an initial customer or instance with customer, load the locations
+    initial_customer_id = None
 
-        if initial_customer:
-            self.fields['service_location'].queryset = ServiceLocation.objects.filter(
-                customer_id=initial_customer
-            )
+    # Handle initial customer value (could be ID or object)
+    if self.initial.get('customer'):
+        initial_customer = self.initial.get('customer')
+        # Check if it's already an ID or an object
+        if isinstance(initial_customer, Customer):
+            initial_customer_id = initial_customer.id
+        else:
+            initial_customer_id = initial_customer
 
-        # If form is bound and has data, reload locations based on selected customer
-        if self.is_bound and self.data.get('customer'):
-            try:
-                customer_id = int(self.data.get('customer'))
-                self.fields['service_location'].queryset = ServiceLocation.objects.filter(
-                    customer_id=customer_id
-                )
-            except (ValueError, TypeError):
-                pass
+    # Handle instance customer (from update view)
+    elif self.instance and self.instance.pk and self.instance.customer:
+        initial_customer_id = self.instance.customer.id
 
+    # Add debug print to see what we're working with
+    print(f"Initial customer ID: {initial_customer_id}")
+
+    if initial_customer_id:
+        # Query service locations for this customer
+        locations = ServiceLocation.objects.filter(customer_id=initial_customer_id)
+        print(f"Found {locations.count()} service locations for customer {initial_customer_id}")
+        self.fields['service_location'].queryset = locations
+
+    # If form is bound and has data, reload locations based on selected customer
+    if self.is_bound and self.data.get('customer'):
+        try:
+            customer_id = int(self.data.get('customer'))
+            locations = ServiceLocation.objects.filter(customer_id=customer_id)
+            print(f"Form is bound: Found {locations.count()} service locations for customer {customer_id}")
+            self.fields['service_location'].queryset = locations
+        except (ValueError, TypeError) as e:
+            print(f"Error converting customer ID: {e}")
     def clean(self):
         cleaned_data = super().clean()
 
