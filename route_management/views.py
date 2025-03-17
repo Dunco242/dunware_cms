@@ -2316,3 +2316,49 @@ def duplicate_service_request(request, pk):
         'original_request': original_request,
         'suggested_date': timezone.now().date() + timezone.timedelta(days=1)  # Suggest tomorrow as default
     })
+
+
+@login_required
+def load_service_locations(request):
+    """AJAX view to load service locations for a customer"""
+    customer_id = request.GET.get('customer_id')
+
+    if not customer_id:
+        return JsonResponse([], safe=False)
+
+    try:
+        locations = ServiceLocation.objects.filter(
+            customer_id=customer_id
+        ).values('id', 'name')
+        return JsonResponse(list(locations), safe=False)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
+
+
+@login_required
+def cancel_service_request(request, pk):
+    """Cancel a service request"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Only POST requests allowed'}, status=405)
+
+    try:
+        service_request = get_object_or_404(ServiceRequest, pk=pk)
+
+        # Check if the request can be cancelled
+        if service_request.status == 'cancelled':
+            return JsonResponse({'error': 'This request is already cancelled'}, status=400)
+
+        # Update the status
+        service_request.status = 'cancelled'
+        service_request.cancelled_at = timezone.now()
+        service_request.save()
+
+        # Log the cancellation
+        if hasattr(service_request, 'notes'):
+            service_request.notes = (service_request.notes or '') + f"\n\n{timezone.now().strftime('%Y-%m-%d %H:%M')}: Cancelled by {request.user.get_full_name() or request.user.username}"
+            service_request.save(update_fields=['notes'])
+
+        # Return success
+        return JsonResponse({'success': True})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)

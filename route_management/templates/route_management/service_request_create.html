@@ -4,6 +4,11 @@
 
 {% block styles %}
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.9.0/css/bootstrap-datepicker.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css">
+<!-- Toastr CSS for notifications -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
+<!-- HERE Maps UI CSS -->
+<link rel="stylesheet" type="text/css" href="https://js.api.here.com/v3/3.1/mapsjs-ui.css" />
 <style>
     .form-card {
         border-left: 4px solid #4e73df;
@@ -45,6 +50,22 @@
         border-radius: 5px;
         margin-top: 10px;
         display: none;
+    }
+    .select2-container--default .select2-selection--single {
+        height: calc(1.5em + 0.75rem + 2px);
+        padding: 0.375rem 0.75rem;
+        font-size: 1rem;
+        font-weight: 400;
+        line-height: 1.5;
+        border: 1px solid #d1d3e2;
+        border-radius: 0.35rem;
+    }
+    .select2-container--default .select2-selection--single .select2-selection__rendered {
+        line-height: 1.5;
+        padding-left: 0;
+    }
+    .select2-container--default .select2-selection--single .select2-selection__arrow {
+        height: calc(1.5em + 0.75rem + 2px);
     }
 </style>
 {% endblock %}
@@ -492,17 +513,29 @@
 {% endblock %}
 
 {% block scripts %}
+<!-- Bootstrap Bundle with Popper -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/js/bootstrap.bundle.min.js"></script>
+<!-- Datepicker JS -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.9.0/js/bootstrap-datepicker.min.js"></script>
+<!-- Select2 JS -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css">
+<!-- Toastr JS for notifications -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
 <!-- HERE Maps API scripts -->
 <script src="https://js.api.here.com/v3/3.1/mapsjs-core.js"></script>
 <script src="https://js.api.here.com/v3/3.1/mapsjs-service.js"></script>
 <script src="https://js.api.here.com/v3/3.1/mapsjs-ui.js"></script>
 <script src="https://js.api.here.com/v3/3.1/mapsjs-mapevents.js"></script>
-<link rel="stylesheet" type="text/css" href="https://js.api.here.com/v3/3.1/mapsjs-ui.css" />
 
 <script>
+// Initialize toastr options
+toastr.options = {
+    "closeButton": true,
+    "progressBar": true,
+    "positionClass": "toast-top-right",
+    "timeOut": "5000"
+};
+
 $(document).ready(function() {
     // Initialize datepickers
     $('.date input').datepicker({
@@ -538,10 +571,49 @@ $(document).ready(function() {
         }
     });
 
-    // Customer selection
-    $('#customer').change(function() {
-        var customerId = $(this).val();
+    // Function to update service locations based on selected customer
+    function updateServiceLocations() {
+        var customerId = $('#customer').val();
         if (customerId) {
+            // Store currently selected service location for restoration after loading
+            var currentLocationId = $('#service_location').val();
+
+            // Show loading indicator
+            $('#service_location').html('<option value="">Loading...</option>');
+
+            // Make AJAX call to fetch locations
+            $.ajax({
+                url: '{% url "route_management:ajax_load_service_locations" %}',  // Make sure this URL is defined
+                data: {
+                    'customer_id': customerId
+                },
+                dataType: 'json',
+                success: function(data) {
+                    // Populate dropdown with returned data
+                    var options = '<option value="">Select a location...</option>';
+                    $.each(data, function(index, item) {
+                        var selected = (item.id == currentLocationId) ? 'selected' : '';
+                        options += '<option value="' + item.id + '" ' + selected + '>' + item.name + '</option>';
+                    });
+                    $('#service_location').html(options);
+
+                    // If using select2, refresh it
+                    if ($.fn.select2) {
+                        $('#service_location').trigger('change.select2');
+                    }
+
+                    // If we have a current location, trigger change to reload the location details
+                    if (currentLocationId && $('#service_location').val()) {
+                        $('#service_location').trigger('change');
+                    }
+                },
+                error: function(error) {
+                    console.log("Error loading service locations:", error);
+                    toastr.error("Failed to load service locations for this customer.");
+                    $('#service_location').html('<option value="">Error loading locations</option>');
+                }
+            });
+
             // Load customer details
             $.ajax({
                 url: '{% url "route_management:get_customer_info" %}',
@@ -555,17 +627,6 @@ $(document).ready(function() {
 
                         $('#customerInfo').html(html);
                         $('#customerDetails').slideDown();
-
-                        // Load service locations for this customer
-                        $('#service_location').empty().append('<option value="">Select a location...</option>');
-
-                        if (data.locations.length > 0) {
-                            $.each(data.locations, function(index, location) {
-                                $('#service_location').append('<option value="' + location.id + '">' + location.name + '</option>');
-                            });
-                        } else {
-                            $('#service_location').append('<option value="" disabled>No locations available</option>');
-                        }
                     } else {
                         toastr.error('Error loading customer details');
                     }
@@ -577,10 +638,18 @@ $(document).ready(function() {
         } else {
             $('#customerDetails').slideUp();
             $('#service_location').empty().append('<option value="">Select a location...</option>');
-        }
-    });
 
-    // Trigger change if customer is already selected
+            // If using select2, refresh it
+            if ($.fn.select2) {
+                $('#service_location').trigger('change.select2');
+            }
+        }
+    }
+
+    // Customer selection change event
+    $('#customer').change(updateServiceLocations);
+
+    // Trigger change if customer is already selected on page load
     if ($('#customer').val()) {
         $('#customer').trigger('change');
     }
@@ -814,60 +883,6 @@ $(document).ready(function() {
             $('#status').val('pending');
         }
     });
-});
-$(document).ready(function() {
-    // Function to update service locations based on selected customer
-    function updateServiceLocations() {
-        var customerId = $('#id_customer').val();
-        if (customerId) {
-            // Show loading indicator
-            $('#id_service_location').html('<option value="">Loading...</option>');
-
-            // Make AJAX call to fetch locations
-            $.ajax({
-                url: '/ajax/load-service-locations/',
-                data: {
-                    'customer_id': customerId
-                },
-                dataType: 'json',
-                success: function(data) {
-                    // Populate dropdown with returned data
-                    var options = '<option value="">---------</option>';
-                    $.each(data, function(index, item) {
-                        options += '<option value="' + item.id + '">' + item.name + '</option>';
-                    });
-                    $('#id_service_location').html(options);
-
-                    // If there's a previously selected value, restore it
-                    var previouslySelected = $('#id_service_location').data('selected');
-                    if (previouslySelected) {
-                        $('#id_service_location').val(previouslySelected);
-                    }
-                },
-                error: function(error) {
-                    console.log("Error loading service locations:", error);
-                    $('#id_service_location').html('<option value="">Error loading locations</option>');
-                }
-            });
-        } else {
-            // If no customer selected, empty the service location dropdown
-            $('#id_service_location').html('<option value="">---------</option>');
-        }
-    }
-
-    // Store initially selected service location if any
-    var initialServiceLocation = $('#id_service_location').val();
-    if (initialServiceLocation) {
-        $('#id_service_location').data('selected', initialServiceLocation);
-    }
-
-    // Update service locations when customer changes
-    $('#id_customer').change(updateServiceLocations);
-
-    // If customer is already selected on page load, update service locations
-    if ($('#id_customer').val()) {
-        updateServiceLocations();
-    }
 });
 </script>
 {% endblock %}

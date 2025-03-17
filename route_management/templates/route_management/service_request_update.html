@@ -1,12 +1,17 @@
 {% extends 'core/base.html' %}
 
-{% block title %}Edit Service Request #{{ service_request.id }}{% endblock %}
+{% block title %}Update Service Request {{ object.request_number }}{% endblock %}
 
 {% block styles %}
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.9.0/css/bootstrap-datepicker.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css">
+<!-- Toastr CSS for notifications -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
+<!-- HERE Maps UI CSS -->
+<link rel="stylesheet" type="text/css" href="https://js.api.here.com/v3/3.1/mapsjs-ui.css" />
 <style>
     .form-card {
-        border-left: 4px solid #f6c23e;
+        border-left: 4px solid #4e73df;
     }
     .required-field label:after {
         content: " *";
@@ -44,12 +49,28 @@
         border: 1px solid #e3e6f0;
         border-radius: 5px;
         margin-top: 10px;
+        display: none;
     }
-    .status-pending { background-color: #f6c23e; }
-    .status-scheduled { background-color: #4e73df; }
-    .status-in_progress { background-color: #36b9cc; }
-    .status-completed { background-color: #1cc88a; }
-    .status-cancelled { background-color: #e74a3b; }
+    .select2-container--default .select2-selection--single {
+        height: calc(1.5em + 0.75rem + 2px);
+        padding: 0.375rem 0.75rem;
+        font-size: 1rem;
+        font-weight: 400;
+        line-height: 1.5;
+        border: 1px solid #d1d3e2;
+        border-radius: 0.35rem;
+    }
+    .select2-container--default .select2-selection--single .select2-selection__rendered {
+        line-height: 1.5;
+        padding-left: 0;
+    }
+    .select2-container--default .select2-selection--single .select2-selection__arrow {
+        height: calc(1.5em + 0.75rem + 2px);
+    }
+    .status-badge {
+        font-size: 0.9rem;
+        padding: 0.5rem 1rem;
+    }
 </style>
 {% endblock %}
 
@@ -57,25 +78,59 @@
 <div class="container-fluid">
     <!-- Page Heading -->
     <div class="d-sm-flex align-items-center justify-content-between mb-4">
-        <h1 class="h3 mb-0 text-gray-800">
-            Edit Service Request #{{ service_request.id }}
-            <span class="badge badge-pill
-                {% if service_request.status == 'pending' %}badge-warning
-                {% elif service_request.status == 'scheduled' %}badge-info
-                {% elif service_request.status == 'in_progress' %}badge-primary
-                {% elif service_request.status == 'completed' %}badge-success
-                {% elif service_request.status == 'cancelled' %}badge-danger
-                {% endif %}">
-                {{ service_request.get_status_display }}
-            </span>
-        </h1>
-        <div class="btn-group">
-            <a href="{% url 'route_management:service_request_detail' service_request.id %}" class="d-none d-sm-inline-block btn btn-sm btn-primary shadow-sm">
-                <i class="fas fa-arrow-left fa-sm text-white-50"></i> Back to Details
+        <div>
+            <h1 class="h3 mb-0 text-gray-800">
+                Update Service Request #{{ object.request_number }}
+            </h1>
+            <p class="text-muted mt-2">
+                Created on {{ object.created_at|date:"F d, Y" }} at {{ object.created_at|time:"H:i" }}
+                {% if object.created_by %}by {{ object.created_by.get_full_name }}{% endif %}
+            </p>
+        </div>
+        <div>
+            <a href="{% url 'route_management:service_request_detail' object.id %}" class="d-none d-sm-inline-block btn btn-sm btn-info shadow-sm mr-2">
+                <i class="fas fa-eye fa-sm text-white-50"></i> View Details
             </a>
-            <a href="{% url 'route_management:service_request_list' %}" class="d-none d-sm-inline-block btn btn-sm btn-secondary shadow-sm ml-2">
-                <i class="fas fa-list fa-sm text-white-50"></i> All Requests
+            <a href="{% url 'route_management:service_request_list' %}" class="d-none d-sm-inline-block btn btn-sm btn-secondary shadow-sm">
+                <i class="fas fa-arrow-left fa-sm text-white-50"></i> Back to Service Requests
             </a>
+        </div>
+    </div>
+
+    <!-- Status Card -->
+    <div class="card mb-4 shadow">
+        <div class="card-body">
+            <div class="row align-items-center">
+                <div class="col-md-3 mb-3 mb-md-0">
+                    <h5 class="mb-0">Status</h5>
+                    <span class="badge status-badge
+                        {% if object.status == 'pending' %}badge-secondary
+                        {% elif object.status == 'scheduled' %}badge-info
+                        {% elif object.status == 'in_progress' %}badge-primary
+                        {% elif object.status == 'completed' %}badge-success
+                        {% elif object.status == 'cancelled' %}badge-danger{% endif %}">
+                        {{ object.get_status_display }}
+                    </span>
+                </div>
+                <div class="col-md-3 mb-3 mb-md-0">
+                    <h5 class="mb-0">Priority</h5>
+                    <span class="badge status-badge
+                        {% if object.priority == 'low' %}badge-success
+                        {% elif object.priority == 'medium' %}badge-warning
+                        {% elif object.priority == 'high' %}badge-danger
+                        {% elif object.priority == 'urgent' %}badge-danger{% endif %}">
+                        {{ object.get_priority_display }}
+                    </span>
+                </div>
+                <div class="col-md-3 mb-3 mb-md-0">
+                    <h5 class="mb-0">Customer</h5>
+                    <p class="mb-0">{{ object.customer.company_name }}</p>
+                </div>
+                <div class="col-md-3">
+                    <h5 class="mb-0">Service Type</h5>
+                    <p class="mb-0">{{ object.service_type.name }}</p>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -100,7 +155,7 @@
                                 <select class="form-control" id="customer" name="customer" required>
                                     <option value="">Select a customer...</option>
                                     {% for customer in customers %}
-                                        <option value="{{ customer.id }}" {% if form.customer.value == customer.id or service_request.customer.id == customer.id %}selected{% endif %}>
+                                        <option value="{{ customer.id }}" {% if form.customer.value == customer.id or object.customer.id == customer.id %}selected{% endif %}>
                                             {{ customer.company_name }}
                                         </option>
                                     {% endfor %}
@@ -142,6 +197,9 @@
                                         <i class="fas fa-ellipsis-v"></i>
                                     </button>
                                     <div class="dropdown-menu">
+                                        <a class="dropdown-item" href="#" data-toggle="modal" data-target="#newLocationModal">
+                                            <i class="fas fa-plus fa-sm fa-fw text-gray-400"></i> Add New Location
+                                        </a>
                                         <a class="dropdown-item" href="#" id="viewLocationMap">
                                             <i class="fas fa-map-marker-alt fa-sm fa-fw text-gray-400"></i> View on Map
                                         </a>
@@ -161,7 +219,7 @@
                         <!-- Site Contact -->
                         <div class="form-group">
                             <label for="site_contact">Site Contact</label>
-                            <input type="text" class="form-control" id="site_contact" name="site_contact" value="{{ form.site_contact.value|default:service_request.site_contact }}">
+                            <input type="text" class="form-control" id="site_contact" name="site_contact" value="{{ form.site_contact.value|default:object.site_contact }}">
                             <div class="field-help">Contact person at the service location (leave blank to use customer contact)</div>
                             {% if form.site_contact.errors %}
                                 <div class="text-danger">{{ form.site_contact.errors }}</div>
@@ -179,7 +237,7 @@
                             <select class="form-control" id="service_type" name="service_type" required>
                                 <option value="">Select a service type...</option>
                                 {% for service_type in service_types %}
-                                    <option value="{{ service_type.id }}" {% if form.service_type.value == service_type.id or service_request.service_type.id == service_type.id %}selected{% endif %}
+                                    <option value="{{ service_type.id }}" {% if form.service_type.value == service_type.id or object.service_type.id == service_type.id %}selected{% endif %}
                                             data-duration="{{ service_type.typical_duration_minutes }}">
                                         {{ service_type.name }}
                                     </option>
@@ -194,14 +252,14 @@
                         <div class="form-group required-field">
                             <label for="priority">Priority</label>
                             <div class="priority-selector btn-group btn-group-toggle mb-3" data-toggle="buttons">
-                                <label class="btn btn-outline-danger {% if form.priority.value == 'high' or service_request.priority == 'high' %}active{% endif %}">
-                                    <input type="radio" name="priority" value="high" {% if form.priority.value == 'high' or service_request.priority == 'high' %}checked{% endif %}> High
+                                <label class="btn btn-outline-danger {% if form.priority.value == 'high' or object.priority == 'high' %}active{% endif %}">
+                                    <input type="radio" name="priority" value="high" {% if form.priority.value == 'high' or object.priority == 'high' %}checked{% endif %}> High
                                 </label>
-                                <label class="btn btn-outline-warning {% if form.priority.value == 'medium' or service_request.priority == 'medium' %}active{% endif %}">
-                                    <input type="radio" name="priority" value="medium" {% if form.priority.value == 'medium' or service_request.priority == 'medium' %}checked{% endif %}> Medium
+                                <label class="btn btn-outline-warning {% if form.priority.value == 'medium' or object.priority == 'medium' %}active{% endif %}">
+                                    <input type="radio" name="priority" value="medium" {% if form.priority.value == 'medium' or object.priority == 'medium' %}checked{% endif %}> Medium
                                 </label>
-                                <label class="btn btn-outline-success {% if form.priority.value == 'low' or service_request.priority == 'low' %}active{% endif %}">
-                                    <input type="radio" name="priority" value="low" {% if form.priority.value == 'low' or service_request.priority == 'low' %}checked{% endif %}> Low
+                                <label class="btn btn-outline-success {% if form.priority.value == 'low' or object.priority == 'low' %}active{% endif %}">
+                                    <input type="radio" name="priority" value="low" {% if form.priority.value == 'low' or object.priority == 'low' %}checked{% endif %}> Low
                                 </label>
                             </div>
                             {% if form.priority.errors %}
@@ -213,11 +271,11 @@
                         <div class="form-group required-field">
                             <label for="status">Status</label>
                             <select class="form-control" id="status" name="status" required>
-                                <option value="pending" {% if form.status.value == 'pending' or service_request.status == 'pending' %}selected{% endif %}>Pending</option>
-                                <option value="scheduled" {% if form.status.value == 'scheduled' or service_request.status == 'scheduled' %}selected{% endif %}>Scheduled</option>
-                                <option value="in_progress" {% if form.status.value == 'in_progress' or service_request.status == 'in_progress' %}selected{% endif %}>In Progress</option>
-                                <option value="completed" {% if form.status.value == 'completed' or service_request.status == 'completed' %}selected{% endif %}>Completed</option>
-                                <option value="cancelled" {% if form.status.value == 'cancelled' or service_request.status == 'cancelled' %}selected{% endif %}>Cancelled</option>
+                                <option value="pending" {% if form.status.value == 'pending' or object.status == 'pending' %}selected{% endif %}>Pending</option>
+                                <option value="scheduled" {% if form.status.value == 'scheduled' or object.status == 'scheduled' %}selected{% endif %}>Scheduled</option>
+                                <option value="in_progress" {% if form.status.value == 'in_progress' or object.status == 'in_progress' %}selected{% endif %}>In Progress</option>
+                                <option value="completed" {% if form.status.value == 'completed' or object.status == 'completed' %}selected{% endif %}>Completed</option>
+                                <option value="cancelled" {% if form.status.value == 'cancelled' or object.status == 'cancelled' %}selected{% endif %}>Cancelled</option>
                             </select>
                             {% if form.status.errors %}
                                 <div class="text-danger">{{ form.status.errors }}</div>
@@ -230,7 +288,8 @@
                                 <div class="form-group">
                                     <label for="requested_date">Requested Date</label>
                                     <div class="input-group date">
-                                        <input type="text" class="form-control" id="requested_date" name="requested_date" value="{{ form.requested_date.value|default:service_request.requested_date|date:'Y-m-d' }}">
+                                        <input type="text" class="form-control" id="requested_date" name="requested_date"
+                                        value="{{ form.requested_date.value|default:object.requested_date|date:'Y-m-d' }}">
                                         <div class="input-group-append">
                                             <span class="input-group-text"><i class="fas fa-calendar"></i></span>
                                         </div>
@@ -244,7 +303,8 @@
                                 <div class="form-group">
                                     <label for="due_date">Due Date</label>
                                     <div class="input-group date">
-                                        <input type="text" class="form-control" id="due_date" name="due_date" value="{{ form.due_date.value|default:service_request.due_date|date:'Y-m-d' }}">
+                                        <input type="text" class="form-control" id="due_date" name="due_date"
+                                        value="{{ form.due_date.value|default:object.due_date|date:'Y-m-d' }}">
                                         <div class="input-group-append">
                                             <span class="input-group-text"><i class="fas fa-calendar"></i></span>
                                         </div>
@@ -259,8 +319,9 @@
                         <!-- Estimated Duration -->
                         <div class="form-group">
                             <label for="estimated_duration_minutes">Estimated Duration (minutes)</label>
-                            <input type="number" class="form-control" id="estimated_duration_minutes" name="estimated_duration_minutes" value="{{ form.estimated_duration_minutes.value|default:service_request.estimated_duration_minutes }}" min="0">
-                            <div class="field-help">How long this service is expected to take</div>
+                            <input type="number" class="form-control" id="estimated_duration_minutes" name="estimated_duration_minutes"
+                                   value="{{ form.estimated_duration_minutes.value|default:object.estimated_duration_minutes|default:'60' }}" min="0">
+                            <div class="field-help">How long this service is expected to take (auto-filled based on service type)</div>
                             {% if form.estimated_duration_minutes.errors %}
                                 <div class="text-danger">{{ form.estimated_duration_minutes.errors }}</div>
                             {% endif %}
@@ -275,7 +336,7 @@
                         <!-- Description -->
                         <div class="form-group required-field">
                             <label for="description">Description</label>
-                            <textarea class="form-control" id="description" name="description" rows="3" required>{{ form.description.value|default:service_request.description }}</textarea>
+                            <textarea class="form-control" id="description" name="description" rows="3" required>{{ form.description.value|default:object.description }}</textarea>
                             <div class="field-help">Describe the service needed</div>
                             {% if form.description.errors %}
                                 <div class="text-danger">{{ form.description.errors }}</div>
@@ -285,7 +346,7 @@
                         <!-- Special Instructions -->
                         <div class="form-group">
                             <label for="special_instructions">Special Instructions</label>
-                            <textarea class="form-control" id="special_instructions" name="special_instructions" rows="3">{{ form.special_instructions.value|default:service_request.special_instructions }}</textarea>
+                            <textarea class="form-control" id="special_instructions" name="special_instructions" rows="3">{{ form.special_instructions.value|default:object.special_instructions }}</textarea>
                             <div class="field-help">Any special instructions or requirements for this service</div>
                             {% if form.special_instructions.errors %}
                                 <div class="text-danger">{{ form.special_instructions.errors }}</div>
@@ -297,8 +358,7 @@
                             <label for="equipment">Equipment</label>
                             <select class="form-control" id="equipment" name="equipment" multiple>
                                 {% for equipment in equipment_list %}
-                                    <option value="{{ equipment.id }}"
-                                        {% if equipment.id in form.equipment.value or equipment in service_request.equipment.all %}selected{% endif %}>
+                                    <option value="{{ equipment.id }}" {% if equipment.id in form.equipment.value or equipment.id in object.equipment.all|map:"id" %}selected{% endif %}>
                                         {{ equipment.name }} ({{ equipment.model }})
                                     </option>
                                 {% endfor %}
@@ -311,8 +371,8 @@
                     </div>
                 </div>
 
-                <!-- Scheduling Options -->
-                <div id="scheduling-options" class="row mt-4" {% if service_request.status != 'scheduled' and form.status.value != 'scheduled' %}style="display: none;"{% endif %}>
+                <!-- Scheduling Options (visible only when status is 'scheduled') -->
+                <div id="scheduling-options" class="row mt-4" style="display: none;">
                     <div class="col-lg-12">
                         <div class="card mb-4">
                             <div class="card-header py-3">
@@ -326,8 +386,7 @@
                                             <select class="form-control" id="technician" name="technician">
                                                 <option value="">Select a technician...</option>
                                                 {% for tech in technicians %}
-                                                    <option value="{{ tech.id }}"
-                                                        {% if form.technician.value == tech.id or service_request.assigned_technician.id == tech.id %}selected{% endif %}>
+                                                    <option value="{{ tech.id }}" {% if form.technician.value == tech.id or object.assigned_technician.id == tech.id %}selected{% endif %}>
                                                         {{ tech.get_full_name }}
                                                     </option>
                                                 {% endfor %}
@@ -343,8 +402,7 @@
                                             <select class="form-control" id="route" name="route">
                                                 <option value="">Select a route...</option>
                                                 {% for route in available_routes %}
-                                                    <option value="{{ route.id }}"
-                                                        {% if form.route.value == route.id or service_request.route_stop.route.id == route.id %}selected{% endif %}>
+                                                    <option value="{{ route.id }}" {% if form.route.value == route.id or object.route.id == route.id %}selected{% endif %}>
                                                         Route {{ route.route_id }} - {{ route.date|date:"M d, Y" }} - {{ route.technician.get_full_name }}
                                                     </option>
                                                 {% endfor %}
@@ -360,8 +418,7 @@
                                         <div class="form-group">
                                             <label for="scheduled_date">Scheduled Date</label>
                                             <div class="input-group date">
-                                                <input type="text" class="form-control" id="scheduled_date" name="scheduled_date"
-                                                    value="{{ form.scheduled_date.value|default:service_request.scheduled_date|date:'Y-m-d' }}">
+                                                <input type="text" class="form-control" id="scheduled_date" name="scheduled_date" value="{{ form.scheduled_date.value|default:object.scheduled_date|date:'Y-m-d' }}">
                                                 <div class="input-group-append">
                                                     <span class="input-group-text"><i class="fas fa-calendar"></i></span>
                                                 </div>
@@ -374,8 +431,7 @@
                                     <div class="col-md-6">
                                         <div class="form-group">
                                             <label for="scheduled_time">Scheduled Time</label>
-                                            <input type="time" class="form-control" id="scheduled_time" name="scheduled_time"
-                                                value="{{ form.scheduled_time.value|default:service_request.scheduled_time|time:'H:i' }}">
+                                            <input type="time" class="form-control" id="scheduled_time" name="scheduled_time" value="{{ form.scheduled_time.value|default:object.scheduled_time|time:'H:i' }}">
                                             {% if form.scheduled_time.errors %}
                                                 <div class="text-danger">{{ form.scheduled_time.errors }}</div>
                                             {% endif %}
@@ -387,13 +443,110 @@
                     </div>
                 </div>
 
+                <!-- Completion Details (visible only when status is 'completed') -->
+                <div id="completion-details" class="row mt-4" style="display: none;">
+                    <div class="col-lg-12">
+                        <div class="card mb-4">
+                            <div class="card-header py-3">
+                                <h6 class="m-0 font-weight-bold text-primary">Completion Details</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label for="completion_date">Completion Date</label>
+                                            <div class="input-group date">
+                                                <input type="text" class="form-control" id="completion_date" name="completion_date" value="{{ form.completion_date.value|default:object.completion_date|date:'Y-m-d' }}">
+                                                <div class="input-group-append">
+                                                    <span class="input-group-text"><i class="fas fa-calendar"></i></span>
+                                                </div>
+                                            </div>
+                                            {% if form.completion_date.errors %}
+                                                <div class="text-danger">{{ form.completion_date.errors }}</div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label for="actual_duration_minutes">Actual Duration (minutes)</label>
+                                            <input type="number" class="form-control" id="actual_duration_minutes" name="actual_duration_minutes" value="{{ form.actual_duration_minutes.value|default:object.actual_duration_minutes }}" min="0">
+                                            {% if form.actual_duration_minutes.errors %}
+                                                <div class="text-danger">{{ form.actual_duration_minutes.errors }}</div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="completion_notes">Completion Notes</label>
+                                    <textarea class="form-control" id="completion_notes" name="completion_notes" rows="3">{{ form.completion_notes.value|default:object.completion_notes }}</textarea>
+                                    <div class="field-help">Notes about the service completion, issues encountered, etc.</div>
+                                    {% if form.completion_notes.errors %}
+                                        <div class="text-danger">{{ form.completion_notes.errors }}</div>
+                                    {% endif %}
+                                </div>
+                                <div class="form-group">
+                                    <div class="custom-control custom-checkbox">
+                                        <input type="checkbox" class="custom-control-input" id="customer_notified" name="customer_notified" {% if form.customer_notified.value or object.customer_notified %}checked{% endif %}>
+                                        <label class="custom-control-label" for="customer_notified">Customer has been notified of completion</label>
+                                    </div>
+                                    {% if form.customer_notified.errors %}
+                                        <div class="text-danger">{{ form.customer_notified.errors }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Cancellation Details (visible only when status is 'cancelled') -->
+                <div id="cancellation-details" class="row mt-4" style="display: none;">
+                    <div class="col-lg-12">
+                        <div class="card mb-4">
+                            <div class="card-header py-3">
+                                <h6 class="m-0 font-weight-bold text-primary">Cancellation Details</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="form-group">
+                                    <label for="cancellation_reason">Cancellation Reason</label>
+                                    <select class="form-control" id="cancellation_reason" name="cancellation_reason">
+                                        <option value="">Select a reason...</option>
+                                        <option value="customer_request" {% if form.cancellation_reason.value == 'customer_request' or object.cancellation_reason == 'customer_request' %}selected{% endif %}>Customer Request</option>
+                                        <option value="scheduling_conflict" {% if form.cancellation_reason.value == 'scheduling_conflict' or object.cancellation_reason == 'scheduling_conflict' %}selected{% endif %}>Scheduling Conflict</option>
+                                        <option value="duplicate_request" {% if form.cancellation_reason.value == 'duplicate_request' or object.cancellation_reason == 'duplicate_request' %}selected{% endif %}>Duplicate Request</option>
+                                        <option value="other" {% if form.cancellation_reason.value == 'other' or object.cancellation_reason == 'other' %}selected{% endif %}>Other</option>
+                                    </select>
+                                    {% if form.cancellation_reason.errors %}
+                                        <div class="text-danger">{{ form.cancellation_reason.errors }}</div>
+                                    {% endif %}
+                                </div>
+                                <div class="form-group">
+                                    <label for="cancellation_notes">Cancellation Notes</label>
+                                    <textarea class="form-control" id="cancellation_notes" name="cancellation_notes" rows="3">{{ form.cancellation_notes.value|default:object.cancellation_notes }}</textarea>
+                                    {% if form.cancellation_notes.errors %}
+                                        <div class="text-danger">{{ form.cancellation_notes.errors }}</div>
+                                    {% endif %}
+                                </div>
+                                <div class="form-group">
+                                    <div class="custom-control custom-checkbox">
+                                        <input type="checkbox" class="custom-control-input" id="customer_notified_cancellation" name="customer_notified_cancellation" {% if form.customer_notified_cancellation.value or object.customer_notified_cancellation %}checked{% endif %}>
+                                        <label class="custom-control-label" for="customer_notified_cancellation">Customer has been notified of cancellation</label>
+                                    </div>
+                                    {% if form.customer_notified_cancellation.errors %}
+                                        <div class="text-danger">{{ form.customer_notified_cancellation.errors }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Form buttons -->
                 <div class="row mt-4">
                     <div class="col-12 text-right">
-                        <a href="{% url 'route_management:service_request_detail' service_request.id %}" class="btn btn-secondary">Cancel</a>
-                        <button type="submit" name="save" class="btn btn-primary">Save Changes</button>
-                        {% if service_request.status != 'completed' %}
-                            <button type="submit" name="save_and_complete" class="btn btn-success">Save and Mark Completed</button>
+                        <a href="{% url 'route_management:service_request_list' %}" class="btn btn-secondary">Cancel</a>
+                        <button type="submit" class="btn btn-primary">Update Service Request</button>
+                        {% if object.status != 'cancelled' and object.status != 'completed' %}
+                            <button type="submit" name="mark_completed" class="btn btn-success">Mark as Completed</button>
                         {% endif %}
                     </div>
                 </div>
@@ -422,27 +575,197 @@
         </div>
     </div>
 </div>
+
+<!-- New Location Modal -->
+<div class="modal fade" id="newLocationModal" tabindex="-1" role="dialog" aria-labelledby="newLocationModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="newLocationModalLabel">Add New Service Location</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form id="new-location-form">
+                <div class="modal-body">
+                    <!-- Quick location creation form -->
+                    <div class="form-group required-field">
+                        <label for="new_location_name">Location Name</label>
+                        <input type="text" class="form-control" id="new_location_name" name="location_name" required>
+                    </div>
+                    <div class="form-group required-field">
+                        <label for="new_address_line1">Address Line 1</label>
+                        <input type="text" class="form-control" id="new_address_line1" name="address_line1" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="new_address_line2">Address Line 2</label>
+                        <input type="text" class="form-control" id="new_address_line2" name="address_line2">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group col-md-6 required-field">
+                            <label for="new_city">City</label>
+                            <input type="text" class="form-control" id="new_city" name="city" required>
+                        </div>
+                        <div class="form-group col-md-4 required-field">
+                            <label for="new_state">State</label>
+                            <input type="text" class="form-control" id="new_state" name="state" required>
+                        </div>
+                        <div class="form-group col-md-2 required-field">
+                            <label for="new_zip_code">Zip</label>
+                            <input type="text" class="form-control" id="new_zip_code" name="zip_code" required>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create Location</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Cancel Confirmation Modal -->
+<div class="modal fade" id="cancelConfirmModal" tabindex="-1" role="dialog" aria-labelledby="cancelConfirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="cancelConfirmModalLabel">Confirm Cancellation</h5>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to cancel this service request? This action will:</p>
+                <ul>
+                    <li>Change the status to "Cancelled"</li>
+                    <li>Remove the request from any assigned route</li>
+                    <li>Unassign any assigned technician</li>
+                </ul>
+                <div class="form-group">
+                    <label for="modal_cancellation_reason">Cancellation Reason</label>
+                    <select class="form-control" id="modal_cancellation_reason">
+                        <option value="">Select a reason...</option>
+                        <option value="customer_request">Customer Request</option>
+                        <option value="scheduling_conflict">Scheduling Conflict</option>
+                        <option value="duplicate_request">Duplicate Request</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="modal_cancellation_notes">Cancellation Notes</label>
+                    <textarea class="form-control" id="modal_cancellation_notes" rows="3" placeholder="Please provide details about the cancellation..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">No, Keep It Active</button>
+                <button type="button" id="confirmCancelButton" class="btn btn-danger">Yes, Cancel Request</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Send Notification Modal -->
+<div class="modal fade" id="notificationModal" tabindex="-1" role="dialog" aria-labelledby="notificationModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="notificationModalLabel">Send Customer Notification</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="notification_type">Notification Type</label>
+                    <select class="form-control" id="notification_type">
+                        <option value="status_update">Status Update</option>
+                        <option value="schedule_confirmation">Schedule Confirmation</option>
+                        <option value="completion_notice">Completion Notice</option>
+                        <option value="cancellation_notice">Cancellation Notice</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="notification_recipients">Recipients</label>
+                    <input type="text" class="form-control" id="notification_recipients" value="{{ object.customer.contact_email }}" placeholder="Email addresses (comma separated)">
+                </div>
+                <div class="form-group">
+                    <label for="notification_subject">Subject</label>
+                    <input type="text" class="form-control" id="notification_subject" value="Service Request #{{ object.request_number }} Update">
+                </div>
+                <div class="form-group">
+                    <label for="notification_message">Message</label>
+                    <textarea class="form-control" id="notification_message" rows="5">Dear {{ object.customer.contact_name }},
+
+This is an update regarding your service request #{{ object.request_number }}.
+
+[Insert details here]
+
+If you have any questions, please contact us.
+
+Thank you,
+[Your Company Name]</textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" id="sendNotificationButton" class="btn btn-primary">Send Notification</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Service History Modal -->
+<div class="modal fade" id="serviceHistoryModal" tabindex="-1" role="dialog" aria-labelledby="serviceHistoryModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="serviceHistoryModalLabel">Customer Service History</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="serviceHistoryContent">
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="sr-only">Loading...</span>
+                        </div>
+                        <p class="mt-2">Loading service history...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
+<!-- Bootstrap Bundle with Popper -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/js/bootstrap.bundle.min.js"></script>
+<!-- Datepicker JS -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.9.0/js/bootstrap-datepicker.min.js"></script>
+<!-- Select2 JS -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css">
+<!-- Toastr JS for notifications -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
 <!-- HERE Maps API scripts -->
 <script src="https://js.api.here.com/v3/3.1/mapsjs-core.js"></script>
 <script src="https://js.api.here.com/v3/3.1/mapsjs-service.js"></script>
 <script src="https://js.api.here.com/v3/3.1/mapsjs-ui.js"></script>
 <script src="https://js.api.here.com/v3/3.1/mapsjs-mapevents.js"></script>
-<link rel="stylesheet" type="text/css" href="https://js.api.here.com/v3/3.1/mapsjs-ui.css" />
 
 <script>
-// Store Django template variables as JavaScript variables at the top
-var serviceRequestLocationId = {% if service_request.service_location %}{{ service_request.service_location.id }}{% else %}0{% endif %};
-var serviceRequestCustomerId = {% if service_request.customer %}{{ service_request.customer.id }}{% else %}0{% endif %};
-var customerDetailUrl = "{% url 'route_management:customer_detail' 9999 %}";
-var locationInfoUrl = "{% url 'route_management:get_location_info' %}";
-var customerInfoUrl = "{% url 'route_management:get_customer_info' %}";
-var hereApiKey = "{{ here_maps_api_key }}";
+// Initialize toastr options
+toastr.options = {
+    "closeButton": true,
+    "progressBar": true,
+    "positionClass": "toast-top-right",
+    "timeOut": "5000"
+};
 
 $(document).ready(function() {
     // Initialize datepickers
@@ -453,34 +776,98 @@ $(document).ready(function() {
     });
 
     // Initialize select2 for enhanced dropdowns
-    $('#customer, #service_location, #service_type, #technician, #route, #equipment').select2({
+    $('#customer, #service_location, #service_type, #technician, #route, #equipment, #cancellation_reason').select2({
         width: '100%'
     });
 
     // Set UI based on status
     $('#status').change(function() {
-        if ($(this).val() === 'scheduled') {
+        var status = $(this).val();
+
+        // Hide all conditional sections first
+        $('#scheduling-options, #completion-details, #cancellation-details').slideUp();
+
+        // Show appropriate section based on status
+        if (status === 'scheduled') {
             $('#scheduling-options').slideDown();
-        } else {
-            $('#scheduling-options').slideUp();
+        } else if (status === 'completed') {
+            $('#completion-details').slideDown();
+
+            // If completion date is not set, default to today
+            if (!$('#completion_date').val()) {
+                var today = new Date();
+                var dateString = today.getFullYear() + '-' +
+                                 ('0' + (today.getMonth() + 1)).slice(-2) + '-' +
+                                 ('0' + today.getDate()).slice(-2);
+                $('#completion_date').val(dateString);
+            }
+        } else if (status === 'cancelled') {
+            $('#cancellation-details').slideDown();
         }
     });
+
+    // Trigger change if status is already set
+    $('#status').trigger('change');
 
     // Auto-fill estimated duration based on service type
     $('#service_type').change(function() {
         var duration = $('option:selected', this).data('duration');
-        if (duration && !$('#estimated_duration_minutes').val()) {
+        if (duration) {
             $('#estimated_duration_minutes').val(duration);
         }
     });
 
-    // Customer selection
-    $('#customer').change(function() {
-        var customerId = $(this).val();
+    // Function to update service locations based on selected customer
+    function updateServiceLocations() {
+        var customerId = $('#customer').val();
         if (customerId) {
+            // Store currently selected service location for restoration after loading
+            var currentLocationId = $('#service_location').val();
+
+            if (!currentLocationId) {
+                // If we're in update mode, try to get the initial location from the object
+                currentLocationId = {{ object.service_location.id|default:'null' }};
+            }
+
+            // Show loading indicator
+            $('#service_location').html('<option value="">Loading...</option>');
+
+            // Make AJAX call to fetch locations
+            $.ajax({
+                url: '{% url "route_management:ajax_load_service_locations" %}',
+                data: {
+                    'customer_id': customerId
+                },
+                dataType: 'json',
+                success: function(data) {
+                    // Populate dropdown with returned data
+                    var options = '<option value="">Select a location...</option>';
+                    $.each(data, function(index, item) {
+                        var selected = (item.id == currentLocationId) ? 'selected' : '';
+                        options += '<option value="' + item.id + '" ' + selected + '>' + item.name + '</option>';
+                    });
+                    $('#service_location').html(options);
+
+                    // If using select2, refresh it
+                    if ($.fn.select2) {
+                        $('#service_location').trigger('change.select2');
+                    }
+
+                    // If we have a current location, trigger change to reload the location details
+                    if (currentLocationId && $('#service_location').val()) {
+                        $('#service_location').trigger('change');
+                    }
+                },
+                error: function(error) {
+                    console.log("Error loading service locations:", error);
+                    toastr.error("Failed to load service locations for this customer.");
+                    $('#service_location').html('<option value="">Error loading locations</option>');
+                }
+            });
+
             // Load customer details
             $.ajax({
-                url: customerInfoUrl,
+                url: '{% url "route_management:get_customer_info" %}',
                 data: { customer_id: customerId },
                 success: function(data) {
                     if (data.success) {
@@ -492,22 +879,14 @@ $(document).ready(function() {
                         $('#customerInfo').html(html);
                         $('#customerDetails').slideDown();
 
-                        // Load service locations for this customer
-                        $('#service_location').empty().append('<option value="">Select a location...</option>');
+                        // Add view service history link
+                        $('#customerInfo').append('<p class="mt-2"><a href="#" id="viewServiceHistory" class="text-primary"><i class="fas fa-history fa-sm"></i> View Service History</a></p>');
 
-                        if (data.locations.length > 0) {
-                            $.each(data.locations, function(index, location) {
-                                var selected = (location.id == serviceRequestLocationId) ? 'selected' : '';
-                                $('#service_location').append('<option value="' + location.id + '" ' + selected + '>' + location.name + '</option>');
-                            });
-
-                            // Trigger change to load location details if this is the same customer as before
-                            if (data.customer.id == serviceRequestCustomerId) {
-                                $('#service_location').trigger('change');
-                            }
-                        } else {
-                            $('#service_location').append('<option value="" disabled>No locations available</option>');
-                        }
+                        // Bind service history link
+                        $('#viewServiceHistory').click(function(e) {
+                            e.preventDefault();
+                            loadServiceHistory(customerId);
+                        });
                     } else {
                         toastr.error('Error loading customer details');
                     }
@@ -519,10 +898,18 @@ $(document).ready(function() {
         } else {
             $('#customerDetails').slideUp();
             $('#service_location').empty().append('<option value="">Select a location...</option>');
-        }
-    });
 
-    // Trigger change if customer is already selected
+            // If using select2, refresh it
+            if ($.fn.select2) {
+                $('#service_location').trigger('change.select2');
+            }
+        }
+    }
+
+    // Customer selection change event
+    $('#customer').change(updateServiceLocations);
+
+    // Trigger change if customer is already selected on page load
     if ($('#customer').val()) {
         $('#customer').trigger('change');
     }
@@ -533,7 +920,7 @@ $(document).ready(function() {
         if (locationId) {
             // Load location details
             $.ajax({
-                url: locationInfoUrl,
+                url: '{% url "route_management:get_location_info" %}',
                 data: { location_id: locationId },
                 success: function(data) {
                     if (data.success) {
@@ -562,13 +949,17 @@ $(document).ready(function() {
         }
     });
 
+    // Trigger change if location is already selected
+    if ($('#service_location').val()) {
+        $('#service_location').trigger('change');
+    }
+
     // View customer details
     $('#viewCustomerDetails').click(function(e) {
         e.preventDefault();
         var customerId = $('#customer').val();
         if (customerId) {
-            var urlWithId = customerDetailUrl.replace('9999', customerId);
-            window.open(urlWithId, '_blank');
+            window.open('{% url "route_management:customer_detail" 0 %}'.replace('0', customerId), '_blank');
         } else {
             toastr.warning('Please select a customer first');
         }
@@ -581,7 +972,7 @@ $(document).ready(function() {
         if (locationId) {
             // Load location details for map
             $.ajax({
-                url: locationInfoUrl,
+                url: '{% url "route_management:get_location_info" %}',
                 data: { location_id: locationId },
                 success: function(data) {
                     if (data.success && data.location.latitude && data.location.longitude) {
@@ -604,7 +995,7 @@ $(document).ready(function() {
     function initMap(location) {
         // Initialize the HERE Map platform
         var platform = new H.service.Platform({
-            'apikey': hereApiKey
+            'apikey': '{{ here_maps_api_key }}'
         });
 
         var defaultLayers = platform.createDefaultLayers();
@@ -647,6 +1038,366 @@ $(document).ready(function() {
         $('#locationMapInfo').html(html);
     }
 
+    // New Location Form
+    $('#new-location-form').submit(function(e) {
+        e.preventDefault();
+
+        var customerId = $('#customer').val();
+        if (!customerId) {
+            toastr.warning('Please select a customer first');
+            return;
+        }
+
+        $.ajax({
+            url: '{% url "route_management:create_location_ajax" %}',
+            type: 'POST',
+            data: $(this).serialize() + '&customer_id=' + customerId + '&csrfmiddlewaretoken={{ csrf_token }}',
+            success: function(data) {
+                if (data.success) {
+                    toastr.success('Location created successfully');
+
+                    // Add the new location to the dropdown and select it
+                    var newOption = new Option(data.location.name, data.location.id, true, true);
+                    $('#service_location').append(newOption).trigger('change');
+
+                    // Close the modal
+                    $('#newLocationModal').modal('hide');
+
+                    // Reset the form
+                    $('#new-location-form')[0].reset();
+                } else {
+                    toastr.error('Error creating location: ' + data.error);
+                }
+            },
+            error: function() {
+                toastr.error('Error creating location');
+            }
+        });
+    });
+
+    // Mark as completed button functionality
+    $('button[name="mark_completed"]').click(function() {
+        // Show completion details section
+        $('#completion-details').slideDown();
+
+        // Set status to completed
+        $('#status').val('completed').trigger('change');
+
+        // If completion date is not set, default to today
+        if (!$('#completion_date').val()) {
+            var today = new Date();
+            var dateString = today.getFullYear() + '-' +
+                            ('0' + (today.getMonth() + 1)).slice(-2) + '-' +
+                            ('0' + today.getDate()).slice(-2);
+            $('#completion_date').val(dateString);
+        }
+
+        // Focus on completion notes
+        setTimeout(function() {
+            $('#completion_notes').focus();
+        }, 500);
+    });
+
+    // Add a confirmation for cancellation
+    $('#status').on('change', function() {
+        if ($(this).val() === 'cancelled' && !$('#cancellation-details').is(':visible')) {
+            if (confirm('Are you sure you want to cancel this service request?')) {
+                $('#cancellation-details').slideDown();
+                $('#cancellation_reason').focus();
+            } else {
+                // Revert status to previous value
+                $(this).val('{{ object.status }}').trigger('change');
+                if ($.fn.select2) {
+                    $(this).trigger('change.select2');
+                }
+            }
+        }
+    });
+
+    // Add update history toggle
+    $('#toggleHistory').click(function(e) {
+        e.preventDefault();
+        $('#updateHistory').slideToggle();
+    });
+
+    // Enable real-time search on equipment multi-select
+    $('#equipment').select2({
+        placeholder: 'Select equipment items',
+        allowClear: true,
+        width: '100%'
+    });
+
+    // Cancel confirmation modal handlers
+    $('#confirmCancelButton').click(function() {
+        var reason = $('#modal_cancellation_reason').val();
+        var notes = $('#modal_cancellation_notes').val();
+
+        if (!reason) {
+            toastr.error('Please select a cancellation reason');
+            return;
+        }
+
+        // Set the form fields
+        $('#status').val('cancelled').trigger('change');
+        $('#cancellation_reason').val(reason).trigger('change.select2');
+        $('#cancellation_notes').val(notes);
+
+        // Check notification checkbox
+        $('#customer_notified_cancellation').prop('checked', false);
+
+        // Close the modal
+        $('#cancelConfirmModal').modal('hide');
+
+        // Ask if they want to notify the customer
+        setTimeout(function() {
+            if (confirm('Do you want to send a cancellation notification to the customer?')) {
+                prepareNotification('cancellation_notice');
+                $('#notificationModal').modal('show');
+            }
+        }, 500);
+    });
+
+    // Send notification button
+    $('#sendNotificationButton').click(function() {
+        var notificationType = $('#notification_type').val();
+        var recipients = $('#notification_recipients').val();
+        var subject = $('#notification_subject').val();
+        var message = $('#notification_message').val();
+
+        if (!recipients || !subject || !message) {
+            toastr.error('Please fill in all notification fields');
+            return;
+        }
+
+        // Send the notification via AJAX
+        $.ajax({
+            url: '{% url "route_management:send_notification" %}',
+            type: 'POST',
+            data: {
+                'service_request_id': {{ object.id }},
+                'notification_type': notificationType,
+                'recipients': recipients,
+                'subject': subject,
+                'message': message,
+                'csrfmiddlewaretoken': '{{ csrf_token }}'
+            },
+            success: function(data) {
+                if (data.success) {
+                    toastr.success('Notification sent successfully');
+                    $('#notificationModal').modal('hide');
+
+                    // Set the corresponding notification checkbox
+                    if (notificationType === 'completion_notice') {
+                        $('#customer_notified').prop('checked', true);
+                    } else if (notificationType === 'cancellation_notice') {
+                        $('#customer_notified_cancellation').prop('checked', true);
+                    }
+
+                    // Add to activity log
+                    $('#activity_log').val($('#activity_log').val() +
+                        (($('#activity_log').val() ? '\n' : '') + 'Sent ' +
+                        $('#notification_type option:selected').text() + ' to customer.'));
+                } else {
+                    toastr.error('Error sending notification: ' + data.error);
+                }
+            },
+            error: function() {
+                toastr.error('Error sending notification');
+            }
+        });
+    });
+
+    // Prepare notification content based on type
+    function prepareNotification(type) {
+        $('#notification_type').val(type);
+
+        var subject = 'Service Request #{{ object.request_number }} ';
+        var message = 'Dear {{ object.customer.contact_name }},\n\n';
+
+        switch(type) {
+            case 'status_update':
+                subject += 'Status Update';
+                message += 'This is an update regarding your service request #{{ object.request_number }}.\n\n';
+                message += 'The status of your request has been updated to "' + $('#status option:selected').text() + '".\n\n';
+                break;
+            case 'schedule_confirmation':
+                subject += 'Scheduled';
+                message += 'Your service request #{{ object.request_number }} has been scheduled.\n\n';
+                if ($('#scheduled_date').val()) {
+                    message += 'Date: ' + $('#scheduled_date').val() + '\n';
+                }
+                if ($('#scheduled_time').val()) {
+                    message += 'Time: ' + $('#scheduled_time').val() + '\n';
+                }
+                if ($('#technician option:selected').text() !== 'Select a technician...') {
+                    message += 'Technician: ' + $('#technician option:selected').text() + '\n';
+                }
+                message += '\n';
+                break;
+            case 'completion_notice':
+                subject += 'Completed';
+                message += 'We are pleased to inform you that your service request #{{ object.request_number }} has been completed.\n\n';
+                if ($('#completion_date').val()) {
+                    message += 'Completion Date: ' + $('#completion_date').val() + '\n';
+                }
+                if ($('#completion_notes').val()) {
+                    message += '\nCompletion Notes:\n' + $('#completion_notes').val() + '\n';
+                }
+                message += '\n';
+                break;
+            case 'cancellation_notice':
+                subject += 'Cancelled';
+                message += 'This is to inform you that your service request #{{ object.request_number }} has been cancelled.\n\n';
+                if ($('#cancellation_reason option:selected').text() !== 'Select a reason...') {
+                    message += 'Reason: ' + $('#cancellation_reason option:selected').text() + '\n';
+                }
+                if ($('#cancellation_notes').val()) {
+                    message += '\nAdditional Notes:\n' + $('#cancellation_notes').val() + '\n';
+                }
+                message += '\n';
+                break;
+        }
+
+        message += 'If you have any questions, please contact us.\n\n';
+        message += 'Thank you,\n[Your Company Name]';
+
+        $('#notification_subject').val(subject);
+        $('#notification_message').val(message);
+    }
+
+    // Load customer service history
+    function loadServiceHistory(customerId) {
+        $('#serviceHistoryModal').modal('show');
+
+        $.ajax({
+            url: '{% url "route_management:get_customer_service_history" %}',
+            data: {
+                customer_id: customerId,
+                exclude_request_id: {{ object.id }}
+            },
+            success: function(data) {
+                if (data.success) {
+                    var html = '';
+
+                    if (data.service_requests.length === 0) {
+                        html = '<div class="alert alert-info">No previous service requests found for this customer.</div>';
+                    } else {
+                        html = '<div class="table-responsive">';
+                        html += '<table class="table table-bordered table-striped">';
+                        html += '<thead><tr>';
+                        html += '<th>Request #</th>';
+                        html += '<th>Service Type</th>';
+                        html += '<th>Status</th>';
+                        html += '<th>Date</th>';
+                        html += '<th>Location</th>';
+                        html += '<th>Actions</th>';
+                        html += '</tr></thead>';
+                        html += '<tbody>';
+
+                        $.each(data.service_requests, function(i, request) {
+                            html += '<tr>';
+                            html += '<td>' + request.request_number + '</td>';
+                            html += '<td>' + request.service_type_name + '</td>';
+                            html += '<td>';
+                            switch(request.status) {
+                                case 'pending':
+                                    html += '<span class="badge badge-secondary">Pending</span>';
+                                    break;
+                                case 'scheduled':
+                                    html += '<span class="badge badge-info">Scheduled</span>';
+                                    break;
+                                case 'in_progress':
+                                    html += '<span class="badge badge-primary">In Progress</span>';
+                                    break;
+                                case 'completed':
+                                    html += '<span class="badge badge-success">Completed</span>';
+                                    break;
+                                case 'cancelled':
+                                    html += '<span class="badge badge-danger">Cancelled</span>';
+                                    break;
+                                default:
+                                    html += '<span class="badge badge-secondary">' + request.status + '</span>';
+                            }
+                            html += '</td>';
+                            html += '<td>' + (request.created_at ? request.created_at : '-') + '</td>';
+                            html += '<td>' + request.location_name + '</td>';
+                            html += '<td>';
+                            html += '<a href="' + request.detail_url + '" class="btn btn-sm btn-info mr-1" target="_blank" title="View Details"><i class="fas fa-eye"></i></a>';
+                            html += '<button type="button" class="btn btn-sm btn-primary copy-details" data-request-id="' + request.id + '" title="Copy Details"><i class="fas fa-copy"></i></button>';
+                            html += '</td>';
+                            html += '</tr>';
+                        });
+
+                        html += '</tbody></table></div>';
+                    }
+
+                    $('#serviceHistoryContent').html(html);
+
+                    // Bind copy details button
+                    $('.copy-details').click(function() {
+                        var requestId = $(this).data('request-id');
+                        copyServiceDetails(requestId);
+                    });
+                } else {
+                    $('#serviceHistoryContent').html('<div class="alert alert-danger">Error loading service history: ' + data.error + '</div>');
+                }
+            },
+            error: function() {
+                $('#serviceHistoryContent').html('<div class="alert alert-danger">Error loading service history. Please try again.</div>');
+            }
+        });
+    }
+
+    // Copy service details from a previous request
+    function copyServiceDetails(requestId) {
+        if (confirm('This will copy service details from the selected request. Continue?')) {
+            $.ajax({
+                url: '{% url "route_management:get_service_request_details" %}',
+                data: { request_id: requestId },
+                success: function(data) {
+                    if (data.success) {
+                        // Copy service type if available
+                        if (data.request.service_type_id) {
+                            $('#service_type').val(data.request.service_type_id).trigger('change');
+                            if ($.fn.select2) {
+                                $('#service_type').trigger('change.select2');
+                            }
+                        }
+
+                        // Copy description
+                        if (data.request.description) {
+                            $('#description').val(data.request.description);
+                        }
+
+                        // Copy special instructions
+                        if (data.request.special_instructions) {
+                            $('#special_instructions').val(data.request.special_instructions);
+                        }
+
+                        // Copy equipment if available
+                        if (data.request.equipment && data.request.equipment.length > 0) {
+                            $('#equipment').val(data.request.equipment).trigger('change');
+                        }
+
+                        // Close the modal
+                        $('#serviceHistoryModal').modal('hide');
+
+                        toastr.success('Service details copied successfully');
+
+                        // Add note to activity log
+                        $('#activity_log').val($('#activity_log').val() +
+                            (($('#activity_log').val() ? '\n' : '') + 'Copied details from service request #' + data.request.request_number));
+                    } else {
+                        toastr.error('Error copying service details: ' + data.error);
+                    }
+                },
+                error: function() {
+                    toastr.error('Error copying service details');
+                }
+            });
+        }
+    }
+
     // Form validation
     $('#serviceRequestForm').submit(function(e) {
         var isValid = true;
@@ -661,14 +1412,44 @@ $(document).ready(function() {
             }
         });
 
+        // Status-specific validations
+        var status = $('#status').val();
+
         // Scheduling options validation
-        if ($('#status').val() === 'scheduled') {
+        if (status === 'scheduled') {
             if (!$('#technician').val() && !$('#route').val()) {
                 toastr.error('When status is "Scheduled", you must select either a technician or a route');
                 $('#technician, #route').addClass('is-invalid');
                 isValid = false;
             } else {
                 $('#technician, #route').removeClass('is-invalid');
+            }
+
+            if (!$('#scheduled_date').val()) {
+                toastr.error('Scheduled Date is required when status is "Scheduled"');
+                $('#scheduled_date').addClass('is-invalid');
+                isValid = false;
+            }
+        }
+
+        // Completion validation
+        if (status === 'completed' && !$('#completion_date').val()) {
+            toastr.error('Completion Date is required when status is "Completed"');
+            $('#completion_date').addClass('is-invalid');
+            isValid = false;
+        }
+
+        // Check if completion button was clicked
+        if ($(document.activeElement).attr('name') === 'mark_completed') {
+            $('#status').val('completed');
+
+            // Set today's date for completion if not already set
+            if (!$('#completion_date').val()) {
+                var today = new Date();
+                var dateString = today.getFullYear() + '-' +
+                                ('0' + (today.getMonth() + 1)).slice(-2) + '-' +
+                                ('0' + today.getDate()).slice(-2);
+                $('#completion_date').val(dateString);
             }
         }
 
@@ -679,6 +1460,67 @@ $(document).ready(function() {
             $('html, body').animate({
                 scrollTop: $('.is-invalid').first().offset().top - 100
             }, 500);
+        }
+    });
+
+    // Add a "Send Notification" button to the page header
+    $('<a href="#" class="d-none d-sm-inline-block btn btn-sm btn-primary shadow-sm mr-2"><i class="fas fa-envelope fa-sm text-white-50"></i> Send Notification</a>')
+        .insertBefore($('a.btn-info.shadow-sm.mr-2'))
+        .click(function(e) {
+            e.preventDefault();
+            prepareNotification('status_update');
+            $('#notificationModal').modal('show');
+        });
+
+    // Field change tracking for highlighting modified fields
+    var originalValues = {};
+
+    // Store original values on page load
+    $('form input, form select, form textarea').each(function() {
+        var id = $(this).attr('id');
+        if (id) {
+            if ($(this).is(':checkbox')) {
+                originalValues[id] = $(this).prop('checked');
+            } else if ($(this).is('select[multiple]')) {
+                originalValues[id] = $(this).val() ? $(this).val().join(',') : '';
+            } else {
+                originalValues[id] = $(this).val();
+            }
+        }
+    });
+
+    // Check for changes on field change
+    $('form input, form select, form textarea').on('change keyup', function() {
+        var id = $(this).attr('id');
+        if (id) {
+            var currentValue;
+            if ($(this).is(':checkbox')) {
+                currentValue = $(this).prop('checked');
+            } else if ($(this).is('select[multiple]')) {
+                currentValue = $(this).val() ? $(this).val().join(',') : '';
+            } else {
+                currentValue = $(this).val();
+            }
+
+            // Compare with original
+            if (originalValues[id] !== undefined && currentValue !== originalValues[id]) {
+                $(this).addClass('field-modified');
+
+                // If this is the status field, record the change
+                if (id === 'status') {
+                    var oldStatus = $('#status option[value="' + originalValues[id] + '"]').text();
+                    var newStatus = $('#status option:selected').text();
+                    var currentLog = $('#activity_log').val();
+
+                    if (currentLog.indexOf('Status changed from') === -1) {
+                        $('#activity_log').val(currentLog +
+                            (currentLog ? '\n' : '') +
+                            'Status changed from "' + oldStatus + '" to "' + newStatus + '"');
+                    }
+                }
+            } else {
+                $(this).removeClass('field-modified');
+            }
         }
     });
 });
