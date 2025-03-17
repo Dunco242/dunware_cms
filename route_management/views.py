@@ -2426,3 +2426,23 @@ def get_location_info(request):
         return JsonResponse({'success': False, 'error': 'Location not found'})
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
+
+
+@login_required
+def get_customer_locations(request, customer_id):
+    """AJAX view to get service locations for a customer"""
+    if not customer_id:
+        return JsonResponse([], safe=False)
+
+    try:
+        locations = ServiceLocation.objects.filter(
+            customer_id=customer_id
+        ).values('id', 'name')
+
+        # For debugging, log the number of locations found
+        print(f"Found {len(locations)} locations for customer ID {customer_id}")
+
+        return JsonResponse(list(locations), safe=False)
+    except Exception as e:
+        print(f"Error loading service locations: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=400)

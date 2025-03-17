@@ -571,8 +571,7 @@ $(document).ready(function() {
         }
     });
 
-    // Function to update service locations based on selected customer
-    // Function to update service locations based on selected customer
+// Function to update service locations based on selected customer
 function updateServiceLocations() {
     var customerId = $('#customer').val();
     if (customerId) {
@@ -584,13 +583,10 @@ function updateServiceLocations() {
 
         // Make AJAX call to fetch locations
         $.ajax({
-            url: '{% url "route_management:ajax_load_service_locations" %}',
-            data: {
-                'customer_id': customerId
-            },
+            url: '/route_management/get_customer_locations/' + customerId + '/',
             dataType: 'json',
             success: function(data) {
-                // Populate dropdown with returned data - exactly like your customer dropdown
+                // Populate dropdown with returned data
                 var options = '<option value="">Select a location...</option>';
                 $.each(data, function(index, item) {
                     var selected = (item.id == currentLocationId) ? 'selected' : '';
@@ -614,7 +610,6 @@ function updateServiceLocations() {
                 $('#service_location').html('<option value="">Error loading locations</option>');
             }
         });
-
         // Load customer details (keep this part as it was)
         $.ajax({
             url: '{% url "route_management:get_customer_info" %}',

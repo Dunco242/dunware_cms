@@ -838,53 +838,81 @@ $(document).ready(function() {
     });
 
     // Function to update service locations based on selected customer
-    function updateServiceLocations() {
-        var customerId = $('#customer').val();
-        if (customerId) {
-            // Store currently selected service location for restoration after loading
-            var currentLocationId = $('#service_location').val();
+function updateServiceLocations() {
+    var customerId = $('#customer').val();
+    if (customerId) {
+        // Store currently selected service location for restoration after loading
+        var currentLocationId = $('#service_location').val();
 
-            if (!currentLocationId) {
-                // If we're in update mode, try to get the initial location from the object
-                currentLocationId = {{ object.service_location.id|default:'null' }};
-            }
+        if (!currentLocationId) {
+            // If we're in update mode, try to get the initial location from the object
+            currentLocationId = {{ object.service_location.id|default:'null' }};
+        }
 
-            // Show loading indicator
-            $('#service_location').html('<option value="">Loading...</option>');
+        // Show loading indicator
+        $('#service_location').html('<option value="">Loading...</option>');
 
-            // Make AJAX call to fetch locations
-            $.ajax({
-                url: '{% url "route_management:ajax_load_service_locations" %}',
-                data: {
-                    'customer_id': customerId
-                },
-                dataType: 'json',
-                success: function(data) {
-                    // Populate dropdown with returned data
-                    var options = '<option value="">Select a location...</option>';
-                    $.each(data, function(index, item) {
-                        var selected = (item.id == currentLocationId) ? 'selected' : '';
-                        options += '<option value="' + item.id + '" ' + selected + '>' + item.name + '</option>';
-                    });
-                    $('#service_location').html(options);
+        // Make AJAX call to fetch locations
+        $.ajax({
+            url: '/route_management/get_customer_locations/' + customerId + '/',
+            dataType: 'json',
+            success: function(data) {
+                // Populate dropdown with returned data
+                var options = '<option value="">Select a location...</option>';
+                $.each(data, function(index, item) {
+                    var selected = (item.id == currentLocationId) ? 'selected' : '';
+                    options += '<option value="' + item.id + '" ' + selected + '>' + item.name + '</option>';
+                });
+                $('#service_location').html(options);
 
-                    // If using select2, refresh it
-                    if ($.fn.select2) {
-                        $('#service_location').trigger('change.select2');
-                    }
-
-                    // If we have a current location, trigger change to reload the location details
-                    if (currentLocationId && $('#service_location').val()) {
-                        $('#service_location').trigger('change');
-                    }
-                },
-                error: function(error) {
-                    console.log("Error loading service locations:", error);
-                    toastr.error("Failed to load service locations for this customer.");
-                    $('#service_location').html('<option value="">Error loading locations</option>');
+                // If using select2, refresh it
+                if ($.fn.select2) {
+                    $('#service_location').trigger('change.select2');
                 }
-            });
 
+                // If we have a current location, trigger change to reload the location details
+                if (currentLocationId && $('#service_location').val()) {
+                    $('#service_location').trigger('change');
+                }
+            },
+            error: function(error) {
+                console.log("Error loading service locations:", error);
+                toastr.error("Failed to load service locations for this customer.");
+                $('#service_location').html('<option value="">Error loading locations</option>');
+            }
+        });
+
+        // Load customer details
+        $.ajax({
+            url: '{% url "route_management:get_customer_info" %}',
+            data: { customer_id: customerId },
+            success: function(data) {
+                if (data.success) {
+                    // Display customer details
+                    var html = '<p><strong>Contact:</strong> ' + data.customer.contact_name + '</p>' +
+                               '<p><strong>Email:</strong> ' + data.customer.contact_email + '</p>' +
+                               '<p><strong>Phone:</strong> ' + data.customer.contact_phone + '</p>';
+
+                    $('#customerInfo').html(html);
+                    $('#customerDetails').slideDown();
+                } else {
+                    toastr.error('Error loading customer details');
+                }
+            },
+            error: function() {
+                toastr.error('Error loading customer details');
+            }
+        });
+    } else {
+        $('#customerDetails').slideUp();
+        $('#service_location').empty().append('<option value="">Select a location...</option>');
+
+        // If using select2, refresh it
+        if ($.fn.select2) {
+            $('#service_location').trigger('change.select2');
+        }
+    }
+}
             // Load customer details
             $.ajax({
                 url: '{% url "route_management:get_customer_info" %}',
