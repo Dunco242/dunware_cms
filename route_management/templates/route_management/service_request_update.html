@@ -940,7 +940,7 @@ $(document).ready(function() {
         if (locationId) {
             // Load location details
             $.ajax({
-                url: '{% url "route_management:get_location_info" %}',
+                url: '{% url "route_management:ajax_load_service_locations" %}',
                 data: { location_id: locationId },
                 success: function(data) {
                     if (data.success) {

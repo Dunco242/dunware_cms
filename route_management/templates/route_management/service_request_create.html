@@ -661,7 +661,7 @@ function updateServiceLocations() {
         if (locationId) {
             // Load location details
             $.ajax({
-                url: '{% url "route_management:get_location_info" %}',
+                url: '/route_management/ajax/load-service-locations/',
                 data: { location_id: locationId },
                 success: function(data) {
                     if (data.success) {
