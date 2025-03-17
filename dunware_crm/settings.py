@@ -49,6 +49,7 @@ INSTALLED_APPS = [
 
     # Channels and ASGI Apps
     'channels',
+    'xhtml2pdf',
 
 
     # Third Party Apps (move crispy to the end of third-party)
