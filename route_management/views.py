@@ -7,6 +7,7 @@ from django.contrib import messages
 from django.http import JsonResponse, HttpResponseRedirect
 from django.utils import timezone
 from django.db.models import Q, Count, Avg, Sum, F, ExpressionWrapper, fields
+from django.db import transaction, models
 from django.db.models.functions import ExtractHour
 from django.core.paginator import Paginator
 from django.contrib.auth.decorators import login_required
@@ -19,7 +20,7 @@ from .models import (
 )
 from .forms import (
     ServiceRequestForm, RouteForm, RouteStopForm, ServiceCompletionForm,
-    TechnicianProfileForm, TechnicianAvailabilityForm, CustomerFeedbackForm,
+    TechnicianProfileForm, TechnicianAvailabilityForm, CustomerFeedbackForm, BulkUpdateStatusForm,
     OptimizationSettingsForm, ServicePhotoUploadForm, BulkAssignTechnicianForm, BulkAddToRouteForm
 )
 from core.models import Employee, Customer
@@ -1117,53 +1118,155 @@ class AnalyticsView(LoginRequiredMixin, TemplateView):
         start_date = self.request.GET.get('start_date')
         start_date = timezone.datetime.strptime(start_date, '%Y-%m-%d').date() if start_date else (end_date - timezone.timedelta(days=30))
 
-        # Get analytics snapshots for date range
-        snapshots = AnalyticsSnapshot.objects.filter(
-            date__range=[start_date, end_date]
-        ).order_by('date')
+        # Get completed routes for date range
+        completed_routes = Route.objects.filter(
+            date__range=[start_date, end_date],
+            status='completed'
+        )
 
-        # If no snapshots exist, generate them
-        if not snapshots.exists():
-            date_range = (end_date - start_date).days + 1
-            if date_range <= 90:  # Limit to generating max 90 days of data
-                for i in range(date_range):
-                    current_date = start_date + timezone.timedelta(days=i)
-                    AnalyticsSnapshot.generate_for_date(current_date)
+        # Get completed service requests for date range
+        completed_service_requests = ServiceRequest.objects.filter(
+            completed_at__date__range=[start_date, end_date],
+            status='completed'
+        )
 
-                # Fetch the newly generated snapshots
-                snapshots = AnalyticsSnapshot.objects.filter(
-                    date__range=[start_date, end_date]
-                ).order_by('date')
+        # Calculate route metrics
+        route_count = completed_routes.count()
 
-        # Prepare data for charts
-        dates = [snapshot.date.strftime('%Y-%m-%d') for snapshot in snapshots]
-        completed_routes = [snapshot.completed_routes for snapshot in snapshots]
-        avg_stops_per_route = [float(snapshot.avg_stops_per_route) for snapshot in snapshots]
-        avg_service_duration = [float(snapshot.avg_service_duration_minutes) for snapshot in snapshots]
-        avg_customer_rating = [float(snapshot.avg_customer_rating) if snapshot.avg_customer_rating else 0 for snapshot in snapshots]
+        # Calculate average stops per route - explicitly set output_field
+        from django.db.models import FloatField
+        if route_count > 0:
+            avg_stops_per_route = RouteStop.objects.filter(
+                route__in=completed_routes
+            ).count() / route_count
+        else:
+            avg_stops_per_route = 0
 
-        # Calculate summary metrics
-        if snapshots:
-            total_completed_routes = sum(snapshot.completed_routes for snapshot in snapshots)
-            total_completed_service_requests = sum(snapshot.completed_service_requests for snapshot in snapshots)
-            avg_rating = sum(avg_customer_rating) / len(avg_customer_rating) if any(avg_customer_rating) else 0
+        # Get average service duration with explicit output_field
+        completed_stops = RouteStop.objects.filter(
+            route__in=completed_routes,
+            status='completed',
+            actual_arrival_time__isnull=False,
+            actual_departure_time__isnull=False
+        )
 
-            context.update({
-                'total_completed_routes': total_completed_routes,
-                'total_completed_service_requests': total_completed_service_requests,
-                'avg_rating': round(avg_rating, 2),
-                'date_range_days': (end_date - start_date).days + 1,
+        avg_service_duration = 0
+        if completed_stops.exists():
+            # Calculate duration for each stop manually to avoid field type issues
+            total_duration = 0
+            count = 0
+            for stop in completed_stops:
+                if stop.actual_departure_time and stop.actual_arrival_time:
+                    duration = (stop.actual_departure_time - stop.actual_arrival_time).total_seconds() / 60
+                    total_duration += duration
+                    count += 1
+
+            if count > 0:
+                avg_service_duration = total_duration / count
+
+        # Get average customer rating
+        customer_feedback = CustomerFeedback.objects.filter(
+            service_request__in=completed_service_requests
+        )
+
+        avg_rating = 0
+        if customer_feedback.exists():
+            # Use aggregate with explicit output_field
+            avg_rating_result = customer_feedback.aggregate(
+                avg_rating=models.Avg('rating', output_field=FloatField())
+            )
+            avg_rating = avg_rating_result['avg_rating'] or 0
+
+        # Prepare data points by day
+        date_range = (end_date - start_date).days + 1
+        daily_data = []
+
+        for i in range(date_range):
+            current_date = start_date + timezone.timedelta(days=i)
+
+            # Get routes completed on this day
+            day_routes = completed_routes.filter(date=current_date)
+            day_route_count = day_routes.count()
+
+            # Get service requests completed on this day
+            day_requests = completed_service_requests.filter(completed_at__date=current_date)
+            day_request_count = day_requests.count()
+
+            # Get day's average stops per route
+            day_avg_stops = 0
+            if day_route_count > 0:
+                day_stops = RouteStop.objects.filter(route__in=day_routes).count()
+                day_avg_stops = day_stops / day_route_count
+
+            # Get day's average service duration
+            day_completed_stops = RouteStop.objects.filter(
+                route__in=day_routes,
+                status='completed',
+                actual_arrival_time__isnull=False,
+                actual_departure_time__isnull=False
+            )
+
+            day_avg_duration = 0
+            if day_completed_stops.exists():
+                # Calculate duration for each stop manually
+                day_total_duration = 0
+                day_stop_count = 0
+                for stop in day_completed_stops:
+                    if stop.actual_departure_time and stop.actual_arrival_time:
+                        duration = (stop.actual_departure_time - stop.actual_arrival_time).total_seconds() / 60
+                        day_total_duration += duration
+                        day_stop_count += 1
+
+                if day_stop_count > 0:
+                    day_avg_duration = day_total_duration / day_stop_count
+
+            # Get day's average customer rating
+            day_feedback = CustomerFeedback.objects.filter(
+                service_request__in=day_requests
+            )
+
+            day_avg_rating = 0
+            if day_feedback.exists():
+                # Use aggregate with explicit output_field
+                day_avg_rating_result = day_feedback.aggregate(
+                    avg_rating=models.Avg('rating', output_field=FloatField())
+                )
+                day_avg_rating = day_avg_rating_result['avg_rating'] or 0
+
+            # Add data point
+            daily_data.append({
+                'date': current_date.strftime('%Y-%m-%d'),
+                'completed_routes': day_route_count,
+                'completed_requests': day_request_count,
+                'avg_stops_per_route': day_avg_stops,
+                'avg_service_duration': day_avg_duration,
+                'avg_customer_rating': day_avg_rating
             })
 
-        # Add chart data to context
+        # Extract data for charts
+        dates = [item['date'] for item in daily_data]
+        completed_routes_data = [item['completed_routes'] for item in daily_data]
+        avg_stops_data = [item['avg_stops_per_route'] for item in daily_data]
+        avg_duration_data = [item['avg_service_duration'] for item in daily_data]
+        avg_rating_data = [item['avg_customer_rating'] for item in daily_data]
+
+        # Add context data
         context.update({
             'chart_dates': dates,
-            'chart_completed_routes': completed_routes,
-            'chart_avg_stops_per_route': avg_stops_per_route,
-            'chart_avg_service_duration': avg_service_duration,
-            'chart_avg_customer_rating': avg_customer_rating,
+            'chart_completed_routes': completed_routes_data,
+            'chart_avg_stops_per_route': avg_stops_data,
+            'chart_avg_service_duration': avg_duration_data,
+            'chart_avg_customer_rating': avg_rating_data,
             'start_date': start_date,
             'end_date': end_date,
+
+            # Summary metrics
+            'total_completed_routes': route_count,
+            'total_completed_service_requests': completed_service_requests.count(),
+            'avg_stops_per_route': round(avg_stops_per_route, 2),
+            'avg_service_duration': round(avg_service_duration, 1),
+            'avg_rating': round(avg_rating, 2),
+            'date_range_days': date_range,
         })
 
         return context
@@ -2057,3 +2160,110 @@ class BulkAddToRouteView(LoginRequiredMixin, FormView):
 
     def get_success_url(self):
         return reverse('route_management:service_request_list')
+
+
+class BulkUpdateStatusView(LoginRequiredMixin, FormView):
+    """View to bulk update status for multiple service requests"""
+    template_name = 'route_management/bulk_update_status.html'
+    form_class = BulkUpdateStatusForm  # We'll create this form
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        # Get selected service request IDs from the request
+        service_request_ids = self.request.GET.get('service_requests', '').split(',')
+        service_request_ids = [id for id in service_request_ids if id.strip().isdigit()]
+
+        if not service_request_ids:
+            messages.warning(self.request, "No service requests selected. Please select at least one service request.")
+            return context
+
+        # Get the service requests
+        context['service_requests'] = ServiceRequest.objects.filter(
+            id__in=service_request_ids
+        ).select_related(
+            'customer', 'service_location', 'service_type'
+        )
+
+        return context
+
+    def form_valid(self, form):
+        new_status = form.cleaned_data.get('status')
+        notes = form.cleaned_data.get('notes', '')
+        service_request_ids = form.cleaned_data.get('service_requests', '').split(',')
+        service_request_ids = [id for id in service_request_ids if id.strip().isdigit()]
+
+        if not service_request_ids:
+            messages.error(self.request, "No service requests selected.")
+            return self.form_invalid(form)
+
+        try:
+            # Update each service request
+            success_count = 0
+            for req_id in service_request_ids:
+                try:
+                    service_request = ServiceRequest.objects.get(pk=req_id)
+
+                    # Store old status for logging
+                    old_status = service_request.status
+
+                    # Update the status
+                    service_request.status = new_status
+
+                    # Add notes if provided
+                    if notes:
+                        service_request.notes = (service_request.notes or '') + f"\n\n{timezone.now().strftime('%Y-%m-%d %H:%M')}: Status changed from {old_status} to {new_status}. {notes}"
+
+                    service_request.save()
+
+                    # Create activity log entry
+                    # Assuming you have an activity log model, you could create an entry here
+
+                    success_count += 1
+                except ServiceRequest.DoesNotExist:
+                    messages.error(self.request, f"Service request #{req_id} not found.")
+                except Exception as e:
+                    messages.error(self.request, f"Error updating service request #{req_id}: {str(e)}")
+
+            if success_count > 0:
+                messages.success(
+                    self.request,
+                    f"Successfully updated status for {success_count} service requests to '{new_status}'."
+                )
+
+                # Redirect to service request list
+                return HttpResponseRedirect(reverse('route_management:service_request_list'))
+
+        except Exception as e:
+            messages.error(self.request, f"Error: {str(e)}")
+            return self.form_invalid(form)
+
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse('route_management:service_request_list')
+
+
+class ServiceAreaUpdateView(LoginRequiredMixin, UpdateView):
+    """Update an existing service area"""
+    model = ServiceArea
+    template_name = 'route_management/service_area_form.html'
+    fields = ['name', 'description', 'code', 'is_active', 'notes']
+
+    def form_valid(self, form):
+        # Set modified_by to current user if the field exists
+        if hasattr(form.instance, 'modified_by'):
+            form.instance.modified_by = self.request.user
+
+        response = super().form_valid(form)
+        messages.success(self.request, f"Service area '{self.object.name}' updated successfully.")
+        return response
+
+    def get_success_url(self):
+        return reverse('route_management:service_area_list')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Update Service Area'
+        context['submit_text'] = 'Update'
+        return context

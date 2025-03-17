@@ -13,6 +13,7 @@ urlpatterns = [
     path('service-requests/<int:pk>/', views.ServiceRequestDetailView.as_view(), name='service_request_detail'),
     path('service-requests/<int:pk>/update/', views.ServiceRequestUpdateView.as_view(), name='service_request_update'),
     path('service-requests/bulk-add-to-route/', views.BulkAddToRouteView.as_view(), name='bulk_add_to_route'),
+    path('service-requests/bulk-update-status/', views.BulkUpdateStatusView.as_view(), name='bulk_update_status'),
 
 
     # Routes

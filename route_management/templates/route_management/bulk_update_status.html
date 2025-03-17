@@ -1,0 +1,208 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Bulk Update Service Request Status{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <!-- Left Sidebar Navigation -->
+        <nav class="col-md-2 d-md-block bg-light sidebar">
+            <div class="sidebar-sticky pt-3">
+                <ul class="nav flex-column">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'route_management:dashboard' %}">
+                            <i class="fas fa-tachometer-alt mr-2"></i>Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{% url 'route_management:service_request_list' %}">
+                            <i class="fas fa-clipboard-list mr-2"></i>Service Requests
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'route_management:route_list' %}">
+                            <i class="fas fa-route mr-2"></i>Routes
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'route_management:service_calendar' %}">
+                            <i class="fas fa-calendar-alt mr-2"></i>Calendar
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'route_management:route_schedule_list' %}">
+                            <i class="fas fa-calendar-week mr-2"></i>Schedules
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'route_management:service_area_list' %}">
+                            <i class="fas fa-map-marked-alt mr-2"></i>Service Areas
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'route_management:analytics' %}">
+                            <i class="fas fa-chart-bar mr-2"></i>Analytics
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </nav>
+
+        <!-- Main Content Area -->
+        <main role="main" class="col-md-10 ml-sm-auto px-4">
+            <!-- Page Heading -->
+            <div class="d-sm-flex align-items-center justify-content-between mb-4 mt-4">
+                <h1 class="h3 mb-0 text-gray-800">Bulk Update Service Request Status</h1>
+                <a href="{% url 'route_management:service_request_list' %}" class="d-none d-sm-inline-block btn btn-sm btn-secondary shadow-sm">
+                    <i class="fas fa-arrow-left fa-sm text-white-50"></i> Back to Service Requests
+                </a>
+            </div>
+
+            <!-- Selected Service Requests Card -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Selected Service Requests</h6>
+                </div>
+                <div class="card-body">
+                    {% if service_requests %}
+                        <div class="table-responsive">
+                            <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
+                                <thead>
+                                    <tr>
+                                        <th>Request #</th>
+                                        <th>Customer</th>
+                                        <th>Service Type</th>
+                                        <th>Current Status</th>
+                                        <th>Preferred Date</th>
+                                        <th>Priority</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for request in service_requests %}
+                                    <tr>
+                                        <td>
+                                            <a href="{% url 'route_management:service_request_detail' request.id %}">
+                                                {{ request.request_number }}
+                                            </a>
+                                        </td>
+                                        <td>{{ request.customer.company_name }}</td>
+                                        <td>{{ request.service_type.name }}</td>
+                                        <td>
+                                            <span class="badge badge-pill
+                                            {% if request.status == 'pending' %}badge-secondary
+                                            {% elif request.status == 'scheduled' %}badge-info
+                                            {% elif request.status == 'in_progress' %}badge-primary
+                                            {% elif request.status == 'completed' %}badge-success
+                                            {% elif request.status == 'cancelled' %}badge-danger
+                                            {% endif %}">
+                                                {{ request.get_status_display }}
+                                            </span>
+                                        </td>
+                                        <td>{{ request.preferred_date|date:"Y-m-d" }}</td>
+                                        <td>
+                                            <span class="badge badge-pill
+                                            {% if request.priority == 'low' %}badge-info
+                                            {% elif request.priority == 'medium' %}badge-warning
+                                            {% elif request.priority == 'high' %}badge-danger
+                                            {% elif request.priority == 'urgent' %}badge-danger text-white
+                                            {% endif %}">
+                                                {{ request.get_priority_display }}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-warning">
+                            No service requests selected. Please go back to the service request list and select at least one request.
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if service_requests %}
+            <!-- Update Status Form -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Update Status</h6>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="service_requests" id="service-request-ids" value="{{ service_requests|join:',' }}">
+
+                        <div class="form-group row">
+                            <label for="id_status" class="col-sm-2 col-form-label">New Status</label>
+                            <div class="col-sm-10">
+                                {{ form.status }}
+                                {% if form.status.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.status.errors }}
+                                    </div>
+                                {% endif %}
+                                <small class="form-text text-muted">Select the new status for all selected service requests.</small>
+                            </div>
+                        </div>
+
+                        <div class="form-group row">
+                            <label for="id_notes" class="col-sm-2 col-form-label">Notes</label>
+                            <div class="col-sm-10">
+                                {{ form.notes }}
+                                {% if form.notes.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.notes.errors }}
+                                    </div>
+                                {% endif %}
+                                <small class="form-text text-muted">Optional notes about this status change.</small>
+                            </div>
+                        </div>
+
+                        <div class="form-group row">
+                            <div class="col-sm-10 offset-sm-2">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save mr-1"></i> Update Status
+                                </button>
+                                <a href="{% url 'route_management:service_request_list' %}" class="btn btn-secondary">
+                                    <i class="fas fa-times mr-1"></i> Cancel
+                                </a>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+        </main>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Initialize datatable
+    $('#dataTable').DataTable({
+        "pageLength": 10,
+        "ordering": true
+    });
+
+    // Set the service request IDs in the hidden field
+    const serviceRequestIds = [];
+    {% for request in service_requests %}
+        serviceRequestIds.push("{{ request.id }}");
+    {% endfor %}
+    $('#service-request-ids').val(serviceRequestIds.join(','));
+
+    // Make sidebar menu highlight current page
+    const path = window.location.pathname;
+    $('.sidebar .nav-link').each(function() {
+        const href = $(this).attr('href');
+        if (path === href) {
+            $(this).addClass('active');
+            $(this).css('font-weight', 'bold');
+        }
+    });
+});
+</script>
+{% endblock %}

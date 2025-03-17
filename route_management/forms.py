@@ -663,3 +663,46 @@ class BulkAddToRouteForm(forms.Form):
             raise forms.ValidationError("Invalid service request IDs provided.")
 
         return service_requests
+
+class BulkUpdateStatusForm(forms.Form):
+    """Form for bulk updating service request status"""
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('scheduled', 'Scheduled'),
+        ('in_progress', 'In Progress'),
+        ('completed', 'Completed'),
+        ('cancelled', 'Cancelled'),
+    ]
+
+    status = forms.ChoiceField(
+        choices=STATUS_CHOICES,
+        required=True,
+        label="New Status",
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+    notes = forms.CharField(
+        required=False,
+        label="Add Notes",
+        widget=forms.Textarea(attrs={
+            'class': 'form-control',
+            'rows': 3,
+            'placeholder': 'Optional notes about this status change'
+        })
+    )
+    service_requests = forms.CharField(
+        widget=forms.HiddenInput(),
+        required=True
+    )
+
+    def clean_service_requests(self):
+        """Validate that service_requests contains valid IDs"""
+        service_requests = self.cleaned_data.get('service_requests', '')
+        if not service_requests:
+            raise forms.ValidationError("You must select at least one service request.")
+
+        # Check if the string contains valid IDs
+        request_ids = service_requests.split(',')
+        if not all(rid.strip().isdigit() for rid in request_ids if rid.strip()):
+            raise forms.ValidationError("Invalid service request IDs provided.")
+
+        return service_requests
