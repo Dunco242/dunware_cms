@@ -1190,6 +1190,11 @@ class AnalyticsView(LoginRequiredMixin, TemplateView):
             'total_completed_service_requests': completed_requests,
             'avg_stops_per_route': 0,
             'avg_service_duration': 0,
+            'avg_rating': 0,
+            'date_range_days': date_range_days,
+        })
+
+        return context
 
 @login_required
 def technician_schedule_view(request, pk):
