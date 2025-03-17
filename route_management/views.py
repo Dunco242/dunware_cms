@@ -1950,3 +1950,110 @@ class ServiceAreaCreateView(LoginRequiredMixin, CreateView):
         context['title'] = 'Create Service Area'
         context['submit_text'] = 'Create'
         return context
+
+
+class BulkAddToRouteView(LoginRequiredMixin, FormView):
+    """View to bulk add service requests to a route"""
+    template_name = 'route_management/bulk_add_to_route.html'
+    form_class = BulkAddToRouteForm  # You'll need to create this form
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        # Get selected service request IDs from the request
+        service_request_ids = self.request.GET.get('service_requests', '').split(',')
+        service_request_ids = [id for id in service_request_ids if id.strip().isdigit()]
+
+        if not service_request_ids:
+            messages.warning(self.request, "No service requests selected. Please select at least one service request.")
+            return context
+
+        # Get the service requests
+        context['service_requests'] = ServiceRequest.objects.filter(
+            id__in=service_request_ids
+        ).select_related(
+            'customer', 'service_location', 'service_type'
+        )
+
+        # Get available routes
+        # By default, show routes for the next 7 days
+        today = timezone.now().date()
+        next_week = today + timezone.timedelta(days=7)
+
+        context['routes'] = Route.objects.filter(
+            date__range=[today, next_week],
+            status__in=['draft', 'published']
+        ).select_related('technician').order_by('date', 'estimated_start_time')
+
+        # We'll also need a way to create a new route
+        context['technicians'] = Employee.objects.filter(
+            is_active=True,
+            service_areas__isnull=False
+        ).distinct()
+
+        return context
+
+    def form_valid(self, form):
+        route_id = form.cleaned_data.get('route')
+        service_request_ids = form.cleaned_data.get('service_requests', '').split(',')
+        service_request_ids = [id for id in service_request_ids if id.strip().isdigit()]
+
+        if not service_request_ids:
+            messages.error(self.request, "No service requests selected.")
+            return self.form_invalid(form)
+
+        try:
+            route = Route.objects.get(pk=route_id)
+
+            # Get current max stop number for this route
+            max_stop_number = RouteStop.objects.filter(route=route).aggregate(
+                max_stop=models.Max('stop_number')
+            )['max_stop'] or 0
+
+            # Add each service request as a stop
+            success_count = 0
+            error_count = 0
+
+            for i, req_id in enumerate(service_request_ids, 1):
+                try:
+                    service_request = ServiceRequest.objects.get(pk=req_id)
+
+                    # Create a new route stop
+                    stop = RouteStop(
+                        route=route,
+                        service_request=service_request,
+                        stop_number=max_stop_number + i,
+                        status='pending'
+                    )
+                    stop.save()
+
+                    # Update service request status
+                    service_request.status = 'scheduled'
+                    service_request.assigned_technician = route.technician
+                    service_request.save()
+
+                    success_count += 1
+                except Exception as e:
+                    error_count += 1
+                    messages.error(self.request, f"Error adding service request #{req_id}: {str(e)}")
+
+            if success_count > 0:
+                messages.success(
+                    self.request,
+                    f"Successfully added {success_count} service requests to route {route.route_id}."
+                )
+
+                # Redirect to route stops page
+                return HttpResponseRedirect(reverse('route_management:route_stops', kwargs={'pk': route.pk}))
+
+        except Route.DoesNotExist:
+            messages.error(self.request, "Selected route not found.")
+            return self.form_invalid(form)
+        except Exception as e:
+            messages.error(self.request, f"Error: {str(e)}")
+            return self.form_invalid(form)
+
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse('route_management:service_request_list')

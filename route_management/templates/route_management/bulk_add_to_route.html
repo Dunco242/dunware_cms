@@ -1,0 +1,236 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Add Service Requests to Route{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <!-- Left Sidebar Navigation -->
+        <nav class="col-md-2 d-md-block bg-light sidebar">
+            <div class="sidebar-sticky pt-3">
+                <ul class="nav flex-column">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'route_management:dashboard' %}">
+                            <i class="fas fa-tachometer-alt mr-2"></i>Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{% url 'route_management:service_request_list' %}">
+                            <i class="fas fa-clipboard-list mr-2"></i>Service Requests
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'route_management:route_list' %}">
+                            <i class="fas fa-route mr-2"></i>Routes
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'route_management:service_calendar' %}">
+                            <i class="fas fa-calendar-alt mr-2"></i>Calendar
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'route_management:route_schedule_list' %}">
+                            <i class="fas fa-calendar-week mr-2"></i>Schedules
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'route_management:service_area_list' %}">
+                            <i class="fas fa-map-marked-alt mr-2"></i>Service Areas
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'route_management:analytics' %}">
+                            <i class="fas fa-chart-bar mr-2"></i>Analytics
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </nav>
+
+        <!-- Main Content Area -->
+        <main role="main" class="col-md-10 ml-sm-auto px-4">
+            <!-- Page Heading -->
+            <div class="d-sm-flex align-items-center justify-content-between mb-4 mt-4">
+                <h1 class="h3 mb-0 text-gray-800">Add Service Requests to Route</h1>
+                <a href="{% url 'route_management:service_request_list' %}" class="d-none d-sm-inline-block btn btn-sm btn-secondary shadow-sm">
+                    <i class="fas fa-arrow-left fa-sm text-white-50"></i> Back to Service Requests
+                </a>
+            </div>
+
+            <!-- Selected Service Requests Card -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Selected Service Requests</h6>
+                </div>
+                <div class="card-body">
+                    {% if service_requests %}
+                        <div class="table-responsive">
+                            <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
+                                <thead>
+                                    <tr>
+                                        <th>Request #</th>
+                                        <th>Customer</th>
+                                        <th>Service Type</th>
+                                        <th>Location</th>
+                                        <th>Preferred Date</th>
+                                        <th>Priority</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for request in service_requests %}
+                                    <tr>
+                                        <td>
+                                            <a href="{% url 'route_management:service_request_detail' request.id %}">
+                                                {{ request.request_number }}
+                                            </a>
+                                        </td>
+                                        <td>{{ request.customer.company_name }}</td>
+                                        <td>{{ request.service_type.name }}</td>
+                                        <td>{{ request.service_location.name }}</td>
+                                        <td>{{ request.preferred_date|date:"Y-m-d" }}</td>
+                                        <td>
+                                            <span class="badge badge-pill
+                                            {% if request.priority == 'low' %}badge-info
+                                            {% elif request.priority == 'medium' %}badge-warning
+                                            {% elif request.priority == 'high' %}badge-danger
+                                            {% elif request.priority == 'urgent' %}badge-danger text-white
+                                            {% endif %}">
+                                                {{ request.get_priority_display }}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-warning">
+                            No service requests selected. Please go back to the service request list and select at least one request.
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if service_requests %}
+            <!-- Add to Route Options -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Select Route</h6>
+                </div>
+                <div class="card-body">
+                    <ul class="nav nav-tabs" id="routeTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="existing-route-tab" data-bs-toggle="tab" data-bs-target="#existing-route" type="button" role="tab" aria-controls="existing-route" aria-selected="true">Existing Route</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="new-route-tab" data-bs-toggle="tab" data-bs-target="#new-route" type="button" role="tab" aria-controls="new-route" aria-selected="false">Create New Route</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content pt-3" id="routeTabsContent">
+                        <!-- Existing Route Tab -->
+                        <div class="tab-pane fade show active" id="existing-route" role="tabpanel" aria-labelledby="existing-route-tab">
+                            <form method="post" id="add-to-existing-route-form">
+                                {% csrf_token %}
+                                <input type="hidden" name="service_requests" id="service-request-ids" value="{{ service_requests|join:',' }}">
+
+                                <div class="form-group row">
+                                    <label for="id_route" class="col-sm-2 col-form-label">Select Route</label>
+                                    <div class="col-sm-10">
+                                        {{ form.route|add_class:"form-control" }}
+                                        {% if form.route.errors %}
+                                            <div class="invalid-feedback d-block">
+                                                {{ form.route.errors }}
+                                            </div>
+                                        {% endif %}
+                                        <small class="form-text text-muted">Select an existing route to add these service requests to.</small>
+                                    </div>
+                                </div>
+
+                                <div class="form-group row">
+                                    <div class="col-sm-10 offset-sm-2">
+                                        <button type="submit" class="btn btn-primary">
+                                            <i class="fas fa-plus-circle mr-1"></i> Add to Route
+                                        </button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+
+                        <!-- New Route Tab -->
+                        <div class="tab-pane fade" id="new-route" role="tabpanel" aria-labelledby="new-route-tab">
+                            <form method="get" action="{% url 'route_management:route_create' %}" id="create-new-route-form">
+                                <input type="hidden" name="service_requests" value="{{ request.GET.service_requests }}">
+
+                                <div class="form-group row">
+                                    <label for="technician" class="col-sm-2 col-form-label">Technician</label>
+                                    <div class="col-sm-10">
+                                        <select name="technician" id="technician" class="form-control" required>
+                                            <option value="">-- Select Technician --</option>
+                                            {% for tech in technicians %}
+                                                <option value="{{ tech.id }}">{{ tech.get_full_name }}</option>
+                                            {% endfor %}
+                                        </select>
+                                        <small class="form-text text-muted">Select a technician for the new route.</small>
+                                    </div>
+                                </div>
+
+                                <div class="form-group row">
+                                    <label for="date" class="col-sm-2 col-form-label">Route Date</label>
+                                    <div class="col-sm-10">
+                                        <input type="date" name="date" id="date" class="form-control" required>
+                                        <small class="form-text text-muted">Select the date for the new route.</small>
+                                    </div>
+                                </div>
+
+                                <div class="form-group row">
+                                    <div class="col-sm-10 offset-sm-2">
+                                        <button type="submit" class="btn btn-success">
+                                            <i class="fas fa-plus-circle mr-1"></i> Create New Route
+                                        </button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </main>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Initialize datatable
+    $('#dataTable').DataTable({
+        "pageLength": 10,
+        "ordering": true
+    });
+
+    // Set today's date as default for new route
+    const today = new Date();
+    const formattedDate = today.toISOString().split('T')[0];
+    $('#date').val(formattedDate);
+
+    // Set the service request IDs in the hidden field
+    const serviceRequestIds = [];
+    {% for request in service_requests %}
+        serviceRequestIds.push("{{ request.id }}");
+    {% endfor %}
+    $('#service-request-ids').val(serviceRequestIds.join(','));
+
+    // Make sidebar menu highlight current page
+    const path = window.location.pathname;
+    $('.sidebar .nav-link').each(function() {
+        const href = $(this).attr('href');
+        if (path === href) {
+            $(this).addClass('active');
+            $(this).css('font-weight', 'bold');
+        }
+    });
+});
+</script>
+{% endblock %}

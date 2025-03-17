@@ -623,3 +623,43 @@ class BulkAssignTechnicianForm(forms.Form):
             raise forms.ValidationError("Invalid service request IDs provided.")
 
         return service_requests
+
+
+class BulkAddToRouteForm(forms.Form):
+    """Form for bulk adding service requests to a route"""
+    route = forms.ModelChoiceField(
+        queryset=Route.objects.all(),
+        required=True,
+        label="Select Route"
+    )
+    service_requests = forms.CharField(
+        widget=forms.HiddenInput(),
+        required=True
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Filter routes to only show active ones
+        today = timezone.now().date()
+        next_week = today + timezone.timedelta(days=7)
+
+        self.fields['route'].queryset = Route.objects.filter(
+            date__range=[today, next_week],
+            status__in=['draft', 'published']
+        ).select_related('technician').order_by('date', 'estimated_start_time')
+
+        # Custom label for dropdown items
+        self.fields['route'].label_from_instance = lambda obj: f"{obj.route_id} - {obj.date} - {obj.technician.get_full_name()}"
+
+    def clean_service_requests(self):
+        """Validate that service_requests contains valid IDs"""
+        service_requests = self.cleaned_data.get('service_requests', '')
+        if not service_requests:
+            raise forms.ValidationError("You must select at least one service request.")
+
+        # Check if the string contains valid IDs
+        request_ids = service_requests.split(',')
+        if not all(rid.strip().isdigit() for rid in request_ids if rid.strip()):
+            raise forms.ValidationError("Invalid service request IDs provided.")
+
+        return service_requests
