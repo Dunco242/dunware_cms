@@ -1108,15 +1108,30 @@ class AnalyticsView(LoginRequiredMixin, TemplateView):
     template_name = 'route_management/analytics.html'
 
     def get_context_data(self, **kwargs):
+        from django.db.models import FloatField, Avg, Count, ExpressionWrapper, F
+
         context = super().get_context_data(**kwargs)
 
         # Get date range from GET parameters or use default (last 30 days)
         today = timezone.now().date()
-        end_date = self.request.GET.get('end_date')
-        end_date = timezone.datetime.strptime(end_date, '%Y-%m-%d').date() if end_date else today
 
-        start_date = self.request.GET.get('start_date')
-        start_date = timezone.datetime.strptime(start_date, '%Y-%m-%d').date() if start_date else (end_date - timezone.timedelta(days=30))
+        end_date_str = self.request.GET.get('end_date')
+        end_date = today
+        if end_date_str:
+            try:
+                end_date = timezone.datetime.strptime(end_date_str, '%Y-%m-%d').date()
+            except ValueError:
+                # Invalid date format, use today
+                pass
+
+        start_date_str = self.request.GET.get('start_date')
+        start_date = end_date - timezone.timedelta(days=30)  # Default to 30 days prior
+        if start_date_str:
+            try:
+                start_date = timezone.datetime.strptime(start_date_str, '%Y-%m-%d').date()
+            except ValueError:
+                # Invalid date format, use default
+                pass
 
         # Get completed routes for date range
         completed_routes = Route.objects.filter(
@@ -1132,17 +1147,16 @@ class AnalyticsView(LoginRequiredMixin, TemplateView):
 
         # Calculate route metrics
         route_count = completed_routes.count()
+        service_request_count = completed_service_requests.count()
 
-        # Calculate average stops per route - explicitly set output_field
-        from django.db.models import FloatField
+        # Calculate average stops per route manually (Python calculation, not DB)
+        avg_stops_per_route = 0.0
         if route_count > 0:
-            avg_stops_per_route = RouteStop.objects.filter(
-                route__in=completed_routes
-            ).count() / route_count
-        else:
-            avg_stops_per_route = 0
+            total_stops = RouteStop.objects.filter(route__in=completed_routes).count()
+            avg_stops_per_route = float(total_stops) / float(route_count)
 
-        # Get average service duration with explicit output_field
+        # Calculate average service duration manually
+        avg_service_duration = 0.0
         completed_stops = RouteStop.objects.filter(
             route__in=completed_routes,
             status='completed',
@@ -1150,38 +1164,40 @@ class AnalyticsView(LoginRequiredMixin, TemplateView):
             actual_departure_time__isnull=False
         )
 
-        avg_service_duration = 0
         if completed_stops.exists():
-            # Calculate duration for each stop manually to avoid field type issues
-            total_duration = 0
-            count = 0
+            total_duration_minutes = 0.0
+            valid_stop_count = 0
+
             for stop in completed_stops:
                 if stop.actual_departure_time and stop.actual_arrival_time:
-                    duration = (stop.actual_departure_time - stop.actual_arrival_time).total_seconds() / 60
-                    total_duration += duration
-                    count += 1
+                    # Calculate duration in minutes
+                    delta = stop.actual_departure_time - stop.actual_arrival_time
+                    duration_minutes = delta.total_seconds() / 60.0
+                    total_duration_minutes += duration_minutes
+                    valid_stop_count += 1
 
-            if count > 0:
-                avg_service_duration = total_duration / count
+            if valid_stop_count > 0:
+                avg_service_duration = total_duration_minutes / float(valid_stop_count)
 
-        # Get average customer rating
+        # Calculate average customer rating manually
+        avg_rating = 0.0
         customer_feedback = CustomerFeedback.objects.filter(
             service_request__in=completed_service_requests
         )
 
-        avg_rating = 0
         if customer_feedback.exists():
-            # Use aggregate with explicit output_field
-            avg_rating_result = customer_feedback.aggregate(
-                avg_rating=models.Avg('rating', output_field=FloatField())
-            )
-            avg_rating = avg_rating_result['avg_rating'] or 0
+            total_rating = 0.0
+            for feedback in customer_feedback:
+                if feedback.rating is not None:
+                    total_rating += float(feedback.rating)
 
-        # Prepare data points by day
-        date_range = (end_date - start_date).days + 1
+            avg_rating = total_rating / float(customer_feedback.count())
+
+        # Generate daily data points for charts
+        date_range_days = (end_date - start_date).days + 1
         daily_data = []
 
-        for i in range(date_range):
+        for i in range(date_range_days):
             current_date = start_date + timezone.timedelta(days=i)
 
             # Get routes completed on this day
@@ -1192,13 +1208,14 @@ class AnalyticsView(LoginRequiredMixin, TemplateView):
             day_requests = completed_service_requests.filter(completed_at__date=current_date)
             day_request_count = day_requests.count()
 
-            # Get day's average stops per route
-            day_avg_stops = 0
+            # Calculate day's average stops per route
+            day_avg_stops = 0.0
             if day_route_count > 0:
-                day_stops = RouteStop.objects.filter(route__in=day_routes).count()
-                day_avg_stops = day_stops / day_route_count
+                day_total_stops = RouteStop.objects.filter(route__in=day_routes).count()
+                day_avg_stops = float(day_total_stops) / float(day_route_count)
 
-            # Get day's average service duration
+            # Calculate day's average service duration
+            day_avg_duration = 0.0
             day_completed_stops = RouteStop.objects.filter(
                 route__in=day_routes,
                 status='completed',
@@ -1206,34 +1223,35 @@ class AnalyticsView(LoginRequiredMixin, TemplateView):
                 actual_departure_time__isnull=False
             )
 
-            day_avg_duration = 0
             if day_completed_stops.exists():
-                # Calculate duration for each stop manually
-                day_total_duration = 0
-                day_stop_count = 0
+                day_total_duration = 0.0
+                day_valid_stop_count = 0
+
                 for stop in day_completed_stops:
                     if stop.actual_departure_time and stop.actual_arrival_time:
-                        duration = (stop.actual_departure_time - stop.actual_arrival_time).total_seconds() / 60
-                        day_total_duration += duration
-                        day_stop_count += 1
+                        delta = stop.actual_departure_time - stop.actual_arrival_time
+                        duration_minutes = delta.total_seconds() / 60.0
+                        day_total_duration += duration_minutes
+                        day_valid_stop_count += 1
 
-                if day_stop_count > 0:
-                    day_avg_duration = day_total_duration / day_stop_count
+                if day_valid_stop_count > 0:
+                    day_avg_duration = day_total_duration / float(day_valid_stop_count)
 
-            # Get day's average customer rating
+            # Calculate day's average customer rating
+            day_avg_rating = 0.0
             day_feedback = CustomerFeedback.objects.filter(
                 service_request__in=day_requests
             )
 
-            day_avg_rating = 0
             if day_feedback.exists():
-                # Use aggregate with explicit output_field
-                day_avg_rating_result = day_feedback.aggregate(
-                    avg_rating=models.Avg('rating', output_field=FloatField())
-                )
-                day_avg_rating = day_avg_rating_result['avg_rating'] or 0
+                day_total_rating = 0.0
+                for feedback in day_feedback:
+                    if feedback.rating is not None:
+                        day_total_rating += float(feedback.rating)
 
-            # Add data point
+                day_avg_rating = day_total_rating / float(day_feedback.count())
+
+            # Add data point for this day
             daily_data.append({
                 'date': current_date.strftime('%Y-%m-%d'),
                 'completed_routes': day_route_count,
@@ -1244,33 +1262,32 @@ class AnalyticsView(LoginRequiredMixin, TemplateView):
             })
 
         # Extract data for charts
-        dates = [item['date'] for item in daily_data]
-        completed_routes_data = [item['completed_routes'] for item in daily_data]
-        avg_stops_data = [item['avg_stops_per_route'] for item in daily_data]
-        avg_duration_data = [item['avg_service_duration'] for item in daily_data]
-        avg_rating_data = [item['avg_customer_rating'] for item in daily_data]
+        chart_dates = [item['date'] for item in daily_data]
+        chart_completed_routes = [item['completed_routes'] for item in daily_data]
+        chart_avg_stops_per_route = [item['avg_stops_per_route'] for item in daily_data]
+        chart_avg_service_duration = [item['avg_service_duration'] for item in daily_data]
+        chart_avg_customer_rating = [item['avg_customer_rating'] for item in daily_data]
 
         # Add context data
         context.update({
-            'chart_dates': dates,
-            'chart_completed_routes': completed_routes_data,
-            'chart_avg_stops_per_route': avg_stops_data,
-            'chart_avg_service_duration': avg_duration_data,
-            'chart_avg_customer_rating': avg_rating_data,
+            'chart_dates': chart_dates,
+            'chart_completed_routes': chart_completed_routes,
+            'chart_avg_stops_per_route': chart_avg_stops_per_route,
+            'chart_avg_service_duration': chart_avg_service_duration,
+            'chart_avg_customer_rating': chart_avg_customer_rating,
             'start_date': start_date,
             'end_date': end_date,
 
             # Summary metrics
             'total_completed_routes': route_count,
-            'total_completed_service_requests': completed_service_requests.count(),
+            'total_completed_service_requests': service_request_count,
             'avg_stops_per_route': round(avg_stops_per_route, 2),
             'avg_service_duration': round(avg_service_duration, 1),
             'avg_rating': round(avg_rating, 2),
-            'date_range_days': date_range,
+            'date_range_days': date_range_days,
         })
 
         return context
-
 
 @login_required
 def technician_schedule_view(request, pk):
