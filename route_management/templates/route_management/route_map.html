@@ -323,13 +323,7 @@ if (refreshButton) {
 
 <!-- Map initialization script -->
 <script>
-    // Add this debugging section - it will help identify the issues
-    console.log("Map debugging started");
-    console.log("HERE Maps API key present:", {% if here_maps_api_key %}"Yes"{% else %}"No - this is required!"{% endif %});
-    console.log("Map data center present:", {% if map_data.center %}"Yes"{% else %}"No - this is required!"{% endif %});
-    console.log("Number of stops:", {% if map_data.stops %}{{ map_data.stops|length }}{% else %}0{% endif %});
-
-   // Global variables
+ // Global variables
 var map;
 var router;
 var routeLineGroup;
@@ -690,7 +684,7 @@ function calculateAndDisplayRoute() {
     routeLineGroup.removeAll();
 
     // Create waypoints array with validation
-    var waypoints = [];
+    var validWaypoints = [];
     for (var i = 0; i < mapData.length; i++) {
         // Ensure coordinates are valid numbers
         var lat = parseFloat(mapData[i].lat);
@@ -698,40 +692,39 @@ function calculateAndDisplayRoute() {
 
         if (!isNaN(lat) && !isNaN(lng) &&
             Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
-            waypoints.push({ lat: lat, lng: lng });
+            validWaypoints.push({ lat: lat, lng: lng });
         } else {
             console.warn("Invalid coordinates skipped:", mapData[i]);
         }
     }
 
     // Exit if we don't have enough valid waypoints
-    if (waypoints.length < 2) {
+    if (validWaypoints.length < 2) {
         console.error("Not enough valid waypoints for routing");
         updateMapStatus('<i class="fas fa-exclamation-triangle"></i> Error: Not enough valid waypoints', 'warning');
         return;
     }
 
     try {
-        // Create routing parameters - use a simpler format
+        // Create routing parameters with minimum required fields
         var routingParameters = {
-            'routingMode': 'fast',
-            'transportMode': 'car',
-            'return': 'polyline,summary'
+            'mode': 'fastest;car',
+            'representation': 'display'
         };
 
         // Add waypoints in proper format
-        for (var j = 0; j < waypoints.length; j++) {
-            routingParameters['waypoint' + j] = waypoints[j].lat + ',' + waypoints[j].lng;
+        for (var j = 0; j < validWaypoints.length; j++) {
+            routingParameters['waypoint' + j] = validWaypoints[j].lat + ',' + validWaypoints[j].lng;
         }
 
-        // Calculate the route with simpler parameters first
+        // Use a basic routing request as it's more reliable
+        console.log("Sending route calculation request with parameters:", routingParameters);
         router.calculateRoute(routingParameters, onRouteSuccess, onRouteError);
     } catch (error) {
         console.error("Error setting up route calculation:", error);
         updateMapStatus('<i class="fas fa-exclamation-triangle"></i> Error calculating route', 'warning');
     }
 }
-
 // Route calculation success handler
 function onRouteSuccess(result) {
     console.log("Route calculation successful");
@@ -790,9 +783,49 @@ function onRouteSuccess(result) {
 // Route calculation error handler
 function onRouteError(error) {
     console.error('Routing error:', error);
+
+    // Try a simpler route calculation as fallback
+    if (!window.routeRetryAttempted) {
+        window.routeRetryAttempted = true;
+        console.log("Trying simplified route calculation with just start and end points...");
+
+        // Make sure we have at least start and end points
+        if (mapData.length >= 2) {
+            // Get first and last points only
+            var start = {
+                lat: parseFloat(mapData[0].lat),
+                lng: parseFloat(mapData[0].lng)
+            };
+
+            var end = {
+                lat: parseFloat(mapData[mapData.length-1].lat),
+                lng: parseFloat(mapData[mapData.length-1].lng)
+            };
+
+            // Validate coordinates
+            if (!isNaN(start.lat) && !isNaN(start.lng) && !isNaN(end.lat) && !isNaN(end.lng)) {
+                // Create a very basic routing request - just start and end
+                var simplifiedParams = {
+                    'mode': 'fastest;car'
+                };
+
+                simplifiedParams['waypoint0'] = start.lat + ',' + start.lng;
+                simplifiedParams['waypoint1'] = end.lat + ',' + end.lng;
+
+                console.log("Simplified routing parameters:", simplifiedParams);
+
+                // Attempt the simpler calculation
+                router.calculateRoute(simplifiedParams, onRouteSuccess, function(secondError) {
+                    console.error("Even simplified routing failed:", secondError);
+                    updateMapStatus('<i class="fas fa-exclamation-triangle"></i> Could not calculate route between stops', 'warning');
+                });
+                return;
+            }
+        }
+    }
+
     updateMapStatus('<i class="fas fa-exclamation-triangle"></i> Could not calculate route between stops', 'warning');
 }
-
 // Get marker color based on type and status
 function getMarkerColor(type, status) {
     if (type === 'start') return '#4CAF50';
