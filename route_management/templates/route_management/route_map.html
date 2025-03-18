@@ -75,7 +75,9 @@
                 </div>
                 <div class="card-body">
                     {% if map_data.center %}
-                        <div id="fullRouteMap" class="full-route-map"></div>
+                    <div id="fullRouteMap" class="full-route-map" style="height: 500px; width: 100%; border: 2px solid red; z-index: 10; position: relative;"></div>
+
+
                     {% else %}
                         <div class="alert alert-warning">
                             <i class="fas fa-exclamation-triangle"></i> No map data available. Make sure route locations are geocoded.
