@@ -53,6 +53,7 @@ urlpatterns = [
     # Service Areas
     path('service-areas/', views.ServiceAreaListView.as_view(), name='service_area_list'),
     path('service-areas/create/', views.ServiceAreaCreateView.as_view(), name='service_area_create'),
+    path('service-requests/<int:pk>/request-feedback/', views.request_feedback_for_service_request, name='service_request_request_feedback'),
 
     # Route Schedules
     path('schedules/', views.RouteScheduleListView.as_view(), name='route_schedule_list'),

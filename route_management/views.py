@@ -2538,3 +2538,44 @@ def assign_technician_to_service_request(request, pk):
             messages.error(request, "No technician selected.")
 
     return redirect('route_management:service_request_detail', pk=service_request.pk)
+
+
+@login_required
+def request_feedback_for_service_request(request, pk):
+    """Send a feedback request to the customer for a service request"""
+    service_request = get_object_or_404(ServiceRequest, pk=pk)
+
+    if request.method == 'POST':
+        recipient_name = request.POST.get('recipient_name')
+        recipient_email = request.POST.get('recipient_email')
+        feedback_message = request.POST.get('feedback_message', '')
+
+        if recipient_email:
+            try:
+                # Create a notification for feedback request
+                notification = CustomerNotification.objects.create(
+                    service_request=service_request,
+                    notification_type='feedback_request',
+                    delivery_method='email',
+                    recipient_name=recipient_name,
+                    recipient_contact=recipient_email,
+                    subject=f"Feedback Request for Service #{service_request.request_number}",
+                    message=f"We would appreciate your feedback regarding the recent service. {feedback_message}",
+                    status='pending',
+                    scheduled_time=timezone.now()
+                )
+
+                # Send the notification
+                success = notification.send()
+
+                if success:
+                    messages.success(request, f"Feedback request sent to {recipient_email}")
+                else:
+                    messages.error(request, "Error sending feedback request. Please try again.")
+
+            except Exception as e:
+                messages.error(request, f"Error requesting feedback: {str(e)}")
+        else:
+            messages.error(request, "Recipient email is required")
+
+    return redirect('route_management:service_request_detail', pk=service_request.pk)
