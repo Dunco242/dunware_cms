@@ -23,7 +23,6 @@ urlpatterns = [
     path('get-customer-info/', views.get_customer_info, name='get_customer_info'),
     path('get-location-info/', views.get_location_info, name='get_location_info'),
 
-
     # Routes
     path('routes/', views.RouteListView.as_view(), name='route_list'),
     path('routes/create/', views.RouteCreateView.as_view(), name='route_create'),
