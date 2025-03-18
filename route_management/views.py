@@ -11,6 +11,7 @@ from django.db import transaction, models
 from django.template.loader import get_template
 from django.db.models.functions import ExtractHour
 from weasyprint import HTML, CSS
+from django.conf import settings
 import tempfile
 
 from django.core.paginator import Paginator
