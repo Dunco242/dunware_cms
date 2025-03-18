@@ -451,7 +451,7 @@
                 <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
                     <h6 class="m-0 font-weight-bold text-primary">Service Completion</h6>
                     {% if not service_completion and service_request.status != 'cancelled' %}
-                    <a href="{% url 'route_management:service_completion_create' %}?service_request={{ service_request.id }}" class="btn btn-sm btn-success">
+                    <a href="{% url 'route_management:service_completion_create' stop_id=0 %}?service_request={{ service_request.id }}" class="btn btn-sm btn-success">
                         <i class="fas fa-check-circle fa-sm"></i> Record Completion
                     </a>
                     {% endif %}
