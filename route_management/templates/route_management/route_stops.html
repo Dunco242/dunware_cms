@@ -59,9 +59,15 @@
                     <div class="row mb-2">
                         <div class="col-5 font-weight-bold text-gray-800">Technician:</div>
                         <div class="col-7">
-                            <a href="{% url 'route_management:technician_profile' route.technician.technician_profile.id %}">
-                                {{ route.technician.get_full_name }}
-                            </a>
+                            {% if service_request.assigned_technician.technician_profile.id %}
+                                <a href="{% url 'route_management:technician_profile' service_request.assigned_technician.technician_profile.id %}" class="btn btn-info btn-sm">
+                                    <i class="fas fa-user"></i> View Profile
+                                </a>
+                                {% else %}
+                                <button class="btn btn-info btn-sm disabled">
+                                    <i class="fas fa-user"></i> No Profile
+                                </button>
+                            {% endif %}
                         </div>
                     </div>
                     <div class="row mb-2">
