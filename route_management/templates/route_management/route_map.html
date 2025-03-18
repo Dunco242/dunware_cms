@@ -91,6 +91,8 @@
 
 {% block content %}
 
+
+
             <a href="{% url 'route_management:route_detail' route.id %}" class="d-none d-sm-inline-block btn btn-sm btn-primary shadow-sm ml-2">
                 <i class="fas fa-arrow-left fa-sm text-white-50"></i> Back to Route Detail
             </a>
@@ -588,6 +590,18 @@ function initMap() {
 
         // Setup event handlers
         setupEventHandlers();
+        // Add this to your setupEventHandlers function
+        var refreshButton = document.getElementById('forceRefresh');
+        if (refreshButton) {
+            refreshButton.addEventListener('click', function() {
+                this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Refreshing...';
+                mapInitialized = false;
+                setTimeout(function() {
+                    initMap();
+                    refreshButton.innerHTML = '<i class="fas fa-sync-alt"></i> Refresh Map';
+                }, 100);
+            });
+        }
 
         // Add debug toggle handler
         var debugToggle = document.getElementById('toggleDebug');
