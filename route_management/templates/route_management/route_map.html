@@ -225,6 +225,18 @@
             </div>
         </div>
     </div>
+    {% if debug %}
+<div class="alert alert-info">
+    <p>API Key: {{ here_maps_api_key|truncatechars:5 }}...</p>
+    <p>Map Center: {{ map_data.center|default:'None' }}</p>
+    <p>Stops: {{ map_data.stops|length }}</p>
+    <p>Map Container Present: <span id="container-check"></span></p>
+    <script>
+    document.getElementById('container-check').innerText =
+        document.getElementById('fullRouteMap') ? 'Yes' : 'No';
+    </script>
+</div>
+{% endif %}
 </div>
 {% endblock %}
 

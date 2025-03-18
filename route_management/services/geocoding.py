@@ -210,3 +210,28 @@ class GeocodingService:
         ).count()
 
         return success_count, error_count, remaining_count
+
+    @staticmethod
+    def get_coordinates(address_str):
+        """Get coordinates for an address string"""
+        try:
+            import requests
+            url = "https://geocode.search.hereapi.com/v1/geocode"
+            params = {
+                'q': address_str,
+                'apiKey': settings.HERE_MAPS_API_KEY
+            }
+
+            response = requests.get(url, params=params)
+            data = response.json()
+
+            if 'items' in data and len(data['items']) > 0:
+                position = data['items'][0]['position']
+                return {
+                    'lat': position['lat'],
+                    'lng': position['lng']
+                }
+            return None
+        except Exception as e:
+            print(f"Error geocoding address {address_str}: {str(e)}")
+            return None

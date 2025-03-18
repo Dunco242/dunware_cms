@@ -1660,66 +1660,52 @@ class RouteMapView(LoginRequiredMixin, DetailView):
         return context
 
     def attempt_geocoding(self, route):
-        """Attempt to geocode missing coordinates for route and stops"""
+        """Simplified geocoding that doesn't use temporary ServiceLocation objects"""
         geocoding_performed = False
 
-        # Geocode route start location if missing coordinates
+        # Geocode route start location
         if route.start_location and (not route.start_latitude or not route.start_longitude):
             try:
-                print(f"Attempting to geocode start location: {route.start_location}")
-                # Use GeocodingService directly without trying to save the temporary object
+                print(f"Geocoding start location: {route.start_location}")
                 from .services.geocoding import GeocodingService
-                # Extract coordinates directly from the GeocodingService
-                coordinates = GeocodingService.get_coordinates(route.start_location)
-                if coordinates:
-                    print(f"Successfully geocoded start location: {coordinates['lat']}, {coordinates['lng']}")
-                    route.start_latitude = coordinates['lat']
-                    route.start_longitude = coordinates['lng']
+                coords = GeocodingService.get_coordinates(route.start_location)
+                if coords:
+                    route.start_latitude = coords['lat']
+                    route.start_longitude = coords['lng']
                     route.save(update_fields=['start_latitude', 'start_longitude'])
                     geocoding_performed = True
-                else:
-                    print("Geocoding start location failed")
+                    print(f"Successfully geocoded start location: {coords}")
             except Exception as e:
-                print(f"Error geocoding route start location: {str(e)}")
+                print(f"Error geocoding start location: {str(e)}")
 
-        # Geocode route end location if missing coordinates
+        # Geocode route end location
         if route.end_location and (not route.end_latitude or not route.end_longitude):
             try:
-                print(f"Attempting to geocode end location: {route.end_location}")
-                # Use GeocodingService directly without trying to save the temporary object
+                print(f"Geocoding end location: {route.end_location}")
                 from .services.geocoding import GeocodingService
-                # Extract coordinates directly from the GeocodingService
-                coordinates = GeocodingService.get_coordinates(route.end_location)
-                if coordinates:
-                    print(f"Successfully geocoded end location: {coordinates['lat']}, {coordinates['lng']}")
-                    route.end_latitude = coordinates['lat']
-                    route.end_longitude = coordinates['lng']
+                coords = GeocodingService.get_coordinates(route.end_location)
+                if coords:
+                    route.end_latitude = coords['lat']
+                    route.end_longitude = coords['lng']
                     route.save(update_fields=['end_latitude', 'end_longitude'])
                     geocoding_performed = True
-                else:
-                    print("Geocoding end location failed")
+                    print(f"Successfully geocoded end location: {coords}")
             except Exception as e:
-                print(f"Error geocoding route end location: {str(e)}")
+                print(f"Error geocoding end location: {str(e)}")
 
-        # Geocode service locations for stops
-        stops = RouteStop.objects.filter(route=route).select_related('service_request__service_location')
-        for stop in stops:
+        # For existing stops, use the original method
+        for stop in RouteStop.objects.filter(route=route).select_related('service_request__service_location'):
             location = stop.service_request.service_location
             if not location.latitude or not location.longitude:
                 try:
-                    print(f"Attempting to geocode stop #{stop.stop_number} location: {location.name}, {location.address}")
+                    print(f"Geocoding stop location: {location.get_full_address()}")
                     success = GeocodingService.geocode_location(location)
                     if success:
-                        print(f"Successfully geocoded stop location: {location.latitude}, {location.longitude}")
-                        location.save()
                         geocoding_performed = True
-                    else:
-                        print(f"Geocoding stop #{stop.stop_number} location failed")
                 except Exception as e:
-                    print(f"Error geocoding stop #{stop.stop_number} location: {str(e)}")
+                    print(f"Error geocoding stop location: {str(e)}")
 
         return geocoding_performed
-
     def check_missing_coordinates(self, route, stops):
         """Check for any missing coordinates that would prevent the map from displaying properly"""
         missing = []
