@@ -100,6 +100,23 @@
             <button id="toggleDebug" class="btn btn-sm btn-outline-secondary">
                 <i class="fas fa-bug"></i> Debug Mode
             </button>
+            <!-- Add this next to your debug toggle button -->
+        <button id="forceRefresh" class="btn btn-sm btn-warning">
+            <i class="fas fa-sync-alt"></i> Refresh Map
+        </button>
+
+<!-- Add this to your setupEventHandlers function -->
+var refreshButton = document.getElementById('forceRefresh');
+if (refreshButton) {
+    refreshButton.addEventListener('click', function() {
+        this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Refreshing...';
+        mapInitialized = false;
+        setTimeout(function() {
+            initMap();
+            refreshButton.innerHTML = '<i class="fas fa-sync-alt"></i> Refresh Map';
+        }, 100);
+    });
+}
             <a href="{% url 'route_management:route_detail' route.id %}" class="d-none d-sm-inline-block btn btn-sm btn-primary shadow-sm ml-2">
                 <i class="fas fa-arrow-left fa-sm text-white-50"></i> Back to Route Detail
             </a>
@@ -295,7 +312,7 @@
 </div>
 {% endblock %}
 
-{% block scripts %}
+{% block extra_js %}
 {% if map_data.center %}
 <!-- HERE Maps API scripts -->
 <script src="https://js.api.here.com/v3/3.1/mapsjs-core.js"></script>
@@ -349,6 +366,17 @@ function updateMapStatus(message, type) {
 }
 
 // Initialize the map
+// Add this near the beginning of your initMap function
+const initTimeout = setTimeout(function() {
+    console.error("Map initialization timed out after 10 seconds");
+    updateMapStatus('<i class="fas fa-exclamation-triangle"></i> Map initialization timed out. Please check console for errors.', 'danger');
+    mapInitialized = false; // Allow another initialization attempt
+}, 10000);
+
+// Clear the timeout when initialization completes successfully
+// (Add this right before setting mapInitialized = true)
+clearTimeout(initTimeout);
+
 function initMap() {
     // Prevent double initialization
     if (mapInitialized) {
@@ -535,6 +563,28 @@ function initMap() {
 
         // Setup event handlers
         setupEventHandlers();
+        // Add this to your setupEventHandlers function
+        var debugToggle = document.getElementById('toggleDebug');
+        if (debugToggle) {
+            debugToggle.addEventListener('click', function() {
+                var debugInfo = document.getElementById('mapDebugInfo');
+                if (debugInfo) {
+                    debugInfo.style.display = debugInfo.style.display === 'none' ? 'block' : 'none';
+                }
+
+                // Output debug info to console
+                console.log("API Key Length:", "{{ here_maps_api_key }}".length);
+                console.log("Map initialized:", mapInitialized);
+                console.log("Map object exists:", typeof map !== 'undefined');
+
+                // Check container dimensions
+                var mapContainer = document.getElementById('fullRouteMap');
+                if (mapContainer) {
+                    console.log("Container dimensions:",
+                        mapContainer.offsetWidth + "x" + mapContainer.offsetHeight);
+                }
+            });
+        }
 
         // Mark as initialized
         mapInitialized = true;
