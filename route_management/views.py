@@ -4,13 +4,15 @@ from django.views.generic.edit import FormView
 from django.urls import reverse_lazy, reverse
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib import messages
-from django.http import JsonResponse, HttpResponseRedirect
+from django.http import JsonResponse, HttpResponseRedirect, HttpResponse
 from django.utils import timezone
 from django.db.models import Q, Count, Avg, Sum, F, ExpressionWrapper, fields
 from django.db import transaction, models
 from django.template.loader import get_template
 from django.db.models.functions import ExtractHour
-from xhtml2pdf import pisa
+from weasyprint import HTML, CSS
+import tempfile
+
 from django.core.paginator import Paginator
 from django.contrib.auth.decorators import login_required
 
@@ -2451,7 +2453,7 @@ def get_customer_locations(request, customer_id):
 
 
 class ServiceRequestPDFView(LoginRequiredMixin, View):
-    """Generate PDF for a service request"""
+    """Generate PDF for a service request using WeasyPrint"""
 
     def get(self, request, pk):
         # Get the service request
@@ -2476,22 +2478,21 @@ class ServiceRequestPDFView(LoginRequiredMixin, View):
 
         # Render template to string
         template = get_template('route_management/service_request_pdf.html')
-        html = template.render({
+        html_string = template.render({
             'service_request': service_request,
             'route_stops': route_stops,
             'service_completion': service_completion,
             'photos': photos,
             'feedback': feedback,
+            'now': timezone.now(),
         })
 
-        # Create PDF
+        # Create PDF using WeasyPrint
         response = HttpResponse(content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="service_request_{service_request.request_number}.pdf"'
 
-        # Generate PDF
-        pisa_status = pisa.CreatePDF(html, dest=response)
+        # Create PDF
+        html = HTML(string=html_string, base_url=request.build_absolute_uri('/'))
+        html.write_pdf(response)
 
-        # Return response
-        if pisa_status.err:
-            return HttpResponse('Error generating PDF', status=500)
         return response
