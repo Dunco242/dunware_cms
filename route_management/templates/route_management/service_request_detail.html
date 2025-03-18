@@ -535,7 +535,7 @@
                     <div class="text-center py-4">
                         <p class="text-muted">No service completion record yet.</p>
                         {% if service_request.status != 'cancelled' %}
-                        <a href="{% url 'route_management:service_completion_create' %}?service_request={{ service_request.id }}" class="btn btn-success">
+                        <a href="{% url 'route_management:service_completion_create' stop_id=0 %}?service_request={{ service_request.id }}" class="btn btn-success">
                             <i class="fas fa-check-circle"></i> Record Completion
                         </a>
                         {% endif %}
