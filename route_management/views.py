@@ -1515,7 +1515,7 @@ class TechnicianProfileView(LoginRequiredMixin, DetailView):
 
 
 class RouteMapView(LoginRequiredMixin, DetailView):
-    """Full-screen map view of a route"""
+    """Full-screen map view of a route with automatic geocoding"""
     model = Route
     template_name = 'route_management/route_map.html'
     context_object_name = 'route'
@@ -1524,12 +1524,17 @@ class RouteMapView(LoginRequiredMixin, DetailView):
         context = super().get_context_data(**kwargs)
         route = self.get_object()
 
+        # Attempt to automatically geocode missing coordinates
+        self.attempt_geocoding(route)
+
         # Get stops in order
         stops = RouteStop.objects.filter(
             route=route
         ).select_related(
             'service_request',
-            'service_request__service_location'
+            'service_request__service_location',
+            'service_request__service_type',
+            'service_request__customer'
         ).order_by('stop_number')
 
         # Prepare map data
@@ -1564,7 +1569,8 @@ class RouteMapView(LoginRequiredMixin, DetailView):
                     'service_type': stop.service_request.service_type.name,
                     'customer': stop.service_request.customer.company_name,
                     'type': 'stop',
-                    'stop_id': stop.id
+                    'stop_id': stop.id,
+                    'service_request_id': stop.service_request.id
                 }
                 map_data['stops'].append(stop_data)
                 map_data['route_line'].append([float(location.latitude), float(location.longitude)])
@@ -1589,11 +1595,101 @@ class RouteMapView(LoginRequiredMixin, DetailView):
                 'lng': lng_sum / len(map_data['stops'])
             }
 
+        # Calculate completion percentage for stops
+        completed_stops = stops.filter(status='completed').count()
+        total_stops = stops.count()
+        context['completion_percent'] = (completed_stops / total_stops * 100) if total_stops > 0 else 0
+
+        # Add map data to context
         context['map_data'] = map_data
-        context['api_key'] = settings.HERE_MAPS_API_KEY
+        context['stops'] = stops
+        context['here_maps_api_key'] = settings.HERE_MAPS_API_KEY
+
+        # Debug info
+        context['missing_coordinates'] = self.check_missing_coordinates(route, stops)
 
         return context
 
+    def attempt_geocoding(self, route):
+        """Attempt to geocode any missing coordinates for the route and its stops"""
+        geocoding_performed = False
+
+        # Geocode route start location if missing coordinates
+        if route.start_location and (not route.start_latitude or not route.start_longitude):
+            try:
+                # Create a temporary location object to use with GeocodingService
+                from .models import ServiceLocation
+                temp_location = ServiceLocation(
+                    address=route.start_location,
+                    city="",  # You might need to parse this from start_location
+                    state="",  # You might need to parse this from start_location
+                    zip_code=""  # You might need to parse this from start_location
+                )
+                success = GeocodingService.geocode_location(temp_location)
+                if success:
+                    route.start_latitude = temp_location.latitude
+                    route.start_longitude = temp_location.longitude
+                    route.save()
+                    geocoding_performed = True
+            except Exception as e:
+                print(f"Error geocoding route start location: {str(e)}")
+
+        # Geocode route end location if missing coordinates
+        if route.end_location and (not route.end_latitude or not route.end_longitude):
+            try:
+                # Create a temporary location object to use with GeocodingService
+                from .models import ServiceLocation
+                temp_location = ServiceLocation(
+                    address=route.end_location,
+                    city="",  # You might need to parse this from end_location
+                    state="",  # You might need to parse this from end_location
+                    zip_code=""  # You might need to parse this from end_location
+                )
+                success = GeocodingService.geocode_location(temp_location)
+                if success:
+                    route.end_latitude = temp_location.latitude
+                    route.end_longitude = temp_location.longitude
+                    route.save()
+                    geocoding_performed = True
+            except Exception as e:
+                print(f"Error geocoding route end location: {str(e)}")
+
+        # Geocode service locations for stops
+        stops = RouteStop.objects.filter(route=route).select_related('service_request__service_location')
+        for stop in stops:
+            location = stop.service_request.service_location
+            if not location.latitude or not location.longitude:
+                try:
+                    success = GeocodingService.geocode_location(location)
+                    if success:
+                        location.save()
+                        geocoding_performed = True
+                except Exception as e:
+                    print(f"Error geocoding stop location: {str(e)}")
+
+        # Display a message if any geocoding was performed
+        if geocoding_performed and hasattr(self, 'request'):
+            messages.info(self.request, "Some locations were automatically geocoded. Refresh the map if needed.")
+
+    def check_missing_coordinates(self, route, stops):
+        """Check for any missing coordinates that would prevent the map from displaying properly"""
+        missing = []
+
+        # Check route start coordinates
+        if route.start_location and (not route.start_latitude or not route.start_longitude):
+            missing.append(f"Start location: {route.start_location}")
+
+        # Check route end coordinates
+        if route.end_location and (not route.end_latitude or not route.end_longitude):
+            missing.append(f"End location: {route.end_location}")
+
+        # Check stop coordinates
+        for stop in stops:
+            location = stop.service_request.service_location
+            if not location.latitude or not location.longitude:
+                missing.append(f"Stop #{stop.stop_number}: {location.name}")
+
+        return missing
 
 class RouteScheduleListView(LoginRequiredMixin, ListView):
     """List view of route schedules"""
