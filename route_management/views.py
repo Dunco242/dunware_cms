@@ -1667,19 +1667,15 @@ class RouteMapView(LoginRequiredMixin, DetailView):
         if route.start_location and (not route.start_latitude or not route.start_longitude):
             try:
                 print(f"Attempting to geocode start location: {route.start_location}")
-                # Create a temporary location object to use with GeocodingService
-                from .models import ServiceLocation
-                temp_location = ServiceLocation(
-                    address=route.start_location,
-                    city="", state="", zip_code=""  # Minimal requirements
-                )
-
-                success = GeocodingService.geocode_location(temp_location)
-                if success:
-                    print(f"Successfully geocoded start location: {temp_location.latitude}, {temp_location.longitude}")
-                    route.start_latitude = temp_location.latitude
-                    route.start_longitude = temp_location.longitude
-                    route.save()
+                # Use GeocodingService directly without trying to save the temporary object
+                from .services.geocoding import GeocodingService
+                # Extract coordinates directly from the GeocodingService
+                coordinates = GeocodingService.get_coordinates(route.start_location)
+                if coordinates:
+                    print(f"Successfully geocoded start location: {coordinates['lat']}, {coordinates['lng']}")
+                    route.start_latitude = coordinates['lat']
+                    route.start_longitude = coordinates['lng']
+                    route.save(update_fields=['start_latitude', 'start_longitude'])
                     geocoding_performed = True
                 else:
                     print("Geocoding start location failed")
@@ -1690,19 +1686,15 @@ class RouteMapView(LoginRequiredMixin, DetailView):
         if route.end_location and (not route.end_latitude or not route.end_longitude):
             try:
                 print(f"Attempting to geocode end location: {route.end_location}")
-                # Create a temporary location object to use with GeocodingService
-                from .models import ServiceLocation
-                temp_location = ServiceLocation(
-                    address=route.end_location,
-                    city="", state="", zip_code=""  # Minimal requirements
-                )
-
-                success = GeocodingService.geocode_location(temp_location)
-                if success:
-                    print(f"Successfully geocoded end location: {temp_location.latitude}, {temp_location.longitude}")
-                    route.end_latitude = temp_location.latitude
-                    route.end_longitude = temp_location.longitude
-                    route.save()
+                # Use GeocodingService directly without trying to save the temporary object
+                from .services.geocoding import GeocodingService
+                # Extract coordinates directly from the GeocodingService
+                coordinates = GeocodingService.get_coordinates(route.end_location)
+                if coordinates:
+                    print(f"Successfully geocoded end location: {coordinates['lat']}, {coordinates['lng']}")
+                    route.end_latitude = coordinates['lat']
+                    route.end_longitude = coordinates['lng']
+                    route.save(update_fields=['end_latitude', 'end_longitude'])
                     geocoding_performed = True
                 else:
                     print("Geocoding end location failed")
