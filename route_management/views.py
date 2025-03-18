@@ -2579,3 +2579,38 @@ def request_feedback_for_service_request(request, pk):
             messages.error(request, "Recipient email is required")
 
     return redirect('route_management:service_request_detail', pk=service_request.pk)
+
+
+@login_required
+def cancel_service_request(request, pk):
+    """Cancel a service request"""
+    service_request = get_object_or_404(ServiceRequest, pk=pk)
+
+    if request.method == 'POST':
+        # Get form data
+        cancellation_reason = request.POST.get('cancellation_reason', '')
+        notify_technician = 'notify_technician' in request.POST
+        notify_customer = 'notify_customer' in request.POST
+
+        # Update the service request
+        service_request.status = 'cancelled'
+        service_request.cancelled_at = timezone.now()
+        service_request.save()
+
+        # Log the cancellation if we have a notes field
+        if hasattr(service_request, 'notes'):
+            service_request.notes = (service_request.notes or '') + f"\n\n{timezone.now().strftime('%Y-%m-%d %H:%M')}: Cancelled by {request.user.get_full_name() or request.user.username}\nReason: {cancellation_reason}"
+            service_request.save(update_fields=['notes'])
+
+        # Send notifications if requested
+        if notify_technician and service_request.assigned_technician:
+            # Logic to notify technician
+            pass
+
+        if notify_customer:
+            # Logic to notify customer
+            pass
+
+        messages.success(request, "Service request cancelled successfully.")
+
+    return redirect('route_management:service_request_detail', pk=service_request.pk)

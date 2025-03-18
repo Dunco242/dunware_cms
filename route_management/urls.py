@@ -19,6 +19,7 @@ urlpatterns = [
     path('get_customer_locations/<int:customer_id>/', views.get_customer_locations, name='get_customer_locations'),
     path('service-requests/<int:pk>/pdf/', views.ServiceRequestPDFView.as_view(), name='service_request_pdf'),
     path('service-requests/<int:pk>/assign-technician/', views.assign_technician_to_service_request, name='service_request_assign_technician'),
+    path('service-requests/<int:pk>/cancel/', views.cancel_service_request, name='service_request_cancel'),
 
     path('ajax/load-service-locations/', views.ajax_load_service_locations, name='ajax_load_service_locations'),
     path('get-customer-info/', views.get_customer_info, name='get_customer_info'),
