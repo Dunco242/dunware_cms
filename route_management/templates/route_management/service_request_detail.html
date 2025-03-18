@@ -820,48 +820,144 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{% static 'js/service_request_detail.js' %}"></script>
-
 <script>
     // Simple inline script that should work without any dependencies
     window.addEventListener('load', function() {
-        // Get the technician assign/change buttons
-        var assignBtn = document.getElementById('assign-technician-btn');
-        var changeBtn = document.getElementById('change-technician-btn');
+        console.log('Script loaded and running');
 
-        // Define the click handler function
-        function showTechnicianModal(e) {
-            if (e) e.preventDefault();
-            var modal = document.getElementById('assign-technician-modal');
-            if (modal && window.jQuery) {
-                $('#assign-technician-modal').modal('show');
-            }
-        }
-
-        // Attach event handlers to buttons if they exist
-        if (assignBtn) {
-            assignBtn.onclick = showTechnicianModal;
-        }
-
-        if (changeBtn) {
-            changeBtn.onclick = showTechnicianModal;
-        }
-
-        // As a backup, attach handlers via alternative methods
-        if (window.jQuery) {
-            $('#assign-technician-btn, #change-technician-btn').on('click', showTechnicianModal);
-        }
-
-        // Also fix any buttons with data-toggle="modal"
+        // Fix for modal ID mismatch - your modals use camelCase IDs but references use hyphenated
+        // Handle buttons with data-toggle="modal" attribute
         var modalButtons = document.querySelectorAll('[data-toggle="modal"]');
+        console.log('Found modal buttons:', modalButtons.length);
+
         for (var i = 0; i < modalButtons.length; i++) {
-            modalButtons[i].onclick = function(e) {
+            modalButtons[i].addEventListener('click', function(e) {
                 e.preventDefault();
+                console.log('Modal button clicked:', this.getAttribute('data-target'));
                 var targetId = this.getAttribute('data-target');
                 if (targetId && window.jQuery) {
                     $(targetId).modal('show');
                 }
+            });
+        }
+
+        // Specific fix for the assign technician buttons
+        // This fixes both the "Assign Technician" and "Change" buttons
+        var assignBtns = document.querySelectorAll('[data-target="#assignTechnicianModal"]');
+        console.log('Assign technician buttons found:', assignBtns.length);
+
+        for (var i = 0; i < assignBtns.length; i++) {
+            assignBtns[i].addEventListener('click', function(e) {
+                e.preventDefault();
+                console.log('Assign/change technician button clicked');
+                $('#assignTechnicianModal').modal('show');
+            });
+        }
+
+        // In case there are any buttons with specific IDs
+        var specificAssignBtn = document.getElementById('assign-technician-btn');
+        var specificChangeBtn = document.getElementById('change-technician-btn');
+
+        if (specificAssignBtn) {
+            specificAssignBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                console.log('Specific assign button clicked');
+                $('#assignTechnicianModal').modal('show');
+            });
+        }
+
+        if (specificChangeBtn) {
+            specificChangeBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                console.log('Specific change button clicked');
+                $('#assignTechnicianModal').modal('show');
+            });
+        }
+
+        // Initialize DataTables if present
+        if ($.fn.DataTable && document.getElementById('route-stops-table')) {
+            $('#route-stops-table').DataTable({
+                "pageLength": 5,
+                "lengthMenu": [[5, 10, 25, -1], [5, 10, 25, "All"]],
+                "order": [[1, "asc"], [2, "asc"]] // Sort by date and then stop number
+            });
+        }
+
+        // Initialize lightbox for photo gallery
+        if ($('.photo-gallery').length > 0 && $.fn.magnificPopup) {
+            $('.lightbox').magnificPopup({
+                type: 'image',
+                gallery: {
+                    enabled: true,
+                    navigateByImgClick: true,
+                    preload: [0, 1] // Will preload 0 - before current, and 1 after the current image
+                },
+                image: {
+                    titleSrc: 'data-caption'
+                }
+            });
+        }
+
+        // Initialize map if location coordinates are available
+        if (document.getElementById('location-map')) {
+            initializeLocationMap();
+        }
+
+        // Set up star ratings display
+        var starRatings = document.querySelectorAll('.star-rating');
+        starRatings.forEach(function(container) {
+            var rating = container.getAttribute('data-rating');
+            var stars = container.querySelectorAll('.fa-star');
+            for (var i = 0; i < stars.length; i++) {
+                if (i < rating) {
+                    stars[i].classList.add('text-warning');
+                } else {
+                    stars[i].classList.add('text-muted');
+                }
+            }
+        });
+
+        // Function to initialize the location map
+        function initializeLocationMap() {
+            var mapElement = document.getElementById('location-map');
+            if (!mapElement) return;
+
+            var latitude = parseFloat(mapElement.getAttribute('data-latitude'));
+            var longitude = parseFloat(mapElement.getAttribute('data-longitude'));
+
+            if (isNaN(latitude) || isNaN(longitude)) {
+                return;
+            }
+
+            var mapOptions = {
+                center: { lat: latitude, lng: longitude },
+                zoom: 14
             };
+
+            var map = new google.maps.Map(mapElement, mapOptions);
+
+            // Add marker for service location
+            var marker = new google.maps.Marker({
+                position: { lat: latitude, lng: longitude },
+                map: map,
+                title: 'Service Location'
+            });
+
+            // Add circle to show service area if radius is available
+            var radius = mapElement.getAttribute('data-radius');
+            if (radius) {
+                var radiusInMeters = parseFloat(radius) * 1609.34; // Convert miles to meters
+                new google.maps.Circle({
+                    strokeColor: '#FF0000',
+                    strokeOpacity: 0.8,
+                    strokeWeight: 2,
+                    fillColor: '#FF0000',
+                    fillOpacity: 0.1,
+                    map: map,
+                    center: { lat: latitude, lng: longitude },
+                    radius: radiusInMeters
+                });
+            }
         }
     });
     </script>
