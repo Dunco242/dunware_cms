@@ -756,7 +756,7 @@
                 <div class="modal-body">
                     <div class="form-group">
                         <label for="recipient_name">Recipient Name</label>
-                        <input type="text" class="form-control" id="recipient_name" name="recipient_name" value="{{ service_request.contact_name|default:service_request.customer.primary_contact_name }}" required>
+                        <input type="text" class="form-control" id="recipient_name" name="recipient_name" value="{{ service_request.contact_name|default:service_request.customer.contact_person }}" required>
                     </div>
                     <div class="form-group">
                         <label for="recipient_email">Recipient Email</label>
