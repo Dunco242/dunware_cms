@@ -823,263 +823,46 @@
 <script src="{% static 'js/service_request_detail.js' %}"></script>
 
 <script>
-    // Diagnostic script to identify issues with the technician selection dropdown
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('Diagnostic script loaded');
+    // Simple inline script that should work without any dependencies
+    window.addEventListener('load', function() {
+        // Get the technician assign/change buttons
+        var assignBtn = document.getElementById('assign-technician-btn');
+        var changeBtn = document.getElementById('change-technician-btn');
 
-    // Log all modals in the document
-    const modals = document.querySelectorAll('.modal');
-    console.log('Found modals:', modals.length);
-    modals.forEach((modal, index) => {
-        console.log(`Modal ${index}: id="${modal.id}", class="${modal.className}"`);
-    });
-
-    // Specifically check for the assign technician modal
-    const techModal = document.getElementById('assign-technician-modal');
-    console.log('Technician modal found:', techModal ? 'Yes' : 'No');
-    if (techModal) {
-        console.log('Technician modal visibility:',
-            window.getComputedStyle(techModal).display,
-            window.getComputedStyle(techModal).visibility);
-
-        // Check for the select element
-        const techSelect = techModal.querySelector('select[name="technician_id"]');
-        console.log('Technician select found:', techSelect ? 'Yes' : 'No');
-        if (techSelect) {
-            console.log('Technician options:', techSelect.options.length);
-            for (let i = 0; i < techSelect.options.length; i++) {
-                console.log(`Option ${i}: value="${techSelect.options[i].value}", text="${techSelect.options[i].text}"`);
+        // Define the click handler function
+        function showTechnicianModal(e) {
+            if (e) e.preventDefault();
+            var modal = document.getElementById('assign-technician-modal');
+            if (modal && window.jQuery) {
+                $('#assign-technician-modal').modal('show');
             }
-            console.log('Select element visibility:',
-                window.getComputedStyle(techSelect).display,
-                window.getComputedStyle(techSelect).visibility);
-        }
-    }
-
-    // Check for the technician buttons
-    const assignBtn = document.getElementById('assign-technician-btn');
-    const changeBtn = document.getElementById('change-technician-btn');
-    console.log('Assign button found:', assignBtn ? 'Yes' : 'No');
-    console.log('Change button found:', changeBtn ? 'Yes' : 'No');
-
-    // Add diagnostic event listeners
-    if (assignBtn) {
-        assignBtn.addEventListener('click', function(e) {
-            console.log('Assign technician button clicked');
-            e.preventDefault();
-
-            // Try to show the modal using vanilla JS
-            const modal = document.getElementById('assign-technician-modal');
-            if (modal) {
-                console.log('Attempting to show modal with vanilla JS');
-                modal.style.display = 'block';
-                modal.classList.add('show');
-            }
-
-            // Also try with jQuery
-            if (window.jQuery && window.jQuery.fn.modal) {
-                console.log('Attempting to show modal with jQuery');
-                try {
-                    $('#assign-technician-modal').modal('show');
-                } catch (error) {
-                    console.error('jQuery modal error:', error);
-                }
-            } else {
-                console.log('jQuery or Bootstrap modal function not available');
-            }
-        });
-    }
-
-    // Check Bootstrap version
-    if (window.jQuery && window.jQuery.fn.tooltip) {
-        if (window.jQuery.fn.tooltip.Constructor && window.jQuery.fn.tooltip.Constructor.VERSION) {
-            console.log('Bootstrap version:', window.jQuery.fn.tooltip.Constructor.VERSION);
-        } else {
-            console.log('Bootstrap version unknown');
-        }
-    }
-
-    // Let's try to fix the issue directly - create a button to repair the modal
-    const fixButton = document.createElement('button');
-    fixButton.textContent = 'Fix Technician Modal';
-    fixButton.className = 'btn btn-warning mt-2';
-    fixButton.style.position = 'fixed';
-    fixButton.style.bottom = '10px';
-    fixButton.style.right = '10px';
-    fixButton.style.zIndex = '9999';
-
-    fixButton.addEventListener('click', function() {
-        console.log('Attempting to fix technician modal');
-
-        // First check if the modal exists
-        let modal = document.getElementById('assign-technician-modal');
-        if (!modal) {
-            console.log('Modal not found, creating it');
-            modal = document.createElement('div');
-            modal.id = 'assign-technician-modal';
-            modal.className = 'modal fade';
-            modal.setAttribute('tabindex', '-1');
-            modal.setAttribute('role', 'dialog');
-            modal.setAttribute('aria-labelledby', 'assignTechnicianModalLabel');
-            modal.setAttribute('aria-hidden', 'true');
-
-            const modalHTML = `
-                <div class="modal-dialog" role="document">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title" id="assignTechnicianModalLabel">Assign Technician</h5>
-                            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                                <span aria-hidden="true">&times;</span>
-                            </button>
-                        </div>
-                        <form method="post" action="/route_management/service-requests/${currentServiceRequestId}/assign-technician/">
-                            <input type="hidden" name="csrfmiddlewaretoken" value="${getCSRFToken()}">
-                            <div class="modal-body">
-                                <div class="form-group">
-                                    <label for="technician_id">Select Technician</label>
-                                    <select class="form-control" id="technician_id" name="technician_id" required>
-                                        <option value="">Choose a technician...</option>
-                                        <!-- Technicians will be loaded dynamically -->
-                                    </select>
-                                </div>
-                                <div class="form-group">
-                                    <div class="custom-control custom-checkbox">
-                                        <input type="checkbox" class="custom-control-input" id="notify_technician" name="notify_technician" value="1" checked>
-                                        <label class="custom-control-label" for="notify_technician">Notify Technician</label>
-                                    </div>
-                                </div>
-                                <div class="form-group">
-                                    <div class="custom-control custom-checkbox">
-                                        <input type="checkbox" class="custom-control-input" id="notify_customer" name="notify_customer" value="1">
-                                        <label class="custom-control-label" for="notify_customer">Notify Customer</label>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-                                <button type="submit" class="btn btn-primary">Assign Technician</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            `;
-
-            modal.innerHTML = modalHTML;
-            document.body.appendChild(modal);
         }
 
-        // Now load technicians via AJAX
-        loadTechnicians();
-
-        // Try to show the modal
-        if (window.jQuery && window.jQuery.fn.modal) {
-            $('#assign-technician-modal').modal('show');
-        } else {
-            modal.style.display = 'block';
-            modal.classList.add('show');
+        // Attach event handlers to buttons if they exist
+        if (assignBtn) {
+            assignBtn.onclick = showTechnicianModal;
         }
-    });
 
-    document.body.appendChild(fixButton);
-
-    // Function to get CSRF token
-    function getCSRFToken() {
-        const tokenElements = document.querySelectorAll('input[name="csrfmiddlewaretoken"]');
-        if (tokenElements.length > 0) {
-            return tokenElements[0].value;
+        if (changeBtn) {
+            changeBtn.onclick = showTechnicianModal;
         }
-        return '';
-    }
 
-    // Function to get current service request ID
-    const currentServiceRequestId = window.location.pathname.split('/').filter(Boolean).pop();
-    console.log('Current service request ID:', currentServiceRequestId);
+        // As a backup, attach handlers via alternative methods
+        if (window.jQuery) {
+            $('#assign-technician-btn, #change-technician-btn').on('click', showTechnicianModal);
+        }
 
-    // Function to load technicians via AJAX
-    function loadTechnicians() {
-        const xhr = new XMLHttpRequest();
-
-        // Try to guess the API endpoint based on URL patterns in your system
-        const possibleEndpoints = [
-            '/route-management/api/technicians/',
-            '/route_management/api/technicians/',
-            '/route-management/technicians/list/',
-            '/route_management/technicians/list/'
-        ];
-
-        let endpointIndex = 0;
-        tryNextEndpoint();
-
-        function tryNextEndpoint() {
-            if (endpointIndex >= possibleEndpoints.length) {
-                console.error('Failed to load technicians from any endpoint');
-
-                // As a fallback, add the technicians we know exist from the devtools
-                const select = document.getElementById('technician_id');
-                if (select) {
-                    select.innerHTML = `
-                        <option value="">Choose a technician...</option>
-                        <option value="51">Abed Duct</option>
-                        <option value="2">Damien Duncombe</option>
-                    `;
-                }
-                return;
-            }
-
-            const endpoint = possibleEndpoints[endpointIndex];
-            console.log('Trying to load technicians from endpoint:', endpoint);
-
-            xhr.open('GET', endpoint, true);
-            xhr.onreadystatechange = function() {
-                if (xhr.readyState === 4) {
-                    if (xhr.status === 200) {
-                        try {
-                            const data = JSON.parse(xhr.responseText);
-                            updateTechnicianDropdown(data);
-                        } catch (e) {
-                            console.error('Error parsing technicians JSON:', e);
-                            endpointIndex++;
-                            tryNextEndpoint();
-                        }
-                    } else {
-                        console.log('Failed to load from endpoint:', endpoint);
-                        endpointIndex++;
-                        tryNextEndpoint();
-                    }
+        // Also fix any buttons with data-toggle="modal"
+        var modalButtons = document.querySelectorAll('[data-toggle="modal"]');
+        for (var i = 0; i < modalButtons.length; i++) {
+            modalButtons[i].onclick = function(e) {
+                e.preventDefault();
+                var targetId = this.getAttribute('data-target');
+                if (targetId && window.jQuery) {
+                    $(targetId).modal('show');
                 }
             };
-            xhr.send();
         }
-    }
-
-    function updateTechnicianDropdown(data) {
-        const select = document.getElementById('technician_id');
-        if (!select) return;
-
-        // Clear existing options except first one
-        select.innerHTML = '<option value="">Choose a technician...</option>';
-
-        // Add technicians from data
-        if (Array.isArray(data)) {
-            data.forEach(function(tech) {
-                const option = document.createElement('option');
-                option.value = tech.id;
-                option.textContent = tech.name || `${tech.first_name} ${tech.last_name}`;
-                select.appendChild(option);
-            });
-        } else {
-            // Fallback - add the technicians we know exist from the devtools
-            const option1 = document.createElement('option');
-            option1.value = '51';
-            option1.textContent = 'Abed Duct';
-            select.appendChild(option1);
-
-            const option2 = document.createElement('option');
-            option2.value = '2';
-            option2.textContent = 'Damien Duncombe';
-            select.appendChild(option2);
-        }
-    }
-});
-</script>
+    });
+    </script>
 {% endblock %}
