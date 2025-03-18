@@ -823,13 +823,15 @@
 <script src="{% static 'js/service_request_detail.js' %}"></script>
 
 <script>
-$(document).ready(function() {
-    // Initialize DataTables
-    $('#route-stops-table').DataTable({
-        "pageLength": 5,
-        "lengthMenu": [[5, 10, 25, -1], [5, 10, 25, "All"]],
-        "order": [[1, "asc"], [2, "asc"]] // Sort by date and then stop number
-    });
+    $(document).ready(function() {
+    // Initialize DataTables if present
+    if ($('#route-stops-table').length > 0) {
+        $('#route-stops-table').DataTable({
+            "pageLength": 5,
+            "lengthMenu": [[5, 10, 25, -1], [5, 10, 25, "All"]],
+            "order": [[1, "asc"], [2, "asc"]] // Sort by date and then stop number
+        });
+    }
 
     // Initialize lightbox for photo gallery
     if ($('.photo-gallery').length > 0) {
@@ -850,6 +852,74 @@ $(document).ready(function() {
     if ($('#location-map').length > 0) {
         initializeLocationMap();
     }
+
+    // Set up star ratings display
+    $('.star-rating').each(function() {
+        const rating = $(this).data('rating');
+        $(this).find('.fa-star').each(function(index) {
+            if (index < rating) {
+                $(this).addClass('text-warning');
+            } else {
+                $(this).addClass('text-muted');
+            }
+        });
+    });
+
+    // Setup service timeline display
+    setupTimeline();
+
+    // Handle status change buttons
+    $('.status-change-btn').on('click', function() {
+        const newStatus = $(this).data('status');
+        const statusText = $(this).text().trim();
+
+        if (confirm(`Are you sure you want to change the status to "${statusText}"?`)) {
+            $('#status-change-form input[name="status"]').val(newStatus);
+            $('#status-change-form').submit();
+        }
+    });
+
+    // Handle assign technician button
+    $('#assign-technician-btn').on('click', function() {
+        $('#assign-technician-modal').modal('show');
+    });
+
+    // Handle change technician button
+    $('#change-technician-btn').on('click', function() {
+        $('#assign-technician-modal').modal('show');
+    });
+
+    // Handle technician assignment form submission
+    $('#assign-technician-form').on('submit', function(e) {
+        const technicianId = $('#technician_id').val();
+        if (!technicianId) {
+            e.preventDefault();
+            alert('Please select a technician');
+            return false;
+        }
+        return true;
+    });
+
+    // Handle cancel service request button
+    $('#cancel-service-request-btn').on('click', function() {
+        $('#cancel-service-request-modal').modal('show');
+    });
+
+    // Handle cancel form submission
+    $('#cancel-service-request-form').on('submit', function(e) {
+        const reason = $('#cancellation_reason').val();
+        if (!reason.trim()) {
+            e.preventDefault();
+            alert('Please provide a cancellation reason');
+            return false;
+        }
+        return true;
+    });
+
+    // Handle request feedback button
+    $('#request-feedback-btn').on('click', function() {
+        $('#request-feedback-modal').modal('show');
+    });
 
     // Function to initialize the location map
     function initializeLocationMap() {
@@ -890,32 +960,6 @@ $(document).ready(function() {
         }
     }
 
-    // Set up star ratings display
-    $('.star-rating').each(function() {
-        const rating = $(this).data('rating');
-        $(this).find('.fa-star').each(function(index) {
-            if (index < rating) {
-                $(this).addClass('text-warning');
-            } else {
-                $(this).addClass('text-muted');
-            }
-        });
-    });
-
-    // Handle status change buttons
-    $('.status-change-btn').click(function() {
-        const newStatus = $(this).data('status');
-        const statusText = $(this).text().trim();
-
-        if (confirm(`Are you sure you want to change the status to "${statusText}"?`)) {
-            $('#status-change-form input[name="status"]').val(newStatus);
-            $('#status-change-form').submit();
-        }
-    });
-
-    // Setup service timeline display
-    setupTimeline();
-
     // Function to set up and animate the service timeline
     function setupTimeline() {
         if (!$('#service-timeline').length) return;
@@ -931,182 +975,102 @@ $(document).ready(function() {
         }, 500);
     }
 
-    // Handle photo type selection in the upload modal
-    $('#photo_type').change(function() {
-        const photoType = $(this).val();
-        let captionPlaceholder = "Brief description of the photos";
-
-        switch(photoType) {
-            case 'before':
-                captionPlaceholder = "State of equipment/site before service";
-                break;
-            case 'after':
-                captionPlaceholder = "Results after service completion";
-                break;
-            case 'issue':
-                captionPlaceholder = "Description of the issue found";
-                break;
-        }
-
-        $('#caption').attr('placeholder', captionPlaceholder);
-    });
-
-    // Show preview of uploaded images
-    $('#images').change(function() {
-        const $preview = $('#image-preview');
-        $preview.empty();
-
-        if (this.files) {
-            $.each(this.files, function(i, file) {
-                if (!file.type.match('image.*')) return;
-
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    $preview.append(
-                        $('<div class="col-4 mb-2">').append(
-                            $('<img>').attr({
-                                src: e.target.result,
-                                class: 'img-thumbnail',
-                                title: file.name
-                            })
-                        )
-                    );
-                };
-                reader.readAsDataURL(file);
+    // Handle customer info lookup
+    $('#customer_lookup').on('change', function() {
+        const customerId = $(this).val();
+        if (customerId) {
+            $.ajax({
+                url: '/route-management/get-customer-info/',
+                data: {
+                    'customer_id': customerId
+                },
+                dataType: 'json',
+                success: function(data) {
+                    if (data.success) {
+                        const customer = data.customer;
+                        $('#customer-name').text(customer.company_name);
+                        $('#contact-name').text(customer.contact_name);
+                        $('#contact-email').text(customer.contact_email);
+                        $('#contact-phone').text(customer.contact_phone);
+                    }
+                }
             });
         }
     });
 
-    // Handle technician selection in assign modal
-    $('#technician_id').change(function() {
-        const technicianId = $(this).val();
-
-        if (technicianId) {
-            // Get technician availability data via AJAX
+    // Handle location info lookup
+    $('#location_lookup').on('change', function() {
+        const locationId = $(this).val();
+        if (locationId) {
             $.ajax({
-                url: '/route-management/technician/' + technicianId + '/availability/',
-                type: 'GET',
-                success: function(data) {
-                    if (data.conflicts.length > 0) {
-                        let message = 'Potential scheduling conflicts:<ul>';
-                        $.each(data.conflicts, function(i, conflict) {
-                            message += '<li>' + conflict + '</li>';
-                        });
-                        message += '</ul>';
-
-                        $('#technician-conflicts-warning').html(message).show();
-                    } else {
-                        $('#technician-conflicts-warning').hide();
-                    }
+                url: '/route-management/get-location-info/',
+                data: {
+                    'location_id': locationId
                 },
-                error: function() {
-                    $('#technician-conflicts-warning').hide();
+                dataType: 'json',
+                success: function(data) {
+                    if (data.success) {
+                        const location = data.location;
+                        $('#location-name').text(location.name);
+                        $('#location-address').text(
+                            `${location.address_line1} ${location.address_line2 ? location.address_line2 : ''}`.trim()
+                        );
+                        $('#location-city-state-zip').text(
+                            `${location.city}, ${location.state} ${location.zip_code}`
+                        );
+                    }
+                }
+            });
+        }
+    });
+
+    // Handle customer selection in service request form
+    $('#id_customer').on('change', function() {
+        const customerId = $(this).val();
+        if (customerId) {
+            $.ajax({
+                url: '/route-management/ajax/load-service-locations/',
+                data: {
+                    'customer_id': customerId
+                },
+                dataType: 'json',
+                success: function(data) {
+                    // Clear the service location dropdown
+                    const locationSelect = $('#id_service_location');
+                    locationSelect.empty();
+
+                    // Add an empty option
+                    locationSelect.append(new Option('Select a location', ''));
+
+                    // Fill with new options
+                    $.each(data, function(index, location) {
+                        locationSelect.append(new Option(location.name, location.id));
+                    });
                 }
             });
         } else {
-            $('#technician-conflicts-warning').hide();
+            // Clear location dropdown if no customer selected
+            $('#id_service_location').empty().append(new Option('Select a customer first', ''));
         }
     });
 
-    // Create service request metrics chart
-    if ($('#metrics-chart').length > 0) {
-        const ctx = document.getElementById('metrics-chart').getContext('2d');
-
-        // Chart data would typically come from the server
-        // This is sample data for demonstration
-        const chartData = {
-            labels: ['Scheduled', 'Technician Arrival', 'Service Start', 'Service End'],
-            datasets: [{
-                label: 'Planned',
-                borderColor: 'rgba(78, 115, 223, 1)',
-                backgroundColor: 'rgba(78, 115, 223, 0.1)',
-                data: [0, 15, 30, 90]
-            }, {
-                label: 'Actual',
-                borderColor: 'rgba(28, 200, 138, 1)',
-                backgroundColor: 'rgba(28, 200, 138, 0.1)',
-                data: [0, 20, 35, 85]
-            }]
-        };
-
-        new Chart(ctx, {
-            type: 'line',
-            data: chartData,
-            options: {
-                scales: {
-                    xAxes: [{
-                        gridLines: {
-                            display: false
-                        }
-                    }],
-                    yAxes: [{
-                        ticks: {
-                            beginAtZero: true,
-                            callback: function(value) {
-                                return value + ' min';
-                            }
-                        },
-                        scaleLabel: {
-                            display: true,
-                            labelString: 'Time (minutes)'
-                        }
-                    }]
-                },
-                tooltips: {
-                    callbacks: {
-                        label: function(tooltipItem, data) {
-                            return data.datasets[tooltipItem.datasetIndex].label + ': ' +
-                                   tooltipItem.yLabel + ' min';
-                        }
-                    }
-                },
-                responsive: true,
-                maintainAspectRatio: false
-            }
-        });
+    // Check if form is being loaded with existing customer and populate locations
+    if ($('#id_customer').val()) {
+        $('#id_customer').trigger('change');
     }
 
-    // Handle service completion form validations
-    $('#complete-service-form').on('submit', function(e) {
-        const startTime = new Date($('#start_time').val());
-        const endTime = new Date($('#end_time').val());
-
-        if (endTime <= startTime) {
-            e.preventDefault();
-            alert('End time must be after start time');
-            return false;
-        }
-
-        // Calculate duration and billable hours automatically
-        const durationMinutes = Math.round((endTime - startTime) / (1000 * 60));
-        $('#duration_minutes').val(durationMinutes);
-
-        // Calculate billable hours (rounded to nearest quarter hour)
-        const billableHours = Math.round(durationMinutes / 15) / 4;
-        $('#billable_hours').val(billableHours);
-
-        return true;
+    // Handle print service request button
+    $('#print-service-request-btn').on('click', function() {
+        const serviceRequestId = $(this).data('service-request-id');
+        window.open(`/route-management/service-requests/${serviceRequestId}/pdf/`, '_blank');
     });
 
-    // Handle customer feedback requests
-    $('#request-feedback-form').on('submit', function(e) {
-        const email = $('#recipient_email').val();
-        if (!validateEmail(email)) {
-            e.preventDefault();
-            alert('Please enter a valid email address');
-            return false;
+    // Handle refresh location button
+    $('#refresh-map-btn').on('click', function() {
+        if ($('#location-map').length > 0) {
+            initializeLocationMap();
         }
-        return true;
     });
-
-    // Email validation helper
-    function validateEmail(email) {
-        const re = /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
-        return re.test(String(email).toLowerCase());
-    }
-
-    // Initialize any tooltips
-    $('[data-toggle="tooltip"]').tooltip();
 });
 </script>
 {% endblock %}
