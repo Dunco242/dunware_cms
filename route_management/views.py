@@ -2496,3 +2496,9 @@ class ServiceRequestPDFView(LoginRequiredMixin, View):
         html.write_pdf(response)
 
         return response
+
+
+class CustomerDetailView(LoginRequiredMixin, DetailView):
+    model = Customer
+    template_name = 'core/customer_detail.html'
+    context_object_name = 'customer'
