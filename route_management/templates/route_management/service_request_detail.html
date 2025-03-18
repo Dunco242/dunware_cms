@@ -823,9 +823,85 @@
 <script src="{% static 'js/service_request_detail.js' %}"></script>
 
 <script>
-    $(document).ready(function() {
+    // Simple script focusing on fixing the technician assignment buttons
+document.addEventListener('DOMContentLoaded', function() {
+    // Fix for assign technician buttons
+    const assignButtons = document.querySelectorAll('#assign-technician-btn, #change-technician-btn');
+    assignButtons.forEach(function(button) {
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            // Find the modal by ID
+            const modal = document.getElementById('assign-technician-modal');
+            if (modal) {
+                // Show the modal using Bootstrap's modal method
+                $(modal).modal('show');
+            } else {
+                console.error('Modal with ID "assign-technician-modal" not found');
+            }
+        });
+    });
+
+    // Fix for all buttons using data-toggle="modal"
+    const modalButtons = document.querySelectorAll('[data-toggle="modal"]');
+    modalButtons.forEach(function(button) {
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            const targetSelector = button.getAttribute('data-target');
+            if (targetSelector) {
+                const modal = document.querySelector(targetSelector);
+                if (modal) {
+                    $(modal).modal('show');
+                }
+            }
+        });
+    });
+
+    // Make sure the cancel service request button works
+    const cancelButton = document.getElementById('cancel-service-request-btn');
+    if (cancelButton) {
+        cancelButton.addEventListener('click', function(e) {
+            e.preventDefault();
+            const modal = document.getElementById('cancel-service-request-modal');
+            if (modal) {
+                $(modal).modal('show');
+            }
+        });
+    }
+
+    // Make sure the request feedback button works
+    const feedbackButton = document.getElementById('request-feedback-btn');
+    if (feedbackButton) {
+        feedbackButton.addEventListener('click', function(e) {
+            e.preventDefault();
+            const modal = document.getElementById('request-feedback-modal');
+            if (modal) {
+                $(modal).modal('show');
+            }
+        });
+    }
+
+    // Handle status change buttons
+    const statusButtons = document.querySelectorAll('.status-change-btn');
+    statusButtons.forEach(function(button) {
+        button.addEventListener('click', function() {
+            const newStatus = button.getAttribute('data-status');
+            const statusText = button.textContent.trim();
+
+            if (confirm(`Are you sure you want to change the status to "${statusText}"?`)) {
+                const form = document.getElementById('status-change-form');
+                if (form) {
+                    const statusInput = form.querySelector('input[name="status"]');
+                    if (statusInput) {
+                        statusInput.value = newStatus;
+                        form.submit();
+                    }
+                }
+            }
+        });
+    });
+
     // Initialize DataTables if present
-    if ($('#route-stops-table').length > 0) {
+    if ($.fn.DataTable && document.getElementById('route-stops-table')) {
         $('#route-stops-table').DataTable({
             "pageLength": 5,
             "lengthMenu": [[5, 10, 25, -1], [5, 10, 25, "All"]],
@@ -833,111 +909,19 @@
         });
     }
 
-    // Initialize lightbox for photo gallery
-    if ($('.photo-gallery').length > 0) {
-        $('.lightbox').magnificPopup({
-            type: 'image',
-            gallery: {
-                enabled: true,
-                navigateByImgClick: true,
-                preload: [0, 1] // Will preload 0 - before current, and 1 after the current image
-            },
-            image: {
-                titleSrc: 'data-caption'
-            }
-        });
-    }
-
     // Initialize map if location coordinates are available
-    if ($('#location-map').length > 0) {
+    const mapElement = document.getElementById('location-map');
+    if (mapElement) {
         initializeLocationMap();
     }
 
-    // Set up star ratings display
-    $('.star-rating').each(function() {
-        const rating = $(this).data('rating');
-        $(this).find('.fa-star').each(function(index) {
-            if (index < rating) {
-                $(this).addClass('text-warning');
-            } else {
-                $(this).addClass('text-muted');
-            }
-        });
-    });
-
-    // Setup service timeline display
-    setupTimeline();
-
-    // Handle status change buttons - use document delegation for maximum compatibility
-    $(document).on('click', '.status-change-btn', function() {
-        const newStatus = $(this).data('status');
-        const statusText = $(this).text().trim();
-
-        if (confirm(`Are you sure you want to change the status to "${statusText}"?`)) {
-            $('#status-change-form input[name="status"]').val(newStatus);
-            $('#status-change-form').submit();
-        }
-    });
-
-    // Also bind with the traditional method for older jQuery versions
-    $('.status-change-btn').click(function() {
-        const newStatus = $(this).data('status');
-        const statusText = $(this).text().trim();
-
-        if (confirm(`Are you sure you want to change the status to "${statusText}"?`)) {
-            $('#status-change-form input[name="status"]').val(newStatus);
-            $('#status-change-form').submit();
-        }
-    });
-
-    // Handle assign technician button - use direct selector and both click events for maximum compatibility
-    $(document).on('click', '#assign-technician-btn, #change-technician-btn', function(e) {
-        e.preventDefault();
-        $('#assign-technician-modal').modal('show');
-    });
-
-    // Also add the original click binding for older jQuery/Bootstrap versions
-    $('#assign-technician-btn, #change-technician-btn').click(function(e) {
-        e.preventDefault();
-        $('#assign-technician-modal').modal('show');
-    });
-
-    // Handle technician assignment form submission - note we're using the actual form, not a form ID
-    $(document).on('submit', 'form[action*="/assign-technician/"]', function(e) {
-        const technicianId = $(this).find('select[name="technician_id"]').val();
-        if (!technicianId) {
-            e.preventDefault();
-            alert('Please select a technician');
-            return false;
-        }
-        return true;
-    });
-
-    // Handle cancel service request button
-    $('#cancel-service-request-btn').on('click', function() {
-        $('#cancel-service-request-modal').modal('show');
-    });
-
-    // Handle cancel form submission
-    $('#cancel-service-request-form').on('submit', function(e) {
-        const reason = $('#cancellation_reason').val();
-        if (!reason.trim()) {
-            e.preventDefault();
-            alert('Please provide a cancellation reason');
-            return false;
-        }
-        return true;
-    });
-
-    // Handle request feedback button
-    $('#request-feedback-btn').on('click', function() {
-        $('#request-feedback-modal').modal('show');
-    });
-
     // Function to initialize the location map
     function initializeLocationMap() {
-        const latitude = parseFloat($('#location-map').data('latitude'));
-        const longitude = parseFloat($('#location-map').data('longitude'));
+        const mapElement = document.getElementById('location-map');
+        if (!mapElement) return;
+
+        const latitude = parseFloat(mapElement.getAttribute('data-latitude'));
+        const longitude = parseFloat(mapElement.getAttribute('data-longitude'));
 
         if (isNaN(latitude) || isNaN(longitude)) {
             return;
@@ -948,7 +932,7 @@
             zoom: 14
         };
 
-        const map = new google.maps.Map(document.getElementById('location-map'), mapOptions);
+        const map = new google.maps.Map(mapElement, mapOptions);
 
         // Add marker for service location
         const marker = new google.maps.Marker({
@@ -958,8 +942,9 @@
         });
 
         // Add circle to show service area if radius is available
-        if ($('#location-map').data('radius')) {
-            const radius = parseFloat($('#location-map').data('radius')) * 1609.34; // Convert miles to meters
+        const radius = mapElement.getAttribute('data-radius');
+        if (radius) {
+            const radiusInMeters = parseFloat(radius) * 1609.34; // Convert miles to meters
             new google.maps.Circle({
                 strokeColor: '#FF0000',
                 strokeOpacity: 0.8,
@@ -968,204 +953,101 @@
                 fillOpacity: 0.1,
                 map: map,
                 center: { lat: latitude, lng: longitude },
-                radius: radius
+                radius: radiusInMeters
             });
         }
     }
-
-    // Function to set up and animate the service timeline
-    function setupTimeline() {
-        if (!$('#service-timeline').length) return;
-
-        // Animate timeline on page load
-        setTimeout(function() {
-            $('.timeline-item').each(function(index) {
-                const $this = $(this);
-                setTimeout(function() {
-                    $this.addClass('show');
-                }, 200 * index);
-            });
-        }, 500);
-    }
-
-    // Handle customer info lookup - check for both types of URL patterns
-    $('#customer_lookup').on('change', function() {
-        const customerId = $(this).val();
-        if (customerId) {
-            // Try the URL with underscore first (matching the form action pattern)
-            $.ajax({
-                url: '/route_management/get-customer-info/',
-                data: {
-                    'customer_id': customerId
-                },
-                dataType: 'json',
-                success: function(data) {
-                    if (data.success) {
-                        const customer = data.customer;
-                        $('#customer-name').text(customer.company_name);
-                        $('#contact-name').text(customer.contact_name);
-                        $('#contact-email').text(customer.contact_email);
-                        $('#contact-phone').text(customer.contact_phone);
-                    }
-                },
-                error: function() {
-                    // If it fails, try with the hyphen URL
-                    $.ajax({
-                        url: '/route-management/get-customer-info/',
-                        data: {
-                            'customer_id': customerId
-                        },
-                        dataType: 'json',
-                        success: function(data) {
-                            if (data.success) {
-                                const customer = data.customer;
-                                $('#customer-name').text(customer.company_name);
-                                $('#contact-name').text(customer.contact_name);
-                                $('#contact-email').text(customer.contact_email);
-                                $('#contact-phone').text(customer.contact_phone);
-                            }
-                        }
-                    });
-                }
-            });
-        }
-    });
-
-    // Handle location info lookup - with both URL patterns
-    $('#location_lookup').on('change', function() {
-        const locationId = $(this).val();
-        if (locationId) {
-            // Try with underscore URL first
-            $.ajax({
-                url: '/route_management/get-location-info/',
-                data: {
-                    'location_id': locationId
-                },
-                dataType: 'json',
-                success: function(data) {
-                    if (data.success) {
-                        const location = data.location;
-                        $('#location-name').text(location.name);
-                        $('#location-address').text(
-                            `${location.address_line1} ${location.address_line2 ? location.address_line2 : ''}`.trim()
-                        );
-                        $('#location-city-state-zip').text(
-                            `${location.city}, ${location.state} ${location.zip_code}`
-                        );
-                    }
-                },
-                error: function() {
-                    // Try with hyphen URL
-                    $.ajax({
-                        url: '/route-management/get-location-info/',
-                        data: {
-                            'location_id': locationId
-                        },
-                        dataType: 'json',
-                        success: function(data) {
-                            if (data.success) {
-                                const location = data.location;
-                                $('#location-name').text(location.name);
-                                $('#location-address').text(
-                                    `${location.address_line1} ${location.address_line2 ? location.address_line2 : ''}`.trim()
-                                );
-                                $('#location-city-state-zip').text(
-                                    `${location.city}, ${location.state} ${location.zip_code}`
-                                );
-                            }
-                        }
-                    });
-                }
-            });
-        }
-    });
 
     // Handle customer selection in service request form
-    $('#id_customer').on('change', function() {
-        const customerId = $(this).val();
-        if (customerId) {
-            // Try with underscore URL format first
-            $.ajax({
-                url: '/route_management/ajax/load-service-locations/',
-                data: {
-                    'customer_id': customerId
-                },
-                dataType: 'json',
-                success: function(data) {
-                    // Process successful response
-                    updateLocationDropdown(data);
-                },
-                error: function() {
-                    // Try with hyphen URL format as fallback
-                    $.ajax({
-                        url: '/route-management/ajax/load-service-locations/',
-                        data: {
-                            'customer_id': customerId
-                        },
-                        dataType: 'json',
-                        success: function(data) {
-                            updateLocationDropdown(data);
-                        },
-                        error: function() {
-                            console.error('Could not load service locations for customer');
-                        }
-                    });
-                }
-            });
-        } else {
-            // Clear location dropdown if no customer selected
-            $('#id_service_location').empty().append(new Option('Select a customer first', ''));
-        }
-    });
-
-    // Helper function to update location dropdown
-    function updateLocationDropdown(data) {
-        // Clear the service location dropdown
-        const locationSelect = $('#id_service_location');
-        locationSelect.empty();
-
-        // Add an empty option
-        locationSelect.append(new Option('Select a location', ''));
-
-        // Fill with new options
-        $.each(data, function(index, location) {
-            locationSelect.append(new Option(location.name, location.id));
-        });
-    }
-
-    // Check if form is being loaded with existing customer and populate locations
-    if ($('#id_customer').val()) {
-        $('#id_customer').trigger('change');
-    }
-
-    // Handle print service request button - accommodate both URL formats
-    $('#print-service-request-btn').on('click', function() {
-        const serviceRequestId = $(this).data('service-request-id');
-
-        // Try with the underscore URL format that matches your form action
-        const underscoreUrl = `/route_management/service-requests/${serviceRequestId}/pdf/`;
-        const hyphenUrl = `/route-management/service-requests/${serviceRequestId}/pdf/`;
-
-        // First check if underscore URL exists by sending a HEAD request
-        $.ajax({
-            url: underscoreUrl,
-            type: 'HEAD',
-            success: function() {
-                window.open(underscoreUrl, '_blank');
-            },
-            error: function() {
-                // Fallback to hyphen URL
-                window.open(hyphenUrl, '_blank');
+    const customerSelect = document.getElementById('id_customer');
+    if (customerSelect) {
+        customerSelect.addEventListener('change', function() {
+            const customerId = this.value;
+            if (customerId) {
+                // Make an AJAX request to get service locations
+                fetchServiceLocations(customerId);
+            } else {
+                clearLocationDropdown();
             }
         });
-    });
 
-    // Handle refresh location button
-    $('#refresh-map-btn').on('click', function() {
-        if ($('#location-map').length > 0) {
-            initializeLocationMap();
+        // If form is being loaded with existing customer, populate locations
+        if (customerSelect.value) {
+            fetchServiceLocations(customerSelect.value);
         }
-    });
+    }
+
+    function fetchServiceLocations(customerId) {
+        const xhr = new XMLHttpRequest();
+        xhr.open('GET', `/route-management/ajax/load-service-locations/?customer_id=${customerId}`, true);
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === 4) {
+                if (xhr.status === 200) {
+                    try {
+                        const data = JSON.parse(xhr.responseText);
+                        updateLocationDropdown(data);
+                    } catch (e) {
+                        console.error('Error parsing JSON response:', e);
+                        // Try alternative URL format
+                        fallbackFetchServiceLocations(customerId);
+                    }
+                } else {
+                    // Try alternative URL format
+                    fallbackFetchServiceLocations(customerId);
+                }
+            }
+        };
+        xhr.send();
+    }
+
+    function fallbackFetchServiceLocations(customerId) {
+        const xhr = new XMLHttpRequest();
+        xhr.open('GET', `/route_management/ajax/load-service-locations/?customer_id=${customerId}`, true);
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === 4 && xhr.status === 200) {
+                try {
+                    const data = JSON.parse(xhr.responseText);
+                    updateLocationDropdown(data);
+                } catch (e) {
+                    console.error('Error parsing JSON response:', e);
+                }
+            }
+        };
+        xhr.send();
+    }
+
+    function updateLocationDropdown(data) {
+        const locationSelect = document.getElementById('id_service_location');
+        if (!locationSelect) return;
+
+        // Clear existing options
+        locationSelect.innerHTML = '';
+
+        // Add empty option
+        const emptyOption = document.createElement('option');
+        emptyOption.value = '';
+        emptyOption.textContent = 'Select a location';
+        locationSelect.appendChild(emptyOption);
+
+        // Add locations from data
+        data.forEach(function(location) {
+            const option = document.createElement('option');
+            option.value = location.id;
+            option.textContent = location.name;
+            locationSelect.appendChild(option);
+        });
+    }
+
+    function clearLocationDropdown() {
+        const locationSelect = document.getElementById('id_service_location');
+        if (locationSelect) {
+            locationSelect.innerHTML = '';
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = 'Select a customer first';
+            locationSelect.appendChild(option);
+        }
+    }
 });
 </script>
 {% endblock %}
