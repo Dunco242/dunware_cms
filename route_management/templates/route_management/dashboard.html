@@ -392,33 +392,65 @@ $(document).ready(function() {
     });
 
     function geocodeLocations() {
-        $.ajax({
-            url: '{% url "route_management:geocode_locations" %}',
-            type: 'POST',
-            headers: {
-                'X-CSRFToken': '{{ csrf_token }}'
-            },
-            success: function(data) {
-                if (data.success) {
-                    $('#locations-to-geocode').text(data.remaining);
+    // Show a loading indicator
+    const originalText = $('#geocode-button').html();
+    $('#geocode-button').html('<i class="fas fa-spinner fa-spin"></i> Processing...');
+
+    $.ajax({
+        url: '{% url "route_management:geocode_locations" %}',
+        type: 'POST',
+        headers: {
+            'X-CSRFToken': $('[name=csrfmiddlewaretoken]').val() // Get CSRF token from the page
+        },
+        success: function(data) {
+            if (data.success) {
+                $('#locations-to-geocode').text(data.remaining);
+                // Use alert or another notification method if toastr isn't available
+                if (typeof toastr !== 'undefined') {
                     toastr.success(`Geocoded ${data.success_count} locations successfully. ${data.error_count} had errors.`);
                 } else {
-                    toastr.error('Error geocoding locations');
+                    alert(`Geocoded ${data.success_count} locations successfully. ${data.error_count} had errors.`);
                 }
-            },
-            error: function() {
-                toastr.error('Error geocoding locations');
+            } else {
+                if (typeof toastr !== 'undefined') {
+                    toastr.error('Error geocoding locations');
+                } else {
+                    alert('Error geocoding locations');
+                }
             }
-        });
-    }
+            // Reset button text
+            $('#geocode-button').html(originalText);
+        },
+        error: function(xhr, status, error) {
+            console.error("Geocoding error:", error);
+            console.error("Status:", status);
+            console.error("Response:", xhr.responseText);
 
-    // Request assignment modal
-    $('.assign-request').click(function() {
-        const requestId = $(this).data('request-id');
-        // Here you would open a modal to select a route to assign this request to
-        // For simplicity, we'll just redirect to the route list
-        window.location.href = '{% url "route_management:route_list" %}?service_request=' + requestId;
+            if (typeof toastr !== 'undefined') {
+                toastr.error('Error geocoding locations');
+            } else {
+                alert('Error geocoding locations: ' + error);
+            }
+            // Reset button text
+            $('#geocode-button').html(originalText);
+        }
     });
+}
+
+// Ensure this is part of your document.ready function:
+$(document).ready(function() {
+    // Geocoding request via button
+    $('#geocode-button').click(function(e) {
+        e.preventDefault();
+        geocodeLocations();
+    });
+
+    // Also handle the sidebar link
+    $('#geocode-link').click(function(e) {
+        e.preventDefault();
+        geocodeLocations();
+    });
+});
 
     // Make sidebar menu highlight current page
     const path = window.location.pathname;

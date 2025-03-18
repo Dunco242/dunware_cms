@@ -2502,3 +2502,39 @@ class CustomerDetailView(LoginRequiredMixin, DetailView):
     model = Customer
     template_name = 'core/customer_detail.html'
     context_object_name = 'customer'
+
+
+@login_required
+def assign_technician_to_service_request(request, pk):
+    """Assign a technician to a service request"""
+    service_request = get_object_or_404(ServiceRequest, pk=pk)
+
+    if request.method == 'POST':
+        technician_id = request.POST.get('technician_id')
+        notify_technician = 'notify_technician' in request.POST
+        notify_customer = 'notify_customer' in request.POST
+
+        if technician_id:
+            try:
+                technician = Employee.objects.get(pk=technician_id)
+
+                # Update service request
+                service_request.assigned_technician = technician
+                service_request.save()
+
+                # Send notifications if requested
+                if notify_technician:
+                    # Logic to notify technician
+                    pass
+
+                if notify_customer:
+                    # Logic to notify customer
+                    pass
+
+                messages.success(request, f"Technician {technician.get_full_name()} assigned to service request successfully.")
+            except Employee.DoesNotExist:
+                messages.error(request, "Selected technician not found.")
+        else:
+            messages.error(request, "No technician selected.")
+
+    return redirect('route_management:service_request_detail', pk=service_request.pk)
