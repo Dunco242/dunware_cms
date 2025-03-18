@@ -90,33 +90,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <!-- Page Heading -->
-    <div class="d-sm-flex align-items-center justify-content-between mb-4">
-        <h1 class="h3 mb-0 text-gray-800">
-            Route {{ route.route_id }} - {{ route.date }} - Full Map
-        </h1>
-        <div>
-            <button id="toggleDebug" class="btn btn-sm btn-outline-secondary">
-                <i class="fas fa-bug"></i> Debug Mode
-            </button>
-            <!-- Add this next to your debug toggle button -->
-        <button id="forceRefresh" class="btn btn-sm btn-warning">
-            <i class="fas fa-sync-alt"></i> Refresh Map
-        </button>
 
-<!-- Add this to your setupEventHandlers function -->
-var refreshButton = document.getElementById('forceRefresh');
-if (refreshButton) {
-    refreshButton.addEventListener('click', function() {
-        this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Refreshing...';
-        mapInitialized = false;
-        setTimeout(function() {
-            initMap();
-            refreshButton.innerHTML = '<i class="fas fa-sync-alt"></i> Refresh Map';
-        }, 100);
-    });
-}
             <a href="{% url 'route_management:route_detail' route.id %}" class="d-none d-sm-inline-block btn btn-sm btn-primary shadow-sm ml-2">
                 <i class="fas fa-arrow-left fa-sm text-white-50"></i> Back to Route Detail
             </a>
@@ -127,15 +101,6 @@ if (refreshButton) {
     <div id="mapStatusAlert" class="alert alert-info mb-3">
         <i class="fas fa-spinner fa-spin"></i> Initializing map...
     </div>
-
-    <!-- Debug Info (hidden by default) -->
-    <div id="mapDebugInfo" class="alert alert-secondary mb-3" style="display: none;">
-        <p><strong>API Key:</strong> {{ here_maps_api_key|truncatechars:5 }}...</p>
-        <p><strong>Map Center:</strong> {% if map_data.center %}Lat: {{ map_data.center.lat }}, Lng: {{ map_data.center.lng }}{% else %}None{% endif %}</p>
-        <p><strong>Stops:</strong> {{ map_data.stops|length }}</p>
-        <p><strong>Map Container:</strong> <span id="container-check">Checking...</span></p>
-    </div>
-
     <!-- Content Row -->
     <div class="row">
         <!-- Map Column -->
