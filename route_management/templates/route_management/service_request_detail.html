@@ -152,7 +152,7 @@
                     </div>
                     <div class="row mb-2">
                         <div class="col-5 font-weight-bold text-gray-800">Contact Name:</div>
-                        <div class="col-7">{{ service_request.contact_name|default:service_request.customer.primary_contact_name }}</div>
+                        <div class="col-7">{{ service_request.contact_name|default:service_request.customer.contact_person }}</div>
                     </div>
                     <div class="row mb-2">
                         <div class="col-5 font-weight-bold text-gray-800">Contact Phone:</div>
