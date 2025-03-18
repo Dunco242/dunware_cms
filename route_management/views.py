@@ -1515,7 +1515,7 @@ class TechnicianProfileView(LoginRequiredMixin, DetailView):
 
 
 class RouteMapView(LoginRequiredMixin, DetailView):
-    """Full-screen map view of a route with automatic geocoding"""
+    """Full-screen map view of a route with robust geocoding"""
     model = Route
     template_name = 'route_management/route_map.html'
     context_object_name = 'route'
@@ -1524,8 +1524,15 @@ class RouteMapView(LoginRequiredMixin, DetailView):
         context = super().get_context_data(**kwargs)
         route = self.get_object()
 
-        # Attempt to automatically geocode missing coordinates
-        self.attempt_geocoding(route)
+        # Print debug info
+        print(f"RouteMapView: Processing Route #{route.id}")
+        print(f"Route start: {route.start_location}, coords: {route.start_latitude}, {route.start_longitude}")
+        print(f"Route end: {route.end_location}, coords: {route.end_latitude}, {route.end_longitude}")
+
+        # Attempt geocoding if needed
+        geocoding_performed = self.attempt_geocoding(route)
+        if geocoding_performed:
+            messages.info(self.request, "Some locations were automatically geocoded.")
 
         # Get stops in order
         stops = RouteStop.objects.filter(
@@ -1537,6 +1544,8 @@ class RouteMapView(LoginRequiredMixin, DetailView):
             'service_request__customer'
         ).order_by('stop_number')
 
+        print(f"Found {stops.count()} stops for this route")
+
         # Prepare map data
         map_data = {
             'center': None,
@@ -1544,58 +1553,87 @@ class RouteMapView(LoginRequiredMixin, DetailView):
             'route_line': []
         }
 
+        # Track valid points for debugging
+        valid_point_count = 0
+
         # Start location
         if route.start_latitude and route.start_longitude:
-            start_point = {
-                'lat': float(route.start_latitude),
-                'lng': float(route.start_longitude),
-                'name': 'Start: ' + route.start_location,
-                'type': 'start'
-            }
-            map_data['stops'].append(start_point)
-            map_data['route_line'].append([float(route.start_latitude), float(route.start_longitude)])
+            try:
+                start_point = {
+                    'lat': float(route.start_latitude),
+                    'lng': float(route.start_longitude),
+                    'name': 'Start: ' + route.start_location,
+                    'type': 'start'
+                }
+                map_data['stops'].append(start_point)
+                map_data['route_line'].append([float(route.start_latitude), float(route.start_longitude)])
+                valid_point_count += 1
+                print(f"Added start point: {route.start_latitude}, {route.start_longitude}")
+            except (ValueError, TypeError) as e:
+                print(f"Error adding start point: {str(e)}")
 
         # Service stops
         for stop in stops:
             location = stop.service_request.service_location
             if location.latitude and location.longitude:
-                stop_data = {
-                    'lat': float(location.latitude),
-                    'lng': float(location.longitude),
-                    'name': f"Stop #{stop.stop_number}: {location.name}",
-                    'address': location.get_full_address(),
-                    'status': stop.status,
-                    'scheduled_time': stop.scheduled_arrival_time.strftime('%H:%M') if stop.scheduled_arrival_time else 'TBD',
-                    'service_type': stop.service_request.service_type.name,
-                    'customer': stop.service_request.customer.company_name,
-                    'type': 'stop',
-                    'stop_id': stop.id,
-                    'service_request_id': stop.service_request.id
-                }
-                map_data['stops'].append(stop_data)
-                map_data['route_line'].append([float(location.latitude), float(location.longitude)])
+                try:
+                    stop_data = {
+                        'lat': float(location.latitude),
+                        'lng': float(location.longitude),
+                        'name': f"Stop #{stop.stop_number}: {location.name}",
+                        'address': location.get_full_address(),
+                        'status': stop.status,
+                        'scheduled_time': stop.scheduled_arrival_time.strftime('%H:%M') if stop.scheduled_arrival_time else 'TBD',
+                        'service_type': stop.service_request.service_type.name,
+                        'customer': stop.service_request.customer.company_name,
+                        'type': 'stop',
+                        'stop_id': stop.id,
+                        'service_request_id': stop.service_request.id
+                    }
+                    map_data['stops'].append(stop_data)
+                    map_data['route_line'].append([float(location.latitude), float(location.longitude)])
+                    valid_point_count += 1
+                    print(f"Added stop #{stop.stop_number} point: {location.latitude}, {location.longitude}")
+                except (ValueError, TypeError) as e:
+                    print(f"Error adding stop #{stop.stop_number} point: {str(e)}")
 
         # End location
         if route.end_latitude and route.end_longitude:
-            end_point = {
-                'lat': float(route.end_latitude),
-                'lng': float(route.end_longitude),
-                'name': 'End: ' + route.end_location,
-                'type': 'end'
-            }
-            map_data['stops'].append(end_point)
-            map_data['route_line'].append([float(route.end_latitude), float(route.end_longitude)])
+            try:
+                end_point = {
+                    'lat': float(route.end_latitude),
+                    'lng': float(route.end_longitude),
+                    'name': 'End: ' + route.end_location,
+                    'type': 'end'
+                }
+                map_data['stops'].append(end_point)
+                map_data['route_line'].append([float(route.end_latitude), float(route.end_longitude)])
+                valid_point_count += 1
+                print(f"Added end point: {route.end_latitude}, {route.end_longitude}")
+            except (ValueError, TypeError) as e:
+                print(f"Error adding end point: {str(e)}")
 
         # Find center point for map (average of all coordinates)
         if map_data['stops']:
-            lat_sum = sum(float(stop['lat']) for stop in map_data['stops'])
-            lng_sum = sum(float(stop['lng']) for stop in map_data['stops'])
-            map_data['center'] = {
-                'lat': lat_sum / len(map_data['stops']),
-                'lng': lng_sum / len(map_data['stops'])
-            }
+            try:
+                lat_sum = sum(float(stop['lat']) for stop in map_data['stops'])
+                lng_sum = sum(float(stop['lng']) for stop in map_data['stops'])
+                map_data['center'] = {
+                    'lat': lat_sum / len(map_data['stops']),
+                    'lng': lng_sum / len(map_data['stops'])
+                }
+                print(f"Map center calculated: {map_data['center']}")
+            except (ValueError, TypeError) as e:
+                print(f"Error calculating map center: {str(e)}")
+                # Fallback to New York coordinates as default
+                map_data['center'] = {'lat': 40.7128, 'lng': -74.0060}
+                print("Using fallback map center")
+        else:
+            # Fallback center if no points are available
+            print("No valid map points, using fallback center")
+            map_data['center'] = {'lat': 40.7128, 'lng': -74.0060}  # New York coordinates
 
-        # Calculate completion percentage for stops
+        # Calculate completion percentage
         completed_stops = stops.filter(status='completed').count()
         total_stops = stops.count()
         context['completion_percent'] = (completed_stops / total_stops * 100) if total_stops > 0 else 0
@@ -1603,54 +1641,71 @@ class RouteMapView(LoginRequiredMixin, DetailView):
         # Add map data to context
         context['map_data'] = map_data
         context['stops'] = stops
-        context['here_maps_api_key'] = settings.HERE_MAPS_API_KEY
 
-        # Debug info
-        context['missing_coordinates'] = self.check_missing_coordinates(route, stops)
+        # Add the HERE Maps API key
+        context['here_maps_api_key'] = settings.HERE_MAPS_API_KEY
+        print(f"HERE Maps API key present: {bool(settings.HERE_MAPS_API_KEY)}")
+
+        # Check for any missing coordinates
+        missing_coordinates = self.check_missing_coordinates(route, stops)
+        context['missing_coordinates'] = missing_coordinates
+        if missing_coordinates:
+            print(f"Missing coordinates detected: {len(missing_coordinates)} locations")
+            for location in missing_coordinates:
+                print(f"- {location}")
+
+        # Final validation
+        print(f"Map data summary: center={bool(map_data['center'])}, points={len(map_data['stops'])}, valid_points={valid_point_count}")
 
         return context
 
     def attempt_geocoding(self, route):
-        """Attempt to geocode any missing coordinates for the route and its stops"""
+        """Attempt to geocode missing coordinates for route and stops"""
         geocoding_performed = False
 
         # Geocode route start location if missing coordinates
         if route.start_location and (not route.start_latitude or not route.start_longitude):
             try:
+                print(f"Attempting to geocode start location: {route.start_location}")
                 # Create a temporary location object to use with GeocodingService
                 from .models import ServiceLocation
                 temp_location = ServiceLocation(
                     address=route.start_location,
-                    city="",  # You might need to parse this from start_location
-                    state="",  # You might need to parse this from start_location
-                    zip_code=""  # You might need to parse this from start_location
+                    city="", state="", zip_code=""  # Minimal requirements
                 )
+
                 success = GeocodingService.geocode_location(temp_location)
                 if success:
+                    print(f"Successfully geocoded start location: {temp_location.latitude}, {temp_location.longitude}")
                     route.start_latitude = temp_location.latitude
                     route.start_longitude = temp_location.longitude
                     route.save()
                     geocoding_performed = True
+                else:
+                    print("Geocoding start location failed")
             except Exception as e:
                 print(f"Error geocoding route start location: {str(e)}")
 
         # Geocode route end location if missing coordinates
         if route.end_location and (not route.end_latitude or not route.end_longitude):
             try:
+                print(f"Attempting to geocode end location: {route.end_location}")
                 # Create a temporary location object to use with GeocodingService
                 from .models import ServiceLocation
                 temp_location = ServiceLocation(
                     address=route.end_location,
-                    city="",  # You might need to parse this from end_location
-                    state="",  # You might need to parse this from end_location
-                    zip_code=""  # You might need to parse this from end_location
+                    city="", state="", zip_code=""  # Minimal requirements
                 )
+
                 success = GeocodingService.geocode_location(temp_location)
                 if success:
+                    print(f"Successfully geocoded end location: {temp_location.latitude}, {temp_location.longitude}")
                     route.end_latitude = temp_location.latitude
                     route.end_longitude = temp_location.longitude
                     route.save()
                     geocoding_performed = True
+                else:
+                    print("Geocoding end location failed")
             except Exception as e:
                 print(f"Error geocoding route end location: {str(e)}")
 
@@ -1660,16 +1715,18 @@ class RouteMapView(LoginRequiredMixin, DetailView):
             location = stop.service_request.service_location
             if not location.latitude or not location.longitude:
                 try:
+                    print(f"Attempting to geocode stop #{stop.stop_number} location: {location.name}, {location.address}")
                     success = GeocodingService.geocode_location(location)
                     if success:
+                        print(f"Successfully geocoded stop location: {location.latitude}, {location.longitude}")
                         location.save()
                         geocoding_performed = True
+                    else:
+                        print(f"Geocoding stop #{stop.stop_number} location failed")
                 except Exception as e:
-                    print(f"Error geocoding stop location: {str(e)}")
+                    print(f"Error geocoding stop #{stop.stop_number} location: {str(e)}")
 
-        # Display a message if any geocoding was performed
-        if geocoding_performed and hasattr(self, 'request'):
-            messages.info(self.request, "Some locations were automatically geocoded. Refresh the map if needed.")
+        return geocoding_performed
 
     def check_missing_coordinates(self, route, stops):
         """Check for any missing coordinates that would prevent the map from displaying properly"""
