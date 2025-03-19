@@ -1403,7 +1403,7 @@ def technician_schedule_view(request, pk):
     if hasattr(employee, 'technician_profile'):
         context['profile'] = employee.technician_profile
 
-    return render(request, 'route_management/technician_schedule.html', context)
+    return render(request, 'route_management/technician_schedule_view.html', context)
 
 
 @login_required
