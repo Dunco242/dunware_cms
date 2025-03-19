@@ -238,7 +238,7 @@ class ServiceRequestCreateView(LoginRequiredMixin, CreateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         # Add any additional context data needed by the template
-        context['customers'] = Customer.objects.filter(is_active=True)
+        context['customers'] = Customer.objects.filter(status='active')
         context['service_types'] = ServiceType.objects.filter(is_active=True)
 
         # If a customer is preselected, add available service locations
