@@ -751,51 +751,83 @@ class ServiceCompletionCreateView(LoginRequiredMixin, CreateView):
                     initial['customer_email'] = sr.customer.email
 
             except RouteStop.DoesNotExist:
-                pass
+                messages.error(self.request, "The specified route stop does not exist.")
+                # Return empty initial data - the view will likely redirect in get_context_data
 
         return initial
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        # Add route stop to context if it exists
+        stop_id = self.kwargs.get('stop_id')
+        if stop_id:
+            try:
+                context['route_stop'] = RouteStop.objects.select_related(
+                    'service_request',
+                    'service_request__service_location',
+                    'service_request__customer',
+                    'service_request__service_type',
+                    'route',
+                    'route__technician'
+                ).get(pk=stop_id)
+            except RouteStop.DoesNotExist:
+                # If we can't find the route stop, redirect to the dashboard
+                messages.error(self.request, "The specified route stop could not be found.")
+                return HttpResponseRedirect(reverse('route_management:dashboard'))
+        else:
+            # If no stop_id was provided in the URL, redirect to the dashboard
+            messages.error(self.request, "No route stop specified.")
+            return HttpResponseRedirect(reverse('route_management:dashboard'))
+
+        return context
 
     def form_valid(self, form):
         response = super().form_valid(form)
 
         # Update route stop status
         route_stop = self.object.route_stop
-        route_stop.update_status('completed')
+        if route_stop:
+            route_stop.update_status('completed')
 
-        # Update service request status
-        service_request = self.object.service_request
-        service_request.status = 'completed'
-        service_request.completed_at = timezone.now()
-        service_request.save()
+            # Update service request status
+            service_request = self.object.service_request
+            if service_request:
+                service_request.status = 'completed'
+                service_request.completed_at = timezone.now()
+                service_request.save()
 
-        messages.success(self.request, "Service completion recorded successfully.")
+            messages.success(self.request, "Service completion recorded successfully.")
 
-        # Send email to customer if requested
-        if 'send_email' in self.request.POST:
-            try:
-                # Create notification
-                notification = CustomerNotification.objects.create(
-                    service_request=service_request,
-                    route_stop=route_stop,
-                    notification_type='service_complete',
-                    delivery_method='email',
-                    recipient_name=self.object.customer_name,
-                    recipient_contact=self.object.customer_email,
-                    subject=f"Service Completion: {service_request.service_type.name}",
-                    message=f"Your service has been completed. Details: {self.object.work_performed}"
-                )
+            # Send email to customer if requested
+            if 'send_email' in self.request.POST:
+                try:
+                    # Create notification
+                    notification = CustomerNotification.objects.create(
+                        service_request=service_request,
+                        route_stop=route_stop,
+                        notification_type='service_complete',
+                        delivery_method='email',
+                        recipient_name=self.object.customer_name,
+                        recipient_contact=self.object.customer_email,
+                        subject=f"Service Completion: {service_request.service_type.name}",
+                        message=f"Your service has been completed. Details: {self.object.work_performed}"
+                    )
 
-                # Send immediately
-                notification.send()
-                messages.success(self.request, f"Completion notification sent to {self.object.customer_email}")
-            except Exception as e:
-                messages.error(self.request, f"Error sending notification: {str(e)}")
+                    # Send immediately
+                    notification.send()
+                    messages.success(self.request, f"Completion notification sent to {self.object.customer_email}")
+                except Exception as e:
+                    messages.error(self.request, f"Error sending notification: {str(e)}")
 
         return response
 
     def get_success_url(self):
-        return reverse('route_management:route_detail', kwargs={'pk': self.object.route_stop.route.pk})
-
+        # Ensure we have a valid route reference
+        if hasattr(self.object, 'route_stop') and self.object.route_stop and self.object.route_stop.route:
+            return reverse('route_management:route_detail', kwargs={'pk': self.object.route_stop.route.pk})
+        # Fallback to a safe URL
+        return reverse('route_management:dashboard')
 
 class ServicePhotoUploadView(LoginRequiredMixin, FormView):
     """View to upload service photos"""

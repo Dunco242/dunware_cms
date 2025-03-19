@@ -119,11 +119,14 @@
 <div class="card mb-4 shadow service-details-card">
     <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
         <h6 class="m-0 font-weight-bold text-success">Service Request Details</h6>
+        {% if route_stop %}
         <a href="{% url 'route_management:service_request_detail' route_stop.service_request.id %}" class="btn btn-sm btn-outline-success">
             <i class="fas fa-eye fa-sm"></i> View Full Details
         </a>
+        {% endif %}
     </div>
     <div class="card-body">
+        {% if route_stop %}
         <div class="row">
             <div class="col-md-6">
                 <p><strong>Customer:</strong> {{ route_stop.service_request.customer.company_name }}</p>
@@ -134,7 +137,7 @@
             <div class="col-md-6">
                 <p><strong>Route:</strong> {{ route_stop.route.name }} ({{ route_stop.route.date|date:"M d, Y" }})</p>
                 <p><strong>Stop #:</strong> {{ route_stop.stop_number }}</p>
-                <p><strong>Scheduled Time:</strong> {{ route_stop.scheduled_arrival_time|time:"H:i" }}</p>
+                <p><strong>Scheduled Time:</strong> {% if route_stop.scheduled_arrival_time %}{{ route_stop.scheduled_arrival_time|time:"H:i" }}{% else %}Not scheduled{% endif %}</p>
                 <p><strong>Status:</strong>
                     <span class="badge
                         {% if route_stop.status == 'pending' %}badge-secondary
@@ -157,6 +160,14 @@
             <p>{{ route_stop.service_request.special_instructions }}</p>
         </div>
         {% endif %}
+        {% else %}
+        <div class="alert alert-danger">
+            <p class="mb-0">Route stop information unavailable. Please return to the dashboard and try again.</p>
+            <a href="{% url 'route_management:dashboard' %}" class="btn btn-primary mt-2">
+                <i class="fas fa-home fa-sm"></i> Return to Dashboard
+            </a>
+        </div>
+        {% endif %}
     </div>
 </div>
 
@@ -166,6 +177,7 @@
         <h6 class="m-0 font-weight-bold text-primary">Service Completion Details</h6>
     </div>
     <div class="card-body">
+        {% if route_stop %}
         <form method="post" id="serviceCompletionForm" enctype="multipart/form-data">
             {% csrf_token %}
             {{ form.route_stop.as_hidden }}
@@ -251,16 +263,6 @@
                             <div class="text-danger">{{ form.materials_used.errors }}</div>
                         {% endif %}
                     </div>
-
-                    <!-- Technician Comments -->
-                    <div class="form-group">
-                        <label for="{{ form.technician_comments.id_for_label }}">Technician Comments</label>
-                        <textarea class="form-control" id="{{ form.technician_comments.id_for_label }}" name="{{ form.technician_comments.html_name }}" rows="3">{{ form.technician_comments.value|default:'' }}</textarea>
-                        <div class="field-help">Additional comments or notes (internal use only)</div>
-                        {% if form.technician_comments.errors %}
-                            <div class="text-danger">{{ form.technician_comments.errors }}</div>
-                        {% endif %}
-                    </div>
                 </div>
 
                 <!-- Customer & Billing Section -->
@@ -291,7 +293,7 @@
                     <div class="form-group">
                         <label for="{{ form.customer_name.id_for_label }}">Customer Name</label>
                         <input type="text" class="form-control" id="{{ form.customer_name.id_for_label }}" name="{{ form.customer_name.html_name }}"
-                            value="{{ form.customer_name.value|default:route_stop.service_request.contact_name|default:route_stop.service_request.customer.primary_contact_name }}">
+                            value="{{ form.customer_name.value|default:'' }}">
                         {% if form.customer_name.errors %}
                             <div class="text-danger">{{ form.customer_name.errors }}</div>
                         {% endif %}
@@ -300,24 +302,10 @@
                     <div class="form-group">
                         <label for="{{ form.customer_email.id_for_label }}">Customer Email</label>
                         <input type="email" class="form-control" id="{{ form.customer_email.id_for_label }}" name="{{ form.customer_email.html_name }}"
-                            value="{{ form.customer_email.value|default:route_stop.service_request.contact_email|default:route_stop.service_request.customer.email }}">
+                            value="{{ form.customer_email.value|default:'' }}">
                         {% if form.customer_email.errors %}
                             <div class="text-danger">{{ form.customer_email.errors }}</div>
                         {% endif %}
-                    </div>
-
-                    <!-- Customer Signature -->
-                    <div class="form-group">
-                        <label for="{{ form.customer_signature.id_for_label }}">Customer Signature</label>
-                        <div class="signature-pad" id="signaturePad"></div>
-                        <div class="mt-2 mb-3">
-                            <button type="button" class="btn btn-sm btn-secondary" id="clearSignature">Clear Signature</button>
-                        </div>
-                        <input type="hidden" id="{{ form.customer_signature.id_for_label }}" name="{{ form.customer_signature.html_name }}" value="{{ form.customer_signature.value|default:'' }}">
-                        {% if form.customer_signature.errors %}
-                            <div class="text-danger">{{ form.customer_signature.errors }}</div>
-                        {% endif %}
-                        <div class="field-help">{{ form.customer_signature.help_text }}</div>
                     </div>
 
                     <!-- Photos Section -->
@@ -326,8 +314,11 @@
                     <!-- Before Photos -->
                     <div class="form-group">
                         <label for="{{ form.before_photos.id_for_label }}">Before Service Photos</label>
-                        <div class="dropzone" id="beforePhotosDropzone"></div>
-                        <div class="thumbnail-preview" id="beforePhotosPreviews"></div>
+                        <div class="custom-file">
+                            <input type="file" class="custom-file-input" id="{{ form.before_photos.auto_id }}" name="{{ form.before_photos.html_name }}" multiple>
+                            <label class="custom-file-label" for="{{ form.before_photos.auto_id }}">Choose files</label>
+                        </div>
+                        <div class="field-help">{{ form.before_photos.help_text }}</div>
                         {% if form.before_photos.errors %}
                             <div class="text-danger">{{ form.before_photos.errors }}</div>
                         {% endif %}
@@ -336,8 +327,11 @@
                     <!-- After Photos -->
                     <div class="form-group">
                         <label for="{{ form.after_photos.id_for_label }}">After Service Photos</label>
-                        <div class="dropzone" id="afterPhotosDropzone"></div>
-                        <div class="thumbnail-preview" id="afterPhotosPreviews"></div>
+                        <div class="custom-file">
+                            <input type="file" class="custom-file-input" id="{{ form.after_photos.auto_id }}" name="{{ form.after_photos.html_name }}" multiple>
+                            <label class="custom-file-label" for="{{ form.after_photos.auto_id }}">Choose files</label>
+                        </div>
+                        <div class="field-help">{{ form.after_photos.help_text }}</div>
                         {% if form.after_photos.errors %}
                             <div class="text-danger">{{ form.after_photos.errors }}</div>
                         {% endif %}
@@ -355,7 +349,7 @@
                         {% endif %}
                     </div>
 
-                    <div class="form-group" id="follow-up-notes-container" style="display: none;">
+                    <div class="form-group" id="follow-up-notes-container" style="display: {% if form.follow_up_required.value %}block{% else %}none{% endif %};">
                         <label for="{{ form.follow_up_notes.id_for_label }}">Follow-up Notes</label>
                         <textarea class="form-control" id="{{ form.follow_up_notes.id_for_label }}" name="{{ form.follow_up_notes.html_name }}" rows="3">{{ form.follow_up_notes.value|default:'' }}</textarea>
                         {% if form.follow_up_notes.errors %}
@@ -383,8 +377,15 @@
                 </div>
             </div>
         </form>
+        {% else %}
+        <div class="alert alert-danger">
+            <p>Unable to display the service completion form because the route stop information is not available.</p>
+            <a href="{% url 'route_management:dashboard' %}" class="btn btn-primary mt-2">
+                <i class="fas fa-home fa-sm"></i> Return to Dashboard
+            </a>
+        </div>
+        {% endif %}
     </div>
-</div>
 </div>
 {% endblock %}
 {% block scripts %}
