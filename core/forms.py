@@ -739,3 +739,187 @@ class EmployeeSelectionForm(forms.Form):
 
         # Ensure label_from_instance works with Django 2.x and 3.x
         self.fields['employees'].label_from_instance = lambda obj: f"{obj.user.get_full_name() or obj.user.username} ({obj.employee_id})"
+
+class ICSUploadForm(forms.ModelForm):
+    class Meta:
+        model = UploadedICSFile
+        fields = ['file']
+        widgets = {
+            'file': forms.FileInput(attrs={'accept': '.ics'})
+        }
+
+    def clean_file(self):
+        file = self.cleaned_data['file']
+        if file:
+            if not file.name.endswith('.ics'):
+                raise forms.ValidationError("Only .ics files are allowed")
+            if file.size > 5242880:  # 5MB limit
+                raise forms.ValidationError("File size should not exceed 5MB")
+        return file
+
+class EventForm(forms.ModelForm):
+    attendees = forms.ModelMultipleChoiceField(
+        queryset=Employee.objects.filter(is_active=True),
+        widget=forms.SelectMultiple(attrs={
+            'class': 'form-control select2-multiple',
+            'multiple': 'multiple'
+        }),
+        required=False
+    )
+
+    class Meta:
+        model = Event
+        fields = [
+            'title',
+            'description',
+            'start_time',
+            'end_time',
+            'event_type',
+            'location',
+            'customer',
+            'color',
+            'attendees',
+            'is_recurring',
+            'recurrence_type',
+            'recurrence_rule',
+            'recurrence_end'
+        ]
+        widgets = {
+            'start_time': forms.DateTimeInput(attrs={'type': 'datetime-local'}),
+            'end_time': forms.DateTimeInput(attrs={'type': 'datetime-local'}),
+            'color': forms.TextInput(attrs={'type': 'color'}),
+            'description': forms.Textarea(attrs={'rows': 3}),
+            'recurrence_end': forms.DateTimeInput(attrs={'type': 'datetime-local'}),
+            'recurrence_rule': forms.TextInput(attrs={'placeholder': 'Optional iCal RRULE format'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # Customize attendees field
+        self.fields['attendees'].label_from_instance = lambda obj: f"{obj.user.get_full_name()} - {obj.get_department_display()}"
+
+        # If this is an existing instance, pre-populate attendees
+        if self.instance.pk:
+            self.fields['attendees'].initial = self.instance.attendees.all()
+
+        # Add crispy form helper
+        self.helper = FormHelper()
+        self.helper.layout = Layout(
+            Row(
+                Column('title', css_class='form-group col-md-6'),
+                Column('event_type', css_class='form-group col-md-6'),
+            ),
+            Row(
+                Column('start_time', css_class='form-group col-md-6'),
+                Column('end_time', css_class='form-group col-md-6'),
+            ),
+            Row(
+                Column('description', css_class='form-group col-md-12'),
+            ),
+            Row(
+                Column('location', css_class='form-group col-md-4'),
+                Column('customer', css_class='form-group col-md-4'),
+                Column('color', css_class='form-group col-md-4'),
+            ),
+            Row(
+                Column('attendees', css_class='form-group col-md-12'),
+            ),
+            Row(
+                Column('is_recurring', css_class='form-group col-md-4'),
+                Column('recurrence_type', css_class='form-group col-md-4'),
+                Column('recurrence_end', css_class='form-group col-md-4'),
+            ),
+            Row(
+                Column('recurrence_rule', css_class='form-group col-md-12'),
+            ),
+            Submit('submit', 'Save Event', css_class='btn btn-primary')
+        )
+
+    def clean(self):
+        """
+        Additional validation for recurring events and time constraints
+        """
+        cleaned_data = super().clean()
+
+        # Validate start and end times
+        start_time = cleaned_data.get('start_time')
+        end_time = cleaned_data.get('end_time')
+
+        if start_time and end_time:
+            if start_time >= end_time:
+                self.add_error('end_time', 'End time must be after start time')
+
+        # Validate recurring event requirements
+        is_recurring = cleaned_data.get('is_recurring')
+        recurrence_type = cleaned_data.get('recurrence_type')
+        recurrence_rule = cleaned_data.get('recurrence_rule')
+        recurrence_end = cleaned_data.get('recurrence_end')
+
+        if is_recurring:
+            if not recurrence_type:
+                self.add_error('recurrence_type', 'Recurrence type is required for recurring events')
+
+            # Optional: Add more specific validation based on recurrence type
+            if recurrence_type == 'custom' and not recurrence_rule:
+                self.add_error('recurrence_rule', 'Recurrence rule is required for custom recurrence')
+
+            if not recurrence_end:
+                self.add_error('recurrence_end', 'Recurrence end date is required')
+            elif recurrence_end <= start_time:
+                self.add_error('recurrence_end', 'Recurrence end must be after start time')
+
+        return cleaned_data
+
+    def save(self, commit=True):
+        """
+        Custom save method to handle many-to-many relationships
+        """
+        instance = super().save(commit=False)
+
+        if commit:
+            instance.save()
+
+            # Manually handle many-to-many relationship
+            if 'attendees' in self.cleaned_data:
+                instance.attendees.set(self.cleaned_data['attendees'])
+
+        return instance
+
+class CustomLoginForm(LoginForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Customize form fields here
+        # For example, modify placeholders, add classes, etc.
+        self.fields['login'].widget.attrs.update({
+            'class': 'form-control form-control-lg',
+            'placeholder': 'Email or Username'
+        })
+        self.fields['password'].widget.attrs.update({
+            'class': 'form-control form-control-lg',
+            'placeholder': 'Password'
+        })
+
+
+class ScheduleRuleForm(forms.ModelForm):
+    class Meta:
+        model = ScheduleRule
+        fields = [
+            'name',
+            'recurrence_type',
+            'start_time',
+            'end_time',
+            'day_of_week',
+            'day_of_month',
+            'month',
+            'max_bookings_per_day',
+            'min_booking_duration',
+            'max_booking_duration',
+            'buffer_before',
+            'buffer_after',
+            'is_active'
+        ]
+        widgets = {
+            'start_time': forms.TimeInput(attrs={'type': 'time'}),
+            'end_time': forms.TimeInput(attrs={'type': 'time'}),
+        }
