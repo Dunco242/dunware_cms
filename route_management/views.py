@@ -711,48 +711,63 @@ class ServiceCompletionCreateView(LoginRequiredMixin, CreateView):
     form_class = ServiceCompletionForm
     template_name = 'route_management/service_completion_form.html'
 
+    def dispatch(self, request, *args, **kwargs):
+        """Override dispatch to check for route stop before rendering"""
+        stop_id = self.kwargs.get('stop_id')
+        if stop_id:
+            try:
+                # Check if the route stop exists
+                RouteStop.objects.get(pk=stop_id)
+            except RouteStop.DoesNotExist:
+                messages.error(self.request, "The specified route stop does not exist.")
+                return redirect('route_management:dashboard')
+        else:
+            messages.error(self.request, "No route stop specified.")
+            return redirect('route_management:dashboard')
+
+        return super().dispatch(request, *args, **kwargs)
+
     def get_initial(self):
         initial = super().get_initial()
 
         # Get route stop ID from URL
         stop_id = self.kwargs.get('stop_id')
-        if stop_id:
-            try:
-                stop = RouteStop.objects.get(pk=stop_id)
-                initial['route_stop'] = stop
-                initial['service_request'] = stop.service_request
+        try:
+            stop = RouteStop.objects.get(pk=stop_id)
+            initial['route_stop'] = stop
+            initial['service_request'] = stop.service_request
 
-                # Set initial start/end times based on actual arrival/departure
-                if stop.actual_arrival_time:
-                    initial['start_time'] = stop.actual_arrival_time
+            # Set initial start/end times based on actual arrival/departure
+            if stop.actual_arrival_time:
+                initial['start_time'] = stop.actual_arrival_time
 
-                if stop.actual_departure_time:
-                    initial['end_time'] = stop.actual_departure_time
-                elif stop.actual_arrival_time:
-                    # Default to current time if we have arrival but no departure
-                    initial['end_time'] = timezone.now()
+            if stop.actual_departure_time:
+                initial['end_time'] = stop.actual_departure_time
+            elif stop.actual_arrival_time:
+                # Default to current time if we have arrival but no departure
+                initial['end_time'] = timezone.now()
 
-                # Calculate duration if we have both times
-                if initial.get('start_time') and initial.get('end_time'):
-                    duration = (initial['end_time'] - initial['start_time']).total_seconds() / 60
-                    initial['duration_minutes'] = int(duration)
-                    initial['billable_hours'] = round(duration / 60, 2)
+            # Calculate duration if we have both times
+            if initial.get('start_time') and initial.get('end_time'):
+                duration = (initial['end_time'] - initial['start_time']).total_seconds() / 60
+                initial['duration_minutes'] = int(duration)
+                initial['billable_hours'] = round(duration / 60, 2)
 
-                # Set customer contact info
-                sr = stop.service_request
-                if sr.contact_name:
-                    initial['customer_name'] = sr.contact_name
-                else:
-                    initial['customer_name'] = sr.customer.primary_contact_name
+            # Set customer contact info
+            sr = stop.service_request
+            if sr.contact_name:
+                initial['customer_name'] = sr.contact_name
+            else:
+                initial['customer_name'] = sr.customer.primary_contact_name
 
-                if sr.contact_email:
-                    initial['customer_email'] = sr.contact_email
-                else:
-                    initial['customer_email'] = sr.customer.email
+            if sr.contact_email:
+                initial['customer_email'] = sr.contact_email
+            else:
+                initial['customer_email'] = sr.customer.email
 
-            except RouteStop.DoesNotExist:
-                messages.error(self.request, "The specified route stop does not exist.")
-                # Return empty initial data - the view will likely redirect in get_context_data
+        except RouteStop.DoesNotExist:
+            # The dispatch method will handle redirecting if needed
+            pass
 
         return initial
 
@@ -772,13 +787,8 @@ class ServiceCompletionCreateView(LoginRequiredMixin, CreateView):
                     'route__technician'
                 ).get(pk=stop_id)
             except RouteStop.DoesNotExist:
-                # If we can't find the route stop, redirect to the dashboard
-                messages.error(self.request, "The specified route stop could not be found.")
-                return HttpResponseRedirect(reverse('route_management:dashboard'))
-        else:
-            # If no stop_id was provided in the URL, redirect to the dashboard
-            messages.error(self.request, "No route stop specified.")
-            return HttpResponseRedirect(reverse('route_management:dashboard'))
+                # This should be handled by dispatch now
+                pass
 
         return context
 
