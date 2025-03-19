@@ -1,0 +1,567 @@
+{% extends 'core/base.html' %}
+{% block title %}Record Service Completion{% endblock %}
+{% block styles %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.9.0/css/bootstrap-datepicker.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css">
+<!-- Toastr CSS for notifications -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
+<!-- Dropzone CSS for file uploads -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/dropzone/5.9.3/min/dropzone.min.css">
+<style>
+    .form-card {
+        border-left: 4px solid #4e73df;
+    }
+    .required-field label:after {
+        content: " *";
+        color: red;
+    }
+    .field-help {
+        color: #858796;
+        font-size: 0.8rem;
+        margin-top: 0.25rem;
+    }
+    .custom-dropdown-toggle::after {
+        display: none;
+    }
+    .service-details-card {
+        border-left: 4px solid #1cc88a;
+    }
+    .signature-pad {
+        border: 1px solid #e3e6f0;
+        border-radius: 5px;
+        width: 100%;
+        height: 200px;
+        background-color: white;
+    }
+    .thumbnail-preview {
+        display: flex;
+        flex-wrap: wrap;
+        margin-top: 10px;
+    }
+    .thumbnail {
+        width: 100px;
+        height: 100px;
+        margin-right: 10px;
+        margin-bottom: 10px;
+        border: 1px solid #e3e6f0;
+        border-radius: 5px;
+        background-size: cover;
+        background-position: center;
+        position: relative;
+    }
+    .thumbnail .remove-btn {
+        position: absolute;
+        top: -8px;
+        right: -8px;
+        background-color: #e74a3b;
+        color: white;
+        border-radius: 50%;
+        width: 20px;
+        height: 20px;
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+    }
+    .select2-container--default .select2-selection--single {
+        height: calc(1.5em + 0.75rem + 2px);
+        padding: 0.375rem 0.75rem;
+        font-size: 1rem;
+        font-weight: 400;
+        line-height: 1.5;
+        border: 1px solid #d1d3e2;
+        border-radius: 0.35rem;
+    }
+    .select2-container--default .select2-selection--single .select2-selection__rendered {
+        line-height: 1.5;
+        padding-left: 0;
+    }
+    .select2-container--default .select2-selection--single .select2-selection__arrow {
+        height: calc(1.5em + 0.75rem + 2px);
+    }
+    .status-badge {
+        font-size: 0.9rem;
+        padding: 0.5rem 1rem;
+    }
+    .dropzone {
+        border: 2px dashed #4e73df;
+        border-radius: 5px;
+        background: white;
+        min-height: 150px;
+    }
+    .dropzone .dz-message {
+        font-weight: 400;
+        margin: 2em 0;
+    }
+</style>
+{% endblock %}
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Heading -->
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <div>
+            <h1 class="h3 mb-0 text-gray-800">
+                Record Service Completion
+            </h1>
+            <p class="text-muted mt-2">
+                Service Request #{{ route_stop.service_request.request_number }}
+                for {{ route_stop.service_request.customer.company_name }}
+            </p>
+        </div>
+        <div>
+            <a href="{% url 'route_management:route_detail' route_stop.route.id %}" class="d-none d-sm-inline-block btn btn-sm btn-secondary shadow-sm">
+                <i class="fas fa-arrow-left fa-sm text-white-50"></i> Back to Route
+            </a>
+        </div>
+    </div>
+    <!-- Service Request Info Card -->
+<div class="card mb-4 shadow service-details-card">
+    <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+        <h6 class="m-0 font-weight-bold text-success">Service Request Details</h6>
+        <a href="{% url 'route_management:service_request_detail' route_stop.service_request.id %}" class="btn btn-sm btn-outline-success">
+            <i class="fas fa-eye fa-sm"></i> View Full Details
+        </a>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <p><strong>Customer:</strong> {{ route_stop.service_request.customer.company_name }}</p>
+                <p><strong>Location:</strong> {{ route_stop.service_request.service_location.name }}</p>
+                <p><strong>Address:</strong> {{ route_stop.service_request.service_location.get_full_address }}</p>
+                <p><strong>Service Type:</strong> {{ route_stop.service_request.service_type.name }}</p>
+            </div>
+            <div class="col-md-6">
+                <p><strong>Route:</strong> {{ route_stop.route.name }} ({{ route_stop.route.date|date:"M d, Y" }})</p>
+                <p><strong>Stop #:</strong> {{ route_stop.stop_number }}</p>
+                <p><strong>Scheduled Time:</strong> {{ route_stop.scheduled_arrival_time|time:"H:i" }}</p>
+                <p><strong>Status:</strong>
+                    <span class="badge
+                        {% if route_stop.status == 'pending' %}badge-secondary
+                        {% elif route_stop.status == 'en_route' %}badge-info
+                        {% elif route_stop.status == 'in_progress' %}badge-primary
+                        {% elif route_stop.status == 'completed' %}badge-success
+                        {% elif route_stop.status == 'cancelled' %}badge-danger{% endif %}">
+                        {{ route_stop.get_status_display }}
+                    </span>
+                </p>
+            </div>
+        </div>
+        <div class="mt-3">
+            <p><strong>Description:</strong></p>
+            <p>{{ route_stop.service_request.description }}</p>
+        </div>
+        {% if route_stop.service_request.special_instructions %}
+        <div class="mt-3">
+            <p><strong>Special Instructions:</strong></p>
+            <p>{{ route_stop.service_request.special_instructions }}</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Form Card -->
+<div class="card shadow mb-4 form-card">
+    <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">Service Completion Details</h6>
+    </div>
+    <div class="card-body">
+        <form method="post" id="serviceCompletionForm" enctype="multipart/form-data">
+            {% csrf_token %}
+            {{ form.route_stop.as_hidden }}
+            {{ form.service_request.as_hidden }}
+
+            <div class="row">
+                <!-- Service Information Section -->
+                <div class="col-lg-6">
+                    <h5 class="mb-3">Service Information</h5>
+
+                    <!-- Service Times -->
+                    <div class="card mb-4">
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group required-field">
+                                        <label for="{{ form.start_time.id_for_label }}">Start Time</label>
+                                        <div class="input-group">
+                                            <input type="datetime-local" class="form-control" id="{{ form.start_time.id_for_label }}" name="{{ form.start_time.html_name }}"
+                                                value="{% if form.start_time.value %}{{ form.start_time.value|date:'Y-m-d\TH:i' }}{% endif %}" required>
+                                        </div>
+                                        {% if form.start_time.errors %}
+                                            <div class="text-danger">{{ form.start_time.errors }}</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group required-field">
+                                        <label for="{{ form.end_time.id_for_label }}">End Time</label>
+                                        <div class="input-group">
+                                            <input type="datetime-local" class="form-control" id="{{ form.end_time.id_for_label }}" name="{{ form.end_time.html_name }}"
+                                                value="{% if form.end_time.value %}{{ form.end_time.value|date:'Y-m-d\TH:i' }}{% endif %}" required>
+                                        </div>
+                                        {% if form.end_time.errors %}
+                                            <div class="text-danger">{{ form.end_time.errors }}</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label for="{{ form.duration_minutes.id_for_label }}">Duration (minutes)</label>
+                                        <input type="number" class="form-control" id="{{ form.duration_minutes.id_for_label }}" name="{{ form.duration_minutes.html_name }}"
+                                            value="{{ form.duration_minutes.value|default:'0' }}" readonly>
+                                        <div class="field-help">Auto-calculated from start and end times</div>
+                                        {% if form.duration_minutes.errors %}
+                                            <div class="text-danger">{{ form.duration_minutes.errors }}</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label for="{{ form.billable_hours.id_for_label }}">Billable Hours</label>
+                                        <input type="number" step="0.25" class="form-control" id="{{ form.billable_hours.id_for_label }}" name="{{ form.billable_hours.html_name }}"
+                                            value="{{ form.billable_hours.value|default:'0' }}">
+                                        <div class="field-help">May differ from actual duration</div>
+                                        {% if form.billable_hours.errors %}
+                                            <div class="text-danger">{{ form.billable_hours.errors }}</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Work Details -->
+                    <div class="form-group required-field">
+                        <label for="{{ form.work_performed.id_for_label }}">Work Performed</label>
+                        <textarea class="form-control" id="{{ form.work_performed.id_for_label }}" name="{{ form.work_performed.html_name }}" rows="5" required>{{ form.work_performed.value|default:'' }}</textarea>
+                        <div class="field-help">Detailed description of the work completed</div>
+                        {% if form.work_performed.errors %}
+                            <div class="text-danger">{{ form.work_performed.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Materials Used -->
+                    <div class="form-group">
+                        <label for="{{ form.materials_used.id_for_label }}">Materials Used</label>
+                        <textarea class="form-control" id="{{ form.materials_used.id_for_label }}" name="{{ form.materials_used.html_name }}" rows="4">{{ form.materials_used.value|default:'' }}</textarea>
+                        <div class="field-help">List any materials or parts used</div>
+                        {% if form.materials_used.errors %}
+                            <div class="text-danger">{{ form.materials_used.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Technician Comments -->
+                    <div class="form-group">
+                        <label for="{{ form.technician_comments.id_for_label }}">Technician Comments</label>
+                        <textarea class="form-control" id="{{ form.technician_comments.id_for_label }}" name="{{ form.technician_comments.html_name }}" rows="3">{{ form.technician_comments.value|default:'' }}</textarea>
+                        <div class="field-help">Additional comments or notes (internal use only)</div>
+                        {% if form.technician_comments.errors %}
+                            <div class="text-danger">{{ form.technician_comments.errors }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Customer & Billing Section -->
+                <div class="col-lg-6">
+                    <h5 class="mb-3">Customer & Billing</h5>
+
+                    <!-- Billing Info -->
+                    <div class="card mb-4">
+                        <div class="card-body">
+                            <div class="form-group">
+                                <label for="{{ form.total_amount.id_for_label }}">Total Amount</label>
+                                <div class="input-group">
+                                    <div class="input-group-prepend">
+                                        <span class="input-group-text">$</span>
+                                    </div>
+                                    <input type="number" step="0.01" class="form-control" id="{{ form.total_amount.id_for_label }}" name="{{ form.total_amount.html_name }}"
+                                        value="{{ form.total_amount.value|default:'0.00' }}">
+                                </div>
+                                <div class="field-help">Total billable amount for this service</div>
+                                {% if form.total_amount.errors %}
+                                    <div class="text-danger">{{ form.total_amount.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Customer Information -->
+                    <div class="form-group">
+                        <label for="{{ form.customer_name.id_for_label }}">Customer Name</label>
+                        <input type="text" class="form-control" id="{{ form.customer_name.id_for_label }}" name="{{ form.customer_name.html_name }}"
+                            value="{{ form.customer_name.value|default:route_stop.service_request.contact_name|default:route_stop.service_request.customer.primary_contact_name }}">
+                        {% if form.customer_name.errors %}
+                            <div class="text-danger">{{ form.customer_name.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="form-group">
+                        <label for="{{ form.customer_email.id_for_label }}">Customer Email</label>
+                        <input type="email" class="form-control" id="{{ form.customer_email.id_for_label }}" name="{{ form.customer_email.html_name }}"
+                            value="{{ form.customer_email.value|default:route_stop.service_request.contact_email|default:route_stop.service_request.customer.email }}">
+                        {% if form.customer_email.errors %}
+                            <div class="text-danger">{{ form.customer_email.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Customer Signature -->
+                    <div class="form-group">
+                        <label for="{{ form.customer_signature.id_for_label }}">Customer Signature</label>
+                        <div class="signature-pad" id="signaturePad"></div>
+                        <div class="mt-2 mb-3">
+                            <button type="button" class="btn btn-sm btn-secondary" id="clearSignature">Clear Signature</button>
+                        </div>
+                        <input type="hidden" id="{{ form.customer_signature.id_for_label }}" name="{{ form.customer_signature.html_name }}" value="{{ form.customer_signature.value|default:'' }}">
+                        {% if form.customer_signature.errors %}
+                            <div class="text-danger">{{ form.customer_signature.errors }}</div>
+                        {% endif %}
+                        <div class="field-help">{{ form.customer_signature.help_text }}</div>
+                    </div>
+
+                    <!-- Photos Section -->
+                    <h5 class="mb-3 mt-4">Service Photos</h5>
+
+                    <!-- Before Photos -->
+                    <div class="form-group">
+                        <label for="{{ form.before_photos.id_for_label }}">Before Service Photos</label>
+                        <div class="dropzone" id="beforePhotosDropzone"></div>
+                        <div class="thumbnail-preview" id="beforePhotosPreviews"></div>
+                        {% if form.before_photos.errors %}
+                            <div class="text-danger">{{ form.before_photos.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- After Photos -->
+                    <div class="form-group">
+                        <label for="{{ form.after_photos.id_for_label }}">After Service Photos</label>
+                        <div class="dropzone" id="afterPhotosDropzone"></div>
+                        <div class="thumbnail-preview" id="afterPhotosPreviews"></div>
+                        {% if form.after_photos.errors %}
+                            <div class="text-danger">{{ form.after_photos.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Follow-up Requirements -->
+                    <div class="form-group mt-4">
+                        <div class="custom-control custom-checkbox">
+                            <input type="checkbox" class="custom-control-input" id="{{ form.follow_up_required.id_for_label }}" name="{{ form.follow_up_required.html_name }}"
+                                {% if form.follow_up_required.value %}checked{% endif %}>
+                            <label class="custom-control-label" for="{{ form.follow_up_required.id_for_label }}">Follow-up Required</label>
+                        </div>
+                        {% if form.follow_up_required.errors %}
+                            <div class="text-danger">{{ form.follow_up_required.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="form-group" id="follow-up-notes-container" style="display: none;">
+                        <label for="{{ form.follow_up_notes.id_for_label }}">Follow-up Notes</label>
+                        <textarea class="form-control" id="{{ form.follow_up_notes.id_for_label }}" name="{{ form.follow_up_notes.html_name }}" rows="3">{{ form.follow_up_notes.value|default:'' }}</textarea>
+                        {% if form.follow_up_notes.errors %}
+                            <div class="text-danger">{{ form.follow_up_notes.errors }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Form buttons -->
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="card bg-light">
+                        <div class="card-body">
+                            <div class="custom-control custom-checkbox mb-3">
+                                <input type="checkbox" class="custom-control-input" id="send_email" name="send_email">
+                                <label class="custom-control-label" for="send_email">Send completion notification email to customer</label>
+                            </div>
+                            <div class="text-right">
+                                <a href="{% url 'route_management:route_detail' route_stop.route.id %}" class="btn btn-secondary">Cancel</a>
+                                <button type="submit" class="btn btn-primary">Record Completion</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+</div>
+{% endblock %}
+{% block scripts %}
+<!-- Bootstrap Bundle with Popper -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/js/bootstrap.bundle.min.js"></script>
+<!-- Datepicker JS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.9.0/js/bootstrap-datepicker.min.js"></script>
+<!-- Select2 JS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
+<!-- Toastr JS for notifications -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+<!-- Signature Pad JS -->
+<script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
+<!-- Dropzone JS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dropzone/5.9.3/min/dropzone.min.js"></script>
+<script>
+// Initialize variables from Django template context
+var routeStopId = {{ route_stop.id }};
+var serviceRequestId = {{ route_stop.service_request.id }};
+
+// Initialize toastr options
+toastr.options = {
+    "closeButton": true,
+    "progressBar": true,
+    "positionClass": "toast-top-right",
+    "timeOut": "5000"
+};
+
+$(document).ready(function() {
+    // Calculate duration when start or end time changes
+    $('#{{ form.start_time.id_for_label }}, #{{ form.end_time.id_for_label }}').change(calculateDuration);
+
+    function calculateDuration() {
+        var startTime = new Date($('#{{ form.start_time.id_for_label }}').val());
+        var endTime = new Date($('#{{ form.end_time.id_for_label }}').val());
+
+        if (!isNaN(startTime.getTime()) && !isNaN(endTime.getTime()) && endTime > startTime) {
+            // Calculate duration in milliseconds and convert to minutes
+            var durationMs = endTime - startTime;
+            var durationMinutes = Math.round(durationMs / 60000);
+
+            // Set the duration field
+            $('#{{ form.duration_minutes.id_for_label }}').val(durationMinutes);
+
+            // Set billable hours (convert minutes to hours)
+            var billableHours = (durationMinutes / 60).toFixed(2);
+            $('#{{ form.billable_hours.id_for_label }}').val(billableHours);
+        }
+    }
+
+    // Initialize signature pad
+    var canvas = document.getElementById('signaturePad');
+    var signaturePad = new SignaturePad(canvas, {
+        backgroundColor: 'rgb(255, 255, 255)',
+        penColor: 'rgb(0, 0, 0)'
+    });
+
+    // Set canvas dimensions to match container
+    function resizeCanvas() {
+        var ratio = Math.max(window.devicePixelRatio || 1, 1);
+        canvas.width = canvas.offsetWidth * ratio;
+        canvas.height = canvas.offsetHeight * ratio;
+        canvas.getContext("2d").scale(ratio, ratio);
+        signaturePad.clear(); // Otherwise isEmpty() might return incorrect value
+    }
+
+    window.addEventListener("resize", resizeCanvas);
+    resizeCanvas();
+
+    // Clear signature button
+    $('#clearSignature').click(function() {
+        signaturePad.clear();
+        $('#{{ form.customer_signature.id_for_label }}').val('');
+    });
+
+    // Follow-up required toggle
+    $('#{{ form.follow_up_required.id_for_label }}').change(function() {
+        if ($(this).is(':checked')) {
+            $('#follow-up-notes-container').slideDown();
+        } else {
+            $('#follow-up-notes-container').slideUp();
+        }
+    });
+
+    // Trigger change to set initial state
+    $('#{{ form.follow_up_required.id_for_label }}').trigger('change');
+
+    // Initialize dropzone for before photos
+    Dropzone.autoDiscover = false;
+
+    var beforePhotosDropzone = new Dropzone("#beforePhotosDropzone", {
+        url: "/placeholder-url/", // Will be overridden by form submit
+        autoProcessQueue: false,
+        uploadMultiple: true,
+        parallelUploads: 5,
+        maxFiles: 5,
+        acceptedFiles: "image/*",
+        addRemoveLinks: true,
+        createImageThumbnails: true,
+        thumbnailWidth: 120,
+        thumbnailHeight: 120
+    });
+
+    var afterPhotosDropzone = new Dropzone("#afterPhotosDropzone", {
+        url: "/placeholder-url/", // Will be overridden by form submit
+        autoProcessQueue: false,
+        uploadMultiple: true,
+        parallelUploads: 5,
+        maxFiles: 5,
+        acceptedFiles: "image/*",
+        addRemoveLinks: true,
+        createImageThumbnails: true,
+        thumbnailWidth: 120,
+        thumbnailHeight: 120
+    });
+
+    // Form submission
+    $('#serviceCompletionForm').submit(function(e) {
+        // Validate the form
+        var isValid = true;
+
+        // Required fields validation
+        $('.required-field input, .required-field textarea, .required-field select').each(function() {
+            if (!$(this).val()) {
+                $(this).addClass('is-invalid');
+                isValid = false;
+            } else {
+                $(this).removeClass('is-invalid');
+            }
+        });
+
+        // Validate times
+        var startTime = new Date($('#{{ form.start_time.id_for_label }}').val());
+        var endTime = new Date($('#{{ form.end_time.id_for_label }}').val());
+
+        if (!isNaN(startTime.getTime()) && !isNaN(endTime.getTime()) && endTime <= startTime) {
+            $('#{{ form.end_time.id_for_label }}').addClass('is-invalid');
+            toastr.error('End time must be after start time.');
+            isValid = false;
+        }
+
+        // Capture signature if not empty
+        if (!signaturePad.isEmpty()) {
+            var signatureData = signaturePad.toDataURL();
+            $('#{{ form.customer_signature.id_for_label }}').val(signatureData);
+        }
+
+        if (!isValid) {
+            e.preventDefault();
+            toastr.error('Please fill in all required fields.');
+
+            // Scroll to the first invalid field
+            $('html, body').animate({
+                scrollTop: $('.is-invalid').first().offset().top - 100
+            }, 500);
+
+            return false;
+        }
+
+        // Add before photos to form
+        if (beforePhotosDropzone.files.length > 0) {
+            // Convert dropzone files to FormData files
+            // This will be handled in the view using the MultipleFileField
+        }
+
+        // Add after photos to form
+        if (afterPhotosDropzone.files.length > 0) {
+            // Convert dropzone files to FormData files
+            // This will be handled in the view using the MultipleFileField
+        }
+
+        // Submit the form
+        return true;
+    });
+
+    // Calculate duration on page load if times are already set
+    calculateDuration();
+});
+</script>
+{% endblock %}
