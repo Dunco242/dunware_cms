@@ -60,7 +60,7 @@ INSTALLED_APPS = [
     'allauth.account',
     'allauth.socialaccount',
     'django_extensions',
-    'route_management',
+
 
     # Styling Apps (moved to end of third-party)
     'crispy_forms',
