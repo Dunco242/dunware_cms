@@ -97,26 +97,9 @@
             Route {{ route.route_id }} - {{ route.date }} - Full Map
         </h1>
         <div>
-            <button id="toggleDebug" class="btn btn-sm btn-outline-secondary">
-                <i class="fas fa-bug"></i> Debug Mode
+            <button id="forceRefresh" class="btn btn-sm btn-warning">
+                <i class="fas fa-sync-alt"></i> Refresh Map
             </button>
-            <!-- Add this next to your debug toggle button -->
-        <button id="forceRefresh" class="btn btn-sm btn-warning">
-            <i class="fas fa-sync-alt"></i> Refresh Map
-        </button>
-
-<!-- Add this to your setupEventHandlers function -->
-var refreshButton = document.getElementById('forceRefresh');
-if (refreshButton) {
-    refreshButton.addEventListener('click', function() {
-        this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Refreshing...';
-        mapInitialized = false;
-        setTimeout(function() {
-            initMap();
-            refreshButton.innerHTML = '<i class="fas fa-sync-alt"></i> Refresh Map';
-        }, 100);
-    });
-}
             <a href="{% url 'route_management:route_detail' route.id %}" class="d-none d-sm-inline-block btn btn-sm btn-primary shadow-sm ml-2">
                 <i class="fas fa-arrow-left fa-sm text-white-50"></i> Back to Route Detail
             </a>
@@ -126,14 +109,6 @@ if (refreshButton) {
     <!-- Map Status Alert -->
     <div id="mapStatusAlert" class="alert alert-info mb-3">
         <i class="fas fa-spinner fa-spin"></i> Initializing map...
-    </div>
-
-    <!-- Debug Info (hidden by default) -->
-    <div id="mapDebugInfo" class="alert alert-secondary mb-3" style="display: none;">
-        <p><strong>API Key:</strong> {{ here_maps_api_key|truncatechars:5 }}...</p>
-        <p><strong>Map Center:</strong> {% if map_data.center %}Lat: {{ map_data.center.lat }}, Lng: {{ map_data.center.lng }}{% else %}None{% endif %}</p>
-        <p><strong>Stops:</strong> {{ map_data.stops|length }}</p>
-        <p><strong>Map Container:</strong> <span id="container-check">Checking...</span></p>
     </div>
 
     <!-- Content Row -->
@@ -319,7 +294,6 @@ if (refreshButton) {
 <script src="https://js.api.here.com/v3/3.1/mapsjs-service.js"></script>
 <script src="https://js.api.here.com/v3/3.1/mapsjs-ui.js"></script>
 <script src="https://js.api.here.com/v3/3.1/mapsjs-mapevents.js"></script>
-<link rel="stylesheet" type="text/css" href="https://js.api.here.com/v3/3.1/mapsjs-ui.css" />
 
 <!-- Map initialization script -->
 <script>
@@ -335,21 +309,6 @@ var trafficLayerVisible = false;
 var trafficLayer;
 var mapInitialized = false;
 
-// Update debug info
-function updateDebugInfo() {
-    document.getElementById('mapDebugInfo').style.display = 'block';
-    var containerCheck = document.getElementById('container-check');
-    var mapContainer = document.getElementById('fullRouteMap');
-
-    if (mapContainer) {
-        var dimensions = mapContainer.offsetWidth + 'x' + mapContainer.offsetHeight;
-        var display = window.getComputedStyle(mapContainer).display;
-        containerCheck.innerText = 'Found: ' + dimensions + ' (display: ' + display + ')';
-    } else {
-        containerCheck.innerText = 'Not found!';
-    }
-}
-
 // Update status alert
 function updateMapStatus(message, type) {
     var statusAlert = document.getElementById('mapStatusAlert');
@@ -360,17 +319,6 @@ function updateMapStatus(message, type) {
 }
 
 // Initialize the map
-// Add this near the beginning of your initMap function
-const initTimeout = setTimeout(function() {
-    console.error("Map initialization timed out after 10 seconds");
-    updateMapStatus('<i class="fas fa-exclamation-triangle"></i> Map initialization timed out. Please check console for errors.', 'danger');
-    mapInitialized = false; // Allow another initialization attempt
-}, 10000);
-
-// Clear the timeout when initialization completes successfully
-// (Add this right before setting mapInitialized = true)
-clearTimeout(initTimeout);
-
 function initMap() {
     // Prevent double initialization
     if (mapInitialized) {
@@ -387,9 +335,6 @@ function initMap() {
         updateMapStatus('<i class="fas fa-exclamation-triangle"></i> Map initialization timed out. Try refreshing the page.', 'danger');
         mapInitialized = false; // Allow another initialization attempt
     }, 10000);
-
-    // For debugging
-    updateDebugInfo();
 
     // Check container
     var mapContainer = document.getElementById('fullRouteMap');
@@ -624,32 +569,6 @@ function initMap() {
         // Setup event handlers
         setupEventHandlers();
 
-        // Add debug toggle handler
-        var debugToggle = document.getElementById('toggleDebug');
-        if (debugToggle) {
-            debugToggle.addEventListener('click', function() {
-                var debugInfo = document.getElementById('mapDebugInfo');
-                if (debugInfo) {
-                    debugInfo.style.display = debugInfo.style.display === 'none' ? 'block' : 'none';
-                }
-
-                // Output debug info to console
-                console.log("API Key Length:", "{{ here_maps_api_key }}".length);
-                console.log("Map initialized:", mapInitialized);
-                console.log("Map object exists:", typeof map !== 'undefined');
-                console.log("Map center:", map ? map.getCenter() : "N/A");
-                console.log("Zoom level:", map ? map.getZoom() : "N/A");
-                console.log("Markers count:", markers.length);
-
-                // Check container dimensions
-                var mapContainer = document.getElementById('fullRouteMap');
-                if (mapContainer) {
-                    console.log("Container dimensions:",
-                        mapContainer.offsetWidth + "x" + mapContainer.offsetHeight);
-                }
-            });
-        }
-
         // Clear timeout and mark as initialized
         clearTimeout(initTimeout);
         mapInitialized = true;
@@ -725,6 +644,7 @@ function calculateAndDisplayRoute() {
         updateMapStatus('<i class="fas fa-exclamation-triangle"></i> Error calculating route', 'warning');
     }
 }
+
 // Route calculation success handler
 function onRouteSuccess(result) {
     console.log("Route calculation successful");
@@ -826,6 +746,7 @@ function onRouteError(error) {
 
     updateMapStatus('<i class="fas fa-exclamation-triangle"></i> Could not calculate route between stops', 'warning');
 }
+
 // Get marker color based on type and status
 function getMarkerColor(type, status) {
     if (type === 'start') return '#4CAF50';
@@ -884,6 +805,19 @@ function setupEventHandlers() {
                 this.disabled = true;
                 this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Geocoding...';
                 geocodeLocations();
+            });
+        }
+
+        // Force refresh button
+        var refreshButton = document.getElementById('forceRefresh');
+        if (refreshButton) {
+            refreshButton.addEventListener('click', function() {
+                this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Refreshing...';
+                mapInitialized = false;
+                setTimeout(function() {
+                    initMap();
+                    refreshButton.innerHTML = '<i class="fas fa-sync-alt"></i> Refresh Map';
+                }, 100);
             });
         }
     } catch (error) {
@@ -1012,6 +946,6 @@ if (document.readyState === "complete" || document.readyState === "interactive")
         }
     }, 200);
 }
-    </script>
+</script>
 {% endif %}
 {% endblock %}
