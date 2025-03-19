@@ -690,6 +690,59 @@ def remove_stop(request, pk):
     messages.success(request, f"Stop #{stop_number} removed from route.")
     return redirect('route_management:route_stops', pk=route.pk)
 
+@login_required
+def update_service_request_status(request, pk):
+    """Update the status of a service request"""
+    service_request = get_object_or_404(ServiceRequest, pk=pk)
+
+    if request.method == 'POST':
+        status = request.POST.get('status')
+
+        if status and status in dict(ServiceRequest.STATUS_CHOICES):
+            # Store previous status for logging
+            previous_status = service_request.status
+
+            # Update the status
+            service_request.status = status
+
+            # Update timestamps based on status
+            if status == 'completed':
+                service_request.completed_at = timezone.now()
+            elif status == 'cancelled':
+                service_request.cancelled_at = timezone.now()
+
+            # Update notes if provided
+            notes = request.POST.get('notes')
+            if notes and hasattr(service_request, 'notes'):
+                timestamp = timezone.now().strftime('%Y-%m-%d %H:%M')
+                service_request.notes = (service_request.notes or '') + f"\n\n{timestamp}: Status changed from {previous_status} to {status} by {request.user.get_full_name()}.\nNotes: {notes}"
+
+            service_request.save()
+
+            # Handle notifications if requested
+            notify_customer = request.POST.get('notify_customer')
+            if notify_customer:
+                try:
+                    # Create a notification
+                    CustomerNotification.objects.create(
+                        service_request=service_request,
+                        notification_type='status_update',
+                        delivery_method='email',
+                        recipient_name=service_request.contact_name or service_request.customer.primary_contact_name,
+                        recipient_contact=service_request.contact_email or service_request.customer.email,
+                        subject=f"Service Request Status Update - {service_request.request_number}",
+                        message=f"Your service request {service_request.request_number} has been updated to: {service_request.get_status_display()}.\n\nIf you have any questions, please contact us.",
+                        status='pending',
+                        scheduled_time=timezone.now()
+                    )
+                except Exception as e:
+                    messages.warning(request, f"Status updated but notification could not be sent: {str(e)}")
+
+            messages.success(request, f"Service request status updated to {service_request.get_status_display()}")
+        else:
+            messages.error(request, "Invalid status provided")
+
+    return redirect('route_management:service_request_detail', pk=service_request.id)
 
 @login_required
 def update_stop_status(request, pk, status):

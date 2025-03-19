@@ -1,0 +1,271 @@
+{% extends 'core/base.html' %}
+{% block title %}Customer Feedback{% endblock %}
+{% block styles %}
+<style>
+    .rating-container {
+        display: flex;
+        flex-direction: row;
+        margin-bottom: 15px;
+    }
+    .rating-star {
+        font-size: 24px;
+        cursor: pointer;
+        color: #ddd;
+        margin-right: 10px;
+    }
+    .rating-star.selected {
+        color: #f6c23e;
+    }
+    .feedback-card {
+        margin-bottom: 20px;
+    }
+    .feedback-form label {
+        font-weight: 600;
+    }
+    .rating-group {
+        margin-bottom: 20px;
+    }
+    .rating-label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: 600;
+    }
+    .rating-description {
+        font-size: 0.8rem;
+        color: #858796;
+        margin-top: 5px;
+    }
+    .hidden-radio {
+        position: absolute;
+        opacity: 0;
+    }
+    .star-rating {
+        display: flex;
+    }
+    .star-rating label {
+        color: #ddd;
+        font-size: 24px;
+        padding: 0 2px;
+        cursor: pointer;
+    }
+    .star-rating input:checked ~ label {
+        color: #f6c23e;
+    }
+    .star-rating label:hover,
+    .star-rating label:hover ~ label {
+        color: #f6c23e;
+    }
+    .follow-up-field {
+        display: none;
+    }
+</style>
+{% endblock %}
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Heading -->
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">Customer Feedback</h1>
+        <a href="{% url 'route_management:service_request_detail' service_request.id %}" class="d-none d-sm-inline-block btn btn-sm btn-secondary shadow-sm">
+            <i class="fas fa-arrow-left fa-sm text-white-50"></i> Back to Service Request
+        </a>
+    </div>
+<!-- Content Row -->
+<div class="row">
+    <div class="col-lg-12">
+        <div class="card shadow feedback-card">
+            <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                <h6 class="m-0 font-weight-bold text-primary">Service Request Information</h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <p><strong>Request Number:</strong> {{ service_request.request_number }}</p>
+                        <p><strong>Service Type:</strong> {{ service_request.service_type.name }}</p>
+                    </div>
+                    <div class="col-md-4">
+                        <p><strong>Customer:</strong> {{ service_request.customer.company_name }}</p>
+                        <p><strong>Location:</strong> {{ service_request.service_location.name }}</p>
+                    </div>
+                    <div class="col-md-4">
+                        <p><strong>Date:</strong> {{ service_request.completed_at|date:"F j, Y" }}</p>
+                        <p><strong>Technician:</strong>
+                            {% if service_request.assigned_technician %}
+                                {{ service_request.assigned_technician.get_full_name }}
+                            {% else %}
+                                Not assigned
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Feedback Form Card -->
+<div class="row">
+    <div class="col-lg-12">
+        <div class="card shadow feedback-card">
+            <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                <h6 class="m-0 font-weight-bold text-primary">Share Your Feedback</h6>
+            </div>
+            <div class="card-body">
+                <form method="post" class="feedback-form">
+                    {% csrf_token %}
+
+                    <!-- Hidden Service Request ID -->
+                    {{ form.service_request.as_hidden }}
+
+                    <!-- Overall Rating -->
+                    <div class="rating-group">
+                        <label class="rating-label">Overall Experience</label>
+                        <div class="star-rating">
+                            {% for i in "12345" %}
+                            <input type="radio" id="overall_rating_{{ i }}" name="overall_rating" value="{{ i }}" class="hidden-radio" {% if form.overall_rating.value == i|add:"0" %}checked{% endif %} required>
+                            <label for="overall_rating_{{ i }}"><i class="fas fa-star"></i></label>
+                            {% endfor %}
+                        </div>
+                        <div class="rating-description">Please rate your overall experience with our service</div>
+                        {% if form.overall_rating.errors %}
+                        <div class="text-danger">{{ form.overall_rating.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Technician Rating -->
+                    <div class="rating-group">
+                        <label class="rating-label">Technician Performance</label>
+                        <div class="star-rating">
+                            {% for i in "12345" %}
+                            <input type="radio" id="technician_rating_{{ i }}" name="technician_rating" value="{{ i }}" class="hidden-radio" {% if form.technician_rating.value == i|add:"0" %}checked{% endif %}>
+                            <label for="technician_rating_{{ i }}"><i class="fas fa-star"></i></label>
+                            {% endfor %}
+                        </div>
+                        <div class="rating-description">How would you rate the performance of our technician?</div>
+                        {% if form.technician_rating.errors %}
+                        <div class="text-danger">{{ form.technician_rating.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Punctuality Rating -->
+                    <div class="rating-group">
+                        <label class="rating-label">Punctuality</label>
+                        <div class="star-rating">
+                            {% for i in "12345" %}
+                            <input type="radio" id="punctuality_rating_{{ i }}" name="punctuality_rating" value="{{ i }}" class="hidden-radio" {% if form.punctuality_rating.value == i|add:"0" %}checked{% endif %}>
+                            <label for="punctuality_rating_{{ i }}"><i class="fas fa-star"></i></label>
+                            {% endfor %}
+                        </div>
+                        <div class="rating-description">Were we on time for your appointment?</div>
+                        {% if form.punctuality_rating.errors %}
+                        <div class="text-danger">{{ form.punctuality_rating.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Quality Rating -->
+                    <div class="rating-group">
+                        <label class="rating-label">Quality of Work</label>
+                        <div class="star-rating">
+                            {% for i in "12345" %}
+                            <input type="radio" id="quality_rating_{{ i }}" name="quality_rating" value="{{ i }}" class="hidden-radio" {% if form.quality_rating.value == i|add:"0" %}checked{% endif %}>
+                            <label for="quality_rating_{{ i }}"><i class="fas fa-star"></i></label>
+                            {% endfor %}
+                        </div>
+                        <div class="rating-description">How satisfied are you with the quality of the work performed?</div>
+                        {% if form.quality_rating.errors %}
+                        <div class="text-danger">{{ form.quality_rating.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Comments -->
+                    <div class="form-group">
+                        <label for="{{ form.comments.id_for_label }}">Additional Comments</label>
+                        {{ form.comments }}
+                        <small class="form-text text-muted">Please share any additional feedback, suggestions, or concerns</small>
+                        {% if form.comments.errors %}
+                        <div class="text-danger">{{ form.comments.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Would Recommend -->
+                    <div class="form-group">
+                        <label>Would you recommend our services to others?</label>
+                        <div class="custom-control custom-radio">
+                            <input type="radio" id="recommend_yes" name="would_recommend" value="True" class="custom-control-input" {% if form.would_recommend.value == True %}checked{% endif %}>
+                            <label class="custom-control-label" for="recommend_yes">Yes</label>
+                        </div>
+                        <div class="custom-control custom-radio">
+                            <input type="radio" id="recommend_no" name="would_recommend" value="False" class="custom-control-input" {% if form.would_recommend.value == False %}checked{% endif %}>
+                            <label class="custom-control-label" for="recommend_no">No</label>
+                        </div>
+                        {% if form.would_recommend.errors %}
+                        <div class="text-danger">{{ form.would_recommend.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Follow-up -->
+                    <div class="form-group">
+                        <div class="custom-control custom-checkbox">
+                            <input type="checkbox" id="wants_follow_up" name="wants_follow_up" class="custom-control-input" {% if form.wants_follow_up.value %}checked{% endif %}>
+                            <label class="custom-control-label" for="wants_follow_up">I would like someone to follow up with me about my feedback</label>
+                        </div>
+                        {% if form.wants_follow_up.errors %}
+                        <div class="text-danger">{{ form.wants_follow_up.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Follow-up Contact Method -->
+                    <div class="form-group follow-up-field" id="follow_up_method_group">
+                        <label for="{{ form.follow_up_contact_method.id_for_label }}">Preferred Contact Method</label>
+                        {{ form.follow_up_contact_method }}
+                        {% if form.follow_up_contact_method.errors %}
+                        <div class="text-danger">{{ form.follow_up_contact_method.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Submitted By -->
+                    <div class="form-group">
+                        <label for="{{ form.submitted_by.id_for_label }}">Your Name</label>
+                        {{ form.submitted_by }}
+                        <small class="form-text text-muted">Optional - let us know who you are</small>
+                        {% if form.submitted_by.errors %}
+                        <div class="text-danger">{{ form.submitted_by.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">Submit Feedback</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    // Initialize form controls
+    function initFormControls() {
+        // Show/hide follow-up contact method field based on checkbox
+        $('#wants_follow_up').change(function() {
+            if($(this).is(':checked')) {
+                $('#follow_up_method_group').slideDown();
+            } else {
+                $('#follow_up_method_group').slideUp();
+            }
+        }).trigger('change');
+
+        // Star rating hover effect
+        $('.star-rating label').hover(
+            function() {
+                $(this).prevAll('label').addBack().addClass('hover');
+            },
+            function() {
+                $(this).prevAll('label').addBack().removeClass('hover');
+            }
+        );
+    }
+
+    initFormControls();
+});
+</script>
+{% endblock %}

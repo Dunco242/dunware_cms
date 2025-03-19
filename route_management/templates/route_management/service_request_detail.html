@@ -37,7 +37,7 @@
                         <i class="fas fa-camera"></i> Upload Photos
                     </button>
                     {% if service_request.status != 'completed' and service_request.status != 'cancelled' %}
-                    <a class="dropdown-item" href="{% url 'route_management:service_completion_create' stop_id=0 %}?service_request={{ service_request.id }}">
+                    <a class="dropdown-item" href="{% url 'route_management:service_completion_create' 0 %}?service_request={{ service_request.id }}">
                         <i class="fas fa-check-circle"></i> Mark Completed
                     </a>
                     <button class="dropdown-item text-danger" type="button" data-toggle="modal" data-target="#cancelModal">
@@ -453,103 +453,114 @@
             </div>
 
             <!-- Service Completion Card -->
-            <div class="card shadow mb-4">
-                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
-                    <h6 class="m-0 font-weight-bold text-primary">Service Completion</h6>
-                    {% if not service_completion and service_request.status != 'cancelled' %}
-                    <a href="{% url 'route_management:service_completion_create' stop_id=0 %}?service_request={{ service_request.id }}" class="btn btn-sm btn-success">
-                        <i class="fas fa-check-circle fa-sm"></i> Record Completion
-                    </a>
-                    {% endif %}
+<div class="card shadow mb-4">
+    <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+        <h6 class="m-0 font-weight-bold text-primary">Service Completion</h6>
+        {% if not service_completion and service_request.status != 'cancelled' %}
+        {% if route_stops %}
+            <a href="{% url 'route_management:service_completion_create' route_stops.0.id %}" class="btn btn-sm btn-success">
+                <i class="fas fa-check-circle fa-sm"></i> Record Completion
+            </a>
+        {% else %}
+            <a href="{% url 'route_management:service_completion_create' 0 %}?service_request={{ service_request.id }}" class="btn btn-sm btn-success">
+                <i class="fas fa-check-circle fa-sm"></i> Record Completion
+            </a>
+        {% endif %}
+        {% endif %}
+    </div>
+    <div class="card-body">
+        {% if service_completion %}
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <div class="row mb-2">
+                    <div class="col-5 font-weight-bold text-gray-800">Completed On:</div>
+                    <div class="col-7">{{ service_completion.end_time|date:"M d, Y g:i A" }}</div>
                 </div>
-                <div class="card-body">
-                    {% if service_completion %}
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <div class="row mb-2">
-                                <div class="col-5 font-weight-bold text-gray-800">Completed On:</div>
-                                <div class="col-7">{{ service_completion.end_time|date:"M d, Y g:i A" }}</div>
-                            </div>
-                            <div class="row mb-2">
-                                <div class="col-5 font-weight-bold text-gray-800">Duration:</div>
-                                <div class="col-7">{{ service_completion.duration_minutes }} minutes</div>
-                            </div>
-                            <div class="row mb-2">
-                                <div class="col-5 font-weight-bold text-gray-800">Billable Hours:</div>
-                                <div class="col-7">{{ service_completion.billable_hours }}</div>
-                            </div>
-                            <div class="row mb-2">
-                                <div class="col-5 font-weight-bold text-gray-800">Total Amount:</div>
-                                <div class="col-7">${{ service_completion.total_amount|floatformat:2 }}</div>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="row mb-2">
-                                <div class="col-5 font-weight-bold text-gray-800">Customer Name:</div>
-                                <div class="col-7">{{ service_completion.customer_name }}</div>
-                            </div>
-                            <div class="row mb-2">
-                                <div class="col-5 font-weight-bold text-gray-800">Customer Email:</div>
-                                <div class="col-7">{{ service_completion.customer_email }}</div>
-                            </div>
-                            <div class="row mb-2">
-                                <div class="col-5 font-weight-bold text-gray-800">Follow-up:</div>
-                                <div class="col-7">
-                                    {% if service_completion.follow_up_required %}
-                                    <span class="text-danger">Required</span>
-                                    {% else %}
-                                    <span class="text-success">Not needed</span>
-                                    {% endif %}
-                                </div>
-                            </div>
-                            <div class="row mb-2">
-                                <div class="col-5 font-weight-bold text-gray-800">Invoice:</div>
-                                <div class="col-7">
-                                    {% if service_completion.invoice_number %}
-                                    #{{ service_completion.invoice_number }} ({{ service_completion.invoice_date|date:"M d, Y" }})
-                                    {% else %}
-                                    Not invoiced yet
-                                    {% endif %}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <h6 class="font-weight-bold">Work Performed</h6>
-                    <p>{{ service_completion.work_performed|linebreaks }}</p>
-
-                    <h6 class="font-weight-bold">Materials Used</h6>
-                    <p>{{ service_completion.materials_used|default:"None recorded"|linebreaks }}</p>
-
-                    {% if service_completion.technician_comments %}
-                    <h6 class="font-weight-bold">Technician Comments</h6>
-                    <p>{{ service_completion.technician_comments|linebreaks }}</p>
-                    {% endif %}
-
-                    {% if service_completion.follow_up_required %}
-                    <h6 class="font-weight-bold text-danger">Follow-up Notes</h6>
-                    <p>{{ service_completion.follow_up_notes|linebreaks }}</p>
-                    {% endif %}
-
-                    {% if service_completion.customer_signature %}
-                    <div class="mt-3 mb-3">
-                        <h6 class="font-weight-bold">Customer Signature</h6>
-                        <img src="{{ service_completion.customer_signature.url }}" alt="Customer Signature" class="img-fluid border" style="max-height: 100px;">
-                    </div>
-                    {% endif %}
-                    {% else %}
-                    <div class="text-center py-4">
-                        <p class="text-muted">No service completion record yet.</p>
-                        {% if service_request.status != 'cancelled' %}
-                        <a href="{% url 'route_management:service_completion_create' stop_id=0 %}?service_request={{ service_request.id }}" class="btn btn-success">
-                            <i class="fas fa-check-circle"></i> Record Completion
-                        </a>
-                        {% endif %}
-                    </div>
-                    {% endif %}
+                <div class="row mb-2">
+                    <div class="col-5 font-weight-bold text-gray-800">Duration:</div>
+                    <div class="col-7">{{ service_completion.duration_minutes }} minutes</div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-5 font-weight-bold text-gray-800">Billable Hours:</div>
+                    <div class="col-7">{{ service_completion.billable_hours }}</div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-5 font-weight-bold text-gray-800">Total Amount:</div>
+                    <div class="col-7">${{ service_completion.total_amount|floatformat:2 }}</div>
                 </div>
             </div>
+            <div class="col-md-6">
+                <div class="row mb-2">
+                    <div class="col-5 font-weight-bold text-gray-800">Customer Name:</div>
+                    <div class="col-7">{{ service_completion.customer_name }}</div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-5 font-weight-bold text-gray-800">Customer Email:</div>
+                    <div class="col-7">{{ service_completion.customer_email }}</div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-5 font-weight-bold text-gray-800">Follow-up:</div>
+                    <div class="col-7">
+                        {% if service_completion.follow_up_required %}
+                        <span class="text-danger">Required</span>
+                        {% else %}
+                        <span class="text-success">Not needed</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-5 font-weight-bold text-gray-800">Invoice:</div>
+                    <div class="col-7">
+                        {% if service_completion.invoice_number %}
+                        #{{ service_completion.invoice_number }} ({{ service_completion.invoice_date|date:"M d, Y" }})
+                        {% else %}
+                        Not invoiced yet
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
 
+        <h6 class="font-weight-bold">Work Performed</h6>
+        <p>{{ service_completion.work_performed|linebreaks }}</p>
+
+        <h6 class="font-weight-bold">Materials Used</h6>
+        <p>{{ service_completion.materials_used|default:"None recorded"|linebreaks }}</p>
+
+        {% if service_completion.technician_comments %}
+        <h6 class="font-weight-bold">Technician Comments</h6>
+        <p>{{ service_completion.technician_comments|linebreaks }}</p>
+        {% endif %}
+
+        {% if service_completion.follow_up_required %}
+        <h6 class="font-weight-bold text-danger">Follow-up Notes</h6>
+        <p>{{ service_completion.follow_up_notes|linebreaks }}</p>
+        {% endif %}
+
+        {% if service_completion.customer_signature %}
+        <div class="mt-3 mb-3">
+            <h6 class="font-weight-bold">Customer Signature</h6>
+            <img src="{{ service_completion.customer_signature.url }}" alt="Customer Signature" class="img-fluid border" style="max-height: 100px;">
+        </div>
+        {% endif %}
+        {% else %}
+        <div class="text-center py-4">
+            <p class="text-muted">No service completion record yet.</p>
+            {% if service_request.status != 'cancelled' %}
+            {% if route_stops %}
+                <a href="{% url 'route_management:service_completion_create' route_stops.0.id %}" class="btn btn-success">
+                    <i class="fas fa-check-circle"></i> Record Completion
+                </a>
+            {% else %}
+                <a href="{% url 'route_management:service_completion_create' 0 %}?service_request={{ service_request.id }}" class="btn btn-success">
+                    <i class="fas fa-check-circle"></i> Record Completion
+                </a>
+            {% endif %}
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
             <!-- Customer Feedback Card -->
             <div class="card shadow mb-4">
                 <div class="card-header py-3">
@@ -666,7 +677,7 @@
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
-            <form method="post" action="{% url 'route_management:service_request_assign_technician' service_request.id %}">
+            <form method="post" action="{% url 'route_management:assign_technician_to_service_request' service_request.id %}">
                 {% csrf_token %}
                 <div class="modal-body">
                     <div class="form-group">
@@ -792,7 +803,7 @@
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
-            <form method="post" action="{% url 'route_management:service_request_cancel' service_request.id %}">
+            <form method="post" action="{% url 'route_management:cancel_service_request' service_request.id %}">
                 {% csrf_token %}
                 <div class="modal-body">
                     <div class="alert alert-danger">
@@ -826,6 +837,50 @@
 {% endblock %}
 
 {% block scripts %}
+<script>
+    // Add this to your existing JavaScript block to fix form submission issues
+$(document).ready(function() {
+    // Fix for modal form submission issues
+    $('.modal form').on('submit', function(e) {
+        e.preventDefault();
+
+        var form = $(this);
+        var url = form.attr('action');
+        var formData = new FormData(form[0]);
+
+        $.ajax({
+            url: url,
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function(response) {
+                // Close the modal
+                form.closest('.modal').modal('hide');
+
+                // Reload the page to show updated state
+                location.reload();
+            },
+            error: function(xhr, status, error) {
+                // Display error message
+                alert('Error: ' + error);
+            }
+        });
+    });
+
+    // Make sure modal buttons properly trigger actions
+    $('.modal button[type="submit"]').on('click', function() {
+        $(this).closest('form').submit();
+    });
+
+    // Fix for Bootstrap modal buttons
+    $('[data-toggle="modal"]').click(function (e) {
+        e.preventDefault();
+        var target = $(this).data('target');
+        $(target).modal('show');
+    });
+});
+</script>
 <script>
 $(document).ready(function() {
     // Initialize DataTables
@@ -1001,6 +1056,5 @@ $(document).ready(function() {
         }
     });
 });
-</div>
 </script>
 {% endblock %}

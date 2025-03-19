@@ -12,6 +12,7 @@ urlpatterns = [
     path('service-requests/create/', views.ServiceRequestCreateView.as_view(), name='service_request_create'),
     path('service-requests/<int:pk>/', views.ServiceRequestDetailView.as_view(), name='service_request_detail'),
     path('service-requests/<int:pk>/update/', views.ServiceRequestUpdateView.as_view(), name='service_request_update'),
+    path('service-requests/<int:pk>/update-status/', views.update_service_request_status, name='update_service_request_status'),
     path('service-requests/bulk-add-to-route/', views.BulkAddToRouteView.as_view(), name='bulk_add_to_route'),
     path('service-requests/bulk-update-status/', views.BulkUpdateStatusView.as_view(), name='bulk_update_status'),
     path('service-requests/<int:pk>/duplicate/', views.duplicate_service_request, name='duplicate_service_request'),
@@ -19,6 +20,7 @@ urlpatterns = [
     path('service-requests/<int:pk>/pdf/', views.ServiceRequestPDFView.as_view(), name='service_request_pdf'),
     path('service-requests/<int:pk>/assign-technician/', views.assign_technician_to_service_request, name='service_request_assign_technician'),
     path('service-requests/<int:pk>/cancel/', views.cancel_service_request, name='service_request_cancel'),
+    path('service-requests/<int:pk>/request-feedback/', views.request_feedback_for_service_request, name='service_request_request_feedback'),
 
     path('ajax/load-service-locations/', views.ajax_load_service_locations, name='ajax_load_service_locations'),
     path('get-customer-info/', views.get_customer_info, name='get_customer_info'),

@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from django.utils import timezone
 from django.conf import settings
 from django.db.models import F
+from services.optimization import GeocodingService
 
 from ..models import Route, RouteStop, DistanceMatrixCache, OptimizationSettings, RouteLog
 
