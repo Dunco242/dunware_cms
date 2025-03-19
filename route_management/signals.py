@@ -4,9 +4,10 @@ from django.dispatch import receiver
 from django.utils import timezone
 
 from .models import (
-    Route, RouteStop, ServiceRequest, ServiceCompletion,
-    CustomerFeedback, OptimizationSettings, ServiceLocation
+    Route, RouteStop, ServiceRequest, ServiceCompletion, ServiceArea,
+    CustomerFeedback, OptimizationSettings, ServiceLocation, ServiceLocationType, TechnicianProfile
 )
+from core.models import Customer, Employee
 from .services.notifications import RouteNotifier
 from .services.geocoding import GeocodingService
 
@@ -103,5 +104,84 @@ def handle_service_location_geocoding(sender, instance, created, **kwargs):
         except Exception as e:
             logger.error(f"Error geocoding service location {instance.id}: {str(e)}")
 
+@receiver(post_save, sender=Customer)
+def create_service_location(sender, instance, created, **kwargs):
+    """
+    Signal handler to automatically create or update a ServiceLocation
+    whenever a Customer is created or updated.
+    """
+    # Get or create default service location type
+    default_type, _ = ServiceLocationType.objects.get_or_create(
+        name="Main Office",
+        defaults={"description": "Customer's main office or primary location"}
+    )
 
+    # Try to find an existing default service location for this customer
+    default_location = ServiceLocation.objects.filter(
+        customer=instance,
+        name=f"{instance.company_name} - Main Office"
+    ).first()
+
+    # Get the nearest service area if available (simplified approach)
+    service_area = ServiceArea.objects.filter(is_active=True).first()
+
+    if not default_location:
+        # Create a new service location
+        ServiceLocation.objects.create(
+            customer=instance,
+            name=f"{instance.company_name} - Main Office",
+            location_type=default_type,
+            address=instance.address,
+            city=instance.city,
+            state=instance.state,
+            zip_code=instance.zip_code,
+            country="United States",  # Default value, adjust as needed
+            service_area=service_area,
+            access_instructions=""
+        )
+    else:
+        # Update existing location if customer address changed
+        address_changed = (
+            default_location.address != instance.address or
+            default_location.city != instance.city or
+            default_location.state != instance.state or
+            default_location.zip_code != instance.zip_code
+        )
+
+        if address_changed:
+            default_location.address = instance.address
+            default_location.city = instance.city
+            default_location.state = instance.state
+            default_location.zip_code = instance.zip_code
+            default_location.save()
+
+@receiver(post_save, sender=Employee)
+def create_technician_profile(sender, instance, created, **kwargs):
+    """
+    Signal handler to automatically create a TechnicianProfile
+    whenever an Employee with a relevant role is created.
+    """
+    # Check if the employee is in a relevant department that should have a technician profile
+    technician_departments = ['engineering', 'support', 'field_service']
+    technician_positions = ['technician', 'field_tech', 'engineer', 'senior', 'lead']
+
+    is_technician = (
+        instance.department in technician_departments or
+        any(tech_role in instance.position.lower() for tech_role in technician_positions)
+    )
+
+    # If this is a technician role but doesn't have a profile yet, create one
+    if is_technician:
+        # Check if a profile already exists
+        from route_management.models import TechnicianProfile
+        profile_exists = TechnicianProfile.objects.filter(employee=instance).exists()
+
+        if not profile_exists:
+            # Create a default technician profile
+            from route_management.models import TechnicianProfile
+            TechnicianProfile.objects.create(
+                employee=instance,
+                max_travel_distance_miles=50,
+                enable_location_tracking=False
+            )
 # You can add more signal handlers as needed for other models

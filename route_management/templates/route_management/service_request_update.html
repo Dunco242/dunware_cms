@@ -188,8 +188,9 @@
                         <div class="form-group required-field">
                             <label for="service_location">Service Location</label>
                             <div class="input-group">
-                                <select class="form-control" id="service_location" name="service_location" required
-                                        data-initial="{% if object %}{{ object.service_location.id }}{% elif form.service_location.value %}{{ form.service_location.value }}{% endif %}">
+                                <select class="form-control" id="service_location" name="service_location"
+                                        data-initial="{% if object %}{{ object.service_location.id }}{% elif form.service_location.value %}{{ form.service_location.value }}{% endif %}"
+                                        required>
                                     <option value="">Select a location...</option>
                                     <!-- Service locations will be populated via JavaScript based on selected customer -->
                                 </select>
@@ -760,25 +761,39 @@ Thank you,
 <script src="https://js.api.here.com/v3/3.1/mapsjs-mapevents.js"></script>
 
 <script>
-    $(document).ready(function() {
-    // If we're updating, store the initial service location ID
-    var initialServiceLocationId = null;
-    if ($('#service_location').data('initial') !== undefined) {
-        initialServiceLocationId = $('#service_location').data('initial');
-    } else if (typeof objectServiceLocationId !== 'undefined') {
-        initialServiceLocationId = objectServiceLocationId;
-    }
+    // Initialize variables from Django template context
+    var objectServiceLocationId = {% if object and object.service_location %}{{ object.service_location.id }}{% else %}null{% endif %};
+    var serviceRequestId = {% if object %}{{ object.id }}{% else %}null{% endif %};
+    var csrfToken = '{{ csrf_token }}';
+    var sendNotificationUrl = '{% url "route_management:send_notification" %}';
+    var customerServiceHistoryUrl = '{% url "route_management:get_customer_service_history" %}';
 
-    // Customer selection change event
-    $('#customer').change(updateServiceLocations);
-
-    // Trigger change if customer is already selected on page load
-    if ($('#customer').val()) {
-        $('#customer').trigger('change');
-    }
-});
 </script>
+
 <script>
+    $(document).ready(function() {
+        // If we're updating, store the initial service location ID
+        var initialServiceLocationId = $('#service_location').data('initial');
+
+        // For backward compatibility
+        if (!initialServiceLocationId && typeof objectServiceLocationId !== 'undefined') {
+            initialServiceLocationId = objectServiceLocationId;
+        }
+
+        // Store the initial ID in the data attribute for later reference
+        if (initialServiceLocationId) {
+            $('#service_location').data('initial', initialServiceLocationId);
+        }
+
+        // Customer selection change event
+        $('#customer').change(updateServiceLocations);
+
+        // Trigger change if customer is already selected on page load
+        if ($('#customer').val()) {
+            $('#customer').trigger('change');
+        }
+    });
+</script><script>
 // Initialize toastr options
 toastr.options = {
     "closeButton": true,
@@ -837,7 +852,7 @@ $(document).ready(function() {
         }
     });
 
-    // Function to update service locations based on selected customer
+// Function to update service locations based on selected customer
 function updateServiceLocations() {
     var customerId = $('#customer').val();
     if (customerId) {
@@ -845,8 +860,9 @@ function updateServiceLocations() {
         var currentLocationId = $('#service_location').val();
 
         if (!currentLocationId) {
-            // If we're in update mode, try to get the initial location from the object
-            currentLocationId = {{ object.service_location.id|default:'null' }};
+            // Get the initial location ID from a variable defined at the top of the script
+            // This avoids mixing Django template tags in JavaScript
+            currentLocationId = initialServiceLocationId;
         }
 
         // Show loading indicator
@@ -884,7 +900,7 @@ function updateServiceLocations() {
 
         // Load customer details
         $.ajax({
-            url: '{% url "route_management:get_customer_info" %}',
+            url: '/route_management/get_customer_info/',
             data: { customer_id: customerId },
             success: function(data) {
                 if (data.success) {
@@ -893,8 +909,17 @@ function updateServiceLocations() {
                                '<p><strong>Email:</strong> ' + data.customer.contact_email + '</p>' +
                                '<p><strong>Phone:</strong> ' + data.customer.contact_phone + '</p>';
 
+                    // Add view service history link
+                    html += '<p class="mt-2"><a href="#" id="viewServiceHistory" class="text-primary"><i class="fas fa-history fa-sm"></i> View Service History</a></p>';
+
                     $('#customerInfo').html(html);
                     $('#customerDetails').slideDown();
+
+                    // Bind service history link
+                    $('#viewServiceHistory').click(function(e) {
+                        e.preventDefault();
+                        loadServiceHistory(customerId);
+                    });
                 } else {
                     toastr.error('Error loading customer details');
                 }
@@ -912,49 +937,7 @@ function updateServiceLocations() {
             $('#service_location').trigger('change.select2');
         }
     }
-}
-            // Load customer details
-            $.ajax({
-                url: '{% url "route_management:get_customer_info" %}',
-                data: { customer_id: customerId },
-                success: function(data) {
-                    if (data.success) {
-                        // Display customer details
-                        var html = '<p><strong>Contact:</strong> ' + data.customer.contact_name + '</p>' +
-                                   '<p><strong>Email:</strong> ' + data.customer.contact_email + '</p>' +
-                                   '<p><strong>Phone:</strong> ' + data.customer.contact_phone + '</p>';
-
-                        $('#customerInfo').html(html);
-                        $('#customerDetails').slideDown();
-
-                        // Add view service history link
-                        $('#customerInfo').append('<p class="mt-2"><a href="#" id="viewServiceHistory" class="text-primary"><i class="fas fa-history fa-sm"></i> View Service History</a></p>');
-
-                        // Bind service history link
-                        $('#viewServiceHistory').click(function(e) {
-                            e.preventDefault();
-                            loadServiceHistory(customerId);
-                        });
-                    } else {
-                        toastr.error('Error loading customer details');
-                    }
-                },
-                error: function() {
-                    toastr.error('Error loading customer details');
-                }
-            });
-        } else {
-            $('#customerDetails').slideUp();
-            $('#service_location').empty().append('<option value="">Select a location...</option>');
-
-            // If using select2, refresh it
-            if ($.fn.select2) {
-                $('#service_location').trigger('change.select2');
-            }
-        }
-    }
-
-    // Customer selection change event
+}    // Customer selection change event
     $('#customer').change(updateServiceLocations);
 
     // Trigger change if customer is already selected on page load
@@ -1205,56 +1188,55 @@ function updateServiceLocations() {
         }, 500);
     });
 
-    // Send notification button
-    $('#sendNotificationButton').click(function() {
-        var notificationType = $('#notification_type').val();
-        var recipients = $('#notification_recipients').val();
-        var subject = $('#notification_subject').val();
-        var message = $('#notification_message').val();
+ // Send notification button
+$('#sendNotificationButton').click(function() {
+    var notificationType = $('#notification_type').val();
+    var recipients = $('#notification_recipients').val();
+    var subject = $('#notification_subject').val();
+    var message = $('#notification_message').val();
 
-        if (!recipients || !subject || !message) {
-            toastr.error('Please fill in all notification fields');
-            return;
-        }
+    if (!recipients || !subject || !message) {
+        toastr.error('Please fill in all notification fields');
+        return;
+    }
 
-        // Send the notification via AJAX
-        $.ajax({
-            url: '{% url "route_management:send_notification" %}',
-            type: 'POST',
-            data: {
-                'service_request_id': {{ object.id }},
-                'notification_type': notificationType,
-                'recipients': recipients,
-                'subject': subject,
-                'message': message,
-                'csrfmiddlewaretoken': '{{ csrf_token }}'
-            },
-            success: function(data) {
-                if (data.success) {
-                    toastr.success('Notification sent successfully');
-                    $('#notificationModal').modal('hide');
+    // Send the notification via AJAX
+    $.ajax({
+        url: sendNotificationUrl,
+        type: 'POST',
+        data: {
+            'service_request_id': serviceRequestId,
+            'notification_type': notificationType,
+            'recipients': recipients,
+            'subject': subject,
+            'message': message,
+            'csrfmiddlewaretoken': csrfToken
+        },
+        success: function(data) {
+            if (data.success) {
+                toastr.success('Notification sent successfully');
+                $('#notificationModal').modal('hide');
 
-                    // Set the corresponding notification checkbox
-                    if (notificationType === 'completion_notice') {
-                        $('#customer_notified').prop('checked', true);
-                    } else if (notificationType === 'cancellation_notice') {
-                        $('#customer_notified_cancellation').prop('checked', true);
-                    }
-
-                    // Add to activity log
-                    $('#activity_log').val($('#activity_log').val() +
-                        (($('#activity_log').val() ? '\n' : '') + 'Sent ' +
-                        $('#notification_type option:selected').text() + ' to customer.'));
-                } else {
-                    toastr.error('Error sending notification: ' + data.error);
+                // Set the corresponding notification checkbox
+                if (notificationType === 'completion_notice') {
+                    $('#customer_notified').prop('checked', true);
+                } else if (notificationType === 'cancellation_notice') {
+                    $('#customer_notified_cancellation').prop('checked', true);
                 }
-            },
-            error: function() {
-                toastr.error('Error sending notification');
-            }
-        });
-    });
 
+                // Add to activity log
+                $('#activity_log').val($('#activity_log').val() +
+                    (($('#activity_log').val() ? '\n' : '') + 'Sent ' +
+                    $('#notification_type option:selected').text() + ' to customer.'));
+            } else {
+                toastr.error('Error sending notification: ' + data.error);
+            }
+        },
+        error: function() {
+            toastr.error('Error sending notification');
+        }
+    });
+});
     // Prepare notification content based on type
     function prepareNotification(type) {
         $('#notification_type').val(type);
@@ -1313,89 +1295,88 @@ function updateServiceLocations() {
         $('#notification_message').val(message);
     }
 
-    // Load customer service history
-    function loadServiceHistory(customerId) {
-        $('#serviceHistoryModal').modal('show');
+ // Load customer service history
+function loadServiceHistory(customerId) {
+    $('#serviceHistoryModal').modal('show');
 
-        $.ajax({
-            url: '{% url "route_management:get_customer_service_history" %}',
-            data: {
-                customer_id: customerId,
-                exclude_request_id: {{ object.id }}
-            },
-            success: function(data) {
-                if (data.success) {
-                    var html = '';
+    $.ajax({
+        url: customerServiceHistoryUrl,
+        data: {
+            customer_id: customerId,
+            exclude_request_id: serviceRequestId
+        },
+        success: function(data) {
+            if (data.success) {
+                var html = '';
 
-                    if (data.service_requests.length === 0) {
-                        html = '<div class="alert alert-info">No previous service requests found for this customer.</div>';
-                    } else {
-                        html = '<div class="table-responsive">';
-                        html += '<table class="table table-bordered table-striped">';
-                        html += '<thead><tr>';
-                        html += '<th>Request #</th>';
-                        html += '<th>Service Type</th>';
-                        html += '<th>Status</th>';
-                        html += '<th>Date</th>';
-                        html += '<th>Location</th>';
-                        html += '<th>Actions</th>';
-                        html += '</tr></thead>';
-                        html += '<tbody>';
-
-                        $.each(data.service_requests, function(i, request) {
-                            html += '<tr>';
-                            html += '<td>' + request.request_number + '</td>';
-                            html += '<td>' + request.service_type_name + '</td>';
-                            html += '<td>';
-                            switch(request.status) {
-                                case 'pending':
-                                    html += '<span class="badge badge-secondary">Pending</span>';
-                                    break;
-                                case 'scheduled':
-                                    html += '<span class="badge badge-info">Scheduled</span>';
-                                    break;
-                                case 'in_progress':
-                                    html += '<span class="badge badge-primary">In Progress</span>';
-                                    break;
-                                case 'completed':
-                                    html += '<span class="badge badge-success">Completed</span>';
-                                    break;
-                                case 'cancelled':
-                                    html += '<span class="badge badge-danger">Cancelled</span>';
-                                    break;
-                                default:
-                                    html += '<span class="badge badge-secondary">' + request.status + '</span>';
-                            }
-                            html += '</td>';
-                            html += '<td>' + (request.created_at ? request.created_at : '-') + '</td>';
-                            html += '<td>' + request.location_name + '</td>';
-                            html += '<td>';
-                            html += '<a href="' + request.detail_url + '" class="btn btn-sm btn-info mr-1" target="_blank" title="View Details"><i class="fas fa-eye"></i></a>';
-                            html += '<button type="button" class="btn btn-sm btn-primary copy-details" data-request-id="' + request.id + '" title="Copy Details"><i class="fas fa-copy"></i></button>';
-                            html += '</td>';
-                            html += '</tr>';
-                        });
-
-                        html += '</tbody></table></div>';
-                    }
-
-                    $('#serviceHistoryContent').html(html);
-
-                    // Bind copy details button
-                    $('.copy-details').click(function() {
-                        var requestId = $(this).data('request-id');
-                        copyServiceDetails(requestId);
-                    });
+                if (data.service_requests.length === 0) {
+                    html = '<div class="alert alert-info">No previous service requests found for this customer.</div>';
                 } else {
-                    $('#serviceHistoryContent').html('<div class="alert alert-danger">Error loading service history: ' + data.error + '</div>');
-                }
-            },
-            error: function() {
-                $('#serviceHistoryContent').html('<div class="alert alert-danger">Error loading service history. Please try again.</div>');
-            }
-        });
-    }
+                    html = '<div class="table-responsive">';
+                    html += '<table class="table table-bordered table-striped">';
+                    html += '<thead><tr>';
+                    html += '<th>Request #</th>';
+                    html += '<th>Service Type</th>';
+                    html += '<th>Status</th>';
+                    html += '<th>Date</th>';
+                    html += '<th>Location</th>';
+                    html += '<th>Actions</th>';
+                    html += '</tr></thead>';
+                    html += '<tbody>';
 
+                    $.each(data.service_requests, function(i, request) {
+                        html += '<tr>';
+                        html += '<td>' + request.request_number + '</td>';
+                        html += '<td>' + request.service_type_name + '</td>';
+                        html += '<td>';
+                        switch(request.status) {
+                            case 'pending':
+                                html += '<span class="badge badge-secondary">Pending</span>';
+                                break;
+                            case 'scheduled':
+                                html += '<span class="badge badge-info">Scheduled</span>';
+                                break;
+                            case 'in_progress':
+                                html += '<span class="badge badge-primary">In Progress</span>';
+                                break;
+                            case 'completed':
+                                html += '<span class="badge badge-success">Completed</span>';
+                                break;
+                            case 'cancelled':
+                                html += '<span class="badge badge-danger">Cancelled</span>';
+                                break;
+                            default:
+                                html += '<span class="badge badge-secondary">' + request.status + '</span>';
+                        }
+                        html += '</td>';
+                        html += '<td>' + (request.created_at ? request.created_at : '-') + '</td>';
+                        html += '<td>' + request.location_name + '</td>';
+                        html += '<td>';
+                        html += '<a href="' + request.detail_url + '" class="btn btn-sm btn-info mr-1" target="_blank" title="View Details"><i class="fas fa-eye"></i></a>';
+                        html += '<button type="button" class="btn btn-sm btn-primary copy-details" data-request-id="' + request.id + '" title="Copy Details"><i class="fas fa-copy"></i></button>';
+                        html += '</td>';
+                        html += '</tr>';
+                    });
+
+                    html += '</tbody></table></div>';
+                }
+
+                $('#serviceHistoryContent').html(html);
+
+                // Bind copy details button
+                $('.copy-details').click(function() {
+                    var requestId = $(this).data('request-id');
+                    copyServiceDetails(requestId);
+                });
+            } else {
+                $('#serviceHistoryContent').html('<div class="alert alert-danger">Error loading service history: ' + data.error + '</div>');
+            }
+        },
+        error: function() {
+            $('#serviceHistoryContent').html('<div class="alert alert-danger">Error loading service history. Please try again.</div>');
+        }
+    });
+}
     // Copy service details from a previous request
     function copyServiceDetails(requestId) {
         if (confirm('This will copy service details from the selected request. Continue?')) {

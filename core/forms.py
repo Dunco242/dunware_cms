@@ -9,10 +9,7 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import Layout, Row, Column, Submit
-from django.utils.timezone import now
 from datetime import timedelta
-from crispy_forms.helper import FormHelper
-from crispy_forms.layout import Layout, Row, Column, Submit
 from core.services.scheduling import SchedulingService
 from .models import (
     Employee, Customer, Lead, Service,
@@ -66,12 +63,20 @@ class EmailAccountForm(forms.ModelForm):
         provider = EmailProvider.get_provider_for_email(account.email_address)
         if provider:
             account.provider = provider
+            # Auto-populate provider details
+            account.smtp_server = provider.smtp_server
+            account.smtp_port = provider.smtp_port
+            account.imap_server = provider.imap_server
+            account.imap_port = provider.imap_port
+            account.requires_auth = provider.requires_auth
+            account.uses_tls = provider.uses_tls
+            account.username = account.email_address
         if commit:
             account.save()
         return account
 
 class EmailComposeForm(forms.ModelForm):
-    """Form for composing emails without direct attachments handling in the form"""
+    """Form for composing emails with multiple attachments"""
     to_emails = forms.CharField(
         widget=forms.TextInput(attrs={'class': 'form-control'}),
         help_text="Separate multiple email addresses with commas"
@@ -161,8 +166,6 @@ class EmailComposeForm(forms.ModelForm):
 
         return cleaned_data
 
-
-
 class UserRegistrationForm(UserCreationForm):
     email = forms.EmailField(required=True)
     first_name = forms.CharField(required=True)
@@ -193,7 +196,7 @@ class EmployeeForm(forms.ModelForm):
 
     def clean_phone(self):
         phone = self.cleaned_data.get('phone')
-        if not phone.replace('-', '').replace('+', '').isdigit():
+        if phone and not phone.replace('-', '').replace('+', '').isdigit():
             raise ValidationError('Phone number can only contain digits, hyphens, and plus sign.')
         return phone
 
@@ -221,8 +224,8 @@ class CustomerForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super(CustomerForm, self).__init__(*args, **kwargs)
 
-        # ✅ Fetch employees properly
-        employees = Employee.objects.all()
+        # Fetch employees properly
+        employees = Employee.objects.filter(is_active=True)
 
         # Check if employees exist in DB
         if employees.exists():
@@ -245,6 +248,11 @@ class LeadForm(forms.ModelForm):
         widgets = {
             'notes': forms.Textarea(attrs={'rows': 4}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Limit assigned_to to active employees
+        self.fields['assigned_to'].queryset = Employee.objects.filter(is_active=True)
 
     def clean(self):
         cleaned_data = super().clean()
@@ -309,6 +317,12 @@ class TaskForm(forms.ModelForm):
         # Extract user from kwargs if passed
         self.user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
+        # Limit assigned_to to active employees
+        self.fields['assigned_to'].queryset = Employee.objects.filter(is_active=True)
+        # Limit customer to active customers
+        self.fields['customer'].queryset = Customer.objects.filter(status='active')
+        # Limit lead to active leads
+        self.fields['lead'].queryset = Lead.objects.filter(status__in=['new', 'contacted', 'qualified'])
 
     def clean(self):
         cleaned_data = super().clean()
@@ -340,7 +354,6 @@ class TaskForm(forms.ModelForm):
                     raise ValidationError(f"Error checking scheduling availability: {str(e)}")
 
         return cleaned_data
-
 
 class MeetingForm(forms.ModelForm):
     start_time = forms.DateTimeField(
@@ -414,7 +427,6 @@ class MeetingForm(forms.ModelForm):
 
             # Scheduling availability check (if user is provided)
             if self.user:
-                from core.services.scheduling import SchedulingService
                 try:
                     scheduling_service = SchedulingService(self.user)
                     duration = int((end_time - start_time).total_seconds() / 60)
@@ -452,8 +464,8 @@ class TaskSearchForm(forms.Form):
 
 class InvoiceForm(forms.ModelForm):
     services = forms.ModelMultipleChoiceField(
-        queryset=ServiceSubscription.objects.all(),  # ✅ Use ServiceSubscription, not Service
-        widget=forms.CheckboxSelectMultiple,  # ✅ Allow selecting multiple service subscriptions
+        queryset=ServiceSubscription.objects.all(),
+        widget=forms.CheckboxSelectMultiple,
         required=True
     )
 
@@ -468,6 +480,16 @@ class InvoiceForm(forms.ModelForm):
             'customer': forms.Select(attrs={'class': 'form-control'}),
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # If customer is already selected, filter services by that customer
+        if self.instance.pk and self.instance.customer:
+            self.fields['services'].queryset = ServiceSubscription.objects.filter(customer=self.instance.customer)
+
+        # If this is an existing instance, set the initial services
+        if self.instance.pk:
+            self.fields['services'].initial = self.instance.services.all()
+
     def clean_services(self):
         """Ensure selected services are valid subscriptions."""
         services = self.cleaned_data.get('services')
@@ -477,14 +499,48 @@ class InvoiceForm(forms.ModelForm):
 
         return services
 
+    def clean(self):
+        cleaned_data = super().clean()
+        # Calculate total amount based on selected services if not provided
+        services = cleaned_data.get('services')
+        total_amount = cleaned_data.get('total_amount')
+
+        if services and not total_amount:
+            calculated_total = sum(service.calculate_total() for service in services)
+            cleaned_data['total_amount'] = calculated_total
+
+        return cleaned_data
+
 class PaymentForm(forms.ModelForm):
     class Meta:
         model = Payment
-        fields = ['customer', 'invoice', 'amount', 'status', 'transaction_date']
+        fields = ['customer', 'invoice', 'amount', 'status', 'payment_method', 'transaction_date']
         widgets = {
-            'status': forms.Select(choices=Payment.STATUS_CHOICES, attrs={'class': 'form-select'}),  # ✅ Fixed
+            'status': forms.Select(attrs={'class': 'form-select'}),
+            'payment_method': forms.Select(attrs={'class': 'form-select'}),
             'transaction_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # If customer is already selected, filter invoices by that customer
+        if 'initial' in kwargs and 'customer' in kwargs['initial']:
+            customer = kwargs['initial']['customer']
+            self.fields['invoice'].queryset = Invoice.objects.filter(customer=customer)
+        elif self.instance.pk and self.instance.customer:
+            self.fields['invoice'].queryset = Invoice.objects.filter(customer=self.instance.customer)
+
+    def clean(self):
+        cleaned_data = super().clean()
+        invoice = cleaned_data.get('invoice')
+        amount = cleaned_data.get('amount')
+
+        if invoice and amount:
+            # Check that payment doesn't exceed balance
+            if amount > invoice.balance_due:
+                raise ValidationError(f"Payment amount exceeds outstanding balance of ${invoice.balance_due:.2f}")
+
+        return cleaned_data
 
 class SubscriptionForm(forms.ModelForm):
     class Meta:
@@ -496,14 +552,57 @@ class SubscriptionForm(forms.ModelForm):
             'status': forms.Select(attrs={'class': 'form-select'}),
         }
 
+    def clean(self):
+        cleaned_data = super().clean()
+        start_date = cleaned_data.get('start_date')
+        end_date = cleaned_data.get('end_date')
+
+        if start_date and end_date and start_date >= end_date:
+            raise ValidationError("End date must be after start date")
+
+        return cleaned_data
+
 class TransactionForm(forms.ModelForm):
     class Meta:
         model = Transaction
-        fields = ['customer', 'transaction_type', 'amount', 'transaction_date']
+        fields = ['customer', 'transaction_type', 'amount', 'transaction_date', 'status', 'reference', 'notes']
         widgets = {
             'transaction_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
-            'transaction_type': forms.Select(choices=Transaction.TRANSACTION_TYPE, attrs={'class': 'form-select'}),
+            'transaction_type': forms.Select(attrs={'class': 'form-select'}),
+            'status': forms.Select(attrs={'class': 'form-select'}),
+            'notes': forms.Textarea(attrs={'rows': 3, 'class': 'form-control'}),
         }
+
+    def clean_amount(self):
+        amount = self.cleaned_data.get('amount')
+        if amount and amount <= 0:
+            raise ValidationError("Transaction amount must be greater than zero")
+        return amount
+
+    def clean_reference(self):
+        reference = self.cleaned_data.get('reference')
+        # Check for uniqueness if provided
+        if reference and Transaction.objects.filter(reference=reference).exclude(pk=self.instance.pk).exists():
+            raise ValidationError("This reference number is already in use")
+        return reference
+
+class UserRegistrationForm(UserCreationForm):
+    email = forms.EmailField(required=True)
+    first_name = forms.CharField(required=True)
+    last_name = forms.CharField(required=True)
+
+    class Meta:
+        model = User
+        fields = ('username', 'email', 'first_name', 'last_name', 'password1', 'password2')
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        user.email = self.cleaned_data['email']
+        user.first_name = self.cleaned_data['first_name']
+        user.last_name = self.cleaned_data['last_name']
+        if commit:
+            user.save()
+        return user
 
 class ServiceSubscriptionForm(forms.ModelForm):
     class Meta:
@@ -516,25 +615,36 @@ class ServiceSubscriptionForm(forms.ModelForm):
             'hourly_rate',
             'hours',
             'start_date',
-            'end_date'
+            'end_date',
+            'is_active',
+            'status'
         ]
         widgets = {
-            'start_date': forms.DateInput(attrs={'type': 'date'}),
-            'end_date': forms.DateInput(attrs={'type': 'date'}),
-            'hours': forms.NumberInput(attrs={'step': '0.5', 'min': '0'}),
-            'hourly_rate': forms.NumberInput(attrs={'step': '0.01', 'min': '0'}),
+            'start_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+            'end_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+            'hours': forms.NumberInput(attrs={'step': '0.5', 'min': '0', 'class': 'form-control'}),
+            'hourly_rate': forms.NumberInput(attrs={'step': '0.01', 'min': '0', 'class': 'form-control'}),
+            'price': forms.NumberInput(attrs={'step': '0.01', 'min': '0', 'class': 'form-control'}),
+            'billing_cycle': forms.Select(attrs={'class': 'form-control', 'id': 'billing_cycle'}),
+            'status': forms.Select(attrs={'class': 'form-control'}),
+            'customer': forms.Select(attrs={'class': 'form-control'}),
+            'service': forms.Select(attrs={'class': 'form-control'}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['billing_cycle'].widget.attrs.update({'class': 'form-control', 'id': 'billing_cycle'})
-        self.fields['hours'].widget.attrs.update({'class': 'form-control'})
-        self.fields['hourly_rate'].widget.attrs.update({'class': 'form-control'})
-        self.fields['price'].widget.attrs.update({'class': 'form-control'})
+        # Filter active services only
+        self.fields['service'].queryset = Service.objects.filter(is_active=True)
+        # Filter active customers
+        self.fields['customer'].queryset = Customer.objects.filter(status='active')
 
         # Add help text
         self.fields['hours'].help_text = 'Number of hours to bill (for hourly billing)'
         self.fields['hourly_rate'].help_text = 'Rate per hour (for hourly billing)'
+        self.fields['price'].help_text = 'Recurring price (for non-hourly billing)'
+
+        # Set up field dependencies for dynamic form behavior
+        self.fields['billing_cycle'].widget.attrs.update({'onchange': 'toggleBillingFields()'})
 
     def clean(self):
         cleaned_data = super().clean()
@@ -542,6 +652,8 @@ class ServiceSubscriptionForm(forms.ModelForm):
         hours = cleaned_data.get('hours')
         hourly_rate = cleaned_data.get('hourly_rate')
         price = cleaned_data.get('price')
+        start_date = cleaned_data.get('start_date')
+        end_date = cleaned_data.get('end_date')
 
         if billing_cycle == 'hourly':
             if not hours or hours <= 0:
@@ -552,344 +664,31 @@ class ServiceSubscriptionForm(forms.ModelForm):
             if not price or price <= 0:
                 raise forms.ValidationError("Please specify the price for the subscription.")
 
-        return cleaned_data
-
-
-class ICSUploadForm(forms.ModelForm):
-    class Meta:
-        model = UploadedICSFile
-        fields = ['file']
-        widgets = {
-            'file': forms.FileInput(attrs={'accept': '.ics'})
-        }
-
-    def clean_file(self):
-        file = self.cleaned_data['file']
-        if file:
-            if not file.name.endswith('.ics'):
-                raise forms.ValidationError("Only .ics files are allowed")
-            if file.size > 5242880:  # 5MB limit
-                raise forms.ValidationError("File size should not exceed 5MB")
-        return file
-
-
-class EventForm(forms.ModelForm):
-    attendees = forms.ModelMultipleChoiceField(
-        queryset=Employee.objects.filter(is_active=True),
-        widget=forms.SelectMultiple(attrs={
-            'class': 'form-control select2-multiple',
-            'multiple': 'multiple'
-        }),
-        required=False
-    )
-
-    class Meta:
-        model = Event
-        fields = [
-            'title',
-            'description',
-            'start_time',
-            'end_time',
-            'event_type',
-            'location',
-            'customer',
-            'color',
-            'attendees',
-            'is_recurring',
-            'recurrence_type',
-            'recurrence_rule',
-            'recurrence_end'
-        ]
-        widgets = {
-            'start_time': forms.DateTimeInput(attrs={'type': 'datetime-local'}),
-            'end_time': forms.DateTimeInput(attrs={'type': 'datetime-local'}),
-            'color': forms.TextInput(attrs={'type': 'color'}),
-            'description': forms.Textarea(attrs={'rows': 3}),
-            'recurrence_end': forms.DateTimeInput(attrs={'type': 'datetime-local'}),
-            'recurrence_rule': forms.TextInput(attrs={'placeholder': 'Optional iCal RRULE format'}),
-        }
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        # Customize attendees field
-        self.fields['attendees'].label_from_instance = lambda obj: f"{obj.user.get_full_name()} - {obj.get_department_display()}"
-
-        # If this is an existing instance, pre-populate attendees
-        if self.instance.pk:
-            self.fields['attendees'].initial = self.instance.attendees.all()
-
-        # Add crispy form helper
-        self.helper = FormHelper()
-        self.helper.layout = Layout(
-            Row(
-                Column('title', css_class='form-group col-md-6'),
-                Column('event_type', css_class='form-group col-md-6'),
-            ),
-            Row(
-                Column('start_time', css_class='form-group col-md-6'),
-                Column('end_time', css_class='form-group col-md-6'),
-            ),
-            Row(
-                Column('description', css_class='form-group col-md-12'),
-            ),
-            Row(
-                Column('location', css_class='form-group col-md-4'),
-                Column('customer', css_class='form-group col-md-4'),
-                Column('color', css_class='form-group col-md-4'),
-            ),
-            Row(
-                Column('attendees', css_class='form-group col-md-12'),
-            ),
-            Row(
-                Column('is_recurring', css_class='form-group col-md-4'),
-                Column('recurrence_type', css_class='form-group col-md-4'),
-                Column('recurrence_end', css_class='form-group col-md-4'),
-            ),
-            Row(
-                Column('recurrence_rule', css_class='form-group col-md-12'),
-            ),
-            Submit('submit', 'Save Event', css_class='btn btn-primary')
-        )
-
-    def clean(self):
-        """
-        Additional validation for recurring events and time constraints
-        """
-        cleaned_data = super().clean()
-
-        # Validate start and end times
-        start_time = cleaned_data.get('start_time')
-        end_time = cleaned_data.get('end_time')
-
-        if start_time and end_time:
-            if start_time >= end_time:
-                self.add_error('end_time', 'End time must be after start time')
-
-        # Validate recurring event requirements
-        is_recurring = cleaned_data.get('is_recurring')
-        recurrence_type = cleaned_data.get('recurrence_type')
-        recurrence_rule = cleaned_data.get('recurrence_rule')
-        recurrence_end = cleaned_data.get('recurrence_end')
-
-        if is_recurring:
-            if not recurrence_type:
-                self.add_error('recurrence_type', 'Recurrence type is required for recurring events')
-
-            # Optional: Add more specific validation based on recurrence type
-            if recurrence_type == 'custom' and not recurrence_rule:
-                self.add_error('recurrence_rule', 'Recurrence rule is required for custom recurrence')
-
-            if not recurrence_end:
-                self.add_error('recurrence_end', 'Recurrence end date is required')
-            elif recurrence_end <= start_time:
-                self.add_error('recurrence_end', 'Recurrence end must be after start time')
+        if start_date and end_date and start_date >= end_date:
+            raise forms.ValidationError("End date must be after start date")
 
         return cleaned_data
 
     def save(self, commit=True):
-        """
-        Custom save method to handle many-to-many relationships
-        """
+        """Override save to handle automatic end date calculation"""
         instance = super().save(commit=False)
+
+        # Set end date based on billing cycle if not provided
+        if not instance.end_date and instance.start_date:
+            if instance.billing_cycle == 'monthly':
+                from datetime import timedelta
+                instance.end_date = instance.start_date + timedelta(days=30)
+            elif instance.billing_cycle == 'quarterly':
+                from datetime import timedelta
+                instance.end_date = instance.start_date + timedelta(days=90)
+            elif instance.billing_cycle == 'yearly':
+                from datetime import timedelta
+                instance.end_date = instance.start_date + timedelta(days=365)
 
         if commit:
             instance.save()
 
-            # Manually handle many-to-many relationship
-            if 'attendees' in self.cleaned_data:
-                instance.attendees.set(self.cleaned_data['attendees'])
-
         return instance
-
-class CustomLoginForm(LoginForm):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # Customize form fields here
-        # For example, modify placeholders, add classes, etc.
-        self.fields['login'].widget.attrs.update({
-            'class': 'form-control form-control-lg',
-            'placeholder': 'Email or Username'
-        })
-        self.fields['password'].widget.attrs.update({
-            'class': 'form-control form-control-lg',
-            'placeholder': 'Password'
-        })
-
-
-class ScheduleRuleForm(forms.ModelForm):
-    class Meta:
-        model = ScheduleRule
-        fields = [
-            'name',
-            'recurrence_type',
-            'start_time',
-            'end_time',
-            'day_of_week',
-            'day_of_month',
-            'month',
-            'max_bookings_per_day',
-            'min_booking_duration',
-            'max_booking_duration',
-            'buffer_before',
-            'buffer_after',
-            'is_active'
-        ]
-        widgets = {
-            'start_time': forms.TimeInput(attrs={'type': 'time'}),
-            'end_time': forms.TimeInput(attrs={'type': 'time'}),
-        }
-
-
-class EmailAccountForm(forms.ModelForm):
-    class Meta:
-        model = EmailAccount
-        fields = ['email_address', 'password']
-        widgets = {
-            'password': forms.PasswordInput(),
-        }
-
-    def clean_email_address(self):
-        email = self.cleaned_data['email_address']
-        provider = EmailProvider.get_provider_for_email(email)
-        if not provider:
-            raise forms.ValidationError(
-                "This email provider is not supported. Please use a supported email provider "
-                "(Gmail, Outlook, or Yahoo) or manually configure your email settings."
-            )
-        return email
-
-    def save(self, commit=True):
-        account = super().save(commit=False)
-        provider = EmailProvider.get_provider_for_email(account.email_address)
-        if provider:
-            account.provider = provider
-        if commit:
-            account.save()
-        return account
-
-# Delete any existing definitions of EmailComposeForm and add these classes:
-
-class MultipleFileInput(forms.FileInput):
-    """Custom widget that supports multiple file upload"""
-    def __init__(self, attrs=None):
-        default_attrs = {'multiple': 'multiple'}
-        if attrs:
-            default_attrs.update(attrs)
-        super().__init__(default_attrs)
-
-
-class MultipleFileField(forms.FileField):
-    """Custom field that uses MultipleFileInput"""
-    def __init__(self, *args, **kwargs):
-        kwargs.setdefault("widget", MultipleFileInput())
-        super().__init__(*args, **kwargs)
-
-    def clean(self, data, initial=None):
-        single_file_clean = super().clean
-        if isinstance(data, (list, tuple)):
-            result = [single_file_clean(d, initial) for d in data]
-        else:
-            result = single_file_clean(data, initial)
-        return result
-
-
-class EmailComposeForm(forms.ModelForm):
-    """Form for composing emails with multiple attachments"""
-    to_emails = forms.CharField(
-        widget=forms.TextInput(attrs={'class': 'form-control'}),
-        help_text="Separate multiple email addresses with commas"
-    )
-    cc_emails = forms.CharField(
-        required=False,
-        widget=forms.TextInput(attrs={'class': 'form-control'}),
-        help_text="Separate multiple email addresses with commas"
-    )
-    bcc_emails = forms.CharField(
-        required=False,
-        widget=forms.TextInput(attrs={'class': 'form-control'}),
-        help_text="Separate multiple email addresses with commas"
-    )
-    # Remove the attachments field from here as we'll handle it in the view
-    schedule_send = forms.BooleanField(
-        required=False,
-        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-        help_text="Schedule this email to be sent later"
-    )
-    scheduled_time = forms.DateTimeField(
-        required=False,
-        widget=forms.DateTimeInput(attrs={
-            'class': 'form-control',
-            'type': 'datetime-local'
-        })
-    )
-
-    class Meta:
-        model = EmailMessage
-        fields = ['subject', 'body_text', 'body_html']
-        widgets = {
-            'subject': forms.TextInput(attrs={'class': 'form-control'}),
-            'body_text': forms.Textarea(attrs={
-                'class': 'form-control',
-                'rows': 10
-            }),
-            'body_html': forms.Textarea(attrs={
-                'class': 'form-control',
-                'rows': 10
-            })
-        }
-
-    def clean_to_emails(self):
-        emails = [e.strip() for e in self.cleaned_data['to_emails'].split(',')]
-        validator = EmailValidator()
-        for email in emails:
-            try:
-                validator(email)
-            except ValidationError:
-                raise forms.ValidationError(f"Invalid email address: {email}")
-        return emails
-
-    def clean_cc_emails(self):
-        if not self.cleaned_data['cc_emails']:
-            return []
-        emails = [e.strip() for e in self.cleaned_data['cc_emails'].split(',')]
-        validator = EmailValidator()
-        for email in emails:
-            try:
-                validator(email)
-            except ValidationError:
-                raise forms.ValidationError(f"Invalid email address: {email}")
-        return emails
-
-    def clean_bcc_emails(self):
-        if not self.cleaned_data['bcc_emails']:
-            return []
-        emails = [e.strip() for e in self.cleaned_data['bcc_emails'].split(',')]
-        validator = EmailValidator()
-        for email in emails:
-            try:
-                validator(email)
-            except ValidationError:
-                raise forms.ValidationError(f"Invalid email address: {email}")
-        return emails
-
-    def clean(self):
-        cleaned_data = super().clean()
-        schedule_send = cleaned_data.get('schedule_send')
-        scheduled_time = cleaned_data.get('scheduled_time')
-
-        if schedule_send and not scheduled_time:
-            raise forms.ValidationError(
-                "Please specify a scheduled time for the email"
-            )
-
-        if scheduled_time and scheduled_time < timezone.now():
-            raise forms.ValidationError(
-                "Scheduled time cannot be in the past"
-            )
-
-        return cleaned_data
-
 
 class EmployeeUsernameChoiceField(forms.ModelChoiceField):
     def label_from_instance(self, obj):
@@ -916,7 +715,6 @@ class EmployeeUsernameForm(forms.Form):
         if obj.user.get_full_name():
             return obj.user.get_full_name()
         return obj.user.username
-
 
 class EmployeeSelectionForm(forms.Form):
     """Form for selecting employees in the calendar view"""

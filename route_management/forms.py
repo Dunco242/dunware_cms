@@ -46,55 +46,47 @@ class ServiceRequestForm(forms.ModelForm):
         self.user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
 
-        # Initialize service_location field with empty queryset to avoid loading all locations
+        # Initialize service_location field with empty queryset
         self.fields['service_location'].queryset = ServiceLocation.objects.none()
 
-        # If there's an initial customer or instance with customer, load the locations
-        initial_customer_id = None
+        # Get the customer ID - handle both initial data and bound form data
+        customer_id = None
 
-        # Handle initial customer value (could be ID or object)
-        if self.initial.get('customer'):
-            initial_customer = self.initial.get('customer')
-            # Check if it's already an ID or an object
-            if isinstance(initial_customer, Customer):
-                initial_customer_id = initial_customer.id
-            else:
-                initial_customer_id = initial_customer
-
-        # Handle instance customer (from update view)
-        elif self.instance and self.instance.pk and self.instance.customer:
-            initial_customer_id = self.instance.customer.id
-
-        # Add debug print to see what we're working with
-        print(f"Initial customer ID: {initial_customer_id}")
-
-        if initial_customer_id:
-            # Query service locations for this customer
-            locations = ServiceLocation.objects.filter(customer_id=initial_customer_id)
-            print(f"Found {locations.count()} service locations for customer {initial_customer_id}")
-            self.fields['service_location'].queryset = locations
-
-        # If form is bound and has data, reload locations based on selected customer
-        if self.is_bound and self.data.get('customer'):
+        # Check if it's a bound form (has data)
+        if self.is_bound and 'customer' in self.data:
             try:
                 customer_id = int(self.data.get('customer'))
-                locations = ServiceLocation.objects.filter(customer_id=customer_id)
-                print(f"Form is bound: Found {locations.count()} service locations for customer {customer_id}")
-                self.fields['service_location'].queryset = locations
-            except (ValueError, TypeError) as e:
-                print(f"Error converting customer ID: {e}")
-        def clean(self):
-            cleaned_data = super().clean()
+            except (ValueError, TypeError):
+                pass
+        # If not bound or customer wasn't in data, check initial data
+        elif self.initial.get('customer'):
+            initial_customer = self.initial.get('customer')
+            # Handle if it's an object or ID
+            if isinstance(initial_customer, Customer):
+                customer_id = initial_customer.id
+            else:
+                customer_id = initial_customer
+        # If not in initial, check instance
+        elif self.instance and self.instance.pk and self.instance.customer:
+            customer_id = self.instance.customer.id
 
-            # Ensure service location belongs to selected customer
-            customer = cleaned_data.get('customer')
-            service_location = cleaned_data.get('service_location')
+        # If we have a customer ID, load the locations
+        if customer_id:
+            self.fields['service_location'].queryset = ServiceLocation.objects.filter(
+                customer_id=customer_id
+            )
 
-            if customer and service_location and service_location.customer_id != customer.id:
-                self.add_error('service_location', 'Service location must belong to the selected customer.')
+    def clean(self):
+        cleaned_data = super().clean()
 
-            return cleaned_data
+        # Ensure service location belongs to selected customer
+        customer = cleaned_data.get('customer')
+        service_location = cleaned_data.get('service_location')
 
+        if customer and service_location and service_location.customer_id != customer.id:
+            self.add_error('service_location', 'Service location must belong to the selected customer.')
+
+        return cleaned_data
 
 class RouteForm(forms.ModelForm):
     """Form for creating and updating routes"""

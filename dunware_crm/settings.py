@@ -68,12 +68,13 @@ INSTALLED_APPS = [
     'widget_tweaks',
 
     # Local Apps
-    'core',
+    'core.apps.CoreConfig',
     'customer_projects.apps.CustomerProjectsConfig',
     'dunware_crm',
     'document_editor.apps.DocumentEditorConfig',
     'video_conference.apps.VideoConferenceConfig',
     'onboarding',
+    'route_management.apps.RouteManagementConfig',
 ]
 
 MIDDLEWARE = [

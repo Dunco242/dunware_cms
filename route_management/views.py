@@ -206,7 +206,7 @@ class ServiceRequestCreateView(LoginRequiredMixin, CreateView):
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
-        # Pass the user to the form for setting the created_by field
+        # Pass the user to the form
         kwargs['user'] = self.request.user
         return kwargs
 
@@ -215,14 +215,10 @@ class ServiceRequestCreateView(LoginRequiredMixin, CreateView):
         # Prefill customer if specified in URL
         customer_id = self.request.GET.get('customer')
         if customer_id:
-            initial['customer'] = customer_id
-
-            # If customer has only one service location, prefill it
             try:
-                customer = Customer.objects.get(id=customer_id)
-                if customer.service_locations.count() == 1:
-                    initial['service_location'] = customer.service_locations.first().id
-            except Customer.DoesNotExist:
+                # Store the ID, not the object
+                initial['customer'] = int(customer_id)
+            except ValueError:
                 pass
 
         return initial
@@ -231,9 +227,31 @@ class ServiceRequestCreateView(LoginRequiredMixin, CreateView):
         # Set created_by to current user
         form.instance.created_by = self.request.user
 
+        # Save the instance
         response = super().form_valid(form)
+
+        # Show a success message
         messages.success(self.request, f"Service request {self.object.request_number} created successfully.")
+
         return response
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # Add any additional context data needed by the template
+        context['customers'] = Customer.objects.filter(is_active=True)
+        context['service_types'] = ServiceType.objects.filter(is_active=True)
+
+        # If a customer is preselected, add available service locations
+        customer_id = self.request.GET.get('customer')
+        if customer_id:
+            try:
+                context['available_locations'] = ServiceLocation.objects.filter(
+                    customer_id=int(customer_id)
+                )
+            except ValueError:
+                pass
+
+        return context
 
     def get_success_url(self):
         return self.object.get_absolute_url()
@@ -250,11 +268,35 @@ class ServiceRequestUpdateView(LoginRequiredMixin, UpdateView):
         kwargs['user'] = self.request.user
         return kwargs
 
+    def get_initial(self):
+        initial = super().get_initial()
+        # If we have an existing object, make sure the initial data includes the customer ID
+        if self.object:
+            initial['customer'] = self.object.customer_id
+        return initial
+
     def form_valid(self, form):
+        # Save the form
         response = super().form_valid(form)
+
+        # Show success message
         messages.success(self.request, f"Service request {self.object.request_number} updated successfully.")
+
         return response
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # Add any additional context data needed by the template
+        context['customers'] = Customer.objects.filter(is_active=True)
+        context['service_types'] = ServiceType.objects.filter(is_active=True)
+
+        # Add available service locations for the current customer
+        if self.object and self.object.customer:
+            context['available_locations'] = ServiceLocation.objects.filter(
+                customer_id=self.object.customer_id
+            )
+
+        return context
 
 class RouteListView(LoginRequiredMixin, ListView):
     """List of routes with filtering options"""
@@ -2412,14 +2454,18 @@ def load_service_locations(request):
     customer_id = request.GET.get('customer_id')
 
     if not customer_id:
-        return JsonResponse([], safe=False)
+        return JsonResponse({'error': 'No customer ID provided'}, status=400)
 
-    locations = ServiceLocation.objects.filter(
-        customer_id=customer_id
-    ).values('id', 'name')
+    try:
+        # Get all service locations for this customer
+        locations = ServiceLocation.objects.filter(
+            customer_id=customer_id
+        ).values('id', 'name', 'address', 'city', 'state', 'zip_code')
 
-    return JsonResponse(list(locations), safe=False)
-
+        # Return as JSON
+        return JsonResponse(list(locations), safe=False)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
 
 @login_required
 def duplicate_service_request(request, pk):
