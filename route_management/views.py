@@ -907,18 +907,40 @@ class ServicePhotoUploadView(LoginRequiredMixin, FormView):
 
         return initial
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        # Add service_request_id to context for the template
+        context['service_request_id'] = self.kwargs.get('service_request_id')
+
+        # If possible, get the service request object to provide more context
+        try:
+            service_request = ServiceRequest.objects.get(pk=self.kwargs.get('service_request_id'))
+            context['service_request'] = service_request
+        except (ServiceRequest.DoesNotExist, ValueError, TypeError):
+            # If we can't get the service request, that's okay - just won't have it in the context
+            pass
+
+        return context
+
     def form_valid(self, form):
+        # Get data from form
         service_request = form.cleaned_data['service_request']
         photo_type = form.cleaned_data['photo_type']
         caption = form.cleaned_data['caption']
         notes = form.cleaned_data['notes']
 
-        # Ensure service_request is a proper object with pk attribute
-        # If service_request is an ID, get the actual object
-        if isinstance(service_request, str) or isinstance(service_request, int):
-            service_request = ServiceRequest.objects.get(pk=service_request)
+        # Ensure service_request is an object, not just an ID
+        if isinstance(service_request, (str, int)):
+            try:
+                service_request = ServiceRequest.objects.get(pk=service_request)
+            except ServiceRequest.DoesNotExist:
+                # Fall back to using the ID from URL
+                service_request_id = self.kwargs.get('service_request_id')
+                service_request = get_object_or_404(ServiceRequest, pk=service_request_id)
 
         # Process each uploaded image
+        uploaded_count = 0
         for image_file in self.request.FILES.getlist('images'):
             photo = ServicePhoto(
                 service_request=service_request,
@@ -930,10 +952,23 @@ class ServicePhotoUploadView(LoginRequiredMixin, FormView):
                 uploaded_by=self.request.user
             )
             photo.save()
+            uploaded_count += 1
 
-        messages.success(self.request, f"{len(self.request.FILES.getlist('images'))} photos uploaded successfully.")
+        # Record the upload session
+        ServicePhotoUpload.objects.create(
+            service_request=service_request,
+            photo_type=photo_type,
+            caption=caption,
+            notes=notes,
+            uploaded_by=self.request.user,
+            photo_count=uploaded_count
+        )
+
+        # Show success message
+        messages.success(self.request, f"{uploaded_count} photos uploaded successfully.")
+
+        # Redirect back to service request detail page
         return redirect('route_management:service_request_detail', pk=service_request.pk)
-
 @login_required
 def service_calendar_view(request):
     """Calendar view of service requests and routes"""
