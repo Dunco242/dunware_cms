@@ -913,6 +913,11 @@ class ServicePhotoUploadView(LoginRequiredMixin, FormView):
         caption = form.cleaned_data['caption']
         notes = form.cleaned_data['notes']
 
+        # Ensure service_request is a proper object with pk attribute
+        # If service_request is an ID, get the actual object
+        if isinstance(service_request, str) or isinstance(service_request, int):
+            service_request = ServiceRequest.objects.get(pk=service_request)
+
         # Process each uploaded image
         for image_file in self.request.FILES.getlist('images'):
             photo = ServicePhoto(
@@ -928,7 +933,6 @@ class ServicePhotoUploadView(LoginRequiredMixin, FormView):
 
         messages.success(self.request, f"{len(self.request.FILES.getlist('images'))} photos uploaded successfully.")
         return redirect('route_management:service_request_detail', pk=service_request.pk)
-
 
 @login_required
 def service_calendar_view(request):
