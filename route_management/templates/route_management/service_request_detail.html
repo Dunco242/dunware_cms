@@ -681,7 +681,7 @@
                 </button>
             </div>
             <!-- Use standard form submission without any fancy JS handling -->
-            <form id="assignTechnicianForm" method="post" action="{% url 'route_management:assign_technician_to_service_request' service_request.id %}">
+            <form id="assignTechnicianForm" method="post" action="{% url 'route_management:service_request_assign_technician' service_request.id %}">
                 {% csrf_token %}
                 <div class="modal-body">
                     <div class="form-group">
