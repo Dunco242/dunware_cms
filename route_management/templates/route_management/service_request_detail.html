@@ -24,23 +24,23 @@
                 <i class="fas fa-edit fa-sm text-white-50"></i> Edit Request
             </a>
             {% if service_request.status == 'pending' or service_request.status == 'scheduled' %}
-            <button type="button" class="d-none d-sm-inline-block btn btn-sm btn-success shadow-sm ml-2" data-toggle="modal" data-target="#assignTechnicianModal">
+            <button type="button" class="d-none d-sm-inline-block btn btn-sm btn-success shadow-sm ms-2" data-bs-toggle="modal" data-bs-target="#assignTechnicianModal">
                 <i class="fas fa-user-hard-hat fa-sm text-white-50"></i> Assign Technician
             </button>
             {% endif %}
-            <div class="dropdown d-none d-sm-inline-block ml-2">
-                <button class="btn btn-sm btn-secondary shadow-sm dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+            <div class="dropdown d-none d-sm-inline-block ms-2">
+                <button class="btn btn-sm btn-secondary shadow-sm dropdown-toggle" type="button" id="dropdownMenuButton" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                     <i class="fas fa-cog fa-sm text-white-50"></i> Actions
                 </button>
                 <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
-                    <button class="dropdown-item" type="button" data-toggle="modal" data-target="#photoUploadModal">
+                    <button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="#photoUploadModal">
                         <i class="fas fa-camera"></i> Upload Photos
                     </button>
                     {% if service_request.status != 'completed' and service_request.status != 'cancelled' %}
                     <a class="dropdown-item" href="{% url 'route_management:service_completion_create' 0 %}?service_request={{ service_request.id }}">
                         <i class="fas fa-check-circle"></i> Mark Completed
                     </a>
-                    <button class="dropdown-item text-danger" type="button" data-toggle="modal" data-target="#cancelModal">
+                    <button class="dropdown-item text-danger" type="button" data-bs-toggle="modal" data-bs-target="#cancelModal">
                         <i class="fas fa-times-circle"></i> Cancel Request
                     </button>
                     {% endif %}
@@ -234,7 +234,7 @@
                 <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
                     <h6 class="m-0 font-weight-bold text-primary">Assigned Technician</h6>
                     {% if service_request.status != 'completed' and service_request.status != 'cancelled' %}
-                    <button class="btn btn-sm btn-primary" data-toggle="modal" data-target="#assignTechnicianModal">
+                    <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#assignTechnicianModal">
                         <i class="fas fa-user-edit fa-sm"></i> Change
                     </button>
                     {% endif %}
@@ -272,11 +272,8 @@
                     {% else %}
                     <div class="text-center py-4">
                         <p class="text-muted">No technician assigned yet.</p>
-                        <button type="button" id="assignTechnicianButton" class="d-none d-sm-inline-block btn btn-sm btn-primary shadow-sm ml-2">
-                            <i class="fas fa-user-hard-hat fa-sm text-white-50"></i> Assign Technician
-                        </button>
-                        <button type="button" id="debugOpenModal" class="btn btn-warning btn-sm">
-                            Debug: Open Modal
+                        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#assignTechnicianModal">
+                            <i class="fas fa-user-hard-hat fa-sm"></i> Assign Technician
                         </button>
                     </div>
                     {% endif %}
@@ -358,7 +355,7 @@
             <div class="card shadow mb-4">
                 <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
                     <h6 class="m-0 font-weight-bold text-primary">Service Photos</h6>
-                    <button class="btn btn-sm btn-primary" data-toggle="modal" data-target="#photoUploadModal">
+                    <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#photoUploadModal">
                         <i class="fas fa-camera fa-sm"></i> Upload Photos
                     </button>
                 </div>
@@ -366,16 +363,16 @@
                     {% if photos %}
                     <ul class="nav nav-tabs" id="photosTabs" role="tablist">
                         <li class="nav-item">
-                            <a class="nav-link active" id="all-photos-tab" data-toggle="tab" href="#all-photos" role="tab" aria-controls="all-photos" aria-selected="true">All Photos</a>
+                            <a class="nav-link active" id="all-photos-tab" data-bs-toggle="tab" href="#all-photos" role="tab" aria-controls="all-photos" aria-selected="true">All Photos</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" id="before-photos-tab" data-toggle="tab" href="#before-photos" role="tab" aria-controls="before-photos" aria-selected="false">Before</a>
+                            <a class="nav-link" id="before-photos-tab" data-bs-toggle="tab" href="#before-photos" role="tab" aria-controls="before-photos" aria-selected="false">Before</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" id="after-photos-tab" data-toggle="tab" href="#after-photos" role="tab" aria-controls="after-photos" aria-selected="false">After</a>
+                            <a class="nav-link" id="after-photos-tab" data-bs-toggle="tab" href="#after-photos" role="tab" aria-controls="after-photos" aria-selected="false">After</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" id="issues-photos-tab" data-toggle="tab" href="#issues-photos" role="tab" aria-controls="issues-photos" aria-selected="false">Issues</a>
+                            <a class="nav-link" id="issues-photos-tab" data-bs-toggle="tab" href="#issues-photos" role="tab" aria-controls="issues-photos" aria-selected="false">Issues</a>
                         </li>
                     </ul>
                     <div class="tab-content" id="photosTabsContent">
@@ -447,7 +444,7 @@
                     {% else %}
                     <div class="text-center py-4">
                         <p class="text-muted">No photos uploaded yet.</p>
-                        <button class="btn btn-primary" data-toggle="modal" data-target="#photoUploadModal">
+                        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#photoUploadModal">
                             <i class="fas fa-camera"></i> Upload Photos
                         </button>
                     </div>
@@ -456,114 +453,115 @@
             </div>
 
             <!-- Service Completion Card -->
-<div class="card shadow mb-4">
-    <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
-        <h6 class="m-0 font-weight-bold text-primary">Service Completion</h6>
-        {% if not service_completion and service_request.status != 'cancelled' %}
-        {% if route_stops %}
-            <a href="{% url 'route_management:service_completion_create' route_stops.0.id %}" class="btn btn-sm btn-success">
-                <i class="fas fa-check-circle fa-sm"></i> Record Completion
-            </a>
-        {% else %}
-            <a href="{% url 'route_management:service_completion_create' 0 %}?service_request={{ service_request.id }}" class="btn btn-sm btn-success">
-                <i class="fas fa-check-circle fa-sm"></i> Record Completion
-            </a>
-        {% endif %}
-        {% endif %}
-    </div>
-    <div class="card-body">
-        {% if service_completion %}
-        <div class="row mb-3">
-            <div class="col-md-6">
-                <div class="row mb-2">
-                    <div class="col-5 font-weight-bold text-gray-800">Completed On:</div>
-                    <div class="col-7">{{ service_completion.end_time|date:"M d, Y g:i A" }}</div>
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                    <h6 class="m-0 font-weight-bold text-primary">Service Completion</h6>
+                    {% if not service_completion and service_request.status != 'cancelled' %}
+                    {% if route_stops %}
+                        <a href="{% url 'route_management:service_completion_create' route_stops.0.id %}" class="btn btn-sm btn-success">
+                            <i class="fas fa-check-circle fa-sm"></i> Record Completion
+                        </a>
+                    {% else %}
+                        <a href="{% url 'route_management:service_completion_create' 0 %}?service_request={{ service_request.id }}" class="btn btn-sm btn-success">
+                            <i class="fas fa-check-circle fa-sm"></i> Record Completion
+                        </a>
+                    {% endif %}
+                    {% endif %}
                 </div>
-                <div class="row mb-2">
-                    <div class="col-5 font-weight-bold text-gray-800">Duration:</div>
-                    <div class="col-7">{{ service_completion.duration_minutes }} minutes</div>
-                </div>
-                <div class="row mb-2">
-                    <div class="col-5 font-weight-bold text-gray-800">Billable Hours:</div>
-                    <div class="col-7">{{ service_completion.billable_hours }}</div>
-                </div>
-                <div class="row mb-2">
-                    <div class="col-5 font-weight-bold text-gray-800">Total Amount:</div>
-                    <div class="col-7">${{ service_completion.total_amount|floatformat:2 }}</div>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="row mb-2">
-                    <div class="col-5 font-weight-bold text-gray-800">Customer Name:</div>
-                    <div class="col-7">{{ service_completion.customer_name }}</div>
-                </div>
-                <div class="row mb-2">
-                    <div class="col-5 font-weight-bold text-gray-800">Customer Email:</div>
-                    <div class="col-7">{{ service_completion.customer_email }}</div>
-                </div>
-                <div class="row mb-2">
-                    <div class="col-5 font-weight-bold text-gray-800">Follow-up:</div>
-                    <div class="col-7">
-                        {% if service_completion.follow_up_required %}
-                        <span class="text-danger">Required</span>
+                <div class="card-body">
+                    {% if service_completion %}
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="row mb-2">
+                                <div class="col-5 font-weight-bold text-gray-800">Completed On:</div>
+                                <div class="col-7">{{ service_completion.end_time|date:"M d, Y g:i A" }}</div>
+                            </div>
+                            <div class="row mb-2">
+                                <div class="col-5 font-weight-bold text-gray-800">Duration:</div>
+                                <div class="col-7">{{ service_completion.duration_minutes }} minutes</div>
+                            </div>
+                            <div class="row mb-2">
+                                <div class="col-5 font-weight-bold text-gray-800">Billable Hours:</div>
+                                <div class="col-7">{{ service_completion.billable_hours }}</div>
+                            </div>
+                            <div class="row mb-2">
+                                <div class="col-5 font-weight-bold text-gray-800">Total Amount:</div>
+                                <div class="col-7">${{ service_completion.total_amount|floatformat:2 }}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="row mb-2">
+                                <div class="col-5 font-weight-bold text-gray-800">Customer Name:</div>
+                                <div class="col-7">{{ service_completion.customer_name }}</div>
+                            </div>
+                            <div class="row mb-2">
+                                <div class="col-5 font-weight-bold text-gray-800">Customer Email:</div>
+                                <div class="col-7">{{ service_completion.customer_email }}</div>
+                            </div>
+                            <div class="row mb-2">
+                                <div class="col-5 font-weight-bold text-gray-800">Follow-up:</div>
+                                <div class="col-7">
+                                    {% if service_completion.follow_up_required %}
+                                    <span class="text-danger">Required</span>
+                                    {% else %}
+                                    <span class="text-success">Not needed</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="row mb-2">
+                                <div class="col-5 font-weight-bold text-gray-800">Invoice:</div>
+                                <div class="col-7">
+                                    {% if service_completion.invoice_number %}
+                                    #{{ service_completion.invoice_number }} ({{ service_completion.invoice_date|date:"M d, Y" }})
+                                    {% else %}
+                                    Not invoiced yet
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h6 class="font-weight-bold">Work Performed</h6>
+                    <p>{{ service_completion.work_performed|linebreaks }}</p>
+
+                    <h6 class="font-weight-bold">Materials Used</h6>
+                    <p>{{ service_completion.materials_used|default:"None recorded"|linebreaks }}</p>
+
+                    {% if service_completion.technician_comments %}
+                    <h6 class="font-weight-bold">Technician Comments</h6>
+                    <p>{{ service_completion.technician_comments|linebreaks }}</p>
+                    {% endif %}
+
+                    {% if service_completion.follow_up_required %}
+                    <h6 class="font-weight-bold text-danger">Follow-up Notes</h6>
+                    <p>{{ service_completion.follow_up_notes|linebreaks }}</p>
+                    {% endif %}
+
+                    {% if service_completion.customer_signature %}
+                    <div class="mt-3 mb-3">
+                        <h6 class="font-weight-bold">Customer Signature</h6>
+                        <img src="{{ service_completion.customer_signature.url }}" alt="Customer Signature" class="img-fluid border" style="max-height: 100px;">
+                    </div>
+                    {% endif %}
+                    {% else %}
+                    <div class="text-center py-4">
+                        <p class="text-muted">No service completion record yet.</p>
+                        {% if service_request.status != 'cancelled' %}
+                        {% if route_stops %}
+                            <a href="{% url 'route_management:service_completion_create' route_stops.0.id %}" class="btn btn-success">
+                                <i class="fas fa-check-circle"></i> Record Completion
+                            </a>
                         {% else %}
-                        <span class="text-success">Not needed</span>
+                            <a href="{% url 'route_management:service_completion_create' 0 %}?service_request={{ service_request.id }}" class="btn btn-success">
+                                <i class="fas fa-check-circle"></i> Record Completion
+                            </a>
+                        {% endif %}
                         {% endif %}
                     </div>
-                </div>
-                <div class="row mb-2">
-                    <div class="col-5 font-weight-bold text-gray-800">Invoice:</div>
-                    <div class="col-7">
-                        {% if service_completion.invoice_number %}
-                        #{{ service_completion.invoice_number }} ({{ service_completion.invoice_date|date:"M d, Y" }})
-                        {% else %}
-                        Not invoiced yet
-                        {% endif %}
-                    </div>
+                    {% endif %}
                 </div>
             </div>
-        </div>
 
-        <h6 class="font-weight-bold">Work Performed</h6>
-        <p>{{ service_completion.work_performed|linebreaks }}</p>
-
-        <h6 class="font-weight-bold">Materials Used</h6>
-        <p>{{ service_completion.materials_used|default:"None recorded"|linebreaks }}</p>
-
-        {% if service_completion.technician_comments %}
-        <h6 class="font-weight-bold">Technician Comments</h6>
-        <p>{{ service_completion.technician_comments|linebreaks }}</p>
-        {% endif %}
-
-        {% if service_completion.follow_up_required %}
-        <h6 class="font-weight-bold text-danger">Follow-up Notes</h6>
-        <p>{{ service_completion.follow_up_notes|linebreaks }}</p>
-        {% endif %}
-
-        {% if service_completion.customer_signature %}
-        <div class="mt-3 mb-3">
-            <h6 class="font-weight-bold">Customer Signature</h6>
-            <img src="{{ service_completion.customer_signature.url }}" alt="Customer Signature" class="img-fluid border" style="max-height: 100px;">
-        </div>
-        {% endif %}
-        {% else %}
-        <div class="text-center py-4">
-            <p class="text-muted">No service completion record yet.</p>
-            {% if service_request.status != 'cancelled' %}
-            {% if route_stops %}
-                <a href="{% url 'route_management:service_completion_create' route_stops.0.id %}" class="btn btn-success">
-                    <i class="fas fa-check-circle"></i> Record Completion
-                </a>
-            {% else %}
-                <a href="{% url 'route_management:service_completion_create' 0 %}?service_request={{ service_request.id }}" class="btn btn-success">
-                    <i class="fas fa-check-circle"></i> Record Completion
-                </a>
-            {% endif %}
-            {% endif %}
-        </div>
-        {% endif %}
-    </div>
-</div>
             <!-- Customer Feedback Card -->
             <div class="card shadow mb-4">
                 <div class="card-header py-3">
@@ -659,7 +657,7 @@
                     {% else %}
                     <div class="text-center py-4">
                         <p class="text-muted">No customer feedback received yet.</p>
-                        <button class="btn btn-primary" data-toggle="modal" data-target="#requestFeedbackModal">
+                        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#requestFeedbackModal">
                             <i class="fas fa-envelope"></i> Request Feedback
                         </button>
                     </div>
@@ -676,11 +674,8 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="assignTechnicianModalLabel">Assign Technician</h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <!-- Use standard form submission without any fancy JS handling -->
             <form id="assignTechnicianForm" method="post" action="{% url 'route_management:service_request_assign_technician' service_request.id %}">
                 {% csrf_token %}
                 <div class="modal-body">
@@ -711,22 +706,21 @@
                     <input type="hidden" name="submitted_from_modal" value="true">
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-primary">Assign Technician</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
+
 <!-- Photo Upload Modal -->
 <div class="modal fade" id="photoUploadModal" tabindex="-1" role="dialog" aria-labelledby="photoUploadModalLabel" aria-hidden="true">
     <div class="modal-dialog" role="document">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="photoUploadModalLabel">Upload Photos</h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form method="post" action="{% url 'route_management:service_photo_upload' service_request.id %}" enctype="multipart/form-data">
                 {% csrf_token %}
@@ -755,7 +749,7 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-primary">Upload Photos</button>
                 </div>
             </form>
@@ -769,9 +763,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="requestFeedbackModalLabel">Request Customer Feedback</h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form method="post" action="{% url 'route_management:service_request_request_feedback' service_request.id %}">
                 {% csrf_token %}
@@ -790,7 +782,7 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-primary">Send Request</button>
                 </div>
             </form>
@@ -804,9 +796,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="cancelModalLabel">Cancel Service Request</h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form method="post" action="{% url 'route_management:service_request_cancel' service_request.id %}">
                 {% csrf_token %}
@@ -832,7 +822,7 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-danger">Cancel Service Request</button>
                 </div>
             </form>
@@ -840,6 +830,7 @@
     </div>
 </div>
 {% endblock %}
+
 
 {% block scripts %}
 <script>
