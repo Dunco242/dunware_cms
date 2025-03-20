@@ -50,7 +50,11 @@ urlpatterns = [
     path('technicians/<int:pk>/schedule/', views.technician_schedule_view, name='technician_schedule'),
     path('technicians/<int:pk>/profile/', views.TechnicianProfileView.as_view(), name='technician_profile'),
     path('technicians/bulk-assign/', views.BulkAssignTechnicianView.as_view(), name='bulk_assign_technician'),
-
+    path('technician-profile/<int:pk>/update/', views.technician_profile_update, name='technician_profile_update'),
+    path('technician-availability/', views.TechnicianAvailabilityListView.as_view(), name='technician_availability_list'),
+    path('technician-availability/create/', views.TechnicianAvailabilityCreateView.as_view(), name='technician_availability_create'),
+    path('technician-availability/<int:pk>/update/', views.TechnicianAvailabilityUpdateView.as_view(), name='technician_availability_update'),
+    path('technician-availability/<int:pk>/delete/', views.technician_availability_delete, name='technician_availability_delete'),
 
     # Service Areas
     path('service-areas/', views.ServiceAreaListView.as_view(), name='service_area_list'),

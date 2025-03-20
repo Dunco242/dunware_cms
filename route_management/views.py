@@ -2927,3 +2927,130 @@ def cancel_service_request(request, pk):
         messages.success(request, "Service request cancelled successfully.")
 
     return redirect('route_management:service_request_detail', pk=service_request.pk)
+
+
+@login_required
+def technician_profile_update(request, pk):
+    """Update a technician profile"""
+    profile = get_object_or_404(TechnicianProfile, pk=pk)
+
+    if request.method == 'POST':
+        # Process the form data
+        vehicle_type = request.POST.get('vehicle_type', '')
+        license_plate = request.POST.get('license_plate', '')
+        max_travel_distance_miles = request.POST.get('max_travel_distance_miles', 50)
+        certifications = request.POST.get('certifications', '')
+        enable_location_tracking = 'enable_location_tracking' in request.POST
+
+        # Update the profile
+        profile.vehicle_type = vehicle_type
+        profile.license_plate = license_plate
+        profile.max_travel_distance_miles = max_travel_distance_miles
+        profile.certifications = certifications
+        profile.enable_location_tracking = enable_location_tracking
+        profile.save()
+
+        # Process skills if they were submitted
+        if 'skills' in request.POST:
+            # Get the list of skill IDs from the form
+            selected_skill_ids = request.POST.getlist('skills')
+
+            # Clear existing skills and add the selected ones
+            profile.skills.clear()
+            for skill_id in selected_skill_ids:
+                try:
+                    skill = TechnicianSkill.objects.get(pk=skill_id)
+                    profile.skills.add(skill)
+                except TechnicianSkill.DoesNotExist:
+                    pass
+
+        messages.success(request, "Technician profile updated successfully.")
+        return redirect('route_management:technician_profile', pk=profile.employee.id)
+
+    # If not a POST request, redirect to the profile view
+    return redirect('route_management:technician_profile', pk=profile.employee.id)
+
+
+class TechnicianAvailabilityCreateView(LoginRequiredMixin, CreateView):
+    """Create a new availability entry for a technician"""
+    model = TechnicianAvailability
+    form_class = TechnicianAvailabilityForm
+    template_name = 'route_management/technician_availability_form.html'  # Use your existing template name here
+
+    def get_initial(self):
+        initial = super().get_initial()
+        # Pre-populate technician if provided in GET parameters
+        technician_id = self.request.GET.get('technician')
+        if technician_id:
+            initial['technician'] = technician_id
+        return initial
+
+    def get_success_url(self):
+        messages.success(self.request, "Technician availability created successfully.")
+        # Redirect to technician's profile or availability list
+        if 'technician' in self.request.GET:
+            return reverse('route_management:technician_profile',
+                           kwargs={'pk': self.request.GET.get('technician')})
+        return reverse('route_management:technician_availability_list')
+
+
+class TechnicianAvailabilityUpdateView(LoginRequiredMixin, UpdateView):
+    """Update an existing availability entry"""
+    model = TechnicianAvailability
+    form_class = TechnicianAvailabilityForm
+    template_name = 'route_management/technician_availability_form.html'  # Use your existing template name here
+
+    def get_success_url(self):
+        messages.success(self.request, "Technician availability updated successfully.")
+        # Redirect to technician's profile
+        return reverse('route_management:technician_profile',
+                       kwargs={'pk': self.object.technician.id})
+
+
+class TechnicianAvailabilityListView(LoginRequiredMixin, ListView):
+    """List all technician availability entries"""
+    model = TechnicianAvailability
+    template_name = 'route_management/technician_availability_list.html'
+    context_object_name = 'availabilities'
+
+    def get_queryset(self):
+        queryset = TechnicianAvailability.objects.all()
+
+        # Filter by technician if specified
+        technician_id = self.request.GET.get('technician')
+        if technician_id:
+            queryset = queryset.filter(technician_id=technician_id)
+
+        # Filter by day/date range if needed
+
+        return queryset.select_related('technician').order_by(
+            'day_of_week', 'specific_date', 'start_time')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['technicians'] = Employee.objects.filter(is_active=True)
+
+        # Pass filter values to template
+        context['filter_values'] = {
+            'technician': self.request.GET.get('technician', ''),
+        }
+
+        return context
+
+
+@login_required
+def technician_availability_delete(request, pk):
+    """Delete an availability entry"""
+    availability = get_object_or_404(TechnicianAvailability, pk=pk)
+    technician_id = availability.technician.id
+
+    if request.method == 'POST':
+        availability.delete()
+        messages.success(request, "Availability deleted successfully.")
+
+    # Return JSON response for AJAX requests
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return JsonResponse({'success': True})
+
+    # Redirect back to technician profile for non-AJAX requests
+    return redirect('route_management:technician_profile', pk=technician_id)
