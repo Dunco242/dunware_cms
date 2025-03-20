@@ -183,6 +183,11 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link" href="{% url 'route_management: dashboard' %}">
+                            <i class="fa-solid fa-route"></i>Route Manager
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link position-relative {% if 'chat' in request.resolver_match.url_name %}active{% endif %}"
                            href="{% url 'chat_inbox' %}" id="chatNavIcon">
                             <i class="fas fa-comments"></i> Chat
