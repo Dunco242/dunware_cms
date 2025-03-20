@@ -1,17 +1,264 @@
 {% extends 'core/base.html' %}
+
 {% block title %}Tasks{% endblock %}
+
 {% block content %}
-<div class="card shadow">
-    <div class="card-header bg-primary text-white">Tasks</div>
-    <div class="card-body">
-        <ul class="list-group">
-            {% for task in tasks %}
-                <li class="list-group-item d-flex justify-content-between align-items-center">
-                    <a href="{% url 'task-detail' task.pk %}">{{ task.title }}</a>
-                    <a href="{% url 'task-update' task.pk %}" class="btn btn-warning btn-sm">Edit</a>
-                </li>
-            {% endfor %}
-        </ul>
+<div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">Tasks</h1>
+        <a href="{% url 'task-create' %}" class="d-none d-sm-inline-block btn btn-sm btn-primary shadow-sm">
+            <i class="fas fa-plus fa-sm text-white-50"></i> Create New Task
+        </a>
+    </div>
+
+    <!-- Search and Filter Card -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">Search & Filter</h6>
+        </div>
+        <div class="card-body">
+            <form method="get" class="form-inline">
+                <div class="form-group mb-2 mr-2">
+                    <input type="text" name="search" class="form-control" placeholder="Search tasks..."
+                           value="{{ request.GET.search|default:'' }}">
+                </div>
+                <div class="form-group mb-2 mr-2">
+                    <select name="status" class="form-control">
+                        <option value="">- Status -</option>
+                        {% for status_value, status_label in status_choices %}
+                            <option value="{{ status_value }}" {% if request.GET.status == status_value %}selected{% endif %}>
+                                {{ status_label }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group mb-2 mr-2">
+                    <select name="priority" class="form-control">
+                        <option value="">- Priority -</option>
+                        {% for priority_value, priority_label in priority_choices %}
+                            <option value="{{ priority_value }}" {% if request.GET.priority == priority_value %}selected{% endif %}>
+                                {{ priority_label }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group mb-2 mr-2">
+                    <input type="date" name="due_date" class="form-control"
+                           value="{{ request.GET.due_date|default:'' }}" placeholder="Due Date">
+                </div>
+                <button type="submit" class="btn btn-primary mb-2">Filter</button>
+                <a href="{% url 'task-list' %}" class="btn btn-secondary mb-2 ml-2">Clear</a>
+            </form>
+        </div>
+    </div>
+
+    <!-- Tasks List -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+            <h6 class="m-0 font-weight-bold text-primary">Your Tasks</h6>
+            <div class="dropdown no-arrow">
+                <a class="dropdown-toggle" href="#" role="button" id="dropdownMenuLink" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="fas fa-ellipsis-v fa-sm fa-fw text-gray-400"></i>
+                </a>
+                <div class="dropdown-menu dropdown-menu-right shadow animated--fade-in" aria-labelledby="dropdownMenuLink">
+                    <div class="dropdown-header">View Options:</div>
+                    <a class="dropdown-item" href="{% url 'task-list' %}?status=not_started">Show Not Started</a>
+                    <a class="dropdown-item" href="{% url 'task-list' %}?status=in_progress">Show In Progress</a>
+                    <a class="dropdown-item" href="{% url 'task-list' %}?status=completed">Show Completed</a>
+                    <div class="dropdown-divider"></div>
+                    <a class="dropdown-item" href="{% url 'task-list' %}?priority=high">High Priority</a>
+                </div>
+            </div>
+        </div>
+        <div class="card-body">
+            {% if tasks %}
+                <div class="table-responsive">
+                    <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Status</th>
+                                <th>Priority</th>
+                                <th>Due Date</th>
+                                <th>Assigned To</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for task in tasks %}
+                                <tr>
+                                    <td>
+                                        <a href="{% url 'task-detail' task.pk %}">{{ task.title }}</a>
+                                    </td>
+                                    <td>
+                                        <span class="badge
+                                            {% if task.status == 'not_started' %}badge-secondary
+                                            {% elif task.status == 'in_progress' %}badge-info
+                                            {% elif task.status == 'completed' %}badge-success
+                                            {% elif task.status == 'deferred' %}badge-warning
+                                            {% elif task.status == 'cancelled' %}badge-danger
+                                            {% endif %}">
+                                            {{ task.get_status_display }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="badge
+                                            {% if task.priority == 'low' %}badge-success
+                                            {% elif task.priority == 'medium' %}badge-warning
+                                            {% elif task.priority == 'high' %}badge-danger
+                                            {% endif %}">
+                                            {{ task.get_priority_display }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {% if task.due_date %}
+                                            {{ task.due_date|date:"M d, Y" }}
+                                        {% else %}
+                                            No due date
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if task.assigned_to %}
+                                            {{ task.assigned_to.get_full_name }}
+                                        {% else %}
+                                            Unassigned
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <a href="{% url 'task-detail' task.pk %}" class="btn btn-info">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                            <a href="{% url 'task-update' task.pk %}" class="btn btn-warning">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+                                            {% if task.status != 'completed' %}
+                                                <a href="{% url 'task-complete' task.pk %}" class="btn btn-success">
+                                                    <i class="fas fa-check"></i>
+                                                </a>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination -->
+                {% if is_paginated %}
+                <div class="mt-4">
+                    <nav aria-label="Page navigation">
+                        <ul class="pagination justify-content-center">
+                            {% if page_obj.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page=1{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" aria-label="First">
+                                        <span aria-hidden="true">&laquo;&laquo;</span>
+                                    </a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" aria-label="Previous">
+                                        <span aria-hidden="true">&laquo;</span>
+                                    </a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <a class="page-link" href="#" aria-label="First">
+                                        <span aria-hidden="true">&laquo;&laquo;</span>
+                                    </a>
+                                </li>
+                                <li class="page-item disabled">
+                                    <a class="page-link" href="#" aria-label="Previous">
+                                        <span aria-hidden="true">&laquo;</span>
+                                    </a>
+                                </li>
+                            {% endif %}
+
+                            {% for i in paginator.page_range %}
+                                {% if page_obj.number == i %}
+                                    <li class="page-item active">
+                                        <a class="page-link" href="#">{{ i }}</a>
+                                    </li>
+                                {% elif i >= page_obj.number|add:'-2' and i <= page_obj.number|add:'2' %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?page={{ i }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">{{ i }}</a>
+                                    </li>
+                                {% endif %}
+                            {% endfor %}
+
+                            {% if page_obj.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page_obj.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" aria-label="Next">
+                                        <span aria-hidden="true">&raquo;</span>
+                                    </a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ paginator.num_pages }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" aria-label="Last">
+                                        <span aria-hidden="true">&raquo;&raquo;</span>
+                                    </a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <a class="page-link" href="#" aria-label="Next">
+                                        <span aria-hidden="true">&raquo;</span>
+                                    </a>
+                                </li>
+                                <li class="page-item disabled">
+                                    <a class="page-link" href="#" aria-label="Last">
+                                        <span aria-hidden="true">&raquo;&raquo;</span>
+                                    </a>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                </div>
+                {% endif %}
+            {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-tasks fa-4x mb-3 text-gray-300"></i>
+                    <p class="lead text-gray-800">No tasks found</p>
+                    <p class="text-gray-500">Create a new task to get started</p>
+                    <a href="{% url 'task-create' %}" class="btn btn-primary mt-3">
+                        <i class="fas fa-plus mr-1"></i> Create Task
+                    </a>
+                </div>
+            {% endif %}
+        </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    // Initialize datatable
+    $('#dataTable').DataTable({
+        "paging": false,
+        "searching": false,
+        "info": false,
+        "order": [[3, "asc"]]  // Sort by due date by default
+    });
+
+    // Handle status quick change
+    $('.btn-change-status').on('click', function(e) {
+        e.preventDefault();
+        var url = $(this).attr('href');
+
+        $.ajax({
+            url: url,
+            type: 'POST',
+            data: {
+                'csrfmiddlewaretoken': '{{ csrf_token }}'
+            },
+            success: function(response) {
+                location.reload();
+            },
+            error: function(error) {
+                console.log(error);
+                alert('Error changing task status');
+            }
+        });
+    });
+});
+</script>
 {% endblock %}

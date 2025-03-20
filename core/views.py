@@ -790,13 +790,15 @@ class TaskListView(LoginRequiredMixin, ListView):
     def get_queryset(self):
         user = self.request.user
 
-        # ✅ Check if the user has an employee profile
-        if not hasattr(user, 'employee'):
+        # Check if the user has an employee profile
+        employee = getattr(user, 'employee', None)
+        if not employee:
             return Task.objects.none()  # Return empty queryset instead of raising an error
 
+        # Use the employee directly in the filter
         queryset = Task.objects.filter(
-            Q(assigned_to=user.employee_profile) |
-            Q(created_by=user.employee_profile)
+            Q(assigned_to=employee) |
+            Q(created_by=employee)
         )
 
         search_query = self.request.GET.get('search')
@@ -829,7 +831,6 @@ class TaskListView(LoginRequiredMixin, ListView):
             'search_form': TaskSearchForm(self.request.GET)
         })
         return context
-
 class TaskDetailView(LoginRequiredMixin, DetailView):
     """
     Detailed view of a project task
