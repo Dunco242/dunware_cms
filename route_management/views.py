@@ -2781,12 +2781,13 @@ class CustomerDetailView(LoginRequiredMixin, DetailView):
 def assign_technician_to_service_request(request, pk):
     """Assign a technician to a service request"""
     service_request = get_object_or_404(ServiceRequest, pk=pk)
-
+    print("View function called")
+    print(f"Request method: {request.method}")
     if request.method == 'POST':
         technician_id = request.POST.get('technician_id')
         notify_technician = 'notify_technician' in request.POST
         notify_customer = 'notify_customer' in request.POST
-
+        print("POST data:", request.POST)
         if technician_id:
             try:
                 technician = Employee.objects.get(pk=technician_id)

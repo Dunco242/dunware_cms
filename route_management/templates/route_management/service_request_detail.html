@@ -682,6 +682,8 @@
                 <div class="modal-body">
                     <div class="form-group">
                         <label for="technician_id">Select Technician</label>
+                        <!-- Add this to your form -->
+<input type="hidden" name="debug_submission" value="true">
                         <select class="form-control" id="technician_id" name="technician_id" required>
                             <option value="">Choose a technician...</option>
                             {% for technician in available_technicians %}
@@ -1054,6 +1056,26 @@ $(document).ready(function() {
         if ($('#location-map').length > 0) {
             initializeLocationMap();
         }
+    });
+});
+</script>
+<script>
+    // Add this JavaScript to your page (you can add it temporarily for debugging)
+$(document).ready(function() {
+    // Log when the assign technician button is clicked
+    $('[data-target="#assignTechnicianModal"]').on('click', function() {
+        console.log('Assign technician button clicked');
+    });
+
+    // Log form submission
+    $('#assignTechnicianModal form').on('submit', function(e) {
+        console.log('Form submitted');
+        console.log('Form action:', $(this).attr('action'));
+        console.log('Form data:', $(this).serialize());
+
+        // Uncomment this to prevent any JavaScript from hijacking the submission
+        // e.preventDefault();
+        // this.submit();
     });
 });
 </script>
