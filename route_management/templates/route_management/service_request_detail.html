@@ -272,8 +272,11 @@
                     {% else %}
                     <div class="text-center py-4">
                         <p class="text-muted">No technician assigned yet.</p>
-                        <button class="btn btn-primary" data-toggle="modal" data-target="#assignTechnicianModal">
-                            <i class="fas fa-user-plus"></i> Assign Technician
+                        <button type="button" id="assignTechnicianButton" class="d-none d-sm-inline-block btn btn-sm btn-primary shadow-sm ml-2">
+                            <i class="fas fa-user-hard-hat fa-sm text-white-50"></i> Assign Technician
+                        </button>
+                        <button type="button" id="debugOpenModal" class="btn btn-warning btn-sm">
+                            Debug: Open Modal
                         </button>
                     </div>
                     {% endif %}
@@ -677,13 +680,12 @@
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
-            <form method="post" action="{% url 'route_management:service_request_assign_technician' service_request.id %}">
+            <!-- Use standard form submission without any fancy JS handling -->
+            <form id="assignTechnicianForm" method="post" action="{% url 'route_management:assign_technician_to_service_request' service_request.id %}">
                 {% csrf_token %}
                 <div class="modal-body">
                     <div class="form-group">
                         <label for="technician_id">Select Technician</label>
-                        <!-- Add this to your form -->
-<input type="hidden" name="debug_submission" value="true">
                         <select class="form-control" id="technician_id" name="technician_id" required>
                             <option value="">Choose a technician...</option>
                             {% for technician in available_technicians %}
@@ -705,6 +707,8 @@
                             <label class="custom-control-label" for="notify_customer">Notify Customer</label>
                         </div>
                     </div>
+                    <!-- Add debug information -->
+                    <input type="hidden" name="submitted_from_modal" value="true">
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
@@ -714,7 +718,6 @@
         </div>
     </div>
 </div>
-
 <!-- Photo Upload Modal -->
 <div class="modal fade" id="photoUploadModal" tabindex="-1" role="dialog" aria-labelledby="photoUploadModalLabel" aria-hidden="true">
     <div class="modal-dialog" role="document">
