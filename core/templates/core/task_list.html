@@ -139,9 +139,9 @@
                                                 <i class="fas fa-edit"></i>
                                             </a>
                                             {% if task.status != 'completed' %}
-                                                <a href="{% url 'task-complete' task.pk %}" class="btn btn-success">
-                                                    <i class="fas fa-check"></i>
-                                                </a>
+                                            <a href="{% url 'task-complete' task.pk %}" class="btn btn-success">
+                                                <i class="fas fa-check"></i>
+                                            </a>
                                             {% endif %}
                                         </div>
                                     </td>

@@ -196,7 +196,7 @@ urlpatterns = [
     path('tasks/<int:pk>/update/', TaskUpdateView.as_view(), name='task-update'),
     path('tasks/<int:pk>/delete/', TaskDeleteView.as_view(), name='task-delete'),
     path('tasks/<int:pk>/status/', task_status_update, name='task-status-update'),
-
+    path('tasks/<int:pk>/complete/', views.complete_task, name='task-complete'),
     # Export URLs
     path('export/customers/', views.export_customers, name='export-customers'),
     path('export/leads/', views.export_leads, name='export-leads'),

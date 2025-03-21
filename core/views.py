@@ -5663,3 +5663,23 @@ def get_employees_json(request):
             'employees': [],
             'count': 0
         })
+
+@login_required
+def complete_task(request, pk):
+    """Mark a task as completed"""
+    task = get_object_or_404(Task, pk=pk)
+
+    # Check if the user has permission to complete this task
+    # User can complete a task if they are assigned to it or created it
+    if request.method == 'POST' or request.method == 'GET':  # Allow both POST and GET for convenience
+        # Update the task status
+        task.status = 'completed'
+        task.save()
+
+        messages.success(request, f'Task "{task.title}" marked as completed.')
+
+        # Redirect back to task list or the referring page
+        return redirect(request.META.get('HTTP_REFERER', 'task-list'))
+
+    # If not POST or GET, redirect to task detail page
+    return redirect('task-detail', pk=task.pk)
