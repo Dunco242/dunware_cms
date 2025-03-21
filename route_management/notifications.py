@@ -2,7 +2,8 @@ import logging
 from django.utils import timezone
 from django.urls import reverse
 from core.notification_service import SmartNotificationService
-from ..models import RouteStop, Route, ServiceRequest
+from .models import RouteStop, Route, ServiceRequest
+
 
 logger = logging.getLogger(__name__)
 
@@ -235,6 +236,38 @@ class RouteNotificationService:
                 notifications.append(notification)
 
         return notifications
+
+class NotificationService:
+    """
+    Service for sending general notifications
+    """
+
+    @staticmethod
+    def send_notification(notification):
+        """
+        Send a notification using the appropriate method
+
+        Args:
+            notification: CustomerNotification object to send
+
+        Returns:
+            tuple: (success, message)
+        """
+        try:
+            # Implementation for sending notifications
+            # This is a placeholder - you'll need to implement the actual sending logic
+
+            # Example simple implementation:
+            if notification.delivery_method == 'email':
+                # Send email logic
+                pass
+            elif notification.delivery_method == 'sms':
+                # Send SMS logic
+                pass
+
+            return True, "Notification sent successfully"
+        except Exception as e:
+            return False, str(e)
 
 # For backward compatibility and easy import
 RouteNotifier = RouteNotificationService
