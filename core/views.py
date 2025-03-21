@@ -788,19 +788,21 @@ class TaskListView(LoginRequiredMixin, ListView):
     paginate_by = 10
 
     def get_queryset(self):
-        user = self.request.user
+        """Return all tasks with option to filter by current user"""
+        # Check if user wants to see only their tasks
+        show_my_tasks = self.request.GET.get('my_tasks') == 'true'
 
-        # Check if the user has an employee profile
-        employee = getattr(user, 'employee', None)
-        if not employee:
-            return Task.objects.none()  # Return empty queryset instead of raising an error
+        if show_my_tasks and hasattr(self.request.user, 'employee_profile'):
+            # Show only user's tasks
+            employee = self.request.user.employee_profile
+            queryset = Task.objects.filter(
+                Q(assigned_to=employee) | Q(created_by=employee)
+            )
+        else:
+            # Show all tasks
+            queryset = Task.objects.all()
 
-        # Use the employee directly in the filter
-        queryset = Task.objects.filter(
-            Q(assigned_to=employee) |
-            Q(created_by=employee)
-        )
-
+        # Apply other filters
         search_query = self.request.GET.get('search')
         status = self.request.GET.get('status')
         priority = self.request.GET.get('priority')
@@ -825,12 +827,17 @@ class TaskListView(LoginRequiredMixin, ListView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+
+        # Add show_my_tasks parameter to context to maintain state in the template
+        context['show_my_tasks'] = self.request.GET.get('my_tasks') == 'true'
+
         context.update({
             'status_choices': Task.STATUS_CHOICES,
             'priority_choices': Task.PRIORITY_CHOICES,
             'search_form': TaskSearchForm(self.request.GET)
         })
         return context
+
 class TaskDetailView(LoginRequiredMixin, DetailView):
     """
     Detailed view of a project task

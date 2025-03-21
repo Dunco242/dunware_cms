@@ -16,6 +16,12 @@
         <div class="card-header py-3">
             <h6 class="m-0 font-weight-bold text-primary">Search & Filter</h6>
         </div>
+        <div class="form-group mb-2">
+            <div class="custom-control custom-switch">
+                <input type="checkbox" class="custom-control-input" id="showMyTasks" name="my_tasks" value="true" {% if show_my_tasks %}checked{% endif %} onchange="this.form.submit()">
+                <label class="custom-control-label" for="showMyTasks">Show only my tasks</label>
+            </div>
+        </div>
         <div class="card-body">
             <form method="get" class="form-inline">
                 <div class="form-group mb-2 mr-2">
