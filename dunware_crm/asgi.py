@@ -3,6 +3,7 @@ import django
 import asyncio
 import logging
 import signal
+import sys
 
 
 # Ensure settings are loaded before anything else
@@ -85,9 +86,17 @@ application = ProtocolTypeRouter({
 # Attach shutdown handler
 application.on_shutdown = graceful_shutdown
 
-# Setup signal handlers for graceful shutdown
-for sig in (signal.SIGTERM, signal.SIGINT):
-    signal.signal(sig, lambda sig, frame: asyncio.create_task(graceful_shutdown()))
+# Only register signal handlers if running in the main thread
+# This fixes the ValueError: signal only works in main thread error
+if __name__ == "__main__" or "runserver" in sys.argv:
+    try:
+        # Setup signal handlers for graceful shutdown in the main thread
+        for sig in (signal.SIGTERM, signal.SIGINT):
+            signal.signal(sig, lambda sig, frame: asyncio.create_task(graceful_shutdown()))
+        logger.info("Signal handlers for graceful shutdown have been registered.")
+    except ValueError:
+        # Log if we're not in the main thread and can't set up signal handlers
+        logger.warning("Unable to register signal handlers: not in main thread")
 
 # Log startup
 logger.info("ASGI application has started successfully with improved shutdown handling.")
