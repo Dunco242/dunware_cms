@@ -353,9 +353,7 @@ class DeleteDocumentView(LoginRequiredMixin, EmployeeRequiredMixin, DeleteView):
 @login_required
 @require_POST
 def save_document_content(request, document_id):
-    """Save document content and optionally create a version."""
     try:
-        # Get the document
         document = get_object_or_404(Document, id=document_id)
 
         # Verify user permissions
@@ -366,155 +364,63 @@ def save_document_content(request, document_id):
             }, status=403)
 
         employee = request.user.employee_profile
-        if document.author != employee:
-            try:
-                collaborator = document.collaborators.get(employee=employee)
-                if collaborator.permission not in ['edit', 'manage']:
-                    return JsonResponse({
-                        'success': False,
-                        'error': 'You do not have permission to edit this document'
-                    }, status=403)
-            except Exception:
-                return JsonResponse({
-                    'success': False,
-                    'error': 'You do not have permission to edit this document'
-                }, status=403)
+        if not document.can_user_edit(request.user):
+            return JsonResponse({
+                'success': False,
+                'error': 'You do not have permission to edit this document'
+            }, status=403)
 
-        # Extract content from request.POST
         content_str = request.POST.get('content')
-        create_version = request.POST.get('create_version') == 'true'
-
-        if not content_str or content_str.isspace():
+        if not content_str:
             return JsonResponse({
                 'success': False,
                 'error': 'No content provided'
             }, status=400)
 
-        # Parse the JSON content
         try:
             content = json.loads(content_str)
-        except json.JSONDecodeError as e:
+        except json.JSONDecodeError:
             return JsonResponse({
                 'success': False,
-                'error': f'Invalid JSON content: {str(e)}'
+                'error': 'Invalid JSON content'
             }, status=400)
 
-        # Extract plain text using a direct approach
-        plain_text = ""
+        with transaction.atomic():
+            # Lock the row for update
+            document = Document.objects.select_for_update().get(id=document_id)
 
-        def extract_all_text(obj):
-            nonlocal plain_text
-            if isinstance(obj, dict):
-                # Get text from this node if it exists
-                if 'text' in obj and obj['text']:
-                    plain_text += obj['text'] + " "
+            # Update content and metadata
+            document.content = content
+            document.plain_text = document.extract_plain_text()
+            document.updated_by = employee
+            document.updated_at = timezone.now()
+            document.save()
 
-                # Process all fields that could contain nested content
-                for key, value in obj.items():
-                    if isinstance(value, (dict, list)):
-                        extract_all_text(value)
-            elif isinstance(obj, list):
-                for item in obj:
-                    extract_all_text(item)
-
-        extract_all_text(content)
-
-        # Clean up the plain text
-        plain_text = plain_text.strip()
-
-        # Normalize whitespace
-        import re
-        plain_text = re.sub(r'\s+', ' ', plain_text)
-
-        # Log extracted plain text for debugging
-        print(f"Extracted plain_text ({len(plain_text)} chars): {plain_text[:100]}...")
-
-        # Update document content and plain_text
-        document.content = content
-        document.plain_text = plain_text
-        document.updated_by = employee
-        document.updated_at = timezone.now()
-
-        # Create version if requested
-        if create_version:
-            # Get the next version number
-            try:
-                latest_version = DocumentVersion.objects.filter(document=document).order_by('-version_number').first()
-                version = (latest_version.version_number + 1) if latest_version else 1
-            except Exception:
-                # Fallback to document version if available
-                version = document.version + 1 if hasattr(document, 'version') else 1
-
-            # Create the version
-            DocumentVersion.objects.create(
-                document=document,
-                version_number=version,
-                content=content,
-                created_by=employee
-            )
-
-            # Update document version if applicable
-            if hasattr(document, 'version'):
-                document.version = version
-
-        # Save the document using a direct update to ensure both fields are updated
-        from django.db import connection
-        with connection.cursor() as cursor:
-            cursor.execute(
-                """
-                UPDATE document_editor_document
-                SET content = %s, plain_text = %s, updated_at = %s, updated_by_id = %s
-                WHERE id = %s
-                """,
-                [
-                    json.dumps(content),
-                    plain_text,
-                    timezone.now(),
-                    employee.id,
-                    document.id
-                ]
-            )
-
-        # Refresh from database to ensure we have the latest values
-        document.refresh_from_db()
-
-        # Log after save for debugging
-        print(f"After save - Document ID: {document.id}")
-        print(f"After save - Plain text length: {len(document.plain_text)}")
-        print(f"After save - Plain text preview: {document.plain_text[:100]}")
-
-        # Try to notify other users via WebSocket
-        try:
-            channel_layer = get_channel_layer()
-            async_to_sync(channel_layer.group_send)(
-                f"document_{document.id}",
-                {
-                    "type": "document_saved",
-                    "document_id": document.id,
-                    "user_id": request.user.id,
-                    "user_name": request.user.get_full_name() if hasattr(request.user, 'get_full_name') else request.user.username,
-                    "updated_at": document.updated_at.isoformat()
-                }
-            )
-        except Exception as e:
-            print(f"WebSocket notification error: {str(e)}")
-            # Don't fail the save if notification fails
+            # Create version if requested
+            create_version = request.POST.get('create_version') == 'true'
+            if create_version:
+                version = DocumentVersion.objects.create(
+                    document=document,
+                    version_number=DocumentVersion.get_next_version_number(document),
+                    content=content,
+                    created_by=employee
+                )
+                document.version = version.version_number
+                document.save()
 
         return JsonResponse({
             'success': True,
             'updated_at': document.updated_at.isoformat(),
-            'plain_text_length': len(document.plain_text),
-            'version': version if create_version else document.version
+            'version': document.version
         })
 
     except Exception as e:
-        import traceback
-        print(f"Error saving document: {str(e)}")
-        print(traceback.format_exc())
+        logger.error(f"Error saving document: {str(e)}", exc_info=True)
         return JsonResponse({
             'success': False,
             'error': str(e)
         }, status=500)
+
 
 # The WebSocket notification helper function
 def notify_document_saved(document, user):
@@ -1129,11 +1035,20 @@ def get_document_content(request, pk):
 def add_document_comment(request, document_id):
     """AJAX endpoint to add a comment to a document"""
     try:
+        # Log the entire request details
+        print("\n=== Comment Request Debug ===")
+        print(f"Request Method: {request.method}")
+        print(f"Content Type: {request.content_type}")
+        print(f"Request Body: {request.body[:200]}")  # First 200 chars
+        print(f"POST Data: {dict(request.POST)}")
+        print(f"Headers: {dict(request.headers)}")
+
         # Get the document
         document = get_object_or_404(Document, pk=document_id)
         employee = request.user.employee_profile
 
         # Debug logging
+        print(f"\n=== User and Document Info ===")
         print(f"Adding comment to document {document_id}")
         print(f"Current user: {request.user.username}, employee ID: {employee.id if employee else 'None'}")
         print(f"Document author ID: {document.author.id if document.author else 'None'}")
@@ -1165,6 +1080,7 @@ def add_document_comment(request, document_id):
 
         # Parse the form data
         try:
+            print("\n=== Parsing Request Data ===")
             # First try to get from POST data (for FormData submissions)
             content = request.POST.get('content')
             parent_id = request.POST.get('parent_id')
@@ -1172,8 +1088,16 @@ def add_document_comment(request, document_id):
             selection_end = request.POST.get('selection_end')
             selected_text = request.POST.get('selected_text', '')
 
+            print(f"POST Data Results:")
+            print(f"Content from POST: {content[:50] if content else 'None'}")
+            print(f"Parent ID from POST: {parent_id}")
+            print(f"Selection Start from POST: {selection_start}")
+            print(f"Selection End from POST: {selection_end}")
+            print(f"Selected Text from POST: {selected_text[:50] if selected_text else 'None'}")
+
             # If content is not in POST, try JSON body
             if not content:
+                print("\nTrying to parse JSON body...")
                 data = json.loads(request.body)
                 content = data.get('content')
                 parent_id = data.get('parent_id')
@@ -1181,13 +1105,16 @@ def add_document_comment(request, document_id):
                 selection_end = data.get('selection_end')
                 selected_text = data.get('selected_text', '')
 
-            # Log what we received
-            print(f"Received comment content: {content[:50]}...")
-            print(f"Parent ID: {parent_id}")
-            print(f"Has selection data: {bool(selection_start)}")
-        except json.JSONDecodeError:
-            # If both approaches fail, log the error
-            print(f"Could not parse request body: {request.body[:100]}")
+                print(f"JSON Data Results:")
+                print(f"Content from JSON: {content[:50] if content else 'None'}")
+                print(f"Parent ID from JSON: {parent_id}")
+                print(f"Selection Start from JSON: {selection_start}")
+                print(f"Selection End from JSON: {selection_end}")
+                print(f"Selected Text from JSON: {selected_text[:50] if selected_text else 'None'}")
+
+        except json.JSONDecodeError as e:
+            print(f"\nJSON Decode Error: {str(e)}")
+            print(f"Request body: {request.body[:200]}")
             print(f"POST data: {dict(request.POST)}")
             return JsonResponse({
                 'success': False,
@@ -1195,15 +1122,18 @@ def add_document_comment(request, document_id):
             }, status=400)
 
         if not content:
+            print("\nNo content found in request")
             return JsonResponse({
                 'success': False,
                 'error': 'Comment content is required.'
             }, status=400)
 
         # Process selection data if it's a string (from FormData)
+        print("\n=== Processing Selection Data ===")
         if selection_start and isinstance(selection_start, str):
             try:
                 selection_start = json.loads(selection_start)
+                print(f"Parsed selection_start: {selection_start}")
             except json.JSONDecodeError:
                 print(f"Could not parse selection_start: {selection_start}")
                 selection_start = None
@@ -1211,11 +1141,13 @@ def add_document_comment(request, document_id):
         if selection_end and isinstance(selection_end, str):
             try:
                 selection_end = json.loads(selection_end)
+                print(f"Parsed selection_end: {selection_end}")
             except json.JSONDecodeError:
                 print(f"Could not parse selection_end: {selection_end}")
                 selection_end = None
 
         # Create the comment
+        print("\n=== Creating Comment ===")
         comment = DocumentComment(
             document=document,
             author=employee,
@@ -1230,12 +1162,13 @@ def add_document_comment(request, document_id):
             try:
                 parent_comment = get_object_or_404(DocumentComment, pk=parent_id)
                 comment.parent_comment = parent_comment
+                print(f"Added parent comment: {parent_id}")
             except:
                 print(f"Could not find parent comment with ID: {parent_id}")
                 # Continue without parent if not found
 
         comment.save()
-        print(f"Comment saved with ID: {comment.id}")
+        print(f"Comment saved successfully with ID: {comment.id}")
 
         # Prepare author data safely
         author_data = {
@@ -1243,6 +1176,7 @@ def add_document_comment(request, document_id):
             'name': employee.get_full_name() if hasattr(employee, 'get_full_name') else str(employee)
         }
 
+        print("\n=== Returning Success Response ===")
         return JsonResponse({
             'success': True,
             'comment': {
@@ -1260,8 +1194,10 @@ def add_document_comment(request, document_id):
 
     except Exception as e:
         # Log the full exception with traceback
-        import traceback
-        print(f"Error adding comment: {str(e)}")
+        print("\n=== Error Occurred ===")
+        print(f"Error type: {type(e).__name__}")
+        print(f"Error message: {str(e)}")
+        print("Traceback:")
         print(traceback.format_exc())
 
         # Return a more detailed error message
