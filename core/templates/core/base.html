@@ -160,6 +160,11 @@
                            href="{% url 'service-list' %}">
                             <i class="fas fa-cogs"></i> Services
                         </a>
+                    <li class="nav-item">
+                        <a class="nav-link {% if document in request.resolver_match.url_name %}active{% endif %}"
+                           href="{% url 'document_editor:document_list' %}">
+                            <i class="fas fa-file-alt"></i> Documents
+                        </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link {% if 'onboarding' in request.resolver_match.url_name %}active{% endif %}"

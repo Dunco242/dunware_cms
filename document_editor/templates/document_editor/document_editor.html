@@ -184,7 +184,7 @@
 
 {% block extra_js %}
 <script>
-  document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function() {
     const textEditor = document.getElementById('text-editor');
     const documentForm = document.getElementById('document-form');
     const documentContent = document.getElementById('document-content');
@@ -196,6 +196,13 @@
     const documentId = document.getElementById('document-id').value;
     const canEdit = document.getElementById('can-edit').value === 'True';
     const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+    // Debug URL paths to help identify the correct paths
+    console.log("=== URL PATH DEBUGGING ===");
+    console.log("Current URL:", window.location.href);
+    console.log("Current Path:", window.location.pathname);
+    console.log("Document ID:", documentId);
+    console.log("CSRF Token Present:", !!csrfToken);
 
     // Setup toolbar buttons
     document.querySelectorAll('.toolbar-button').forEach(button => {
@@ -286,180 +293,331 @@
       hasUnsavedChanges = true;
     });
 
+    // Function to extract formatted text from an element
+    function extractTextWithFormatting(element) {
+      const result = [];
+
+      Array.from(element.childNodes).forEach(node => {
+        if (node.nodeType === Node.TEXT_NODE) {
+          const textContent = node.textContent;
+          if (textContent) {
+            result.push({ text: textContent });
+          }
+        } else if (node.nodeType === Node.ELEMENT_NODE) {
+          let textObj = { text: node.textContent || '' };
+
+          // Extract formatting
+          if (node.tagName === 'STRONG' || node.tagName === 'B') {
+            textObj.bold = true;
+          }
+          if (node.tagName === 'EM' || node.tagName === 'I') {
+            textObj.italic = true;
+          }
+          if (node.tagName === 'U') {
+            textObj.underline = true;
+          }
+
+          // Add text with formatting if not empty
+          if (textObj.text) {
+            result.push(textObj);
+          }
+        }
+      });
+
+      // Ensure there's at least one text node
+      if (result.length === 0) {
+        result.push({ text: '' });
+      }
+
+      return result;
+    }
+
     // Save document function with improved text extraction
     function saveDocument(createVersion = false) {
-  const tempContainer = document.createElement('div');
-  tempContainer.innerHTML = textEditor.innerHTML;
+      const tempContainer = document.createElement('div');
+      tempContainer.innerHTML = textEditor.innerHTML;
 
-  let child = tempContainer.firstChild;
-  while (child) {
-    if (child.nodeType === Node.DOCUMENT_TYPE_NODE) {
-      const toRemove = child;
-      child = child.nextSibling;
-      tempContainer.removeChild(toRemove);
-    } else {
-      child = child.nextSibling;
-    }
-  }
+      // Debug log the HTML content
+      console.log("Editor HTML content:", textEditor.innerHTML);
 
-  const cleanHtml = tempContainer.innerHTML;
-  console.log("Cleaned HTML to convert:", cleanHtml);
-
-  const paragraphs = [];
-
-  function extractTextWithFormatting(element) {
-    const result = [];
-
-    Array.from(element.childNodes).forEach(node => {
-      if (node.nodeType === Node.TEXT_NODE) {
-        const textContent = node.textContent;
-        if (textContent && textContent.trim()) {
-          result.push({ text: textContent });
-        } else if (textContent) {
-          result.push({ text: textContent });
+      let child = tempContainer.firstChild;
+      while (child) {
+        if (child.nodeType === Node.DOCUMENT_TYPE_NODE) {
+          const toRemove = child;
+          child = child.nextSibling;
+          tempContainer.removeChild(toRemove);
+        } else {
+          child = child.nextSibling;
         }
-      } else if (node.nodeType === Node.ELEMENT_NODE) {
-        const textContent = node.textContent;
+      }
 
-        if (!textContent && !textContent.trim()) {
+      const cleanHtml = tempContainer.innerHTML;
+      console.log("Cleaned HTML to convert:", cleanHtml);
+
+      // If content is empty, set a default structure
+      if (!cleanHtml || cleanHtml.trim() === '') {
+        console.log("Content is empty, setting default content");
+        const defaultContent = {
+          children: [
+            {
+              type: 'paragraph',
+              children: [{ text: '' }]
+            }
+          ]
+        };
+
+        // Convert to string for debugging
+        const contentJson = JSON.stringify(defaultContent);
+        console.log("Using default content:", contentJson);
+
+        // Create form data
+        const formData = new FormData();
+        formData.append('content', contentJson);
+        formData.append('create_version', createVersion ? 'true' : 'false');
+        formData.append('csrfmiddlewaretoken', csrfToken);
+
+        // Show saving indicator
+        saveStatus.innerText = 'Saving...';
+        if (saveButton) {
+          saveButton.disabled = true;
+          saveButton.innerText = 'Saving...';
+        }
+
+        // Try the URL format from logs
+        const saveUrl = `/documents/${documentId}/save/`;
+        console.log("Saving to URL:", saveUrl);
+
+        fetch(saveUrl, {
+          method: 'POST',
+          body: formData
+        })
+        .then(response => {
+          console.log("Server response status:", response.status);
+          if (!response.ok) {
+            return response.text().then(text => {
+              console.error("Error response text:", text);
+              throw new Error(`Server error: ${response.status} - ${text}`);
+            });
+          }
+          return response.json();
+        })
+        .then(data => handleSaveResponse(data))
+        .catch(error => handleSaveError(error));
+
+        return;
+      }
+
+      // Extract content from the editor
+      try {
+        const paragraphs = [];
+
+        // Simple fallback for empty documents
+        if (tempContainer.children.length === 0) {
+          const slateContent = {
+            children: [
+              {
+                type: 'paragraph',
+                children: [{ text: textEditor.textContent || '' }]
+              }
+            ]
+          };
+
+          // Convert to string for debugging
+          const contentJson = JSON.stringify(slateContent);
+          console.log("No elements found, using text content:", contentJson);
+
+          // Create form data
+          const formData = new FormData();
+          formData.append('content', contentJson);
+          formData.append('create_version', createVersion ? 'true' : 'false');
+          formData.append('csrfmiddlewaretoken', csrfToken);
+
+          // Show saving indicator
+          saveStatus.innerText = 'Saving...';
+          if (saveButton) {
+            saveButton.disabled = true;
+            saveButton.innerText = 'Saving...';
+          }
+
+          // Direct endpoint
+          const saveUrl = `/documents/${documentId}/save/`;
+          console.log("Saving to URL:", saveUrl);
+
+          fetch(saveUrl, {
+            method: 'POST',
+            body: formData
+          })
+          .then(response => {
+            console.log("Server response status:", response.status);
+            if (!response.ok) {
+              return response.text().then(text => {
+                console.error("Error response text:", text);
+                throw new Error(`Server error: ${response.status} - ${text}`);
+              });
+            }
+            return response.json();
+          })
+          .then(data => handleSaveResponse(data))
+          .catch(error => handleSaveError(error));
+
           return;
         }
 
-        const textObj = { text: textContent };
+        // Process each element in the HTML content
+        Array.from(tempContainer.children).forEach(element => {
+          console.log("Processing element:", element.tagName);
 
-        if (node.tagName === 'STRONG' || node.tagName === 'B') {
-          textObj.bold = true;
-        }
-        if (node.tagName === 'EM' || node.tagName === 'I') {
-          textObj.italic = true;
-        }
-        if (node.tagName === 'U') {
-          textObj.underline = true;
+          // Create paragraph
+          if (element.tagName === 'P') {
+            paragraphs.push({
+              type: 'paragraph',
+              children: extractTextWithFormatting(element)
+            });
+          }
+          // Create heading-one
+          else if (element.tagName === 'H1') {
+            paragraphs.push({
+              type: 'heading-one',
+              children: extractTextWithFormatting(element)
+            });
+          }
+          // Create heading-two
+          else if (element.tagName === 'H2') {
+            paragraphs.push({
+              type: 'heading-two',
+              children: extractTextWithFormatting(element)
+            });
+          }
+          // Create bulleted-list
+          else if (element.tagName === 'UL') {
+            const listItems = Array.from(element.querySelectorAll('li')).map(li => ({
+              type: 'list-item',
+              children: extractTextWithFormatting(li)
+            }));
+
+            paragraphs.push({
+              type: 'bulleted-list',
+              children: listItems
+            });
+          }
+          // Create numbered-list
+          else if (element.tagName === 'OL') {
+            const listItems = Array.from(element.querySelectorAll('li')).map(li => ({
+              type: 'list-item',
+              children: extractTextWithFormatting(li)
+            }));
+
+            paragraphs.push({
+              type: 'numbered-list',
+              children: listItems
+            });
+          }
+          // Default to paragraph for other elements
+          else {
+            paragraphs.push({
+              type: 'paragraph',
+              children: extractTextWithFormatting(element)
+            });
+          }
+        });
+
+        console.log("Extracted paragraphs:", paragraphs);
+
+        // Ensure there's at least one paragraph
+        if (paragraphs.length === 0) {
+          paragraphs.push({
+            type: 'paragraph',
+            children: [{ text: textEditor.textContent || '' }]
+          });
         }
 
-        result.push(textObj);
+        // Create Slate.js content structure
+        const slateContent = { children: paragraphs };
+
+        // Convert to string for debugging
+        const contentJson = JSON.stringify(slateContent);
+        console.log("Generated Slate.js content:", contentJson);
+
+        // Create form data
+        const formData = new FormData();
+        formData.append('content', contentJson);
+        formData.append('create_version', createVersion ? 'true' : 'false');
+        formData.append('csrfmiddlewaretoken', csrfToken);
+
+        // Show saving indicator
+        saveStatus.innerText = 'Saving...';
+        if (saveButton) {
+          saveButton.disabled = true;
+          saveButton.innerText = 'Saving...';
+        }
+
+        // Use the URL that works based on logs
+        const saveUrl = `/documents/${documentId}/save/`;
+        console.log("Saving to URL:", saveUrl);
+
+        fetch(saveUrl, {
+          method: 'POST',
+          body: formData
+        })
+        .then(response => {
+          console.log("Server response status:", response.status);
+          if (!response.ok) {
+            return response.text().then(text => {
+              console.error("Error response text:", text);
+              throw new Error(`Server error: ${response.status} - ${text}`);
+            });
+          }
+          return response.json();
+        })
+        .then(data => handleSaveResponse(data))
+        .catch(error => handleSaveError(error));
       }
-    });
-
-    if (result.length === 0) {
-      result.push({ text: '' });
-    }
-
-    return result;
-  }
-
-  Array.from(tempContainer.children).forEach(element => {
-    if (element.tagName === 'P') {
-      paragraphs.push({
-        type: 'paragraph',
-        children: extractTextWithFormatting(element)
-      });
-    } else if (element.tagName === 'H1') {
-      paragraphs.push({
-        type: 'heading-one',
-        children: extractTextWithFormatting(element)
-      });
-    } else if (element.tagName === 'H2') {
-      paragraphs.push({
-        type: 'heading-two',
-        children: extractTextWithFormatting(element)
-      });
-    } else if (element.tagName === 'UL') {
-      const listItems = Array.from(element.querySelectorAll('li')).map(li => ({
-        type: 'list-item',
-        children: extractTextWithFormatting(li)
-      }));
-
-      paragraphs.push({
-        type: 'bulleted-list',
-        children: listItems
-      });
-    } else if (element.tagName === 'OL') {
-      const listItems = Array.from(element.querySelectorAll('li')).map(li => ({
-        type: 'list-item',
-        children: extractTextWithFormatting(li)
-      }));
-
-      paragraphs.push({
-        type: 'numbered-list',
-        children: listItems
-      });
-    } else {
-      paragraphs.push({
-        type: 'paragraph',
-        children: extractTextWithFormatting(element)
-      });
-    }
-  });
-
-  if (paragraphs.length === 0) {
-    paragraphs.push({
-      type: 'paragraph',
-      children: [{ text: '' }]
-    });
-  }
-
-  const slateContent = {
-    children: paragraphs
-  };
-
-  const extractedText = paragraphs.map(p => {
-    if (p.children) {
-      return p.children.map(child => {
-        if (typeof child === 'object' && 'text' in child) {
-          return child.text;
-        } else if (typeof child === 'object' && child.children) {
-          return child.children.map(c => c.text || '').join(' ');
-        }
-        return '';
-      }).join(' ');
-    }
-    return '';
-  }).join(' ');
-
-  console.log("Extracted text for plain_text:", extractedText);
-
-  const formData = new FormData(documentForm);
-
-  formData.set('content', JSON.stringify(slateContent));
-  formData.set('plain_text', extractedText);
-  formData.set('create_version', createVersion.toString());
-
-  fetch(documentForm.action, {
-    method: 'POST',
-    body: formData,
-    credentials: 'same-origin'
-  })
-  .then(response => {
-    console.log('Received response:', response);
-    if (!response.ok) {
-      throw new Error(`Server error: ${response.status} - ${response.statusText}`);
-    }
-    return response.json();
-  })
-  .then(data => {
-    if (data.success) {
-      hasUnsavedChanges = false;
-
-      const successMsg = createVersion
-        ? `Created new version ${data.version}`
-        : 'Document saved successfully';
-
-      documentEditorShowNotification(successMsg, 'success');
-
-      if (data.updated_at) {
-        saveStatus.innerText = `Last saved: ${new Date(data.updated_at).toLocaleString()}`;
+      catch (error) {
+        console.error("Error generating document content:", error);
+        handleSaveError(error);
       }
-    } else {
-      console.error('Error saving document:', data.error);
-      documentEditorShowNotification('Error saving document: ' + data.error, 'error');
     }
-  })
-  .catch(error => {
-    console.error('Network or server error:', error);
-    documentEditorShowNotification('Network or server error: ' + error.message, 'error');
-  });
-}
+
+    function handleSaveResponse(data) {
+      console.log("Server response data:", data);
+
+      if (data.success) {
+        hasUnsavedChanges = false;
+
+        saveStatus.innerText = `Last saved: ${new Date().toLocaleString()}`;
+
+        if (saveButton) {
+          saveButton.disabled = false;
+          saveButton.innerText = 'Save';
+        }
+
+        documentEditorShowNotification('Document saved successfully', 'success');
+      } else {
+        console.error('Error saving document:', data.error);
+
+        saveStatus.innerText = `Error saving: ${data.error}`;
+
+        if (saveButton) {
+          saveButton.disabled = false;
+          saveButton.innerText = 'Save';
+        }
+
+        documentEditorShowNotification('Error saving document: ' + data.error, 'error');
+      }
+    }
+
+    function handleSaveError(error) {
+      console.error('Error saving document:', error);
+
+      saveStatus.innerText = 'Error saving document';
+
+      if (saveButton) {
+        saveButton.disabled = false;
+        saveButton.innerText = 'Save';
+      }
+
+      documentEditorShowNotification('Error saving document: ' + error.message, 'error');
+    }
 
     // Save button click handlers
     saveButton.addEventListener('click', function() {
@@ -488,8 +646,10 @@
 
     function initWebSocket() {
       const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-      const wsUrl = `${protocol}://${window.location.host}/wss/documents/${documentId}/`;
+      // Update WebSocket URL to match routing.py pattern
+      const wsUrl = `${protocol}://${window.location.host}/ws/notifications/${documentId}/`;
 
+      console.log("Attempting WebSocket connection to:", wsUrl);
       updateConnectionStatus('connecting');
 
       socket = new WebSocket(wsUrl);
@@ -679,8 +839,8 @@
       }, 3000);
     }
 
-    // Initialize WebSocket
-    initWebSocket();
+    // Initialize WebSocket - commented out due to routing issues
+    // initWebSocket();
 
     // Toggle comments sidebar
     document.getElementById('toggle-comments').addEventListener('click', function() {
@@ -696,6 +856,99 @@
         }
       }
     });
+
+    // // Add debugging tools
+    // const editorContainer = document.getElementById('editor-container');
+    // if (editorContainer) {
+    //   const debugDiv = document.createElement('div');
+    //   debugDiv.className = 'mt-3';
+    //   debugDiv.innerHTML = `
+    //     <div class="card">
+    //       <div class="card-header">Debugging Tools</div>
+    //       <div class="card-body">
+    //         <button id="manual-save-btn" class="btn btn-warning">Manual Save with Debug</button>
+    //         <div id="debug-output" class="mt-2 p-2 bg-light" style="min-height: 50px;"></div>
+    //       </div>
+    //     </div>
+    //   `;
+    //   editorContainer.appendChild(debugDiv);
+
+    //   document.getElementById('manual-save-btn').addEventListener('click', function() {
+    //     const debugOutput = document.getElementById('debug-output');
+    //     debugOutput.innerHTML = 'Saving document...';
+
+    //     // Get actual content from the editor instead of test content
+    //     const tempContainer = document.createElement('div');
+    //     tempContainer.innerHTML = textEditor.innerHTML;
+
+    //     // Process the editor content
+    //     const paragraphs = [];
+
+    //     // Process each element in the HTML content
+    //     Array.from(tempContainer.children).forEach(element => {
+    //       // Create the appropriate structure based on element type
+    //       if (element.tagName === 'P') {
+    //         paragraphs.push({
+    //           type: 'paragraph',
+    //           children: extractTextWithFormatting(element)
+    //         });
+    //       }
+    //       else if (element.tagName === 'H1') {
+    //         paragraphs.push({
+    //           type: 'heading-one',
+    //           children: extractTextWithFormatting(element)
+    //         });
+    //       }
+    //       // Handle other element types as in the saveDocument function
+    //       // ...
+    //     });
+
+    //     // Use text content if no elements were found
+    //     if (paragraphs.length === 0) {
+    //       paragraphs.push({
+    //         type: 'paragraph',
+    //         children: [{ text: textEditor.textContent || '' }]
+    //       });
+    //     }
+
+    //     // Create the final content object
+    //     const slateContent = { children: paragraphs };
+
+    //     const formData = new FormData();
+    //     formData.append('content', JSON.stringify(slateContent));
+    //     formData.append('create_version', 'false');
+    //     formData.append('csrfmiddlewaretoken', csrfToken);
+
+    //     debugOutput.innerHTML += `<br>Saving actual editor content.`;
+
+    //     // Try different URL formats to see which one works
+    //     fetch(`/documents/${documentId}/save/`, {
+    //       method: 'POST',
+    //       body: formData
+    //     })
+    //     .then(response => {
+    //       debugOutput.innerHTML += `<br>Response status: ${response.status}`;
+    //       if (!response.ok) {
+    //         return response.text().then(text => {
+    //           debugOutput.innerHTML += `<br>Error response: ${text}`;
+    //           throw new Error(`Server error: ${response.status}`);
+    //         });
+    //       }
+    //       return response.json();
+    //     })
+    //     .then(data => {
+    //       debugOutput.innerHTML += `<br>Success: ${data.success}`;
+    //       if (data.success) {
+    //         debugOutput.innerHTML += `<br>Document saved successfully at ${data.updated_at}`;
+    //       } else {
+    //         debugOutput.innerHTML += `<br>Error: ${data.error}`;
+    //       }
+    //     })
+    //     .catch(error => {
+    //       debugOutput.innerHTML += `<br>Error: ${error.message}`;
+    //     });
+    //   });
+    // }
 
     // Warn before leaving with unsaved changes
     window.addEventListener('beforeunload', (e) => {
@@ -794,69 +1047,67 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Add this function inside your comment functionality DOMContentLoaded event handler
   function loadExistingComments() {
-  const documentId = document.getElementById('document-id').value;
+    // Based on the error logs, try the correct URL format
+    const commentsUrl = `/documents/${documentId}/comments/`;
 
-  // Use the exact URL pattern that works when accessed directly
-  const commentsUrl = `/documents/${documentId}/comments/`;
+    console.log("Fetching comments from:", commentsUrl);
 
-  console.log("Fetching comments from:", commentsUrl);
-
-  fetch(commentsUrl, {
-    method: 'GET',
-    credentials: 'same-origin'
-  })
-  .then(response => {
-    if (!response.ok) {
-      throw new Error(`Server error: ${response.status}`);
-    }
-    return response.json();
-  })
-  .then(data => {
-    console.log("Received comments data:", data);
-
-    if (data.success && data.comments && data.comments.length > 0) {
-      // Clear any "no comments" message
-      commentsContainer.innerHTML = '';
-
-      // Add each comment to the UI
-      data.comments.forEach(comment => {
-        // Add the comment to UI
-        addCommentToUI(comment);
-
-        // Add any replies
-        if (comment.replies && comment.replies.length > 0) {
-          comment.replies.forEach(reply => {
-            addReplyToUI(comment.id, reply);
-          });
-        }
-
-        // If comment is resolved, update UI to show resolved state
-        if (comment.is_resolved) {
-          updateCommentResolved(comment.id, comment.resolved_by, comment.resolved_at);
-        }
-      });
-
-      // Update comment count
-      if (commentCount) {
-        commentCount.textContent = data.comments.length;
+    fetch(commentsUrl, {
+      method: 'GET',
+      credentials: 'same-origin'
+    })
+    .then(response => {
+      if (!response.ok) {
+        throw new Error(`Server error: ${response.status}`);
       }
-    } else {
-      // Show "no comments" message
-      commentsContainer.innerHTML = `
-        <div class="text-center text-muted py-4">
-          <i class="fas fa-comments fa-2x mb-2"></i>
-          <p>No comments yet</p>
-        </div>
-      `;
-    }
-  })
-  .catch(error => {
-    console.error('Error loading comments:', error);
-    documentEditorShowNotification(`Error loading comments: ${error.message}`, 'error');
-  });
-}
-// Call this function at the end of your comment initialization
-loadExistingComments();
+      return response.json();
+    })
+    .then(data => {
+      console.log("Received comments data:", data);
+
+      if (data.success && data.comments && data.comments.length > 0) {
+        // Clear any "no comments" message
+        commentsContainer.innerHTML = '';
+
+        // Add each comment to the UI
+        data.comments.forEach(comment => {
+          // Add the comment to UI
+          addCommentToUI(comment);
+
+          // Add any replies
+          if (comment.replies && comment.replies.length > 0) {
+            comment.replies.forEach(reply => {
+              addReplyToUI(comment.id, reply);
+            });
+          }
+
+          // If comment is resolved, update UI to show resolved state
+          if (comment.is_resolved) {
+            updateCommentResolved(comment.id, comment.resolved_by, comment.resolved_at);
+          }
+        });
+
+        // Update comment count
+        if (commentCount) {
+          commentCount.textContent = data.comments.length;
+        }
+      } else {
+        // Show "no comments" message
+        commentsContainer.innerHTML = `
+          <div class="text-center text-muted py-4">
+            <i class="fas fa-comments fa-2x mb-2"></i>
+            <p>No comments yet</p>
+          </div>
+        `;
+      }
+    })
+    .catch(error => {
+      console.error('Error loading comments:', error);
+      documentEditorShowNotification(`Error loading comments: ${error.message}`, 'error');
+    });
+  }
+  // Call this function at the end of your comment initialization
+  loadExistingComments();
 
   // Submit a new comment
   function submitComment(content) {
@@ -881,8 +1132,11 @@ loadExistingComments();
       formData.append('selected_text', selectionData.text);
     }
 
-    // Submit using fetch
-    fetch(`/documents/${documentId}/add-comment/`, {
+    // Fix URL path based on 404 logs - try the correct one
+    const commentUrl = `/documents/${documentId}/add-comment/`;
+    console.log("Submitting comment to:", commentUrl);
+
+    fetch(commentUrl, {
       method: 'POST',
       body: formData,
       credentials: 'same-origin'
@@ -936,7 +1190,10 @@ loadExistingComments();
     formData.append('parent_id', parentId);
     formData.append('csrfmiddlewaretoken', csrfToken);
 
-    fetch(`/documents/${documentId}/add-comment/`, {
+    // Fix URL path based on 404 logs - use the same path as for adding comments
+    const replyUrl = `/documents/${documentId}/add-comment/`;
+
+    fetch(replyUrl, {
       method: 'POST',
       body: formData,
       credentials: 'same-origin'
@@ -986,6 +1243,7 @@ loadExistingComments();
     const formData = new FormData();
     formData.append('csrfmiddlewaretoken', csrfToken);
 
+    // Fix URL path based on URL pattern in urls.py
     fetch(`/documents/comments/${commentId}/resolve/`, {
       method: 'POST',
       body: formData,
@@ -1025,6 +1283,7 @@ loadExistingComments();
     const formData = new FormData();
     formData.append('csrfmiddlewaretoken', csrfToken);
 
+    // Fix URL path based on URL pattern in urls.py
     fetch(`/documents/comments/${commentId}/delete/`, {
       method: 'POST',
       body: formData,
@@ -1282,4 +1541,211 @@ loadExistingComments();
   }
 });
 </script>
+<!-- <script>
+  // Add this as a separate script at the bottom of your document_editor.html
+// This will help test which URL patterns actually work in your application
+
+document.addEventListener('DOMContentLoaded', function() {
+  const documentId = document.getElementById('document-id')?.value;
+
+  if (!documentId) return;
+
+  // Create a testing panel
+  const testingPanel = document.createElement('div');
+  testingPanel.className = 'mt-4 card';
+  testingPanel.innerHTML = `
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <h5 class="mb-0">URL Testing Tool</h5>
+      <button id="toggle-testing-panel" class="btn btn-sm btn-outline-secondary">Hide</button>
+    </div>
+    <div class="card-body" id="testing-panel-body">
+      <p>Testing which URL patterns work for document ID: ${documentId}</p>
+      <div class="mb-3">
+        <div class="d-flex mb-2">
+          <input type="text" id="test-url-input" class="form-control me-2"
+                 placeholder="Enter URL to test (e.g., /documents/{id}/save/)"
+                 value="/documents/${documentId}/save/">
+          <select id="test-method" class="form-select me-2" style="width: 100px;">
+            <option value="GET">GET</option>
+            <option value="POST" selected>POST</option>
+            <option value="HEAD">HEAD</option>
+          </select>
+          <button id="test-url-btn" class="btn btn-primary">Test</button>
+        </div>
+        <div class="form-check mb-2">
+          <input class="form-check-input" type="checkbox" id="include-csrf" checked>
+          <label class="form-check-label" for="include-csrf">Include CSRF token</label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="include-content" checked>
+          <label class="form-check-label" for="include-content">Include minimal content</label>
+        </div>
+      </div>
+
+      <h6>Test results:</h6>
+      <div id="test-results" class="bg-light p-3 rounded" style="max-height: 300px; overflow-y: auto;">
+        <div class="text-muted">Results will appear here...</div>
+      </div>
+
+      <h6 class="mt-3">Common URLs to try:</h6>
+      <div class="d-flex flex-wrap gap-2">
+        <button class="btn btn-sm btn-outline-secondary url-test-preset"
+                data-url="/documents/${documentId}/save/">
+          /documents/{id}/save/
+        </button>
+        <button class="btn btn-sm btn-outline-secondary url-test-preset"
+                data-url="/documents/${documentId}/save-content/">
+          /documents/{id}/save-content/
+        </button>
+        <button class="btn btn-sm btn-outline-secondary url-test-preset"
+                data-url="/document-editor/${documentId}/save-content/">
+          /document-editor/{id}/save-content/
+        </button>
+        <button class="btn btn-sm btn-outline-secondary url-test-preset"
+                data-url="/document-editor/document/${documentId}/save-content/">
+          /document-editor/document/{id}/save-content/
+        </button>
+        <button class="btn btn-sm btn-outline-secondary url-test-preset"
+                data-url="/documents/${documentId}/comments/" data-method="GET">
+          GET /documents/{id}/comments/
+        </button>
+        <button class="btn btn-sm btn-outline-secondary url-test-preset"
+                data-url="/documents/${documentId}/add-comment/">
+          /documents/{id}/add-comment/
+        </button>
+        <button class="btn btn-sm btn-outline-secondary url-test-preset"
+                data-url="/document-editor/${documentId}/add-comment/">
+          /document-editor/{id}/add-comment/
+        </button>
+      </div>
+    </div>
+  `;
+
+  // Insert after editor
+  const editorContainer = document.getElementById('editor-container');
+  if (editorContainer) {
+    editorContainer.parentNode.insertBefore(testingPanel, editorContainer.nextSibling);
+  } else {
+    document.body.appendChild(testingPanel);
+  }
+
+  // Set up event handlers
+  document.getElementById('toggle-testing-panel').addEventListener('click', function() {
+    const body = document.getElementById('testing-panel-body');
+    const isHidden = body.style.display === 'none';
+    body.style.display = isHidden ? '' : 'none';
+    this.textContent = isHidden ? 'Hide' : 'Show';
+  });
+
+  document.getElementById('test-url-btn').addEventListener('click', testCurrentUrl);
+
+  document.querySelectorAll('.url-test-preset').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const url = this.getAttribute('data-url');
+      const method = this.getAttribute('data-method') || 'POST';
+      document.getElementById('test-url-input').value = url;
+      document.getElementById('test-method').value = method;
+      testCurrentUrl();
+    });
+  });
+
+  function testCurrentUrl() {
+    const url = document.getElementById('test-url-input').value;
+    const method = document.getElementById('test-method').value;
+    const includeCSRF = document.getElementById('include-csrf').checked;
+    const includeContent = document.getElementById('include-content').checked;
+    const resultsContainer = document.getElementById('test-results');
+
+    // Add new result entry
+    const resultEntry = document.createElement('div');
+    resultEntry.className = 'mb-2 p-2 border-bottom';
+    resultEntry.innerHTML = `
+      <div><strong>${method} ${url}</strong> <span class="text-muted">${new Date().toLocaleTimeString()}</span></div>
+      <div class="text-info">Testing...</div>
+    `;
+    resultsContainer.prepend(resultEntry);
+
+    // Prepare request
+    const options = {
+      method: method
+    };
+
+    // Add headers and body for POST requests
+    if (method === 'POST') {
+      const formData = new FormData();
+
+      if (includeContent) {
+        const minimalContent = {
+          children: [
+            {
+              type: 'paragraph',
+              children: [{ text: 'Test content from URL tester' }]
+            }
+          ]
+        };
+        formData.append('content', JSON.stringify(minimalContent));
+      }
+
+      if (includeCSRF) {
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value;
+        if (csrfToken) {
+          formData.append('csrfmiddlewaretoken', csrfToken);
+        }
+      }
+
+      options.body = formData;
+    } else if (method === 'HEAD') {
+      // HEAD requests can't have bodies
+    }
+
+    // Make the request
+    fetch(url, options)
+      .then(response => {
+        // Update the status
+        let statusText = `Status: ${response.status} ${response.statusText}`;
+        let statusClass = response.ok ? 'text-success' : 'text-danger';
+
+        resultEntry.querySelector('.text-info').className = statusClass;
+        resultEntry.querySelector('.text-info').textContent = statusText;
+
+        // For GET and POST, try to get the response body
+        if (method !== 'HEAD' && response.ok) {
+          return response.text().then(text => {
+            try {
+              // Try to parse as JSON
+              const json = JSON.parse(text);
+              const jsonPretty = JSON.stringify(json, null, 2);
+
+              // Add response data
+              const responseData = document.createElement('div');
+              responseData.className = 'mt-1';
+              responseData.innerHTML = `
+                <div class="small text-muted">Response:</div>
+                <pre class="bg-light p-2 rounded small" style="max-height: 150px; overflow: auto;">${jsonPretty}</pre>
+              `;
+              resultEntry.appendChild(responseData);
+            } catch {
+              // Not JSON, show first part of text
+              let preview = text.slice(0, 100);
+              if (text.length > 100) preview += '...';
+
+              // Add response data
+              const responseData = document.createElement('div');
+              responseData.className = 'mt-1';
+              responseData.innerHTML = `
+                <div class="small text-muted">Response (first 100 chars):</div>
+                <div class="bg-light p-2 rounded small">${preview}</div>
+              `;
+              resultEntry.appendChild(responseData);
+            }
+          });
+        }
+      })
+      .catch(error => {
+        resultEntry.querySelector('.text-info').className = 'text-danger';
+        resultEntry.querySelector('.text-info').textContent = `Error: ${error.message}`;
+      });
+  }
+});
+</script> -->
 {% endblock %}

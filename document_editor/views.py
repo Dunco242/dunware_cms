@@ -1,18 +1,19 @@
 from django.shortcuts import render, get_object_or_404, redirect
-from django.http import JsonResponse, HttpResponse
+from django.http import JsonResponse, HttpResponse, Http404
 from django.views.generic import (
     ListView, DetailView, CreateView, UpdateView, DeleteView,
-    TemplateView, FormView
+    TemplateView, FormView, View
 )
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.decorators import login_required
 from django.urls import reverse_lazy, reverse
 from django.db.models import Q
+from django.utils.decorators import method_decorator
 from django.core.exceptions import PermissionDenied
 from django.db import transaction, models
 from django.contrib import messages
 from django.utils import timezone
-from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.csrf import csrf_exempt, csrf_protect, ensure_csrf_cookie
 from django.views.decorators.http import require_POST, require_http_methods
 import json
 from django import forms
@@ -183,11 +184,16 @@ class DocumentTemplateListView(LoginRequiredMixin, EmployeeRequiredMixin, ListVi
 
 # Document Detail and Editor Views
 
+
 class DocumentDetailView(LoginRequiredMixin, EmployeeRequiredMixin, DetailView):
     """View for document details (metadata, sharing options)"""
     model = Document
     template_name = 'document_editor/document_detail.html'
     context_object_name = 'document'
+
+    @method_decorator(ensure_csrf_cookie)
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
 
     def get_queryset(self):
         """Ensure user has access to the document"""
@@ -203,40 +209,50 @@ class DocumentDetailView(LoginRequiredMixin, EmployeeRequiredMixin, DetailView):
         document = self.get_object()
         employee = self.request.user.employee_profile
 
-        # Check user permission level
-        if document.author == employee:
-            context['permission'] = 'manage'
-        else:
-            try:
-                collaborator = DocumentCollaborator.objects.get(
+        try:
+            # Check user permission level
+            if document.author == employee:
+                context['permission'] = 'manage'
+            else:
+                try:
+                    collaborator = DocumentCollaborator.objects.get(
+                        document=document,
+                        employee=employee
+                    )
+                    context['permission'] = collaborator.permission
+                except DocumentCollaborator.DoesNotExist:
+                    context['permission'] = None
+
+            # Add current collaborators
+            context['collaborators'] = DocumentCollaborator.objects.filter(
+                document=document
+            ).select_related('employee', 'employee__user')
+
+            # Add document versions
+            if hasattr(document, 'parent_document') and document.parent_document:
+                context['versions'] = document.get_all_versions()
+            elif hasattr(document, 'document_versions') and document.document_versions.exists():
+                context['versions'] = document.get_all_versions()
+
+            # Add comments if user can view them
+            if context['permission'] in ['manage', 'edit', 'comment', 'view']:
+                context['comments'] = DocumentComment.objects.filter(
                     document=document,
-                    employee=employee
-                )
-                context['permission'] = collaborator.permission
-            except DocumentCollaborator.DoesNotExist:
-                context['permission'] = None
+                    parent_comment=None
+                ).order_by('-created_at')
 
-        # Add collaborators
-        context['collaborators'] = document.collaborators.all()
+                # Also count unresolved comments
+                context['unresolved_count'] = DocumentComment.objects.filter(
+                    document=document,
+                    is_resolved=False
+                ).count()
 
-        # Add document versions
-        if hasattr(document, 'parent_document') and document.parent_document:
-            context['versions'] = document.get_all_versions()
-        elif hasattr(document, 'document_versions') and document.document_versions.exists():
-            context['versions'] = document.get_all_versions()
-
-        # Add comments if user can view them
-        if context['permission'] in ['manage', 'edit', 'comment', 'view']:
-            context['comments'] = DocumentComment.objects.filter(
-                document=document,
-                parent_comment=None
-            ).order_by('-created_at')
-
-            # Also count unresolved comments
-            context['unresolved_count'] = DocumentComment.objects.filter(
-                document=document,
-                is_resolved=False
-            ).count()
+        except Exception as e:
+            # Add empty lists for safety
+            context['collaborators'] = []
+            context['comments'] = []
+            context['unresolved_count'] = 0
+            context['error'] = str(e)
 
         return context
 
@@ -445,6 +461,7 @@ def notify_document_saved(document, user):
 
 
 @login_required
+@csrf_protect
 @require_POST
 def add_collaborator(request, pk):
     """AJAX endpoint to add a collaborator to a document"""
@@ -467,8 +484,18 @@ def add_collaborator(request, pk):
                     'error': 'You do not have permission to add collaborators to this document.'
                 }, status=403)
 
-        # Get the collaborator data
-        data = json.loads(request.body)
+        # Get the collaborator data - handle both JSON and form data
+        if request.content_type and 'application/json' in request.content_type:
+            try:
+                data = json.loads(request.body)
+            except json.JSONDecodeError:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Invalid JSON data provided.'
+                }, status=400)
+        else:
+            data = request.POST
+
         collaborator_id = data.get('employee_id')
         permission = data.get('permission', 'view')
 
@@ -533,6 +560,7 @@ def add_collaborator(request, pk):
             'success': False,
             'error': str(e)
         }, status=500)
+
 
 
 @login_required
@@ -2061,3 +2089,185 @@ class DocumentApprovalDashboardView(LoginRequiredMixin, TemplateView):
         ).order_by('-response_date')[:10]
 
         return context
+
+@login_required
+@require_POST
+def debug_content_save(request, document_id):
+    """
+    Debug view for saving document content with detailed logging
+    """
+    try:
+        # Log everything for debugging
+        print(f"\n==== DEBUG: Document Save Request ====")
+        print(f"Document ID: {document_id}")
+        print(f"User: {request.user.username}")
+        print(f"Content-Type: {request.content_type}")
+
+        # Get the document
+        document = get_object_or_404(Document, id=document_id)
+
+        # Check permissions
+        if not hasattr(request.user, 'employee_profile'):
+            print("ERROR: No employee profile found")
+            return JsonResponse({
+                'success': False,
+                'error': 'No employee profile found'
+            }, status=403)
+
+        employee = request.user.employee_profile
+        print(f"Employee: {employee}")
+
+        if not document.can_user_edit(request.user):
+            print("ERROR: User does not have permission to edit")
+            return JsonResponse({
+                'success': False,
+                'error': 'You do not have permission to edit this document'
+            }, status=403)
+
+        # Get content from the request
+        if request.content_type == 'application/json':
+            try:
+                data = json.loads(request.body)
+                content = data.get('content')
+                print(f"JSON data received: {type(content)}")
+            except json.JSONDecodeError as e:
+                print(f"ERROR: Failed to parse JSON: {str(e)}")
+                return JsonResponse({
+                    'success': False,
+                    'error': f'Invalid JSON: {str(e)}'
+                }, status=400)
+        else:
+            content_str = request.POST.get('content')
+            if not content_str:
+                print("ERROR: No content provided")
+                return JsonResponse({
+                    'success': False,
+                    'error': 'No content provided'
+                }, status=400)
+
+            try:
+                content = json.loads(content_str)
+                print(f"Form data content: {type(content)}")
+            except json.JSONDecodeError as e:
+                print(f"ERROR: Failed to parse JSON: {str(e)}")
+                return JsonResponse({
+                    'success': False,
+                    'error': f'Invalid JSON: {str(e)}'
+                }, status=400)
+
+        # Check if content has the expected structure
+        if isinstance(content, dict) and 'children' in content:
+            print(f"Content has 'children' key. Number of children: {len(content['children'])}")
+        else:
+            print("WARNING: Content does not have expected structure")
+            print(f"Content keys: {list(content.keys()) if isinstance(content, dict) else 'Not a dict'}")
+
+            # Try to fix the content format
+            if isinstance(content, list):
+                content = {"children": content}
+                print("Fixed content format by wrapping list in children object")
+
+        # Save the document with transaction to ensure atomicity
+        with transaction.atomic():
+            # Lock row for update
+            document = Document.objects.select_for_update().get(id=document_id)
+
+            # Update content
+            original_content = document.content
+            document.content = content
+
+            # Extract plain text for search
+            original_plain_text = document.plain_text
+            document.plain_text = document.extract_plain_text()
+
+            # Update metadata
+            document.updated_by = employee
+            document.updated_at = timezone.now()
+
+            # Save changes
+            document.save()
+
+            print(f"Document saved successfully")
+            print(f"Plain text (first 100 chars): {document.plain_text[:100] if document.plain_text else 'No plain text'}")
+
+            # Log changes for debugging
+            print(f"Original content was: {type(original_content)}")
+            print(f"New content is: {type(document.content)}")
+            print(f"Original plain_text length: {len(original_plain_text or '')}")
+            print(f"New plain_text length: {len(document.plain_text or '')}")
+
+        # Return success response
+        return JsonResponse({
+            'success': True,
+            'message': 'Document saved successfully',
+            'updated_at': document.updated_at.isoformat(),
+            'content_length': len(json.dumps(content)),
+            'plain_text_length': len(document.plain_text or ''),
+            'plain_text_preview': document.plain_text[:100] if document.plain_text else ''
+        })
+
+    except Exception as e:
+        print(f"ERROR: Unexpected exception: {str(e)}")
+        print(traceback.format_exc())
+        return JsonResponse({
+            'success': False,
+            'error': f'Server error: {str(e)}'
+        }, status=500)
+
+
+
+@login_required
+def available_collaborators(request, pk):
+    """API endpoint to get available collaborators for a document"""
+    try:
+        # Get the document and ensure the user has access
+        document = get_object_or_404(Document, pk=pk)
+        employee = request.user.employee_profile
+
+        # Check if user has permission to manage collaborators
+        if document.author != employee and not DocumentCollaborator.objects.filter(
+            document=document,
+            employee=employee,
+            permission='manage'
+        ).exists():
+            return JsonResponse({
+                'success': False,
+                'error': 'You do not have permission to manage collaborators'
+            }, status=403)
+
+        # Get current collaborator IDs
+        current_collaborator_ids = DocumentCollaborator.objects.filter(
+            document=document
+        ).values_list('employee__id', flat=True)
+
+        # Get available employees
+        available_employees = Employee.objects.filter(
+            is_active=True
+        ).exclude(
+            id__in=list(current_collaborator_ids) + [document.author.id]
+        ).select_related('user')
+
+        # Format employee data
+        employees_data = [{
+            'id': emp.id,
+            'name': f"{emp.user.first_name} {emp.user.last_name}".strip() or emp.user.username,
+            'employee_id': emp.employee_id,
+            'department': emp.get_department_display()
+        } for emp in available_employees]
+
+        return JsonResponse({
+            'success': True,
+            'employees': employees_data
+        })
+
+    except Document.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Document not found'
+        }, status=404)
+    except Exception as e:
+        logger.error(f"Error getting available collaborators: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)

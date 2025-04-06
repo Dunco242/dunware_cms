@@ -23,6 +23,7 @@ urlpatterns = [
     # Document content AJAX endpoints
     path('<int:document_id>/save/', views.save_document_content, name='save_document_content'),
     path('<int:pk>/get-content/', views.get_document_content, name='get_document_content'),
+    path('<int:document_id>/save-content/', views.save_document_content, name='save_document_content'),
 
     # Document status endpoints
     path('<int:pk>/update-status/', views.update_document_status, name='update_document_status'),
@@ -37,8 +38,9 @@ urlpatterns = [
     path('<int:pk>/add-collaborator/', views.add_collaborator, name='add_collaborator'),
     path('<int:pk>/remove-collaborator/<int:collaborator_id>/',
          views.remove_collaborator, name='remove_collaborator'),
-    path('<int:pk>/update-collaborator/<int:collaborator_id>/',
+    path('documents/<int:pk>/update-collaborator/<int:collaborator_id>/',
          views.update_collaborator_permission, name='update_collaborator_permission'),
+    path('<int:pk>/available-collaborators/', views.available_collaborators, name='available_collaborators'),
 
     # Comments management
     path('<int:document_id>/add-comment/', views.add_document_comment, name='add_document_comment'),
@@ -50,7 +52,7 @@ urlpatterns = [
     path('approvals/', views.DocumentApprovalDashboardView.as_view(), name='approval_dashboard'),
 
     # Create approval workflow for a document
-    path('documents/<int:document_id>/approval/create/',
+    path('<int:document_id>/approval/create/',
          views.DocumentApprovalWorkflowCreateView.as_view(),
          name='create_approval_workflow'),
 
@@ -89,6 +91,8 @@ urlpatterns = [
          views.cancel_approval_workflow,
          name='cancel_approval_workflow'),
 
-     # DEBUG
-     path('<int:pk>/save/', views.debug_save_document, name='save_document_content'),
+
+
+     # Add this line:
+    path('<int:document_id>/debug-save-content/', views.debug_content_save, name='debug_save_content'),
 ]

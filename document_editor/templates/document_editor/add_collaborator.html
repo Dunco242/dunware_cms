@@ -1,0 +1,154 @@
+{% extends 'core/base.html' %}
+{% load static %}
+{% load form_filters %}
+
+{% block title %}Add Collaborator - {{ document.title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <!-- Breadcrumbs -->
+  <nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'document_editor:document_list' %}">Documents</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'document_editor:document_detail' document.pk %}">{{ document.title }}</a></li>
+      <li class="breadcrumb-item active">Add Collaborator</li>
+    </ol>
+  </nav>
+
+  <!-- Header -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <h1 class="h3">Add Collaborator</h1>
+      <p class="text-muted">Add a collaborator to "{{ document.title }}"</p>
+    </div>
+  </div>
+
+  <!-- Form Card -->
+  <div class="card mb-4">
+    <div class="card-body">
+      <form method="post" action="{% url 'document_editor:add_collaborator_form' document.pk %}">
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+          <div class="alert alert-danger mb-4">
+            <div class="d-flex">
+              <div class="me-3">
+                <i class="fas fa-exclamation-circle"></i>
+              </div>
+              <div>
+                <h5 class="alert-heading">There were errors with your submission</h5>
+                <ul class="mb-0">
+                  {% for error in form.non_field_errors %}
+                    <li>{{ error }}</li>
+                  {% endfor %}
+                </ul>
+              </div>
+            </div>
+          </div>
+        {% endif %}
+
+        <div class="row g-3">
+          <!-- Employee -->
+          <div class="col-md-12">
+            <label for="{{ form.employee.id_for_label }}" class="form-label">
+              Employee <span class="text-danger">*</span>
+            </label>
+            {{ form.employee|add_class:"form-select" }}
+            {% if form.employee.errors %}
+              <div class="text-danger mt-1 small">
+                {% for error in form.employee.errors %}
+                  {{ error }}
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
+
+          <!-- Permission -->
+          <div class="col-md-12">
+            <label for="{{ form.permission.id_for_label }}" class="form-label">
+              Permission Level <span class="text-danger">*</span>
+            </label>
+            {{ form.permission|add_class:"form-select" }}
+            {% if form.permission.errors %}
+              <div class="text-danger mt-1 small">
+                {% for error in form.permission.errors %}
+                  {{ error }}
+                {% endfor %}
+              </div>
+            {% endif %}
+            <div class="form-text">
+              <strong>View Only:</strong> Can only view the document<br>
+              <strong>Can Comment:</strong> Can view and add comments<br>
+              <strong>Can Edit:</strong> Can view, comment, and make changes<br>
+              <strong>Can Manage:</strong> Full access including managing other collaborators
+            </div>
+          </div>
+        </div>
+
+        <!-- Form Buttons -->
+        <div class="mt-4 text-end">
+          <a href="{% url 'document_editor:document_detail' document.pk %}" class="btn btn-outline-secondary me-2">
+            Cancel
+          </a>
+          <button type="submit" class="btn btn-primary">
+            Add Collaborator
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Current Collaborators -->
+  {% if collaborators %}
+  <div class="card mb-4">
+    <div class="card-header">
+      <h5 class="card-title mb-0">Current Collaborators</h5>
+    </div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-striped table-hover">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Permission</th>
+              <th>Added By</th>
+              <th>Added On</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for collaborator in collaborators %}
+            <tr>
+              <td>{{ collaborator.employee.get_full_name }}</td>
+              <td>{{ collaborator.get_permission_display }}</td>
+              <td>{{ collaborator.added_by.get_full_name }}</td>
+              <td>{{ collaborator.added_at|date:"M d, Y" }}</td>
+              <td>
+                <div class="dropdown">
+                  <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="dropdownMenuButton{{ collaborator.id }}" data-bs-toggle="dropdown" aria-expanded="false">
+                    Actions
+                  </button>
+                  <ul class="dropdown-menu" aria-labelledby="dropdownMenuButton{{ collaborator.id }}">
+                    <li>
+                      <a class="dropdown-item" href="{% url 'document_editor:update_collaborator_permission_form' document.pk collaborator.id %}">
+                        Edit Permission
+                      </a>
+                    </li>
+                    <li>
+                      <a class="dropdown-item text-danger" href="{% url 'document_editor:remove_collaborator_confirm' document.pk collaborator.id %}">
+                        Remove
+                      </a>
+                    </li>
+                  </ul>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
