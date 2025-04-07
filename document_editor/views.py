@@ -1063,140 +1063,92 @@ def get_document_content(request, pk):
 def add_document_comment(request, document_id):
     """AJAX endpoint to add a comment to a document"""
     try:
-        # Log the entire request details
-        print("\n=== Comment Request Debug ===")
-        print(f"Request Method: {request.method}")
-        print(f"Content Type: {request.content_type}")
-        print(f"Request Body: {request.body[:200]}")  # First 200 chars
-        print(f"POST Data: {dict(request.POST)}")
-        print(f"Headers: {dict(request.headers)}")
-
         # Get the document
         document = get_object_or_404(Document, pk=document_id)
         employee = request.user.employee_profile
 
-        # Debug logging
-        print(f"\n=== User and Document Info ===")
-        print(f"Adding comment to document {document_id}")
-        print(f"Current user: {request.user.username}, employee ID: {employee.id if employee else 'None'}")
-        print(f"Document author ID: {document.author.id if document.author else 'None'}")
-
-        is_author = document.author == employee
-        print(f"Is user the author? {is_author}")
-
         # Check permissions
+        is_author = document.author == employee
         if not is_author:
             try:
                 collaborator = DocumentCollaborator.objects.get(
                     document=document,
                     employee=employee
                 )
-                print(f"Found collaborator record, permission: {collaborator.permission}")
-
                 if collaborator.permission not in ['comment', 'edit', 'manage']:
-                    print(f"Permission denied: {collaborator.permission} not in ['comment', 'edit', 'manage']")
                     return JsonResponse({
                         'success': False,
                         'error': f"Permission denied: You have '{collaborator.permission}' permission but need 'comment', 'edit', or 'manage'"
                     }, status=403)
             except DocumentCollaborator.DoesNotExist:
-                print("No collaborator record found")
                 return JsonResponse({
                     'success': False,
-                    'error': 'You do not have permission to comment on this document - no collaborator record found.'
+                    'error': 'You do not have permission to comment on this document.'
                 }, status=403)
 
         # Parse the form data
-        try:
-            print("\n=== Parsing Request Data ===")
-            # First try to get from POST data (for FormData submissions)
-            content = request.POST.get('content')
-            parent_id = request.POST.get('parent_id')
-            selection_start = request.POST.get('selection_start')
-            selection_end = request.POST.get('selection_end')
-            selected_text = request.POST.get('selected_text', '')
-
-            print(f"POST Data Results:")
-            print(f"Content from POST: {content[:50] if content else 'None'}")
-            print(f"Parent ID from POST: {parent_id}")
-            print(f"Selection Start from POST: {selection_start}")
-            print(f"Selection End from POST: {selection_end}")
-            print(f"Selected Text from POST: {selected_text[:50] if selected_text else 'None'}")
-
-            # If content is not in POST, try JSON body
-            if not content:
-                print("\nTrying to parse JSON body...")
+        # Handle both form submissions and JSON payloads
+        if request.content_type and 'application/json' in request.content_type:
+            try:
                 data = json.loads(request.body)
                 content = data.get('content')
                 parent_id = data.get('parent_id')
                 selection_start = data.get('selection_start')
                 selection_end = data.get('selection_end')
                 selected_text = data.get('selected_text', '')
-
-                print(f"JSON Data Results:")
-                print(f"Content from JSON: {content[:50] if content else 'None'}")
-                print(f"Parent ID from JSON: {parent_id}")
-                print(f"Selection Start from JSON: {selection_start}")
-                print(f"Selection End from JSON: {selection_end}")
-                print(f"Selected Text from JSON: {selected_text[:50] if selected_text else 'None'}")
-
-        except json.JSONDecodeError as e:
-            print(f"\nJSON Decode Error: {str(e)}")
-            print(f"Request body: {request.body[:200]}")
-            print(f"POST data: {dict(request.POST)}")
-            return JsonResponse({
-                'success': False,
-                'error': 'Invalid request format.'
-            }, status=400)
+            except json.JSONDecodeError:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Invalid JSON data provided.'
+                }, status=400)
+        else:
+            content = request.POST.get('content')
+            parent_id = request.POST.get('parent_id')
+            selection_start = request.POST.get('selection_start')
+            selection_end = request.POST.get('selection_end')
+            selected_text = request.POST.get('selected_text', '')
 
         if not content:
-            print("\nNo content found in request")
             return JsonResponse({
                 'success': False,
                 'error': 'Comment content is required.'
             }, status=400)
 
         # Process selection data if it's a string (from FormData)
-        print("\n=== Processing Selection Data ===")
         if selection_start and isinstance(selection_start, str):
             try:
                 selection_start = json.loads(selection_start)
-                print(f"Parsed selection_start: {selection_start}")
             except json.JSONDecodeError:
-                print(f"Could not parse selection_start: {selection_start}")
                 selection_start = None
 
         if selection_end and isinstance(selection_end, str):
             try:
                 selection_end = json.loads(selection_end)
-                print(f"Parsed selection_end: {selection_end}")
             except json.JSONDecodeError:
-                print(f"Could not parse selection_end: {selection_end}")
                 selection_end = None
 
-        # Create the comment
-        print("\n=== Creating Comment ===")
-        comment = DocumentComment(
-            document=document,
-            author=employee,
-            content=content,
-            selection_start=selection_start,
-            selection_end=selection_end,
-            selected_text=selected_text
-        )
+        # Use a transaction to ensure atomicity
+        with transaction.atomic():
+            # Create the comment
+            comment = DocumentComment(
+                document=document,
+                author=employee,
+                content=content,
+                selection_start=selection_start,
+                selection_end=selection_end,
+                selected_text=selected_text
+            )
 
-        # Add parent comment if replying
-        if parent_id:
-            try:
-                parent_comment = get_object_or_404(DocumentComment, pk=parent_id)
-                comment.parent_comment = parent_comment
-                print(f"Added parent comment: {parent_id}")
-            except:
-                print(f"Could not find parent comment with ID: {parent_id}")
-                # Continue without parent if not found
+            # Add parent comment if replying
+            if parent_id:
+                try:
+                    parent_comment = get_object_or_404(DocumentComment, pk=parent_id)
+                    comment.parent_comment = parent_comment
+                except:
+                    # Continue without parent if not found
+                    pass
 
-        comment.save()
-        print(f"Comment saved successfully with ID: {comment.id}")
+            comment.save()
 
         # Prepare author data safely
         author_data = {
@@ -1204,7 +1156,6 @@ def add_document_comment(request, document_id):
             'name': employee.get_full_name() if hasattr(employee, 'get_full_name') else str(employee)
         }
 
-        print("\n=== Returning Success Response ===")
         return JsonResponse({
             'success': True,
             'comment': {
@@ -1221,14 +1172,7 @@ def add_document_comment(request, document_id):
         })
 
     except Exception as e:
-        # Log the full exception with traceback
-        print("\n=== Error Occurred ===")
-        print(f"Error type: {type(e).__name__}")
-        print(f"Error message: {str(e)}")
-        print("Traceback:")
-        print(traceback.format_exc())
-
-        # Return a more detailed error message
+        logger.error(f"Error adding comment: {str(e)}", exc_info=True)
         return JsonResponse({
             'success': False,
             'error': f"Server error: {str(e)}"
