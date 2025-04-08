@@ -2,6 +2,138 @@
 
 {% block title %}{{ project.name }} | {{ block.super }}{% endblock %}
 
+{% block extra_css %}
+<style>
+.form-control {
+    display: block;
+    width: 100%;
+    padding: 0.375rem 0.75rem;
+    font-size: 1rem;
+    font-weight: 400;
+    line-height: 1.5;
+    color: #212529;
+    background-color: #fff;
+    background-clip: padding-box;
+    border: 1px solid #ced4da;
+    border-radius: 0.25rem;
+    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.form-control:focus {
+    color: #212529;
+    background-color: #fff;
+    border-color: #86b7fe;
+    outline: 0;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+select.form-control {
+    appearance: revert;
+    -webkit-appearance: menulist;
+    -moz-appearance: menulist;
+    cursor: pointer;
+}
+
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+}
+
+.card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    word-wrap: break-word;
+    background-color: #fff;
+    background-clip: border-box;
+    border: 1px solid rgba(0,0,0,.125);
+    border-radius: 0.25rem;
+    margin-bottom: 1rem;
+}
+
+.card-body {
+    flex: 1 1 auto;
+    padding: 1rem 1rem;
+}
+
+.list-group {
+    display: flex;
+    flex-direction: column;
+    padding-left: 0;
+    margin-bottom: 0;
+    border-radius: 0.25rem;
+}
+
+.list-group-item {
+    position: relative;
+    display: block;
+    padding: 0.5rem 1rem;
+    color: #212529;
+    text-decoration: none;
+    background-color: #fff;
+    border: 1px solid rgba(0,0,0,.125);
+}
+
+.btn {
+    display: inline-block;
+    font-weight: 400;
+    line-height: 1.5;
+    color: #212529;
+    text-align: center;
+    text-decoration: none;
+    vertical-align: middle;
+    cursor: pointer;
+    user-select: none;
+    background-color: transparent;
+    border: 1px solid transparent;
+    padding: 0.375rem 0.75rem;
+    font-size: 1rem;
+    border-radius: 0.25rem;
+    transition: color .15s ease-in-out,background-color .15s ease-in-out,border-color .15s ease-in-out,box-shadow .15s ease-in-out;
+}
+
+.btn-primary {
+    color: #fff;
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+}
+
+.btn-primary:hover {
+    color: #fff;
+    background-color: #0b5ed7;
+    border-color: #0a58ca;
+}
+
+optgroup {
+    font-weight: 600;
+    color: #495057;
+}
+
+optgroup option {
+    font-weight: 400;
+    padding-left: 1rem;
+}
+
+/* Styles for the phase and task options */
+.phase-option {
+    font-weight: bold;
+    background-color: #f8f9fa;
+    color: #000;
+}
+
+.task-option {
+    padding-left: 1.5rem;
+    color: #212529;
+}
+</style>
+{% endblock %}
+
 {% block project_content %}
 <div class="container mt-4">
     <h2>Project Details</h2>
@@ -45,13 +177,13 @@
             <p class="card-text"><strong>Progress:</strong> {{ phase.progress }}%</p>
 
             <h6>Tasks</h6>
-              <ul class="list-unstyled">
-                {% for task in phase.tasks.all %}
-                  <li>
-                    {{ task.title }} ({{ task.get_status_display }})
-                  </li>
-                {% endfor %}
-              </ul>
+            <ul class="list-unstyled">
+              {% for task in phase.tasks.all %}
+                <li>
+                  {{ task.title }} ({{ task.get_status_display }})
+                </li>
+              {% endfor %}
+            </ul>
           </div>
         </div>
       {% endfor %}
@@ -62,15 +194,15 @@
       <form method="post" action="" id="time-entry-form">
         {% csrf_token %}
         <input type="hidden" name="action" value="add_time_entry">
+        <input type="hidden" name="entity_type" id="entity_type" value="task">
         <div class="form-group">
-          <label for="task">Select Task:</label>
+          <label for="task">Select Phase or Task:</label>
           <select class="form-control" id="task" name="task">
             {% for phase in phases %}
-              <optgroup label="{{ phase.name }}">
-                {% for task in phase.tasks.all %}
-                  <option value="{{ task.id }}">{{ task.title }}</option>
-                {% endfor %}
-              </optgroup>
+              <option value="{{ phase.id }}" data-type="phase" class="phase-option">{{ phase.name }} (Phase)</option>
+              {% for task in phase.tasks.all %}
+                <option value="{{ task.id }}" data-type="task" class="task-option">— {{ task.title }}</option>
+              {% endfor %}
             {% endfor %}
           </select>
         </div>
@@ -110,13 +242,40 @@
 
     <div class="mt-3">
       <h3>Recent Activities</h3>
-        <ul class="list-group">
-          {% for activity in recent_activities %}
-            <li class="list-group-item">
-              {{ activity.created_at }} - {{ activity.author.get_full_name }}: {{ activity.text }}
-            </li>
-          {% endfor %}
-        </ul>
+      <ul class="list-group">
+        {% for activity in recent_activities %}
+          <li class="list-group-item">
+            {{ activity.created_at }} - {{ activity.author.get_full_name }}: {{ activity.text }}
+          </li>
+        {% endfor %}
+      </ul>
     </div>
-  </div>
+</div>
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const taskSelect = document.getElementById('task');
+    const entityTypeInput = document.getElementById('entity_type');
+
+    if (taskSelect && entityTypeInput) {
+        taskSelect.addEventListener('change', function() {
+            const selectedOption = this.options[this.selectedIndex];
+            const entityType = selectedOption.getAttribute('data-type');
+
+            // Update the hidden entity_type field
+            entityTypeInput.value = entityType;
+
+            console.log('Selected ' + entityType + ':', this.value);
+        });
+
+        // Set initial value based on the default selected option
+        const initialSelectedOption = taskSelect.options[taskSelect.selectedIndex];
+        if (initialSelectedOption) {
+            entityTypeInput.value = initialSelectedOption.getAttribute('data-type') || 'task';
+        }
+    }
+});
+</script>
+{% endblock %}
 {% endblock %}

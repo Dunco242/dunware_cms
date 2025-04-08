@@ -63,11 +63,29 @@ class MeetingAdmin(admin.ModelAdmin):
     filter_horizontal = ('attendees', 'customers', 'leads')
 
 class InvoiceAdmin(admin.ModelAdmin):
-    list_display = ('invoice_number', 'customer', 'issue_date', 'due_date', 'total_amount', 'amount_due', 'status')
+    list_display = ('invoice_number', 'customer', 'issue_date', 'due_date', 'total', 'status')
     list_filter = ('status', 'customer')
     search_fields = ('invoice_number', 'customer__company_name')
-    readonly_fields = ('created_at', 'last_payment_date')
-    filter_horizontal = ('services',)
+    readonly_fields = ('created_at',)
+
+    fieldsets = [
+        (None, {
+            'fields': ['customer', 'invoice_number', 'project', 'status']
+        }),
+        ('Dates', {
+            'fields': ['issue_date', 'due_date', 'created_at']
+        }),
+        ('Financial Details', {
+            'fields': ['subtotal', 'tax_amount', 'amount_paid', 'total', 'notes']
+        }),
+    ]
+
+    def get_readonly_fields(self, request, obj=None):
+        """Make invoice_number readonly only if this is an existing invoice"""
+        if obj:  # editing an existing object
+            return self.readonly_fields + ('invoice_number',)
+        return self.readonly_fields
+
 
 class PaymentAdmin(admin.ModelAdmin):
     list_display = ('id', 'customer', 'invoice', 'amount', 'status', 'payment_method', 'transaction_date')

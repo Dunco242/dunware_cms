@@ -399,13 +399,36 @@
                         {% endif %}
                     </div>
 
-                   <!-- Invoices Section -->
+<!-- Invoices Section -->
 <div class="tab-pane fade" id="invoices">
     <div class="d-flex justify-content-end mb-3">
-        <a href="{% url 'invoice-create' %}?customer={{ customer.pk }}" class="btn btn-primary">
-            <i class="fas fa-plus"></i> Create Invoice
-        </a>
+        <div class="btn-group">
+            <a href="{% url 'invoice-create' %}?customer={{ customer.pk }}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> Create Invoice
+            </a>
+        </div>
     </div>
+
+    <!-- Uninvoiced time entries alert - controlled by Django template conditions, not JavaScript -->
+    {% if has_uninvoiced_entries %}
+    <div class="alert alert-info mb-3">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <strong>Pending Billable Hours: </strong>
+                {{ uninvoiced_entries_count }} entries
+                ({{ uninvoiced_hours|floatformat:2 }} hours)
+            </div>
+            <form method="post" action="{% url 'customer-detail' customer.pk %}">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="generate_project_invoices">
+                <button type="submit" class="btn btn-success">
+                    <i class="fas fa-file-invoice-dollar"></i> Generate Project Invoice
+                </button>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
     {% if invoices %}
         <div class="list-group">
             {% for invoice in invoices %}
@@ -421,8 +444,8 @@
                         </span>
                     </div>
                     <p class="mb-1">
-                        Amount: ${{ invoice.total_amount|floatformat:2 }} |
-                        Due: ${{ invoice.amount_due|floatformat:2 }}
+                        Amount: ${{ invoice.total|floatformat:2 }} |
+                        Due: ${{ invoice.balance_due|floatformat:2 }}
                     </p>
                     <small>
                         Issued: {{ invoice.issue_date|date:"M d, Y" }} |
@@ -435,12 +458,80 @@
         <p class="text-center text-muted">No invoices found</p>
     {% endif %}
 </div>
+    <!-- Debug information
+    <div class="alert alert-secondary">
+        <strong>Debug Info:</strong><br>
+        Has Uninvoiced Entries: {{ has_uninvoiced_entries }}<br>
+        Uninvoiced Count: {{ uninvoiced_entries_count }}<br>
+        Uninvoiced Hours: {{ uninvoiced_hours }}<br>
+    </div> -->
+
+    <!-- Rest of your invoices section -->
+    {% if invoices %}
+        <div class="list-group">
+            {% for invoice in invoices %}
+                <!-- Your invoice list items -->
+            {% endfor %}
+        </div>
+    {% else %}
+        <p class="text-center text-muted">No invoices found</p>
+    {% endif %}
+</div>
+
+            <!-- Uninvoiced time entries alert - initially hidden, controlled by JavaScript -->
+        <div id="uninvoiced-alert" class="alert alert-info mb-3" style="display: none;"
+        data-has-uninvoiced="{{ has_uninvoiced_entries|yesno:"true,false" }}"
+        data-uninvoiced-count="{{ uninvoiced_entries_count|default:"0" }}"
+        data-uninvoiced-hours="{{ uninvoiced_hours|default:"0" }}">
+        <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <strong>Pending Billable Hours: </strong>
+            <span id="uninvoiced-count">0</span> entries
+            (<span id="uninvoiced-hours">0.00</span> hours)
+        </div>
+        <form method="post" action="{% url 'customer-detail' customer.pk %}">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="generate_project_invoices">
+            <button type="submit" class="btn btn-success">
+                <i class="fas fa-file-invoice-dollar"></i> Generate Project Invoice
+            </button>
+        </form>
+        </div>
+</div>
+
+    {% if invoices %}
+        <div class="list-group">
+            {% for invoice in invoices %}
+                <div class="list-group-item">
+                    <div class="d-flex w-100 justify-content-between">
+                        <h5 class="mb-1">
+                            <a href="{% url 'invoice-detail' invoice.pk %}">
+                                Invoice #{{ invoice.invoice_number }}
+                            </a>
+                        </h5>
+                        <span class="badge {% if invoice.status == 'paid' %}bg-success{% elif invoice.status == 'partial' %}bg-warning{% else %}bg-danger{% endif %}">
+                            {{ invoice.get_status_display }}
+                        </span>
+                    </div>
+                    <p class="mb-1">
+                        Amount: ${{ invoice.total|floatformat:2 }} |
+                        Due: ${{ invoice.balance_due|floatformat:2 }}
+                    </p>
+                    <small>
+                        Issued: {{ invoice.issue_date|date:"M d, Y" }} |
+                        Due: {{ invoice.due_date|date:"M d, Y" }}
+                    </small>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+</div>
 
 <!-- Payments Section -->
 <div class="tab-pane fade" id="payments">
     <div class="card mb-3 bg-light">
         <div class="card-body">
-            <h5 class="card-title">Total Payments Made: ${{ total_paid|floatformat:2 }}</h5>
+            <h5 class="card-title">Total Payments Made: ${{ amount_paid|floatformat:2 }}</h5>
         </div>
     </div>
     {% if payments %}
@@ -516,6 +607,7 @@
 <script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.js'></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
+        // Initialize FullCalendar
         var calendarEl = document.getElementById('customer-calendar');
         var calendar = new FullCalendar.Calendar(calendarEl, {
             initialView: 'dayGridMonth',
@@ -525,7 +617,7 @@
                 center: 'title',
                 right: 'dayGridMonth,timeGridWeek,timeGridDay'
             },
-            events: "{% url 'customer-event-list' customer.id %}",
+            events: document.getElementById('customer-calendar').getAttribute('data-events-url'),
             editable: true,
             selectable: true,
             eventConstraint: {
@@ -541,13 +633,16 @@
                 var createTask = confirm('Create a task for this customer? (Cancel for meeting/event)');
 
                 if (createTask) {
-                    window.location.href = "{% url 'task-create' %}?customer={{ customer.pk }}&due_date=" + info.startStr;
+                    window.location.href = document.getElementById('task-create-url').value + "?customer=" +
+                                          document.getElementById('customer-id').value + "&due_date=" + info.startStr;
                 } else {
                     var createMeeting = confirm('Create a meeting? (Cancel for event)');
                     if (createMeeting) {
-                        window.location.href = "{% url 'meeting-create' %}?customer={{ customer.pk }}&start_time=" + info.startStr;
+                        window.location.href = document.getElementById('meeting-create-url').value + "?customer=" +
+                                              document.getElementById('customer-id').value + "&start_time=" + info.startStr;
                     } else {
-                        window.location.href = "{% url 'customer-event-create' customer.pk %}?start=" + info.startStr + "&end=" + info.endStr;
+                        window.location.href = document.getElementById('event-create-url').value + "?start=" +
+                                              info.startStr + "&end=" + info.endStr;
                     }
                 }
 
@@ -560,14 +655,11 @@
             },
             eventContent: function(arg) {
                 return {
-                    html: `
-                        <div class="fc-content">
-                            <i class="fas ${arg.event.extendedProps.icon}"></i>
-                            <span>${arg.event.title}</span>
-                            ${arg.event.extendedProps.assigned_to ?
-                              `<small class="d-block text-muted">👤 ${arg.event.extendedProps.assigned_to}</small>` : ''}
-                        </div>
-                    `
+                    html: '<div class="fc-content"><i class="fas ' + (arg.event.extendedProps.icon || '') + '"></i><span>' +
+                          arg.event.title + '</span>' +
+                          (arg.event.extendedProps.assigned_to ?
+                          '<small class="d-block text-muted">👤 ' + arg.event.extendedProps.assigned_to + '</small>' : '') +
+                          '</div>'
                 };
             }
         });
@@ -577,6 +669,45 @@
         setInterval(function() {
             calendar.refetchEvents();
         }, 60000); // Refresh every minute
+
+        // Handle uninvoiced time entries alert
+        var alertEl = document.getElementById('uninvoiced-alert');
+        if (alertEl) {
+            var hasUninvoiced = alertEl.getAttribute('data-has-uninvoiced') === 'true';
+            var uninvoicedCount = parseInt(alertEl.getAttribute('data-uninvoiced-count') || '0');
+            var uninvoicedHours = parseFloat(alertEl.getAttribute('data-uninvoiced-hours') || '0');
+
+            var countEl = document.getElementById('uninvoiced-count');
+            var hoursEl = document.getElementById('uninvoiced-hours');
+
+            if (countEl && hoursEl) {
+                countEl.textContent = uninvoicedCount;
+                hoursEl.textContent = uninvoicedHours.toFixed(2);
+            }
+
+            if (hasUninvoiced) {
+                alertEl.style.display = 'block';
+            } else {
+                alertEl.style.display = 'none';
+            }
+        }
+
+        // Add tab switching behavior for invoices tab
+        var invoicesTab = document.querySelector('a[href="#invoices"]');
+        if (invoicesTab) {
+            invoicesTab.addEventListener('shown.bs.tab', function() {
+                // When invoices tab is shown, re-check the alert visibility
+                if (alertEl) {
+                    var hasUninvoiced = alertEl.getAttribute('data-has-uninvoiced') === 'true';
+                    if (hasUninvoiced) {
+                        alertEl.style.display = 'block';
+                    } else {
+                        alertEl.style.display = 'none';
+                    }
+                }
+            });
+        }
     });
-    </script>
+</script>
+
 {% endblock %}

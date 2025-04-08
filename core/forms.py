@@ -471,11 +471,11 @@ class InvoiceForm(forms.ModelForm):
 
     class Meta:
         model = Invoice
-        fields = ['customer', 'services', 'issue_date', 'due_date', 'total_amount', 'status']
+        fields = ['customer', 'services', 'issue_date', 'due_date', 'total', 'status']
         widgets = {
             'issue_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
             'due_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
-            'total_amount': forms.NumberInput(attrs={'class': 'form-control'}),
+            'total': forms.NumberInput(attrs={'class': 'form-control'}),
             'status': forms.Select(attrs={'class': 'form-control'}),
             'customer': forms.Select(attrs={'class': 'form-control'}),
         }
@@ -503,13 +503,14 @@ class InvoiceForm(forms.ModelForm):
         cleaned_data = super().clean()
         # Calculate total amount based on selected services if not provided
         services = cleaned_data.get('services')
-        total_amount = cleaned_data.get('total_amount')
+        total = cleaned_data.get('total')
 
-        if services and not total_amount:
+        if services and not total:
             calculated_total = sum(service.calculate_total() for service in services)
-            cleaned_data['total_amount'] = calculated_total
+            cleaned_data['total'] = calculated_total
 
         return cleaned_data
+
 
 class PaymentForm(forms.ModelForm):
     class Meta:

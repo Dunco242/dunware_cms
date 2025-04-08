@@ -1029,80 +1029,127 @@ class Meeting(models.Model):
 # core/models.py (Invoice model updates)
 
 class Invoice(models.Model):
+    """
+    Represents customer invoices
+    """
     STATUS_CHOICES = [
-        ('pending', 'Pending'),
-        ('partial', 'Partially Paid'),
+        ('draft', 'Draft'),
+        ('sent', 'Sent'),
         ('paid', 'Paid'),
         ('overdue', 'Overdue'),
-        ('canceled', 'Canceled')
+        ('cancelled', 'Cancelled')
     ]
 
-    customer = models.ForeignKey('Customer', on_delete=models.CASCADE, related_name='invoices')
-    services = models.ManyToManyField('ServiceSubscription', blank=True, related_name='invoices')
-    invoice_number = models.CharField(max_length=20, unique=True)
-    issue_date = models.DateField(default=timezone.now)
+    invoice_number = models.CharField(max_length=50, unique=True)
+    customer = models.ForeignKey('core.Customer', on_delete=models.CASCADE, related_name='invoices')
+    project = models.ForeignKey('customer_projects.Project', on_delete=models.SET_NULL,
+                               null=True, blank=True, related_name='invoices')
+    issue_date = models.DateField()
     due_date = models.DateField()
-    total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
-    amount_due = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
+    subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    tax_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    amount_paid = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
+    total = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    last_payment_date = models.DateTimeField(null=True, blank=True)
-
-    class Meta:
-        ordering = ['-created_at']
-        indexes = [
-            models.Index(fields=['customer', 'status']),
-            models.Index(fields=['invoice_number']),
-            models.Index(fields=['due_date', 'status']),
-        ]
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"Invoice {self.invoice_number} - {self.customer.company_name}"
+        return f"Invoice #{self.invoice_number} - {self.customer.company_name}"
 
     def save(self, *args, **kwargs):
-        """Enhanced save method with additional validations"""
-        # Ensure due date is set if not provided
-        if not self.due_date:
-            self.due_date = self.issue_date + timedelta(days=30)
+        # Generate invoice number if not set
+        if not self.invoice_number:
+            last_invoice = Invoice.objects.order_by('-created_at').first()
+            if last_invoice and last_invoice.invoice_number:
+                try:
+                    # Extract the numeric part and increment
+                    numeric_part = int(last_invoice.invoice_number.split('-')[1])
+                    self.invoice_number = f"INV-{numeric_part + 1:06d}"
+                except (IndexError, ValueError):
+                    # Fallback if parsing fails
+                    self.invoice_number = f"INV-{timezone.now().strftime('%Y%m%d')}-001"
+            else:
+                # First invoice
+                self.invoice_number = f"INV-{timezone.now().strftime('%Y%m%d')}-001"
 
-        # Set initial amount due if not set
-        if not self.amount_due:
-            self.amount_due = self.total_amount
+        # Calculate totals from line items if they exist and invoice is being updated
+        if self.pk and not kwargs.get('skip_calculation', False):
+            self.update_totals()
+
+        # Remove the custom argument if present
+        if 'skip_calculation' in kwargs:
+            del kwargs['skip_calculation']
 
         super().save(*args, **kwargs)
 
     @property
     def balance_due(self):
-        """Calculate remaining balance dynamically"""
-        total_paid = sum(payment.amount for payment in self.payments.filter(status='completed'))
-        return max(self.total_amount - total_paid, Decimal('0.00'))
+        """Calculate the remaining balance to be paid"""
+        return self.total - self.amount_paid
+
+    def update_totals(self):
+        """
+        Recalculate invoice totals from line items
+        """
+        line_items = self.line_items.all()
+        self.subtotal = sum(item.amount for item in line_items)
+        # Calculate tax based on taxable items
+        self.tax_amount = sum(item.amount * (item.tax_rate / 100) for item in line_items if item.tax_rate > 0)
+        self.total = self.subtotal + self.tax_amount
 
     def update_status(self):
         """Comprehensive invoice status management"""
         now = timezone.now().date()
 
         # Calculate total payments
-        total_paid = sum(payment.amount for payment in self.payments.filter(status='completed'))
+        amount_paid = sum(payment.amount for payment in self.payments.filter(status='completed'))
 
-        # Update amount due
-        self.amount_due = max(self.total_amount - total_paid, Decimal('0.00'))
+        # Update amount paid instead of balance_due
+        self.amount_paid = amount_paid
 
         # Status transitions
-        if total_paid >= self.total_amount:
+        if amount_paid >= self.total:
             self.status = 'paid'
             self.last_payment_date = timezone.now()
-        elif total_paid > Decimal('0.00') and total_paid < self.total_amount:
+        elif amount_paid > Decimal('0.00') and amount_paid < self.total:
             self.status = 'partial'
-        elif now > self.due_date and self.amount_due > Decimal('0.00'):
+        elif now > self.due_date and (self.total - amount_paid) > Decimal('0.00'):
             self.status = 'overdue'
         else:
             self.status = 'pending'
 
         self.save()
 
-    def can_generate_payment(self):
-        """Check if payment can be generated"""
-        return self.status in ['pending', 'partial', 'overdue']
+class InvoiceLineItem(models.Model):
+    """
+    Line items for invoices
+    """
+    invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name='line_items')
+    project_name = models.CharField(max_length=200, blank=True)
+    project_code = models.CharField(max_length=50, blank=True)
+    task_description = models.CharField(max_length=200, blank=True)
+    product_or_service = models.CharField(max_length=200)
+    description = models.TextField()
+    quantity = models.DecimalField(max_digits=8, decimal_places=2)
+    unit_price = models.DecimalField(max_digits=10, decimal_places=2)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    tax_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+
+    def __str__(self):
+        return f"{self.product_or_service} - ${self.amount}"
+
+    def save(self, *args, **kwargs):
+        # Calculate amount if not set
+        if not self.amount:
+            self.amount = self.quantity * self.unit_price
+        super().save(*args, **kwargs)
+
+        # Update invoice totals if not specified otherwise
+        if not kwargs.get('skip_invoice_update', False) and self.invoice:
+            self.invoice.update_totals()
+            self.invoice.save(skip_calculation=True)  # Avoid circular updates
 
 
 

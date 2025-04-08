@@ -8,9 +8,11 @@ from django.contrib.contenttypes.models import ContentType
 from django.db.models import Sum, F, Q, Case, When, DecimalField, Value
 from core.models import Customer, Employee
 import uuid
+from decimal import Decimal
 from django.urls import reverse
 from slugify import slugify
 from django.apps import apps
+import logging
 
 
 def get_customer_model():
@@ -21,16 +23,12 @@ def get_employee_model():
 
 
 class Project(models.Model):
-    """
-    Main project model that represents a customer project
-    """
-
     STATUS_CHOICES = [
         ('planning', 'Planning'),
         ('in_progress', 'In Progress'),
-        ('on_hold', 'On Hold'),
         ('completed', 'Completed'),
-        ('cancelled', 'Cancelled')
+        ('on_hold', 'On Hold'),
+        ('canceled', 'Canceled')
     ]
 
     PRIORITY_CHOICES = [
@@ -40,87 +38,159 @@ class Project(models.Model):
         ('urgent', 'Urgent')
     ]
 
-    # Basic Information
-    name = models.CharField(max_length=200, unique=True)
-    description = models.TextField()
-    customer = models.ForeignKey('core.Customer', on_delete=models.CASCADE, related_name='projects')
-
-    # Project Details
-    project_code = models.CharField(max_length=20, unique=True, editable=False)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='planning')
-    priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='medium')
-
-    # Dates
-    start_date = models.DateField()
+    name = models.CharField(max_length=200)
+    project_code = models.CharField(max_length=50, unique=True)
+    description = models.TextField(blank=True)
+    customer = models.ForeignKey(
+        'core.Customer',
+        on_delete=models.CASCADE,
+        related_name='projects'
+    )
+    project_manager = models.ForeignKey(
+        'core.Employee',
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='managed_projects'
+    )
+    team_members = models.ManyToManyField(
+        'core.Employee',
+        through='ProjectTeamMember',
+        related_name='project_assignments'
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='planning'
+    )
+    priority = models.CharField(
+        max_length=20,
+        choices=PRIORITY_CHOICES,
+        default='medium'
+    )
+    start_date = models.DateField(default=timezone.now)
     target_end_date = models.DateField()
     actual_end_date = models.DateField(null=True, blank=True)
-
-    # Management
-    project_manager = models.ForeignKey('core.Employee', on_delete=models.SET_NULL, null=True, related_name='managed_projects')
-    team_members = models.ManyToManyField('core.Employee', through='ProjectTeamMember', related_name='project_assignments')
-
-    # Budget & Financials
-    budget = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
-    actual_cost = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
-    hourly_rate = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
-
-    # Progress Tracking
-    progress = models.IntegerField(default=0, validators=[MinValueValidator(0), MaxValueValidator(100)])
-
-    # Metadata
+    budget = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(Decimal('0.00'))]
+    )
+    hourly_rate = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('25.00'),
+        validators=[MinValueValidator(Decimal('0.00'))],
+        help_text="Default hourly rate for billing project work"
+    )
+    progress = models.IntegerField(
+        default=0,
+        validators=[MinValueValidator(0)],
+        help_text="Project completion percentage"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    created_by = models.ForeignKey(Employee, on_delete=models.SET_NULL, null=True, related_name='created_projects')
+    created_by = models.ForeignKey(
+        'core.Employee',
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='created_projects'
+    )
 
     class Meta:
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['project_code']),
+            models.Index(fields=['status']),
+            models.Index(fields=['customer', 'status']),
+            models.Index(fields=['project_manager', 'status']),
+        ]
+        permissions = [
+            ("view_project_finances", "Can view project finances"),
+            ("manage_project_team", "Can manage project team"),
+        ]
 
     def __str__(self):
         return f"{self.project_code} - {self.name}"
 
     def save(self, *args, **kwargs):
-        """
-        Auto-generate a unique project code if not provided.
-        """
+        # Generate project code if not set
         if not self.project_code:
-            base_code = slugify(self.name)[:10].upper()
-            unique_code = base_code
-            count = 1
-
-            while Project.objects.filter(project_code=unique_code).exists():
-                unique_code = f"{base_code}-{count}"
-                count += 1
-
-            self.project_code = unique_code
+            year = timezone.now().strftime('%Y')
+            count = Project.objects.filter(
+                project_code__startswith=f'P{year}'
+            ).count()
+            self.project_code = f'P{year}{count + 1:04d}'
 
         super().save(*args, **kwargs)
 
-    def get_absolute_url(self):
-        """Return the URL to view this project."""
-        return reverse('customer_projects:project-detail', kwargs={'pk': self.pk})
+    @property
+    def is_active(self):
+        return self.status in ['planning', 'in_progress']
 
-    def update_progress(self):
-        """Calculate and update project progress based on completed tasks"""
-        all_tasks = ProjectTask.objects.filter(phase__project=self)
-        total_tasks = all_tasks.count()
+    @property
+    def is_completed(self):
+        return self.status == 'completed'
 
-        if total_tasks > 0:
-            completed_tasks = all_tasks.filter(status='done').count()
-            self.progress = int((completed_tasks / total_tasks) * 100)
-            self.save()
+    @property
+    def is_overdue(self):
+        if self.status not in ['completed', 'canceled']:
+            return self.target_end_date < timezone.now().date()
+        return False
+
+    @property
+    def total_hours(self):
+        return self.phases.aggregate(
+            total=models.Sum('tasks__time_entries__hours')
+        )['total'] or 0
+
+    @property
+    def billable_hours(self):
+        return self.phases.aggregate(
+            billable=models.Sum(
+                'tasks__time_entries__hours',
+                filter=models.Q(tasks__time_entries__is_billable=True)
+            )
+        )['billable'] or 0
+
+    def calculate_cost(self):
+        return self.billable_hours * self.hourly_rate
+
+    def get_team_members(self):
+        return self.team_members.select_related('user').all()
+
+    def get_active_tasks(self):
+        return self.phases.filter(
+            tasks__status__in=['todo', 'in_progress']
+        ).values('tasks__id', 'tasks__title', 'tasks__due_date')
+
+    def get_overdue_tasks(self):
+        today = timezone.now().date()
+        return self.phases.filter(
+            tasks__status__in=['todo', 'in_progress'],
+            tasks__due_date__lt=today
+        ).values('tasks__id', 'tasks__title', 'tasks__due_date')
 
     def calculate_progress(self):
-        """Calculate overall project progress based on phase progress"""
-        phases = self.phases.all()
-        if not phases.exists():
+        """Calculate and update project progress based on phases"""
+        try:
+            phases = self.phases.all()
+            if not phases.exists():
+                return 0
+
+            # Calculate average progress from all phases
+            total_progress = sum(phase.progress for phase in phases)
+            project_progress = round(total_progress / phases.count())
+
+            # Update project progress
+            self.progress = project_progress
+            self.save(update_fields=['progress'])
+
+            return project_progress
+        except Exception as e:
+            logger.error(f"Error calculating project progress: {str(e)}")
             return 0
-
-        total_progress = sum(phase.progress for phase in phases)
-        avg_progress = total_progress / phases.count()
-
-        self.progress = int(avg_progress)
-        self.save(update_fields=['progress'])
-        return self.progress
 
 
 class ProjectTeamMember(models.Model):
@@ -148,6 +218,9 @@ class ProjectTeamMember(models.Model):
         user = getattr(self.employee, 'user', None)
         full_name = user.get_full_name() if user else "Unassigned"
         return f"{full_name()} - {self.get_role_display()}"
+
+logger = logging.getLogger(__name__)
+
 
 class ProjectPhase(models.Model):
     STATUS_CHOICES = [
@@ -192,6 +265,7 @@ class ProjectPhase(models.Model):
             return self.progress
 
         except Exception as e:
+
             logger.error(f"Error calculating phase progress: {str(e)}")
             return 0
 
@@ -366,6 +440,7 @@ class TimeEntry(models.Model):
     hours = models.DecimalField(max_digits=5, decimal_places=2, validators=[MinValueValidator(0.25), MaxValueValidator(24)])
     description = models.TextField(blank=True)
     is_billable = models.BooleanField(default=True)
+    is_invoiced = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

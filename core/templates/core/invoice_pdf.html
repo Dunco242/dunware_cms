@@ -4,74 +4,188 @@
     <meta charset="UTF-8">
     <title>Invoice #{{ invoice.invoice_number }}</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        .header { text-align: center; font-size: 22px; font-weight: bold; }
-        .company-info, .customer-info { margin-bottom: 20px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        th { background-color: #4CAF50; color: white; }
-        .total-section { text-align: right; font-size: 18px; margin-top: 20px; }
-        .total-section strong { color: #4CAF50; }
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            color: #333;
+            font-size: 12px;
+        }
+        .header {
+            text-align: center;
+            font-size: 22px;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+        .company-info {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .invoice-details {
+            margin-bottom: 20px;
+        }
+        .row {
+            display: flex;
+            margin-bottom: 20px;
+        }
+        .col-6 {
+            flex: 0 0 50%;
+        }
+        .customer-info {
+            margin-bottom: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            margin-bottom: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+            color: #333;
+            font-weight: bold;
+        }
+        .text-center {
+            text-align: center;
+        }
+        .text-right {
+            text-align: right;
+        }
+        .total-section {
+            text-align: right;
+            font-size: 14px;
+            margin-top: 20px;
+        }
+        .total-row {
+            font-weight: bold;
+            background-color: #f2f2f2;
+        }
+        .footer {
+            margin-top: 40px;
+            text-align: center;
+            font-size: 11px;
+            color: #666;
+            border-top: 1px solid #ddd;
+            padding-top: 20px;
+        }
+        .project-name {
+            font-weight: bold;
+        }
+        .payment-info {
+            margin-top: 30px;
+            border-top: 1px solid #ddd;
+            padding-top: 10px;
+        }
     </style>
 </head>
 <body>
 
     <div class="header">
         <img src="https://via.placeholder.com/150" alt="Company Logo"> <!-- Replace with your logo -->
+    </div>
+
+    <div class="company-info">
         <p>Dunware Solutions</p>
         <p>90 Leitch Avenue, North York, Ontario, M3J 0C9</p>
         <p>Phone: (437) 907-8647 | Email: damienduncombe@gmail.com</p>
     </div>
 
-    <hr>
+    <div class="row">
+        <div class="col-6">
+            <div class="customer-info">
+                <h3>Billed To:</h3>
+                <p><strong>{{ invoice.customer.company_name }}</strong></p>
+                <p>{{ invoice.customer.contact_person }}</p>
+                <p>{{ invoice.customer.address }}, {{ invoice.customer.city }}, {{ invoice.customer.state }}</p>
+                <p>Email: {{ invoice.customer.email }}</p>
+                <p>Phone: {{ invoice.customer.phone }}</p>
+            </div>
+        </div>
 
-    <div class="customer-info">
-        <p><strong>Recipient:</strong></p>
-        <p>{{ customer.company_name }}</p>
-        <p>{{ customer.contact_person }}</p>
-        <p>{{ customer.address }}, {{ customer.city }}, {{ customer.state }}</p>
-        <p>Email: {{ customer.email }} | Phone: {{ customer.phone }}</p>
+        <div class="col-6">
+            <div class="invoice-details">
+                <h2>Invoice #{{ invoice.invoice_number }}</h2>
+                <p><strong>Issue Date:</strong> {{ invoice.issue_date }}</p>
+                <p><strong>Due Date:</strong> {{ invoice.due_date }}</p>
+                <p><strong>Status:</strong> {{ invoice.get_status_display }}</p>
+            </div>
+        </div>
     </div>
 
-    <div class="invoice-details">
-        <h2>Invoice #{{ invoice.invoice_number }}</h2>
-        <p><strong>Issued:</strong> {{ invoice.issue_date }}</p>
-        <p><strong>Due:</strong> {{ invoice.due_date }}</p>
-        <p><strong>Status:</strong> {{ invoice.get_status_display }}</p>
-    </div>
-
-    <h3>For Services Rendered</h3>
     <table>
         <thead>
             <tr>
-                <th>Product / Service</th>
-                <th>Description</th>
-                <th>QTY</th>
-                <th>Unit Price</th>
-                <th>Total</th>
+                <th width="30%">Product / Service</th>
+                <th width="40%">Description</th>
+                <th class="text-center">Quantity</th>
+                <th class="text-right">Unit Price</th>
+                <th class="text-right">Amount</th>
             </tr>
         </thead>
         <tbody>
-            {% for service in services %}
+            {% for line_item in invoice.line_items.all %}
             <tr>
-                <td>{{ service.service.name }}</td>
-                <td>{{ service.service.description }}</td>
-                <td>{% if service.billing_cycle == 'hourly' %}{{ service.billed_hours }} hours{% else %}1{% endif %}</td>
-                <td>${{ service.hourly_rate|default:service.price }}</td>
-                <td>${{ service.calculate_total }}</td>
+                <td class="project-name">{{ line_item.product_or_service }}</td>
+                <td>{{ line_item.description }}</td>
+                <td class="text-center">{{ line_item.quantity|floatformat:2 }}</td>
+                <td class="text-right">${{ line_item.unit_price|floatformat:2 }}</td>
+                <td class="text-right">${{ line_item.amount|floatformat:2 }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="5" class="text-center">No items in this invoice</td>
             </tr>
             {% endfor %}
+
+            <tr>
+                <td colspan="4" class="text-right"><strong>Subtotal:</strong></td>
+                <td class="text-right">${{ invoice.subtotal|default:invoice.total_amount|floatformat:2 }}</td>
+            </tr>
+            {% if invoice.tax_amount %}
+            <tr>
+                <td colspan="4" class="text-right"><strong>Tax (13%):</strong></td>
+                <td class="text-right">${{ invoice.tax_amount|floatformat:2 }}</td>
+            </tr>
+            {% endif %}
+            <tr class="total-row">
+                <td colspan="4" class="text-right"><strong>Total:</strong></td>
+                <td class="text-right">${{ invoice.total|floatformat:2 }}</td>
+            </tr>
+            {% if invoice.amount_paid > 0 %}
+            <tr>
+                <td colspan="4" class="text-right"><strong>Amount Paid:</strong></td>
+                <td class="text-right">${{ invoice.amount_paid|floatformat:2 }}</td>
+            </tr>
+            <tr class="total-row">
+                <td colspan="4" class="text-right"><strong>Balance Due:</strong></td>
+                <td class="text-right">${{ invoice.balance_due|floatformat:2 }}</td>
+            </tr>
+            {% endif %}
         </tbody>
     </table>
 
-    <div class="total-section">
-        <p>Subtotal: ${{ subtotal }}</p>
-        <p>Tax (13%): ${{ tax_amount }}</p>
-        <p><strong>Total: ${{ total }}</strong></p>
+    {% if invoice.notes %}
+    <div class="notes">
+        <h3>Notes</h3>
+        <p>{{ invoice.notes }}</p>
+    </div>
+    {% endif %}
+
+    <div class="payment-info">
+        <h3>Payment Information</h3>
+        <p><strong>Payment Terms:</strong> Net 30 days</p>
+        <p><strong>Payment Method:</strong> Bank Transfer</p>
+        <p>Please include the invoice number in your payment reference.</p>
     </div>
 
-    <hr>
-    <p>Thank you for your business!</p>
+    <div class="footer">
+        <p>Thank you for your business!</p>
+        <p>If you have any questions about this invoice, please contact our billing department.</p>
+    </div>
 
 </body>
 </html>

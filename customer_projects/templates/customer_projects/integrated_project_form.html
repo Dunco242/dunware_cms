@@ -3,7 +3,6 @@
 {% block title %}Create New Project{% endblock %}
 
 {% block extra_css %}
-<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 <style>
     .phase-container, .task-container {
         border: 1px solid #e9ecef;
@@ -154,6 +153,15 @@
                                 {{ project_form.target_end_date }}
                                 {% if project_form.target_end_date.errors %}
                                     <div class="text-danger small">{{ project_form.target_end_date.errors }}</div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Hourly Rate -->
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Hourly Rate</label>
+                                {{ project_form.hourly_rate }}
+                                {% if project_form.hourly_rate.errors %}
+                                    <div class="text-danger small">{{ project_form.hourly_rate.errors }}</div>
                                 {% endif %}
                             </div>
 
@@ -439,6 +447,15 @@
                     <option value="urgent">Urgent</option>
                 </select>
             </div>
+            <!-- Assigned To -->
+            <div class="col-md-6">
+                <label class="form-label fw-bold">Assigned To</label>
+                <select name="assigned_to" class="form-control">
+                    {% for employee in employees %}
+                    <option value="{{ employee.id }}">{{ employee.get_full_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
             <!-- Start Date -->
             <div class="col-md-6">
                 <label class="form-label fw-bold">Start Date</label>
@@ -466,23 +483,13 @@
 
 {% block extra_js %}
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script>
 $(document).ready(function() {
-    console.log('Document ready');
-
-    // Initialize Select2 for all dropdowns
-    $('.select2').select2({
-        width: '100%',
-        theme: "classic"
-    });
-
     // Keep track of phase count
     let phaseCount = $('.phase-container').length || 1;
 
-    // Add new phase - using simplified approach
+    // Add new phase
     $('#add-phase-btn').click(function() {
-        console.log('Add phase button clicked');
         const newPhaseId = phaseCount++;
 
         // Create phase template with correct structure
@@ -510,7 +517,6 @@ $(document).ready(function() {
                         </div>
                         <!-- Status -->
                         <div class="col-md-6">
-                            <div class="col-md-6">
                             <label class="form-label fw-bold">Status</label>
                             <select name="phase-${newPhaseId}-status" class="form-control">
                                 <option value="planning">Planning</option>
@@ -558,9 +564,8 @@ $(document).ready(function() {
         $('#num_phases').val(phaseCount);
     });
 
-    // Remove phase with direct handler
+    // Remove phase
     $(document).on('click', '.remove-phase-btn', function() {
-        console.log('Remove phase button clicked');
         const phaseId = $(this).data('phase');
         $('#phase-' + phaseId).remove();
 
@@ -574,13 +579,9 @@ $(document).ready(function() {
         $('#num_phases').val(phaseCount);
     });
 
-    // Add task with simplified approach
+    // Add task
     $(document).on('click', '.add-task-btn', function() {
-        console.log('Add task button clicked');
         const phaseId = $(this).data('phase');
-        console.log('Phase ID:', phaseId);
-
-        // Clone the task template and customize it for this phase
         const taskTemplate = $('#task-template').clone();
         taskTemplate.removeAttr('id').show();
 
@@ -628,7 +629,6 @@ $(document).ready(function() {
 
     // Remove task
     $(document).on('click', '.remove-task-btn', function() {
-        console.log('Remove task button clicked');
         const phaseId = $(this).data('phase');
         const taskId = $(this).data('task');
         $('#phase-' + phaseId + '-task-' + taskId).remove();

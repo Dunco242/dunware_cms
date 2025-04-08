@@ -274,13 +274,13 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         return redirect(request.path)
 
     def _handle_add_time_entry(self, request, project):
-        """Handle adding a time entry to a task within the project"""
+        """Handle adding a time entry to a task or phase within the project"""
         time_entry_form = TimeEntryForm(request.POST)
         if time_entry_form.is_valid():
             try:
                 time_entry = time_entry_form.save(commit=False)
-                task_id = request.POST.get('task')
-                task = get_object_or_404(ProjectTask, pk=task_id, phase__project=project)
+                entity_id = request.POST.get('task')
+                entity_type = request.POST.get('entity_type', 'task')  # Default to task if not specified
 
                 # Retrieve the Employee instance correctly
                 employee = Employee.objects.filter(user=request.user).first()
@@ -288,11 +288,42 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
                     messages.error(request, "You are not associated with an employee profile.")
                     return redirect(request.path)
 
-                time_entry.task = task
+                # Handle time entry differently based on entity type
+                if entity_type == 'phase':
+                    # It's a phase
+                    phase = get_object_or_404(ProjectPhase, pk=entity_id, project=project)
+
+                    # If phase has tasks, check if there's a default task or create one
+                    if phase.tasks.exists():
+                        # Optional: Use the first task of the phase
+                        task = phase.tasks.first()
+                    else:
+                        # Create a generic task for this phase if none exists
+                        task = ProjectTask.objects.create(
+                            phase=phase,
+                            title=f"General work on {phase.name}",
+                            status='in_progress',
+                            start_date=timezone.now().date(),
+                            due_date=phase.end_date or (timezone.now().date() + timedelta(days=30))
+                        )
+
+                    time_entry.task = task
+                else:
+                    # It's a regular task
+                    task = get_object_or_404(ProjectTask, pk=entity_id, phase__project=project)
+                    time_entry.task = task
+
                 time_entry.employee = employee
                 time_entry.save()
 
-                messages.success(request, "Time entry added successfully.")
+                # Manually update the task's actual hours without triggering calculations
+                try:
+                    task.actual_hours = task.time_entries.aggregate(total=Sum('hours'))['total'] or 0
+                    task.save(update_fields=['actual_hours'])
+                except Exception as e:
+                    logger.error(f"Error updating task hours: {str(e)}")
+
+                messages.success(request, f"Time entry added successfully: {time_entry.hours} hours for {task.title}.")
                 return redirect(request.path)
 
             except Exception as e:
@@ -301,6 +332,41 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
 
         messages.error(request, "There was an error with the time entry form.")
         return redirect(request.path)
+
+
+def _update_progress(self, phase, project):
+    """Update progress for phase and project without relying on calculate_progress methods"""
+    # Update phase progress
+    phase_tasks = phase.tasks.all()
+    total_tasks = phase_tasks.count()
+
+    if total_tasks > 0:
+        # Count tasks in different states
+        completed_tasks = phase_tasks.filter(status='done').count()
+        in_progress_tasks = phase_tasks.filter(status='in_progress').count()
+        in_review_tasks = phase_tasks.filter(status='in_review').count()
+
+        # Calculate weighted progress
+        progress = (
+            (completed_tasks * 100) +  # Done tasks count as 100%
+            (in_review_tasks * 75) +   # In Review tasks count as 75%
+            (in_progress_tasks * 50)    # In Progress tasks count as 50%
+        ) / total_tasks
+
+        phase.progress = round(progress)
+        phase.save(update_fields=['progress'])
+
+    # Update project progress
+    phases = project.phases.all()
+    if phases.exists():
+        total_progress = 0
+        for p in phases:
+            total_progress += getattr(p, 'progress', 0)
+
+        project_progress = round(total_progress / phases.count())
+        project.progress = project_progress
+        project.save(update_fields=['progress'])
+
 
     def _handle_status_update(self, request, project):
         """Handle project status updates"""

@@ -295,55 +295,80 @@ class SmartNotificationService:
         )
 
     def create_invoice_notification(self, invoice):
-        """Create a notification for an invoice"""
-        # Notify the customer's assigned employee
-        if invoice.customer.assigned_to:
-            user = invoice.customer.assigned_to.user
+        """
+        Create a notification for a new invoice
+        """
+        if not invoice.customer.assigned_to:
+            return None
 
-            title = f"Invoice {invoice.invoice_number} Created"
-            message = f"New invoice for {invoice.customer.company_name} in the amount of ${invoice.total_amount}"
+        user = invoice.customer.assigned_to.user
 
-            action_url = reverse('invoice-detail', args=[invoice.id])
+        # Get project name if available
+        project_info = f" for project '{invoice.project.name}'" if invoice.project else ""
 
-            self.create_notification(
-                user=user,
-                title=title,
-                message=message,
-                notification_type='document',
-                event_datetime=timezone.now(),
-                priority='medium',
-                content_object=invoice,
-                reference_id=invoice.id,
-                action_url=action_url
-            )
+        message = f"New invoice #{invoice.invoice_number} created for {invoice.customer.company_name}{project_info}. Amount: ${invoice.total}"
+
+        return self.create_notification(
+            user=user,
+            title=f"New Invoice #{invoice.invoice_number}",
+            message=message,
+            notification_type="invoice",
+            event_datetime=timezone.now(),
+            priority="medium",
+            content_object=invoice,
+            action_url=f"/billing/invoices/{invoice.id}/"
+        )
+
+    def create_invoice_overdue_notification(self, invoice):
+        """
+        Create a notification for an overdue invoice
+        """
+        if not invoice.customer.assigned_to:
+            return None
+
+        user = invoice.customer.assigned_to.user
+        days_overdue = (timezone.now().date() - invoice.due_date).days
+
+        # Get project name if available
+        project_info = f" for project '{invoice.project.name}'" if invoice.project else ""
+
+        message = f"Invoice #{invoice.invoice_number} for {invoice.customer.company_name}{project_info} is {days_overdue} days overdue. Balance due: ${invoice.balance_due}"
+
+        return self.create_notification(
+            user=user,
+            title=f"Invoice #{invoice.invoice_number} Overdue",
+            message=message,
+            notification_type="deadline",
+            event_datetime=timezone.now(),
+            priority="high",
+            content_object=invoice,
+            action_url=f"/billing/invoices/{invoice.id}/"
+        )
 
     def create_invoice_due_notification(self, invoice, days_before=3):
-        """Create a notification for an upcoming invoice due date"""
-        # Notify the customer's assigned employee
-        if invoice.customer.assigned_to:
-            user = invoice.customer.assigned_to.user
+        """
+        Create a notification for an upcoming invoice due date
+        """
+        if not invoice.customer.assigned_to:
+            return None
 
-            title = f"Invoice {invoice.invoice_number} Due Soon"
-            message = f"Invoice for {invoice.customer.company_name} is due in {days_before} days (${invoice.total_amount})"
+        user = invoice.customer.assigned_to.user
 
-            if days_before <= 1:
-                priority = 'high'
-            else:
-                priority = 'medium'
+        # Get project name if available
+        project_info = f" for project '{invoice.project.name}'" if invoice.project else ""
 
-            action_url = reverse('invoice-detail', args=[invoice.id])
+        message = f"Invoice #{invoice.invoice_number} for {invoice.customer.company_name}{project_info} is due in {days_before} days. Amount: ${invoice.total}"
 
-            self.create_notification(
-                user=user,
-                title=title,
-                message=message,
-                notification_type='deadline',
-                event_datetime=datetime.combine(invoice.due_date, datetime.min.time()),
-                priority=priority,
-                content_object=invoice,
-                reference_id=invoice.id,
-                action_url=action_url
-            )
+        return self.create_notification(
+            user=user,
+            title=f"Invoice #{invoice.invoice_number} Due Soon",
+            message=message,
+            notification_type="deadline",
+            event_datetime=timezone.now(),
+            priority="medium",
+            content_object=invoice,
+            action_url=f"/billing/invoices/{invoice.id}/"
+        )
 
     def create_subscription_expiry_notification(self, subscription, days_before=7):
         """Create a notification for an expiring subscription"""

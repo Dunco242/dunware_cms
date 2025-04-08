@@ -325,11 +325,12 @@ class CustomerListView(LoginRequiredMixin, ListView):
         context['status_choices'] = Customer.CUSTOMER_STATUS
         return context
 
+logger = logging.getLogger(__name__)
 class CustomerDetailView(LoginRequiredMixin, DetailView):
     model = Customer
     template_name = 'core/customer_detail.html'
     context_object_name = 'customer'
-
+    # Debug query for uninvoiced entries
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         customer = self.get_object()
@@ -340,8 +341,8 @@ class CustomerDetailView(LoginRequiredMixin, DetailView):
             'tasks': Task.objects.filter(customer=customer).order_by('-created_at')[:5],
             'meetings': Meeting.objects.filter(customers=customer).order_by('-start_time')[:5],
             'projects': customer.projects.all().order_by('-created_at'),
-            'invoices': Invoice.objects.filter(customer=customer),  # ✅ Ensure invoices are included
-            'payments': Payment.objects.filter(invoice__customer=customer),  # ✅ Fetch payments linked to invoices
+            'invoices': Invoice.objects.filter(customer=customer),
+            'payments': Payment.objects.filter(invoice__customer=customer),
             'total_paid': Payment.objects.filter(invoice__customer=customer).aggregate(total=models.Sum('amount'))['total'] or 0
         })
 
@@ -384,6 +385,31 @@ class CustomerDetailView(LoginRequiredMixin, DetailView):
 
         except Exception as e:
             logger.error(f"Error calculating customer health: {str(e)}")
+
+        # Get uninvoiced time entries data for API
+        try:
+            from customer_projects.models import TimeEntry
+            from django.db.models import Sum, Count
+
+            # Get details about uninvoiced entries for this customer's projects
+            uninvoiced_data = TimeEntry.objects.filter(
+                is_billable=True,
+                is_invoiced=False,
+                task__phase__project__customer=customer
+            ).aggregate(
+                count=Count('id'),
+                total_hours=Sum('hours')
+            )
+
+            context['uninvoiced_entries_count'] = uninvoiced_data['count'] or 0
+            context['uninvoiced_hours'] = uninvoiced_data['total_hours'] or 0
+            context['has_uninvoiced_entries'] = uninvoiced_data['count'] > 0 if uninvoiced_data['count'] is not None else False
+
+        except Exception as e:
+            logger.error(f"Error getting uninvoiced time entries: {str(e)}")
+            context['uninvoiced_entries_count'] = 0
+            context['uninvoiced_hours'] = 0
+            context['has_uninvoiced_entries'] = False
 
         return context
 
@@ -452,8 +478,37 @@ class CustomerDetailView(LoginRequiredMixin, DetailView):
             except Exception as e:
                 messages.error(request, f"Error generating invoice: {str(e)}")
 
+        elif action == 'generate_project_invoices':
+            # Generate invoices for uninvoiced time entries
+            try:
+                from .automation import automation_system
+
+                # Add more logging for debugging
+                logger.info(f"Starting invoice generation for customer {customer.pk}")
+
+                # Call the invoice generation directly instead of using automation_system
+                from .invoice_automation import InvoiceGenerator
+                invoice_generator = InvoiceGenerator()
+
+                # Direct call to generate project invoices
+                invoices_created = invoice_generator.generate_project_invoices(timezone.now().date())
+
+                if invoices_created > 0:
+                    messages.success(request, f"Successfully generated {invoices_created} invoice(s) for pending time entries")
+                else:
+                    messages.warning(request, "No invoices were generated. This could be because there are no uninvoiced billable time entries, or they've already been processed.")
+
+                logger.info(f"Invoice generation completed for customer {customer.pk}. Invoices created: {invoices_created}")
+
+            except Exception as e:
+                logger.exception(f"Error generating project invoices for customer {customer.pk}")
+                messages.error(request, f"Error generating project invoices: {str(e)}")
+
+
         # Redirect back to customer detail page
         return redirect('customer-detail', pk=customer.pk)
+
+
 
 class CustomerCreateView(LoginRequiredMixin, CreateView):
     model = Customer
@@ -5683,3 +5738,40 @@ def complete_task(request, pk):
 
     # If not POST or GET, redirect to task detail page
     return redirect('task-detail', pk=task.pk)
+
+
+@login_required
+def check_uninvoiced_entries(request):
+    """API endpoint to check for uninvoiced time entries"""
+    customer_id = request.GET.get('customer_id')
+    if not customer_id:
+        return JsonResponse({'error': 'Customer ID is required'}, status=400)
+
+    try:
+        customer = get_object_or_404(Customer, id=customer_id)
+
+        # Check for uninvoiced time entries
+        from customer_projects.models import TimeEntry
+        from django.db.models import Sum, Count
+
+        uninvoiced_data = TimeEntry.objects.filter(
+            is_billable=True,
+            is_invoiced=False,
+            task__phase__project__customer=customer
+        ).aggregate(
+            count=Count('id'),
+            total_hours=Sum('hours')
+        )
+
+        count = uninvoiced_data['count'] or 0
+        hours = float(uninvoiced_data['total_hours'] or 0)
+
+        return JsonResponse({
+            'has_uninvoiced_entries': count > 0,
+            'count': count,
+            'hours': hours
+        })
+
+    except Exception as e:
+        logger.error(f"Error checking uninvoiced entries: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)

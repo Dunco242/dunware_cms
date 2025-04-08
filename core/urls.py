@@ -76,6 +76,9 @@ from .views import (
     DeletedMailView,
     EmailThreadView,
 
+    # Project Invoice Generation
+    check_uninvoiced_entries,
+
     # Notification
     notifications_list, mark_notification_read,
     mark_all_read, dismiss_notification, get_notifications_json
@@ -207,7 +210,7 @@ urlpatterns = [
     path('api/tasks/update-status/', views.update_task_status, name='api-update-task-status'),
     path('api/meetings/check-availability/', views.check_meeting_availability, name='api-check-meeting-availability'),
     path('api/meetings/schedule/', views.schedule_meeting, name='api-schedule-meeting'),
-
+    path('api/check-uninvoiced-entries/', views.check_uninvoiced_entries, name='check-uninvoiced-entries'),
 
    # Chat UI Routes
     path('chat/', views.chat_inbox, name='chat_inbox'),
