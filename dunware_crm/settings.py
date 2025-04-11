@@ -18,16 +18,17 @@ DEVELOPMENT_MODE = os.getenv('DJANGO_ENV', 'development') == 'development'
 SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-development-key-change-in-production')
 
 if DEVELOPMENT_MODE:
-    SECURE_SSL_REDIRECT = True
-    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
-    SECURE_HSTS_SECONDS = 31536000
-    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-    SECURE_CONTENT_TYPE_NOSNIFF = True
-    SECURE_BROWSER_XSS_FILTER = True
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
-    X_FRAME_OPTIONS = 'DENY'
-    USE_SECURE_WEBSOCKETS = True
+    SECURE_SSL_REDIRECT = False
+    SECURE_PROXY_SSL_HEADER = None
+    SECURE_HSTS_SECONDS = 0
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+    SECURE_HSTS_PRELOAD = False
+    SECURE_CONTENT_TYPE_NOSNIFF = False
+    SECURE_BROWSER_XSS_FILTER = False
+    SESSION_COOKIE_SECURE = False
+    CSRF_COOKIE_SECURE = False
+    X_FRAME_OPTIONS = 'SAMEORIGIN'
+    USE_SECURE_WEBSOCKETS = False
 else:
     SECURE_SSL_REDIRECT = True
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
@@ -40,7 +41,7 @@ else:
     X_FRAME_OPTIONS = 'DENY'
     USE_SECURE_WEBSOCKETS = True
 
-ALLOWED_HOSTS = ['127.0.0.1', 'localhost', 'dunware-cms.onrender.com']
+ALLOWED_HOSTS = ['127.0.0.1', 'localhost', 'dunware-cms.onrender.com', 'dunwaresolutions.com', 'www.dunwaresolutions.com']
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -109,15 +110,12 @@ ASGI_APPLICATION = 'dunware_crm.asgi.application'
 
 if DEVELOPMENT_MODE:
     DATABASES = {
-        'default': {
-            'ENGINE': os.getenv('DB_ENGINE', 'django.db.backends.mysql'),
-            'NAME': os.getenv('DB_NAME'),
-            'USER': os.getenv('DB_USER'),
-            'PASSWORD': os.getenv('DB_PASSWORD'),
-            'HOST': os.getenv('DB_HOST', 'localhost'),
-            'PORT': os.getenv('DB_PORT', '3306'),
-        }
+    "default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": "mydatabase",
     }
+}
+
     CHANNEL_LAYERS = {
         "default": {
             "BACKEND": "channels.layers.InMemoryChannelLayer"

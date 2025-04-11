@@ -13,179 +13,300 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css">
 <style>
-    .form-check-input {
-        margin-right: 0.5rem;
+    /* Card styling */
+    .card {
+        border: none;
+        border-radius: 0.5rem;
+        transition: all 0.2s ease;
+        box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
     }
-    .form-check-label {
-        margin-left: 1.25rem;
+
+    .card-header {
+        background: linear-gradient(45deg, #4e73df, #224abe);
+        color: white;
+        border-top-left-radius: 0.5rem !important;
+        border-top-right-radius: 0.5rem !important;
+        padding: 1.25rem 1.5rem;
+        border-bottom: none;
     }
-    #id_location {
+
+    .card-body {
+        padding: 1.75rem;
+    }
+
+    /* Form section styling */
+    .form-section {
+        background-color: #ffffff;
+        padding: 1.25rem;
+        border-radius: 0.375rem;
+        box-shadow: 0 0 10px rgba(0,0,0,0.03);
+        margin-bottom: 1.5rem;
+    }
+
+    .section-heading {
+        color: #4e73df;
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin-bottom: 1.25rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid #e3e6f0;
+    }
+
+    /* Form controls */
+    input, select, textarea {
         display: block;
         width: 100%;
-        padding: 0.375rem 0.75rem;
+        padding: 0.75rem 1rem;
         font-size: 1rem;
         font-weight: 400;
         line-height: 1.5;
-        color: #212529;
+        color: #495057;
         background-color: #fff;
         background-clip: padding-box;
-        border: 1px solid #ced4da;
-        border-radius: 0.25rem;
+        border: 1px solid #d1d9e6;
+        border-radius: 0.375rem;
         transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+    }
+
+    input:focus, select:focus, textarea:focus {
+        color: #495057;
+        background-color: #fff;
+        border-color: #4e73df;
+        outline: 0;
+        box-shadow: 0 0 0 0.2rem rgba(78, 115, 223, 0.25);
+    }
+
+    textarea {
+        min-height: 120px;
+        resize: vertical;
+    }
+
+    .form-label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 600;
+        color: #4a5568;
+    }
+
+    /* Checkbox styling */
+    .form-check-input {
+        margin-right: 0.5rem;
+    }
+
+    .form-check-label {
+        margin-left: 0;
+        font-weight: normal;
+    }
+
+    .form-check {
+        padding-left: 1.75rem;
+        margin-bottom: 0.75rem;
+    }
+
+    /* Buttons */
+    .btn {
+        border-radius: 0.375rem;
+        padding: 0.625rem 1.25rem;
+        font-weight: 500;
+        transition: all 0.2s ease;
+    }
+
+    .btn-success {
+        background-color: #1cc88a;
+        border-color: #1cc88a;
+    }
+
+    .btn-success:hover {
+        background-color: #17a673;
+        border-color: #169b6b;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08);
+    }
+
+    .btn-outline-secondary {
+        color: #858796;
+        border-color: #d1d3e2;
+    }
+
+    .btn-outline-secondary:hover {
+        background-color: #f8f9fc;
+        color: #6e707e;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08);
+    }
+
+    /* Flatpickr styling */
+    .flatpickr-input {
+        background-color: #ffffff !important;
+    }
+
+    /* Error messaging */
+    .text-danger {
+        color: #e74a3b !important;
+        margin-top: 0.25rem;
+        font-size: 80%;
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <div class="card shadow-sm">
-        <div class="card-body">
-            <h1 class="h3 text-dark mb-4">
-                {% if form.instance.pk %}
-                    Edit Meeting: {{ form.instance.title }}
-                {% else %}
-                    Schedule New Meeting
-                {% endif %}
-            </h1>
-
-            <form method="post" id="meetingForm">
-                {% csrf_token %}
-                <!-- Add an explicit CSRF token to ensure it's included -->
-                <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
-
-                <div class="row g-3">
-                    <!-- Title and Meeting Type -->
-                    <div class="col-md-6">
-                        <label class="form-label fw-bold">Title</label>
-                        {{ form.title }}
-                        {% if form.title.errors %}
-                            <div class="text-danger small">{{ form.title.errors }}</div>
-                        {% endif %}
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label fw-bold">Meeting Type</label>
-                        {{ form.meeting_type }}
-                        {% if form.meeting_type.errors %}
-                            <div class="text-danger small">{{ form.meeting_type.errors }}</div>
-                        {% endif %}
-                    </div>
-
-                    <!-- Location Field (Conditional) -->
-                    <div class="col-md-12" id="locationField" style="display: none;">
-                        <label class="form-label fw-bold">Location</label>
-                        {{ form.location }}
-                        {% if form.location.errors %}
-                            <div class="text-danger small">{{ form.location.errors }}</div>
-                        {% endif %}
-                    </div>
-
-                    <!-- Start and End Time -->
-                    <div class="col-md-6">
-                        <label class="form-label fw-bold">Start Time</label>
-                        {{ form.start_time }}
-                        {% if form.start_time.errors %}
-                            <div class="text-danger small">{{ form.start_time.errors }}</div>
-                        {% endif %}
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label fw-bold">End Time</label>
-                        {{ form.end_time }}
-                        {% if form.end_time.errors %}
-                            <div class="text-danger small">{{ form.end_time.errors }}</div>
-                        {% endif %}
-                    </div>
-
-                    <!-- Description -->
-                    <div class="col-12">
-                        <label class="form-label fw-bold">Description</label>
-                        {{ form.description }}
-                        {% if form.description.errors %}
-                            <div class="text-danger small">{{ form.description.errors }}</div>
-                        {% endif %}
-                    </div>
-
-                    <!-- Attendees Checkboxes -->
-                    <div class="col-md-12">
-                        <label class="form-label fw-bold">Attendees</label>
-                        <div class="row">
-                            {% for checkbox in form.attendees %}
-                                <div class="col-md-4 form-check">
-                                    {{ checkbox.tag }}
-                                    <label class="form-check-label" for="{{ checkbox.id_for_label }}">
-                                        {{ checkbox.choice_label }}
-                                    </label>
-                                </div>
-                            {% endfor %}
-                        </div>
-                        {% if form.attendees.errors %}
-                            <div class="text-danger small">{{ form.attendees.errors }}</div>
-                        {% endif %}
-                    </div>
-
-                    <!-- Customers Checkboxes -->
-                    <div class="col-md-12">
-                        <label class="form-label fw-bold">Customers</label>
-                        <div class="row">
-                            {% for checkbox in form.customers %}
-                                <div class="col-md-4 form-check">
-                                    {{ checkbox.tag }}
-                                    <label class="form-check-label" for="{{ checkbox.id_for_label }}">
-                                        {{ checkbox.choice_label }}
-                                    </label>
-                                </div>
-                            {% endfor %}
-                        </div>
-                        {% if form.customers.errors %}
-                            <div class="text-danger small">{{ form.customers.errors }}</div>
-                        {% endif %}
-                    </div>
-
-                    <!-- Leads Checkboxes -->
-                    <div class="col-md-12">
-                        <label class="form-label fw-bold">Leads</label>
-                        <div class="row">
-                            {% for checkbox in form.leads %}
-                                <div class="col-md-4 form-check">
-                                    {{ checkbox.tag }}
-                                    <label class="form-check-label" for="{{ checkbox.id_for_label }}">
-                                        {{ checkbox.choice_label }}
-                                    </label>
-                                </div>
-                            {% endfor %}
-                        </div>
-                        {% if form.leads.errors %}
-                            <div class="text-danger small">{{ form.leads.errors }}</div>
-                        {% endif %}
-                    </div>
-                </div>
-
-                <!-- Debug information - add this temporarily to troubleshoot -->
-                <div class="mt-3 p-2 border rounded bg-light d-none">
-                    <h6>Form Debug Info</h6>
-                    <p>Start Time: {{ form.start_time.value|date:"Y-m-d H:i:s" }}</p>
-                    <p>End Time: {{ form.end_time.value|date:"Y-m-d H:i:s" }}</p>
-                    <p>Meeting Type: {{ form.meeting_type.value }}</p>
-                </div>
-
-                <!-- Form Buttons -->
-                <div class="mt-4">
-                    <button type="submit" class="btn btn-success" id="submitButton">
-                        <i class="fas fa-save"></i>
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="m-0 font-weight-bold">
                         {% if form.instance.pk %}
-                            Update Meeting
+                            <i class="fas fa-edit mr-2"></i>Edit Meeting: {{ form.instance.title }}
                         {% else %}
-                            Schedule Meeting
+                            <i class="fas fa-calendar-plus mr-2"></i>Schedule New Meeting
                         {% endif %}
-                    </button>
-                    <a href="{% url 'meeting-list' %}" class="btn btn-outline-secondary">
-                        <i class="fas fa-times"></i> Cancel
-                    </a>
-                    <!-- Add a test direct submit button for debugging -->
-                    <button type="submit" class="btn btn-outline-info d-none" name="test_direct_submit" value="true">
-                        Direct Submit (Debug)
-                    </button>
+                    </h5>
                 </div>
-            </form>
+                <div class="card-body">
+                    <form method="post" id="meetingForm">
+                        {% csrf_token %}
+                        <!-- Add an explicit CSRF token to ensure it's included -->
+                        <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+
+                        <!-- Meeting Details Section -->
+                        <div class="form-section">
+                            <h6 class="section-heading">
+                                <i class="fas fa-info-circle mr-2"></i>Meeting Details
+                            </h6>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Title</label>
+                                    {{ form.title }}
+                                    {% if form.title.errors %}
+                                        <div class="text-danger">{{ form.title.errors }}</div>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Meeting Type</label>
+                                    {{ form.meeting_type }}
+                                    {% if form.meeting_type.errors %}
+                                        <div class="text-danger">{{ form.meeting_type.errors }}</div>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-12 mb-3" id="locationField" style="display: none;">
+                                    <label class="form-label">Location</label>
+                                    {{ form.location }}
+                                    {% if form.location.errors %}
+                                        <div class="text-danger">{{ form.location.errors }}</div>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-12 mb-3">
+                                    <label class="form-label">Description</label>
+                                    {{ form.description }}
+                                    {% if form.description.errors %}
+                                        <div class="text-danger">{{ form.description.errors }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Scheduling Section -->
+                        <div class="form-section">
+                            <h6 class="section-heading">
+                                <i class="fas fa-clock mr-2"></i>Scheduling
+                            </h6>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Start Time</label>
+                                    {{ form.start_time }}
+                                    {% if form.start_time.errors %}
+                                        <div class="text-danger">{{ form.start_time.errors }}</div>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">End Time</label>
+                                    {{ form.end_time }}
+                                    {% if form.end_time.errors %}
+                                        <div class="text-danger">{{ form.end_time.errors }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Participants Section -->
+                        <div class="form-section">
+                            <h6 class="section-heading">
+                                <i class="fas fa-users mr-2"></i>Participants
+                            </h6>
+
+                            <!-- Attendees -->
+                            <div class="mb-4">
+                                <label class="form-label">Attendees</label>
+                                <div class="row">
+                                    {% for checkbox in form.attendees %}
+                                        <div class="col-md-4 form-check">
+                                            {{ checkbox.tag }}
+                                            <label class="form-check-label" for="{{ checkbox.id_for_label }}">
+                                                {{ checkbox.choice_label }}
+                                            </label>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                                {% if form.attendees.errors %}
+                                    <div class="text-danger">{{ form.attendees.errors }}</div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Customers -->
+                            <div class="mb-4">
+                                <label class="form-label">Customers</label>
+                                <div class="row">
+                                    {% for checkbox in form.customers %}
+                                        <div class="col-md-4 form-check">
+                                            {{ checkbox.tag }}
+                                            <label class="form-check-label" for="{{ checkbox.id_for_label }}">
+                                                {{ checkbox.choice_label }}
+                                            </label>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                                {% if form.customers.errors %}
+                                    <div class="text-danger">{{ form.customers.errors }}</div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Leads -->
+                            <div class="mb-3">
+                                <label class="form-label">Leads</label>
+                                <div class="row">
+                                    {% for checkbox in form.leads %}
+                                        <div class="col-md-4 form-check">
+                                            {{ checkbox.tag }}
+                                            <label class="form-check-label" for="{{ checkbox.id_for_label }}">
+                                                {{ checkbox.choice_label }}
+                                            </label>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                                {% if form.leads.errors %}
+                                    <div class="text-danger">{{ form.leads.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Form Buttons -->
+                        <div class="d-flex justify-content-between mt-4">
+                            <a href="{% url 'meeting-list' %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-times mr-2"></i>Cancel
+                            </a>
+                            <button type="submit" class="btn btn-success" id="submitButton">
+                                <i class="fas fa-save mr-2"></i>
+                                {% if form.instance.pk %}
+                                    Update Meeting
+                                {% else %}
+                                    Schedule Meeting
+                                {% endif %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
         </div>
     </div>
 </div>

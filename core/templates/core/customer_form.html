@@ -11,38 +11,312 @@
     {% endif %}
 {% endblock %}
 
-{% block content %}
-<div class="row justify-content-center">
-    <div class="col-lg-8">
-        <div class="card shadow">
-            <div class="card-header py-3">
-                <h6 class="m-0 font-weight-bold text-primary">
-                    {% if form.instance.pk %}
-                        Edit Customer: {{ form.instance.company_name }}
-                    {% else %}
-                        New Customer
-                    {% endif %}
-                </h6>
-            </div>
-            <div class="card-body">
-                <form method="post" enctype="multipart/form-data">
-                    {% csrf_token %}
-                    {{ form|crispy }}  {# ✅ Use this instead of calling crispy on each field #}
+{% block extra_css %}
+<style>
+    /* Card styling */
+    .card {
+        border: none;
+        border-radius: 0.5rem;
+        transition: all 0.2s ease;
+        box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+    }
 
-                    <div class="d-flex justify-content-between mt-4">
-                        <a href="{% url 'customer-list' %}" class="btn btn-secondary">
-                            <i class="fas fa-arrow-left"></i> Back
-                        </a>
-                        <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-save"></i>
-                            {% if form.instance.pk %}
-                                Update Customer
-                            {% else %}
-                                Create Customer
-                            {% endif %}
-                        </button>
-                    </div>
-                </form>
+    .card-header {
+        background: linear-gradient(45deg, #4e73df, #224abe);
+        color: white;
+        border-top-left-radius: 0.5rem !important;
+        border-top-right-radius: 0.5rem !important;
+        padding: 1.25rem 1.5rem;
+        border-bottom: none;
+    }
+
+    .card-body {
+        padding: 1.75rem;
+    }
+
+    /* Form section styling */
+    .form-section {
+        background-color: #ffffff;
+        padding: 1.25rem;
+        border-radius: 0.375rem;
+        box-shadow: 0 0 10px rgba(0,0,0,0.03);
+        margin-bottom: 1.5rem;
+    }
+
+    .section-heading {
+        color: #4e73df;
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin-bottom: 1.25rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid #e3e6f0;
+    }
+
+    /* Form controls */
+    input, select, textarea {
+        display: block;
+        width: 100%;
+        padding: 0.75rem 1rem;
+        font-size: 1rem;
+        font-weight: 400;
+        line-height: 1.5;
+        color: #495057;
+        background-color: #fff;
+        background-clip: padding-box;
+        border: 1px solid #d1d9e6;
+        border-radius: 0.375rem;
+        transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+    }
+
+    input:focus, select:focus, textarea:focus {
+        color: #495057;
+        background-color: #fff;
+        border-color: #4e73df;
+        outline: 0;
+        box-shadow: 0 0 0 0.2rem rgba(78, 115, 223, 0.25);
+    }
+
+    textarea {
+        min-height: 100px;
+        resize: vertical;
+    }
+
+    .form-label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 600;
+        color: #4a5568;
+    }
+
+    /* Buttons */
+    .btn {
+        border-radius: 0.375rem;
+        padding: 0.625rem 1.25rem;
+        font-weight: 500;
+        transition: all 0.2s ease;
+    }
+
+    .btn-primary {
+        background-color: #4e73df;
+        border-color: #4e73df;
+    }
+
+    .btn-primary:hover {
+        background-color: #2e59d9;
+        border-color: #2653d4;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08);
+    }
+
+    .btn-secondary {
+        color: #858796;
+        border-color: #d1d3e2;
+        background-color: #f8f9fc;
+    }
+
+    .btn-secondary:hover {
+        background-color: #eaecf4;
+        color: #6e707e;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08);
+    }
+
+    /* Align labels and inputs */
+    .row {
+        margin-left: -10px;
+        margin-right: -10px;
+    }
+
+    .col-md-4, .col-md-6, .col-12 {
+        padding-left: 10px;
+        padding-right: 10px;
+    }
+
+    /* Error messaging */
+    .text-danger {
+        color: #e74a3b !important;
+        margin-top: 0.25rem;
+        font-size: 80%;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="m-0 font-weight-bold">
+                        {% if form.instance.pk %}
+                            <i class="fas fa-edit mr-2"></i>Edit Customer: {{ form.instance.company_name }}
+                        {% else %}
+                            <i class="fas fa-building mr-2"></i>New Customer
+                        {% endif %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" enctype="multipart/form-data" class="needs-validation" novalidate>
+                        {% csrf_token %}
+
+                        <!-- Company Information Section -->
+                        <div class="form-section">
+                            <h6 class="section-heading">
+                                <i class="fas fa-info-circle mr-2"></i>Company Information
+                            </h6>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Company Name</label>
+                                    {{ form.company_name }}
+                                    {% if form.company_name.errors %}
+                                        <div class="text-danger">{{ form.company_name.errors }}</div>
+                                    {% endif %}
+                                    {% if form.company_name.help_text %}
+                                        <small class="form-text text-muted">{{ form.company_name.help_text }}</small>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Website</label>
+                                    {{ form.website }}
+                                    {% if form.website.errors %}
+                                        <div class="text-danger">{{ form.website.errors }}</div>
+                                    {% endif %}
+                                    {% if form.website.help_text %}
+                                        <small class="form-text text-muted">{{ form.website.help_text }}</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Status</label>
+                                    {{ form.status }}
+                                    {% if form.status.errors %}
+                                        <div class="text-danger">{{ form.status.errors }}</div>
+                                    {% endif %}
+                                    {% if form.status.help_text %}
+                                        <small class="form-text text-muted">{{ form.status.help_text }}</small>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Assigned To</label>
+                                    {{ form.assigned_to }}
+                                    {% if form.assigned_to.errors %}
+                                        <div class="text-danger">{{ form.assigned_to.errors }}</div>
+                                    {% endif %}
+                                    {% if form.assigned_to.help_text %}
+                                        <small class="form-text text-muted">{{ form.assigned_to.help_text }}</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Contact Information Section -->
+                        <div class="form-section">
+                            <h6 class="section-heading">
+                                <i class="fas fa-address-card mr-2"></i>Contact Information
+                            </h6>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Contact Person</label>
+                                    {{ form.contact_person }}
+                                    {% if form.contact_person.errors %}
+                                        <div class="text-danger">{{ form.contact_person.errors }}</div>
+                                    {% endif %}
+                                    {% if form.contact_person.help_text %}
+                                        <small class="form-text text-muted">{{ form.contact_person.help_text }}</small>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Email</label>
+                                    {{ form.email }}
+                                    {% if form.email.errors %}
+                                        <div class="text-danger">{{ form.email.errors }}</div>
+                                    {% endif %}
+                                    {% if form.email.help_text %}
+                                        <small class="form-text text-muted">{{ form.email.help_text }}</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Phone</label>
+                                    {{ form.phone }}
+                                    {% if form.phone.errors %}
+                                        <div class="text-danger">{{ form.phone.errors }}</div>
+                                    {% endif %}
+                                    {% if form.phone.help_text %}
+                                        <small class="form-text text-muted">{{ form.phone.help_text }}</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Address Section -->
+                        <div class="form-section">
+                            <h6 class="section-heading">
+                                <i class="fas fa-map-marker-alt mr-2"></i>Address
+                            </h6>
+                            <div class="row">
+                                <div class="col-12 mb-3">
+                                    <label class="form-label">Address</label>
+                                    {{ form.address }}
+                                    {% if form.address.errors %}
+                                        <div class="text-danger">{{ form.address.errors }}</div>
+                                    {% endif %}
+                                    {% if form.address.help_text %}
+                                        <small class="form-text text-muted">{{ form.address.help_text }}</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label">City</label>
+                                    {{ form.city }}
+                                    {% if form.city.errors %}
+                                        <div class="text-danger">{{ form.city.errors }}</div>
+                                    {% endif %}
+                                    {% if form.city.help_text %}
+                                        <small class="form-text text-muted">{{ form.city.help_text }}</small>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label">State/Province</label>
+                                    {{ form.state }}
+                                    {% if form.state.errors %}
+                                        <div class="text-danger">{{ form.state.errors }}</div>
+                                    {% endif %}
+                                    {% if form.state.help_text %}
+                                        <small class="form-text text-muted">{{ form.state.help_text }}</small>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label">ZIP/Postal Code</label>
+                                    {{ form.zip_code }}
+                                    {% if form.zip_code.errors %}
+                                        <div class="text-danger">{{ form.zip_code.errors }}</div>
+                                    {% endif %}
+                                    {% if form.zip_code.help_text %}
+                                        <small class="form-text text-muted">{{ form.zip_code.help_text }}</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-between mt-4">
+                            <a href="{% url 'customer-list' %}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left mr-2"></i>Back
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save mr-2"></i>
+                                {% if form.instance.pk %}
+                                    Update Customer
+                                {% else %}
+                                    Create Customer
+                                {% endif %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
     </div>

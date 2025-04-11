@@ -4,83 +4,221 @@
 {% load custom_filters %}
 {% block title %}Login{% endblock %}
 
+{% block extra_css %}
+<style>
+    /* Card styling */
+    .card {
+        border: none;
+        border-radius: 0.5rem;
+        transition: all 0.2s ease;
+        box-shadow: 0 0.5rem 1.5rem 0 rgba(58, 59, 69, 0.25);
+    }
+
+    .card-header {
+        background: linear-gradient(45deg, #4e73df, #224abe);
+        color: white;
+        border-top-left-radius: 0.5rem !important;
+        border-top-right-radius: 0.5rem !important;
+        padding: 1.25rem 1.5rem;
+        border-bottom: none;
+    }
+
+    /* Form controls */
+    .form-control {
+        display: block;
+        width: 100%;
+        padding: 0.85rem 1rem;
+        font-size: 1rem;
+        font-weight: 400;
+        line-height: 1.5;
+        color: #495057;
+        background-color: #fff;
+        background-clip: padding-box;
+        border: 1px solid #d1d9e6;
+        border-radius: 0.375rem;
+        transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+    }
+
+    .form-control:focus {
+        color: #495057;
+        background-color: #fff;
+        border-color: #4e73df;
+        outline: 0;
+        box-shadow: 0 0 0 0.2rem rgba(78, 115, 223, 0.25);
+    }
+
+    .form-label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 600;
+        color: #4a5568;
+    }
+
+    /* Button styling */
+    .btn {
+        border-radius: 0.375rem;
+        padding: 0.75rem 1.25rem;
+        font-weight: 500;
+        transition: all 0.2s ease;
+    }
+
+    .btn-primary {
+        background-color: #4e73df;
+        border-color: #4e73df;
+    }
+
+    .btn-primary:hover {
+        background-color: #2e59d9;
+        border-color: #2653d4;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08);
+    }
+
+    .btn-primary:disabled {
+        background-color: #6c89e2;
+        border-color: #6c89e2;
+    }
+
+    /* Login page specific */
+    .login-card {
+        max-width: 450px;
+        margin: 2rem auto;
+    }
+
+    .form-check-input {
+        width: 1.1em;
+        height: 1.1em;
+        margin-top: 0.15em;
+    }
+
+    .form-check-label {
+        margin-left: 0.5rem;
+    }
+
+    .divider {
+        display: flex;
+        align-items: center;
+        margin: 1.5rem 0;
+    }
+
+    .divider::before, .divider::after {
+        content: "";
+        flex: 1;
+        border-bottom: 1px solid #e3e6f0;
+    }
+
+    .divider span {
+        padding: 0 1rem;
+        color: #858796;
+        font-size: 0.85rem;
+    }
+
+    .footer-links {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 1.5rem;
+        margin-top: 1.5rem;
+    }
+
+    .footer-link {
+        color: #4e73df;
+        font-size: 0.875rem;
+        text-decoration: none;
+        transition: all 0.2s;
+    }
+
+    .footer-link:hover {
+        color: #2e59d9;
+        text-decoration: underline;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="container-fluid">
-    <div class="row justify-content-center">
-        <div class="col-xl-6 col-lg-8 col-md-9">
-            <div class="card shadow-lg my-5">
-                <div class="card-body p-5">
-                    <div class="text-center mb-4">
-                        <h1 class="h4 text-primary mb-4">Please Log in to access the CMS</h1>
-                    </div>
-
-                    <form method="post" action="{% url 'account_login' %}" class="login">
-                        {% csrf_token %}
-
-                        {% if form.errors %}
-                            <div class="alert alert-danger">
-                                {% for field in form %}
-                                    {% for error in field.errors %}
-                                        <p>{{ error }}</p>
-                                    {% endfor %}
-                                {% endfor %}
-                                {% for error in form.non_field_errors %}
-                                    <p>{{ error }}</p>
-                                {% endfor %}
-                            </div>
-                        {% endif %}
-
-                        <div class="form-group mb-3">
-                            <label class="form-label">Email or Username</label>
-                            {{ form.login|add_class:'form-control form-control-lg' }}
-                        </div>
-
-                        <div class="form-group mb-3">
-                            <label class="form-label">Password</label>
-                            {{ form.password|add_class:'form-control form-control-lg' }}
-                        </div>
-
-                        <div class="form-group mb-3">
-                            <div class="form-check">
-                                {{ form.remember|add_class:'form-check-input' }}
-                                <label class="form-check-label" for="{{ form.remember.id_for_label }}">
-                                    Remember Me
-                                </label>
-                            </div>
-                        </div>
-
-                        {% if redirect_field_value %}
-                            <input type="hidden" name="{{ redirect_field_name }}" value="{{ redirect_field_value }}" />
-                        {% endif %}
-
-                        <button type="submit" class="btn btn-primary btn-block w-100 btn-lg">
-                            Sign In
-                        </button>
-                    </form>
-
-                    <hr class="my-4">
-
-                    <div class="text-center">
-                        <a class="small text-primary" href="{% url 'account_reset_password' %}">
-                            Forgot Password?
-                        </a>
-                    </div>
-                    <div class="text-center mt-2">
-                        <a class="small text-primary" href="{% url 'account_signup' %}">
-                            Create an Account!
-                        </a>
-                    </div>
-                    <div class="text-center mt-2">
-                        <a class="small text-primary" href="{% url 'privacy_policy' %}">
-                            Privacy Policy
-                        </a>
-                    </div>
-                    <div class="text-center mt-2">
-                        <a class="small text-primary" href="{% url 'cookie_policy' %}">
-                            Cookie Policy
-                        </a>
-                    </div>
+<div class="container py-5">
+    <div class="login-card">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="m-0 font-weight-bold text-center">
+                    <i class="fas fa-lock mr-2"></i>Login to CMS
+                </h5>
+            </div>
+            <div class="card-body p-4">
+                <div class="text-center mb-4">
+                    <h1 class="h4 text-gray-900">Welcome Back!</h1>
+                    <p class="text-muted">Please enter your credentials to access the system</p>
                 </div>
+
+                <form method="post" action="{% url 'account_login' %}" class="login">
+                    {% csrf_token %}
+
+                    {% if form.errors %}
+                        <div class="alert alert-danger">
+                            {% for field in form %}
+                                {% for error in field.errors %}
+                                    <p class="mb-0"><i class="fas fa-exclamation-circle mr-2"></i>{{ error }}</p>
+                                {% endfor %}
+                            {% endfor %}
+                            {% for error in form.non_field_errors %}
+                                <p class="mb-0"><i class="fas fa-exclamation-circle mr-2"></i>{{ error }}</p>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+
+                    <div class="form-group mb-3">
+                        <label class="form-label">Email or Username</label>
+                        {{ form.login|add_class:'form-control' }}
+                    </div>
+
+                    <div class="form-group mb-3">
+                        <label class="form-label">Password</label>
+                        {{ form.password|add_class:'form-control' }}
+                    </div>
+
+                    <div class="form-group mb-4">
+                        <div class="form-check">
+                            {{ form.remember|add_class:'form-check-input' }}
+                            <label class="form-check-label" for="{{ form.remember.id_for_label }}">
+                                Remember Me
+                            </label>
+                        </div>
+                    </div>
+
+                    {% if redirect_field_value %}
+                        <input type="hidden" name="{{ redirect_field_name }}" value="{{ redirect_field_value }}" />
+                    {% endif %}
+
+                    <button type="submit" class="btn btn-primary w-100 mb-3">
+                        <i class="fas fa-sign-in-alt mr-2"></i>Sign In
+                    </button>
+
+                    <div class="divider">
+                        <span>OR</span>
+                    </div>
+
+                    <div class="footer-links">
+                        <a class="footer-link" href="{% url 'account_reset_password' %}">
+                            <i class="fas fa-key mr-1"></i>Forgot Password?
+                        </a>
+                        <a class="footer-link" href="{% url 'account_signup' %}">
+                            <i class="fas fa-user-plus mr-1"></i>Create Account
+                        </a>
+                    </div>
+
+                    <div class="divider">
+                        <span>POLICIES</span>
+                    </div>
+
+                    <div class="footer-links">
+                        <a class="footer-link" href="{% url 'privacy_policy' %}">
+                            <i class="fas fa-shield-alt mr-1"></i>Privacy Policy
+                        </a>
+                        <a class="footer-link" href="{% url 'cookie_policy' %}">
+                            <i class="fas fa-cookie mr-1"></i>Cookie Policy
+                        </a>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
@@ -94,7 +232,7 @@ document.addEventListener('DOMContentLoaded', function() {
     form.addEventListener('submit', function(e) {
         const submitButton = form.querySelector('button[type="submit"]');
         submitButton.disabled = true;
-        submitButton.innerHTML = 'Signing In...';
+        submitButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Signing In...';
     });
 });
 </script>

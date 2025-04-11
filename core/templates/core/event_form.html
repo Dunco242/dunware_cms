@@ -7,32 +7,371 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css">
 <style>
+    /* Select2 styling */
     .select2-container {
         width: 100% !important;
     }
     .select2-selection--multiple {
         min-height: 38px;
+        border: 1px solid #d1d9e6 !important;
+        border-radius: 0.375rem !important;
+    }
+    .select2-container--default .select2-selection--multiple {
+        padding: 0.375rem 0.25rem;
+    }
+    .select2-container--default.select2-container--focus .select2-selection--multiple {
+        border-color: #4e73df !important;
+        box-shadow: 0 0 0 0.2rem rgba(78, 115, 223, 0.25);
+    }
+
+    /* Card styling */
+    .card {
+        border: none;
+        border-radius: 0.5rem;
+        transition: all 0.2s ease;
+    }
+    .card-header {
+        background: linear-gradient(45deg, #4e73df, #224abe);
+        color: white;
+        border-top-left-radius: 0.5rem !important;
+        border-top-right-radius: 0.5rem !important;
+        padding: 1.25rem 1.5rem;
+        border-bottom: none;
+    }
+    .card-body {
+        padding: 1.75rem;
+    }
+
+    /* Form section styling */
+    .form-section {
+        background-color: #ffffff;
+        padding: 1.25rem;
+        border-radius: 0.375rem;
+        box-shadow: 0 0 10px rgba(0,0,0,0.03);
+        margin-bottom: 1.5rem;
+    }
+    .section-heading {
+        color: #4e73df;
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin-bottom: 1.25rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid #e3e6f0;
+    }
+
+    /* Form field styling */
+    .form-group {
+        margin-bottom: 1.25rem;
+    }
+    label {
+        font-weight: 600;
+        color: #4a5568;
+        display: block;
+        margin-bottom: 0.5rem;
+    }
+    .form-control, input, select, textarea {
+        border-radius: 0.375rem;
+        padding: 0.75rem 1rem;
+        border: 1px solid #d1d9e6;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        transition: all 0.2s ease;
+        width: 100%;
+        height: auto;
+    }
+    .form-control:focus, input:focus, select:focus, textarea:focus {
+        border-color: #4e73df;
+        box-shadow: 0 0 0 0.2rem rgba(78, 115, 223, 0.25);
+    }
+
+    /* Switch/checkbox styling */
+    .custom-switch .custom-control-label::before {
+        border-color: #d1d9e6;
+    }
+    .custom-control-input:checked ~ .custom-control-label::before {
+        background-color: #4e73df;
+        border-color: #4e73df;
+    }
+
+    /* Button styling */
+    .btn {
+        border-radius: 0.375rem;
+        font-weight: 500;
+        padding: 0.625rem 1.25rem;
+        transition: all 0.2s ease;
+    }
+    .btn-primary {
+        background-color: #4e73df;
+        border-color: #4e73df;
+    }
+    .btn-primary:hover {
+        background-color: #2e59d9;
+        border-color: #2653d4;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08);
+    }
+    .btn-secondary {
+        background-color: #858796;
+        border-color: #858796;
+    }
+    .btn-secondary:hover {
+        background-color: #717384;
+        border-color: #6b6d7d;
+        transform: translateY(-1px);
+    }
+
+    /* Flatpickr styling */
+    .flatpickr-input {
+        background-color: #ffffff !important;
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <div class="card shadow-sm">
-        <div class="card-body">
-            <h1 class="h3 text-dark mb-4">
-                {% if form.instance.pk %}
-                    Update Event
-                {% else %}
-                    Create New Event
-                {% endif %}
-            </h1>
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="card shadow-lg">
+                <div class="card-header">
+                    <h5 class="m-0 font-weight-bold">
+                        {% if form.instance.pk %}
+                            <i class="fas fa-edit mr-2"></i>Update Event
+                        {% else %}
+                            <i class="fas fa-calendar-plus mr-2"></i>Create New Event
+                        {% endif %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" id="eventForm">
+                        {% csrf_token %}
 
-            <form method="post" id="eventForm">
-                {% csrf_token %}
+                        <!-- Event Details Section -->
+                        <div class="form-section">
+                            <h6 class="section-heading">
+                                <i class="fas fa-info-circle mr-2"></i>Event Details
+                            </h6>
 
-                {% crispy form %}
-            </form>
+                            <div class="row">
+                                <div class="col-md-12">
+                                    <div class="form-group">
+                                        {{ form.title.label_tag }}
+                                        {{ form.title }}
+                                        {% if form.title.help_text %}
+                                            <small class="form-text text-muted">{{ form.title.help_text }}</small>
+                                        {% endif %}
+                                        {% if form.title.errors %}
+                                            <div class="invalid-feedback d-block">
+                                                {% for error in form.title.errors %}
+                                                    {{ error }}
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-12">
+                                    <div class="form-group">
+                                        {{ form.description.label_tag }}
+                                        {{ form.description }}
+                                        {% if form.description.help_text %}
+                                            <small class="form-text text-muted">{{ form.description.help_text }}</small>
+                                        {% endif %}
+                                        {% if form.description.errors %}
+                                            <div class="invalid-feedback d-block">
+                                                {% for error in form.description.errors %}
+                                                    {{ error }}
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        {{ form.event_type.label_tag }}
+                                        {{ form.event_type }}
+                                        {% if form.event_type.help_text %}
+                                            <small class="form-text text-muted">{{ form.event_type.help_text }}</small>
+                                        {% endif %}
+                                        {% if form.event_type.errors %}
+                                            <div class="invalid-feedback d-block">
+                                                {% for error in form.event_type.errors %}
+                                                    {{ error }}
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        {{ form.location.label_tag }}
+                                        {{ form.location }}
+                                        {% if form.location.help_text %}
+                                            <small class="form-text text-muted">{{ form.location.help_text }}</small>
+                                        {% endif %}
+                                        {% if form.location.errors %}
+                                            <div class="invalid-feedback d-block">
+                                                {% for error in form.location.errors %}
+                                                    {{ error }}
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Scheduling Section -->
+                        <div class="form-section">
+                            <h6 class="section-heading">
+                                <i class="fas fa-clock mr-2"></i>Scheduling
+                            </h6>
+
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        {{ form.start_time.label_tag }}
+                                        {{ form.start_time }}
+                                        {% if form.start_time.help_text %}
+                                            <small class="form-text text-muted">{{ form.start_time.help_text }}</small>
+                                        {% endif %}
+                                        {% if form.start_time.errors %}
+                                            <div class="invalid-feedback d-block">
+                                                {% for error in form.start_time.errors %}
+                                                    {{ error }}
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        {{ form.end_time.label_tag }}
+                                        {{ form.end_time }}
+                                        {% if form.end_time.help_text %}
+                                            <small class="form-text text-muted">{{ form.end_time.help_text }}</small>
+                                        {% endif %}
+                                        {% if form.end_time.errors %}
+                                            <div class="invalid-feedback d-block">
+                                                {% for error in form.end_time.errors %}
+                                                    {{ error }}
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        {{ form.is_recurring.label_tag }}
+                                        <div class="custom-control custom-switch">
+                                            {{ form.is_recurring }}
+                                            <label class="custom-control-label" for="id_is_recurring"></label>
+                                        </div>
+                                        {% if form.is_recurring.help_text %}
+                                            <small class="form-text text-muted">{{ form.is_recurring.help_text }}</small>
+                                        {% endif %}
+                                        {% if form.is_recurring.errors %}
+                                            <div class="invalid-feedback d-block">
+                                                {% for error in form.is_recurring.errors %}
+                                                    {{ error }}
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        {{ form.recurrence_end.label_tag }}
+                                        {{ form.recurrence_end }}
+                                        {% if form.recurrence_end.help_text %}
+                                            <small class="form-text text-muted">{{ form.recurrence_end.help_text }}</small>
+                                        {% endif %}
+                                        {% if form.recurrence_end.errors %}
+                                            <div class="invalid-feedback d-block">
+                                                {% for error in form.recurrence_end.errors %}
+                                                    {{ error }}
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Attendees Section -->
+                        <div class="form-section">
+                            <h6 class="section-heading">
+                                <i class="fas fa-users mr-2"></i>Attendees
+                            </h6>
+
+                            <div class="row">
+                                <div class="col-md-12">
+                                    <div class="form-group">
+                                        {{ form.attendees.label_tag }}
+                                        {{ form.attendees }}
+                                        {% if form.attendees.help_text %}
+                                            <small class="form-text text-muted">{{ form.attendees.help_text }}</small>
+                                        {% endif %}
+                                        {% if form.attendees.errors %}
+                                            <div class="invalid-feedback d-block">
+                                                {% for error in form.attendees.errors %}
+                                                    {{ error }}
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Additional Fields -->
+                        {% for field in form %}
+                            {% if field.name not in 'title,description,event_type,location,start_time,end_time,is_recurring,recurrence_end,attendees' %}
+                            <div class="form-section">
+                                <div class="row">
+                                    <div class="col-md-12">
+                                        <div class="form-group">
+                                            {{ field.label_tag }}
+                                            {{ field }}
+                                            {% if field.help_text %}
+                                                <small class="form-text text-muted">{{ field.help_text }}</small>
+                                            {% endif %}
+                                            {% if field.errors %}
+                                                <div class="invalid-feedback d-block">
+                                                    {% for error in field.errors %}
+                                                        {{ error }}
+                                                    {% endfor %}
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+                        {% endfor %}
+
+                        <div class="d-flex justify-content-between mt-4">
+                            <a href="{% url 'event-list' %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-arrow-left mr-2"></i>Back to Events
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save mr-2"></i>
+                                {% if form.instance.pk %}
+                                    Update Event
+                                {% else %}
+                                    Create Event
+                                {% endif %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -68,6 +407,24 @@ document.addEventListener('DOMContentLoaded', function() {
         placeholder: "Select attendees",
         allowClear: true,
         width: '100%'
+    });
+
+    // Handle recurring event fields visibility
+    const isRecurringCheckbox = document.getElementById('id_is_recurring');
+    const recurrenceEndGroup = document.getElementById('id_recurrence_end').closest('.form-group').parentElement;
+
+    // Initial state
+    if (!isRecurringCheckbox.checked) {
+        recurrenceEndGroup.style.opacity = "0.5";
+    }
+
+    // Toggle on change
+    isRecurringCheckbox.addEventListener('change', function() {
+        if (this.checked) {
+            recurrenceEndGroup.style.opacity = "1";
+        } else {
+            recurrenceEndGroup.style.opacity = "0.5";
+        }
     });
 
     // Form validation

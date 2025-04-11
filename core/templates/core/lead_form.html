@@ -9,66 +9,288 @@
     {% endif %}
 {% endblock %}
 
+{% block extra_css %}
+<style>
+    /* Card styling */
+    .card {
+        border: none;
+        border-radius: 0.5rem;
+        transition: all 0.2s ease;
+        box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+    }
+
+    .card-header {
+        background: linear-gradient(45deg, #4e73df, #224abe);
+        color: white;
+        border-top-left-radius: 0.5rem !important;
+        border-top-right-radius: 0.5rem !important;
+        padding: 1.25rem 1.5rem;
+        border-bottom: none;
+    }
+
+    .card-body {
+        padding: 1.75rem;
+    }
+
+    /* Form section styling */
+    .form-section {
+        background-color: #ffffff;
+        padding: 1.25rem;
+        border-radius: 0.375rem;
+        box-shadow: 0 0 10px rgba(0,0,0,0.03);
+        margin-bottom: 1.5rem;
+    }
+
+    .section-heading {
+        color: #4e73df;
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin-bottom: 1.25rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid #e3e6f0;
+    }
+
+    /* Form controls */
+    input, select, textarea {
+        display: block;
+        width: 100%;
+        padding: 0.75rem 1rem;
+        font-size: 1rem;
+        font-weight: 400;
+        line-height: 1.5;
+        color: #495057;
+        background-color: #fff;
+        background-clip: padding-box;
+        border: 1px solid #d1d9e6;
+        border-radius: 0.375rem;
+        transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+    }
+
+    input:focus, select:focus, textarea:focus {
+        color: #495057;
+        background-color: #fff;
+        border-color: #4e73df;
+        outline: 0;
+        box-shadow: 0 0 0 0.2rem rgba(78, 115, 223, 0.25);
+    }
+
+    textarea {
+        min-height: 120px;
+        resize: vertical;
+    }
+
+    .form-label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 600;
+        color: #4a5568;
+    }
+
+    /* Buttons */
+    .btn {
+        border-radius: 0.375rem;
+        padding: 0.625rem 1.25rem;
+        font-weight: 500;
+        transition: all 0.2s ease;
+    }
+
+    .btn-success {
+        background-color: #1cc88a;
+        border-color: #1cc88a;
+    }
+
+    .btn-success:hover {
+        background-color: #17a673;
+        border-color: #169b6b;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08);
+    }
+
+    .btn-primary {
+        background-color: #4e73df;
+        border-color: #4e73df;
+    }
+
+    .btn-primary:hover {
+        background-color: #2e59d9;
+        border-color: #2653d4;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08);
+    }
+
+    .btn-outline-secondary {
+        color: #858796;
+        border-color: #d1d3e2;
+    }
+
+    .btn-outline-secondary:hover {
+        background-color: #f8f9fc;
+        color: #6e707e;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08);
+    }
+
+    /* Error messaging */
+    .text-danger {
+        color: #e74a3b !important;
+        margin-top: 0.25rem;
+        font-size: 80%;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="container mt-4">
-    <!-- Lead Form -->
-    <div class="card shadow-sm">
-        <div class="card-body">
-            <h1 class="h3 text-dark">
-                {% if form.instance.pk %}
-                    Edit Lead: {{ form.instance.company_name }}
-                {% else %}
-                    New Lead
-                {% endif %}
-            </h1>
-            <hr>
-
-            <form method="post">
-                {% csrf_token %}
-                <div class="row g-3">
-                    {% for field in form %}
-                        {% if field.name == 'notes' or field.name == 'description' %}
-                            <!-- Full width fields -->
-                            <div class="col-12">
-                                <label class="form-label fw-bold">{{ field.label }}</label>
-                                {{ field }}
-                                {% if field.errors %}
-                                    <div class="text-danger small">{{ field.errors }}</div>
-                                {% endif %}
-                            </div>
-                        {% else %}
-                            <!-- Half width fields -->
-                            <div class="col-md-6">
-                                <label class="form-label fw-bold">{{ field.label }}</label>
-                                {{ field }}
-                                {% if field.errors %}
-                                    <div class="text-danger small">{{ field.errors }}</div>
-                                {% endif %}
-                            </div>
-                        {% endif %}
-                    {% endfor %}
-                </div>
-
-                <!-- Form Buttons -->
-                <div class="mt-4">
-                    <button type="submit" class="btn btn-success">
-                        <i class="fas fa-save"></i>
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="m-0 font-weight-bold">
                         {% if form.instance.pk %}
-                            Update Lead
+                            <i class="fas fa-edit mr-2"></i>Edit Lead: {{ form.instance.company_name }}
                         {% else %}
-                            Create Lead
+                            <i class="fas fa-user-plus mr-2"></i>New Lead
                         {% endif %}
-                    </button>
-                    <a href="{% url 'lead-list' %}" class="btn btn-outline-secondary">
-                        <i class="fas fa-times"></i> Cancel
-                    </a>
-                    {% if form.instance.pk and form.instance.status != 'converted' %}
-                        <a href="{% url 'lead-convert' form.instance.pk %}" class="btn btn-primary">
-                            <i class="fas fa-exchange-alt"></i> Convert to Customer
-                        </a>
-                    {% endif %}
+                    </h5>
                 </div>
-            </form>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+
+                        <!-- Company Information Section -->
+                        <div class="form-section">
+                            <h6 class="section-heading">
+                                <i class="fas fa-building mr-2"></i>Company Information
+                            </h6>
+                            <div class="row">
+                                {% for field in form %}
+                                    {% if field.name in 'company_name,industry,website,source' %}
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">{{ field.label }}</label>
+                                            {{ field }}
+                                            {% if field.errors %}
+                                                <div class="text-danger">{{ field.errors }}</div>
+                                            {% endif %}
+                                            {% if field.help_text %}
+                                                <small class="form-text text-muted">{{ field.help_text }}</small>
+                                            {% endif %}
+                                        </div>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        <!-- Contact Information Section -->
+                        <div class="form-section">
+                            <h6 class="section-heading">
+                                <i class="fas fa-address-card mr-2"></i>Contact Information
+                            </h6>
+                            <div class="row">
+                                {% for field in form %}
+                                    {% if field.name in 'contact_name,contact_title,email,phone' %}
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">{{ field.label }}</label>
+                                            {{ field }}
+                                            {% if field.errors %}
+                                                <div class="text-danger">{{ field.errors }}</div>
+                                            {% endif %}
+                                            {% if field.help_text %}
+                                                <small class="form-text text-muted">{{ field.help_text }}</small>
+                                            {% endif %}
+                                        </div>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        <!-- Status and Assignment Section -->
+                        <div class="form-section">
+                            <h6 class="section-heading">
+                                <i class="fas fa-tasks mr-2"></i>Status and Assignment
+                            </h6>
+                            <div class="row">
+                                {% for field in form %}
+                                    {% if field.name in 'status,assigned_to,score,priority' %}
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">{{ field.label }}</label>
+                                            {{ field }}
+                                            {% if field.errors %}
+                                                <div class="text-danger">{{ field.errors }}</div>
+                                            {% endif %}
+                                            {% if field.help_text %}
+                                                <small class="form-text text-muted">{{ field.help_text }}</small>
+                                            {% endif %}
+                                        </div>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        <!-- Notes and Description Section -->
+                        <div class="form-section">
+                            <h6 class="section-heading">
+                                <i class="fas fa-file-alt mr-2"></i>Additional Information
+                            </h6>
+                            <div class="row">
+                                {% for field in form %}
+                                    {% if field.name in 'notes,description' %}
+                                        <div class="col-12 mb-3">
+                                            <label class="form-label">{{ field.label }}</label>
+                                            {{ field }}
+                                            {% if field.errors %}
+                                                <div class="text-danger">{{ field.errors }}</div>
+                                            {% endif %}
+                                            {% if field.help_text %}
+                                                <small class="form-text text-muted">{{ field.help_text }}</small>
+                                            {% endif %}
+                                        </div>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+
+                            <!-- Any remaining fields -->
+                            <div class="row">
+                                {% for field in form %}
+                                    {% if field.name not in 'company_name,industry,website,source,contact_name,contact_title,email,phone,status,assigned_to,score,priority,notes,description' %}
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">{{ field.label }}</label>
+                                            {{ field }}
+                                            {% if field.errors %}
+                                                <div class="text-danger">{{ field.errors }}</div>
+                                            {% endif %}
+                                            {% if field.help_text %}
+                                                <small class="form-text text-muted">{{ field.help_text }}</small>
+                                            {% endif %}
+                                        </div>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        <!-- Form Buttons -->
+                        <div class="d-flex justify-content-between mt-4">
+                            <a href="{% url 'lead-list' %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-times mr-2"></i>Cancel
+                            </a>
+                            <div>
+                                {% if form.instance.pk and form.instance.status != 'converted' %}
+                                    <a href="{% url 'lead-convert' form.instance.pk %}" class="btn btn-primary mr-2">
+                                        <i class="fas fa-exchange-alt mr-2"></i>Convert to Customer
+                                    </a>
+                                {% endif %}
+                                <button type="submit" class="btn btn-success">
+                                    <i class="fas fa-save mr-2"></i>
+                                    {% if form.instance.pk %}
+                                        Update Lead
+                                    {% else %}
+                                        Create Lead
+                                    {% endif %}
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
         </div>
     </div>
 </div>

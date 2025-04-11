@@ -895,107 +895,73 @@ class TaskListView(LoginRequiredMixin, ListView):
 
 class TaskDetailView(LoginRequiredMixin, DetailView):
     """
-    Detailed view of a project task
+    Detailed view that handles both regular Tasks and ProjectTasks
     """
-    model = ProjectTask
-    template_name = 'customer_projects/task_detail.html'
+    template_name = 'core/task_detail.html'
     context_object_name = 'task'
 
-    def get_queryset(self):
-        return ProjectTask.objects.filter(
-            Q(phase__project__project_manager=self.request.user.employee_profile) |
-            Q(phase__project__team_members=self.request.user.employee_profile) |
-            Q(assigned_to=self.request.user.employee_profile)  # Added this condition
-        ).select_related(  # Added select_related for better performance
-            'phase',
-            'phase__project',
-            'phase__project__project_manager',
-            'phase__project__customer',
-            'assigned_to',
-            'assigned_to__user'
-        )
+    def get_object(self, queryset=None):
+        """
+        Retrieve either a Task or ProjectTask based on the provided ID
+        """
+        pk = self.kwargs.get('pk')
+        employee = self.request.user.employee_profile
+
+        # First try to get it as a ProjectTask
+        try:
+            project_task = ProjectTask.objects.filter(
+                Q(phase__project__project_manager=employee) |
+                Q(phase__project__team_members=employee) |
+                Q(assigned_to=employee)
+            ).get(pk=pk)
+            return project_task
+        except ProjectTask.DoesNotExist:
+            # If not found, try as a regular Task
+            try:
+                regular_task = Task.objects.filter(
+                    Q(assigned_to=employee) | Q(created_by=employee)
+                ).get(pk=pk)
+                return regular_task
+            except Task.DoesNotExist:
+                # If neither exists, raise 404
+                raise Http404("No task found matching the query")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         task = self.get_object()
 
-        # Get time entries with optimized query
-        time_entries = TimeEntry.objects.filter(
-            task=task
-        ).select_related(
-            'employee',
-            'employee__user'
-        ).order_by('-date')
+        # Add task-type specific context
+        if isinstance(task, ProjectTask):
+            # For project tasks, add project and phase information
+            context.update({
+                'is_project_task': True,
+                'project': task.phase.project,
+                'phase': task.phase,
+                'time_entries': TimeEntry.objects.filter(task=task),
+                'comments': ProjectComment.objects.filter(
+                    content_type__model='projecttask',
+                    object_id=task.id
+                ).select_related('author', 'author__user')
+            })
+        else:
+            # For regular tasks, add related data
+            context.update({
+                'is_project_task': False,
+                'customer': task.customer,  # If your Task model has a customer field
+                'related_notes': Note.objects.filter(task=task).order_by('-created_at') if hasattr(task, 'notes') else []
+            })
 
-        total_hours = time_entries.aggregate(total=Sum('hours'))['total'] or 0
+        # Add common context used for both task types
+        context['can_edit'] = (
+            (isinstance(task, ProjectTask) and
+             (task.phase.project.project_manager == self.request.user.employee_profile or
+              self.request.user.employee_profile in task.phase.project.team_members.all())) or
+            (isinstance(task, Task) and
+             (task.assigned_to == self.request.user.employee_profile or
+              task.created_by == self.request.user.employee_profile))
+        )
 
-        # Get task dependencies with optimized queries
-        dependencies = task.dependencies.select_related(
-            'phase',
-            'phase__project',
-            'assigned_to'
-        ).all()
-
-        dependent_tasks = task.dependent_tasks.select_related(
-            'phase',
-            'phase__project',
-            'assigned_to'
-        ).all()
-
-        # Add project and phase to context
-        context.update({
-            'time_entries': time_entries,
-            'total_hours': total_hours,
-            'dependencies': dependencies,
-            'dependent_tasks': dependent_tasks,
-            'project': task.phase.project,  # Add project to context
-            'phase': task.phase,  # Add phase to context
-            'comments': ProjectComment.objects.filter(
-                content_type__model='projecttask',
-                object_id=task.id
-            ).select_related(  # Added select_related for comments
-                'author',
-                'author__user'
-            ).order_by('-created_at'),
-            'can_edit': self.request.user.employee_profile in [
-                task.phase.project.project_manager,
-                task.assigned_to
-            ]
-        })
         return context
-
-    def post(self, request, *args, **kwargs):
-        """Handle status updates via POST"""
-        task = self.get_object()
-
-        if 'new_status' in request.POST:
-            try:
-                new_status = request.POST['new_status']
-                if new_status in dict(ProjectTask.STATUS_CHOICES):
-                    old_status = task.status
-                    task.status = new_status
-                    task.save()
-
-                    # Update phase progress when task status changes
-                    task.phase.calculate_progress()
-
-                    # Create a comment for the status change
-                    ProjectComment.objects.create(
-                        content_type=ContentType.objects.get_for_model(ProjectTask),
-                        object_id=task.id,
-                        author=request.user.employee_profile,
-                        text=f"Status changed from {old_status} to {new_status}"
-                    )
-
-                    messages.success(request, f"Task status updated to {task.get_status_display()}")
-                else:
-                    messages.error(request, "Invalid status value")
-            except Exception as e:
-                logger.error(f"Error updating task status: {str(e)}")
-                messages.error(request, "Error updating task status")
-
-        return redirect('customer_projects:task-detail', phase_id=task.phase.id, pk=task.pk)
-
 
 class TaskCreateView(LoginRequiredMixin, CreateView):
     model = Task

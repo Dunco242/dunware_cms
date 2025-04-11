@@ -32,7 +32,7 @@ from django.contrib.contenttypes.models import ContentType
 from core.services.scheduling import SchedulingService
 from django.conf import settings
 from django.shortcuts import render, redirect, get_object_or_404
-from django.http import JsonResponse, HttpResponse, HttpResponseRedirect
+from django.http import JsonResponse, HttpResponse, HttpResponseRedirect, Http404
 from django.urls import reverse_lazy, reverse
 from django.utils import timezone
 from django.core.exceptions import ValidationError

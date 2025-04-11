@@ -1,98 +1,379 @@
 {% extends "core/base.html" %}
 
+{% block extra_css %}
+<style>
+    /* Card styling */
+    .card {
+        border: none;
+        border-radius: 0.5rem;
+        transition: all 0.2s ease;
+        box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+        margin-bottom: 1.5rem;
+    }
+
+    .card-header {
+        background: linear-gradient(45deg, #4e73df, #224abe);
+        color: white;
+        border-top-left-radius: 0.5rem !important;
+        border-top-right-radius: 0.5rem !important;
+        padding: 1.25rem 1.5rem;
+        border-bottom: none;
+    }
+
+    .card-body {
+        padding: 1.75rem;
+    }
+
+    /* Profile picture styling */
+    .profile-picture {
+        width: 150px;
+        height: 150px;
+        object-fit: cover;
+        border: 5px solid #ffffff;
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    }
+
+    .profile-picture-placeholder {
+        width: 150px;
+        height: 150px;
+        background-color: #e0e0e0;
+        border: 5px solid #ffffff;
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    }
+
+    /* Section styling */
+    .section-heading {
+        color: #4e73df;
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin-bottom: 1.25rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid #e3e6f0;
+    }
+
+    /* Buttons */
+    .btn {
+        border-radius: 0.375rem;
+        padding: 0.625rem 1.25rem;
+        font-weight: 500;
+        transition: all 0.2s ease;
+    }
+
+    .btn-primary {
+        background-color: #4e73df;
+        border-color: #4e73df;
+    }
+
+    .btn-primary:hover {
+        background-color: #2e59d9;
+        border-color: #2653d4;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08);
+    }
+
+    .btn-success {
+        background-color: #1cc88a;
+        border-color: #1cc88a;
+    }
+
+    .btn-success:hover {
+        background-color: #17a673;
+        border-color: #169b6b;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08);
+    }
+
+    .btn-secondary {
+        color: #858796;
+        border-color: #d1d3e2;
+        background-color: #f8f9fc;
+    }
+
+    .btn-secondary:hover {
+        background-color: #eaecf4;
+        color: #6e707e;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08);
+    }
+
+    .btn-outline-primary {
+        color: #4e73df;
+        border-color: #4e73df;
+    }
+
+    .btn-outline-primary:hover {
+        background-color: #4e73df;
+        color: #fff;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08);
+    }
+
+    /* Stats styling */
+    .stats-item {
+        display: flex;
+        align-items: center;
+        padding: 0.75rem 0;
+        border-bottom: 1px solid #f0f0f0;
+    }
+
+    .stats-item:last-child {
+        border-bottom: none;
+    }
+
+    .stats-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background-color: #edf2ff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 15px;
+        color: #4e73df;
+    }
+
+    .stats-text {
+        flex: 1;
+    }
+
+    .stats-label {
+        color: #6c757d;
+        font-size: 0.875rem;
+        margin-bottom: 2px;
+    }
+
+    .stats-value {
+        font-weight: 600;
+        font-size: 1.1rem;
+        color: #3a3b45;
+    }
+
+    /* Activity styling */
+    .activity-item {
+        padding: 1rem 0;
+        border-bottom: 1px solid #f0f0f0;
+    }
+
+    .activity-item:last-child {
+        border-bottom: none;
+    }
+
+    .activity-time {
+        color: #6c757d;
+        font-size: 0.8rem;
+    }
+
+    .activity-title {
+        font-weight: 600;
+        margin-bottom: 0.25rem;
+    }
+
+    .activity-description {
+        color: #6c757d;
+        font-size: 0.95rem;
+    }
+
+    /* Form styling */
+    .form-group {
+        margin-bottom: 1.25rem;
+    }
+
+    .form-label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 600;
+        color: #4a5568;
+    }
+
+    .form-control {
+        display: block;
+        width: 100%;
+        padding: 0.75rem 1rem;
+        font-size: 1rem;
+        font-weight: 400;
+        line-height: 1.5;
+        color: #495057;
+        background-color: #fff;
+        background-clip: padding-box;
+        border: 1px solid #d1d9e6;
+        border-radius: 0.375rem;
+        transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+    }
+
+    .form-control:focus {
+        color: #495057;
+        background-color: #fff;
+        border-color: #4e73df;
+        outline: 0;
+        box-shadow: 0 0 0 0.2rem rgba(78, 115, 223, 0.25);
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="container mt-4">
+<div class="container py-4">
     <div class="row">
         <!-- Profile Sidebar -->
-        <div class="col-md-3">
+        <div class="col-lg-4 col-xl-3">
+            <!-- Profile Card -->
             <div class="card">
+                <div class="card-header">
+                    <h5 class="m-0 font-weight-bold">
+                        <i class="fas fa-user-circle mr-2"></i>Profile
+                    </h5>
+                </div>
                 <div class="card-body text-center">
                     {% if employee.profile_picture %}
                         <img src="{{ employee.profile_picture.url }}" alt="Profile Picture"
-                             class="rounded-circle img-fluid mb-3" style="width: 150px; height: 150px; object-fit: cover;">
+                             class="rounded-circle profile-picture mb-3">
                     {% else %}
-                        <div class="bg-secondary rounded-circle d-flex align-items-center justify-content-center mx-auto mb-3"
-                             style="width: 150px; height: 150px;">
-                            <i class="fas fa-user fa-4x text-white"></i>
+                        <div class="profile-picture-placeholder rounded-circle d-flex align-items-center justify-content-center mx-auto mb-3">
+                            <i class="fas fa-user fa-4x text-secondary"></i>
                         </div>
                     {% endif %}
-                    <h5 class="card-title">{{ employee.user.get_full_name }}</h5>
-                    <p class="text-muted">{{ employee.employee_id }}</p>
+                    <h5 class="font-weight-bold mb-1">{{ employee.user.get_full_name }}</h5>
+                    <p class="text-muted mb-3">{{ employee.get_position_display }}</p>
                     <div class="d-grid gap-2">
                         <a href="{% url 'change-password' %}" class="btn btn-outline-primary">
-                            <i class="fas fa-key"></i> Change Password
+                            <i class="fas fa-key mr-2"></i>Change Password
                         </a>
                     </div>
                 </div>
             </div>
 
-            <!-- Quick Stats -->
-            <div class="card mt-3">
-                <div class="card-body">
-                    <h6 class="card-title">Quick Stats</h6>
-                    <ul class="list-unstyled">
-                        <li><i class="fas fa-users"></i> Customers: {{ total_customers|default:"0" }}</li>
-                        <li><i class="fas fa-tasks"></i> Active Tasks: {{ active_tasks|default:"0" }}</li>
-                        <li><i class="fas fa-calendar"></i> Upcoming Meetings: {{ upcoming_meetings|default:"0" }}</li>
-                    </ul>
+            <!-- Quick Stats Card -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="m-0 font-weight-bold">
+                        <i class="fas fa-chart-bar mr-2"></i>Quick Stats
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="stats-item p-3">
+                        <div class="stats-icon">
+                            <i class="fas fa-users"></i>
+                        </div>
+                        <div class="stats-text">
+                            <div class="stats-label">Customers</div>
+                            <div class="stats-value">{{ total_customers|default:"0" }}</div>
+                        </div>
+                    </div>
+                    <div class="stats-item p-3">
+                        <div class="stats-icon">
+                            <i class="fas fa-tasks"></i>
+                        </div>
+                        <div class="stats-text">
+                            <div class="stats-label">Active Tasks</div>
+                            <div class="stats-value">{{ active_tasks|default:"0" }}</div>
+                        </div>
+                    </div>
+                    <div class="stats-item p-3">
+                        <div class="stats-icon">
+                            <i class="fas fa-calendar"></i>
+                        </div>
+                        <div class="stats-text">
+                            <div class="stats-label">Upcoming Meetings</div>
+                            <div class="stats-value">{{ upcoming_meetings|default:"0" }}</div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
 
         <!-- Profile Content -->
-        <div class="col-md-9">
+        <div class="col-lg-8 col-xl-9">
+            <!-- Profile Information Card -->
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">Profile Information</h5>
+                    <h5 class="m-0 font-weight-bold">
+                        <i class="fas fa-id-card mr-2"></i>Profile Information
+                    </h5>
                     <button class="btn btn-primary" id="editProfileBtn">
-                        <i class="fas fa-edit"></i> Edit Profile
+                        <i class="fas fa-edit mr-2"></i>Edit Profile
                     </button>
                 </div>
                 <div class="card-body">
                     <!-- Profile View -->
                     <div id="profileView">
-                        <div class="row mb-3">
-                            <div class="col-md-6">
-                                <h6>Employee Information</h6>
-                                <dl class="row">
-                                    <dt class="col-sm-4">Department</dt>
-                                    <dd class="col-sm-8">{{ employee.get_department_display }}</dd>
-
-                                    <dt class="col-sm-4">Position</dt>
-                                    <dd class="col-sm-8">{{ employee.get_position_display }}</dd>
-
-                                    <dt class="col-sm-4">Status</dt>
-                                    <dd class="col-sm-8">
-                                        <span class="badge {% if employee.is_active %}bg-success{% else %}bg-danger{% endif %}">
-                                            {{ employee.is_active|yesno:"Active,Inactive" }}
-                                        </span>
-                                    </dd>
-                                </dl>
-                            </div>
-                            <div class="col-md-6">
-                                <h6>Contact Information</h6>
-                                <dl class="row">
-                                    <dt class="col-sm-4">Email</dt>
-                                    <dd class="col-sm-8">{{ employee.user.email }}</dd>
-
-                                    <dt class="col-sm-4">Phone</dt>
-                                    <dd class="col-sm-8">{{ employee.phone|default:"Not provided" }}</dd>
-
-                                    <dt class="col-sm-4">Carrier</dt>
-                                    <dd class="col-sm-8">{{ employee.get_carrier_display|default:"Not provided" }}</dd>
-                                </dl>
+                        <div class="form-section mb-4">
+                            <h6 class="section-heading">
+                                <i class="fas fa-building mr-2"></i>Employee Information
+                            </h6>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <div class="form-group">
+                                        <label class="form-label text-muted">Employee ID</label>
+                                        <div class="font-weight-bold">{{ employee.employee_id }}</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <div class="form-group">
+                                        <label class="form-label text-muted">Department</label>
+                                        <div class="font-weight-bold">{{ employee.get_department_display }}</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <div class="form-group">
+                                        <label class="form-label text-muted">Position</label>
+                                        <div class="font-weight-bold">{{ employee.get_position_display }}</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <div class="form-group">
+                                        <label class="form-label text-muted">Status</label>
+                                        <div>
+                                            <span class="badge {% if employee.is_active %}bg-success{% else %}bg-danger{% endif %} px-3 py-2">
+                                                {{ employee.is_active|yesno:"Active,Inactive" }}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                        <div class="row">
-                            <div class="col-12">
-                                <h6>Employment Details</h6>
-                                <dl class="row">
-                                    <dt class="col-sm-2">Hire Date</dt>
-                                    <dd class="col-sm-4">{{ employee.hire_date|date:"M d, Y"|default:"Not set" }}</dd>
 
-                                    <dt class="col-sm-2">Duration</dt>
-                                    <dd class="col-sm-4">{{ employee.employment_duration|default:"N/A" }}</dd>
-                                </dl>
+                        <div class="form-section mb-4">
+                            <h6 class="section-heading">
+                                <i class="fas fa-phone-alt mr-2"></i>Contact Information
+                            </h6>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <div class="form-group">
+                                        <label class="form-label text-muted">Email</label>
+                                        <div class="font-weight-bold">{{ employee.user.email }}</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <div class="form-group">
+                                        <label class="form-label text-muted">Phone</label>
+                                        <div class="font-weight-bold">{{ employee.phone|default:"Not provided" }}</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <div class="form-group">
+                                        <label class="form-label text-muted">Carrier</label>
+                                        <div class="font-weight-bold">{{ employee.get_carrier_display|default:"Not provided" }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-section">
+                            <h6 class="section-heading">
+                                <i class="fas fa-business-time mr-2"></i>Employment Details
+                            </h6>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <div class="form-group">
+                                        <label class="form-label text-muted">Hire Date</label>
+                                        <div class="font-weight-bold">{{ employee.hire_date|date:"M d, Y"|default:"Not set" }}</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <div class="form-group">
+                                        <label class="form-label text-muted">Duration</label>
+                                        <div class="font-weight-bold">{{ employee.employment_duration|default:"N/A" }}</div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -102,14 +383,27 @@
                         <form method="post" enctype="multipart/form-data">
                             {% csrf_token %}
                             <div class="row">
-                                {{ form.as_p }}
+                                {% for field in form %}
+                                <div class="col-md-6 mb-3">
+                                    <div class="form-group">
+                                        <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
+                                        {{ field }}
+                                        {% if field.errors %}
+                                            <div class="text-danger small">{{ field.errors }}</div>
+                                        {% endif %}
+                                        {% if field.help_text %}
+                                            <small class="form-text text-muted">{{ field.help_text }}</small>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                {% endfor %}
                             </div>
-                            <div class="mt-3">
-                                <button type="submit" class="btn btn-success">
-                                    <i class="fas fa-save"></i> Save Changes
-                                </button>
+                            <div class="d-flex justify-content-between mt-4">
                                 <button type="button" class="btn btn-secondary" id="cancelEdit">
-                                    <i class="fas fa-times"></i> Cancel
+                                    <i class="fas fa-times mr-2"></i>Cancel
+                                </button>
+                                <button type="submit" class="btn btn-success">
+                                    <i class="fas fa-save mr-2"></i>Save Changes
                                 </button>
                             </div>
                         </form>
@@ -117,27 +411,27 @@
                 </div>
             </div>
 
-            <!-- Recent Activity -->
-            <div class="card mt-3">
+            <!-- Recent Activity Card -->
+            <div class="card">
                 <div class="card-header">
-                    <h5 class="mb-0">Recent Activity</h5>
+                    <h5 class="m-0 font-weight-bold">
+                        <i class="fas fa-history mr-2"></i>Recent Activity
+                    </h5>
                 </div>
                 <div class="card-body">
-                    <div class="list-group">
-                        {% for activity in recent_activities %}
-                            <div class="list-group-item">
-                                <div class="d-flex w-100 justify-content-between">
-                                    <h6 class="mb-1">{{ activity.title }}</h6>
-                                    <small>{{ activity.timestamp|timesince }} ago</small>
-                                </div>
-                                <p class="mb-1">{{ activity.description }}</p>
+                    {% for activity in recent_activities %}
+                        <div class="activity-item">
+                            <div class="d-flex justify-content-between">
+                                <h6 class="activity-title">{{ activity.title }}</h6>
+                                <span class="activity-time">{{ activity.timestamp|timesince }} ago</span>
                             </div>
-                        {% empty %}
-                            <div class="text-center text-muted py-3">
-                                No recent activity
-                            </div>
-                        {% endfor %}
-                    </div>
+                            <p class="activity-description mb-0">{{ activity.description }}</p>
+                        </div>
+                    {% empty %}
+                        <div class="text-center text-muted py-3">
+                            <i class="fas fa-info-circle mr-1"></i>No recent activity
+                        </div>
+                    {% endfor %}
                 </div>
             </div>
         </div>

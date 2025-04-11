@@ -2,125 +2,277 @@
 
 {% block title %}Service Subscription{% endblock %}
 
+{% block extra_css %}
+<style>
+    /* Card styling */
+    .card {
+        border: none;
+        border-radius: 0.5rem;
+        transition: all 0.2s ease;
+        box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+    }
+
+    .card-header {
+        background: linear-gradient(45deg, #4e73df, #224abe);
+        color: white;
+        border-top-left-radius: 0.5rem !important;
+        border-top-right-radius: 0.5rem !important;
+        padding: 1.25rem 1.5rem;
+        border-bottom: none;
+    }
+
+    .card-body {
+        padding: 1.75rem;
+    }
+
+    /* Form section styling */
+    .form-section {
+        background-color: #ffffff;
+        padding: 1.25rem;
+        border-radius: 0.375rem;
+        box-shadow: 0 0 10px rgba(0,0,0,0.03);
+        margin-bottom: 1.5rem;
+    }
+
+    .section-heading {
+        color: #4e73df;
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin-bottom: 1.25rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid #e3e6f0;
+    }
+
+    /* Form controls */
+    input, select, textarea {
+        display: block;
+        width: 100%;
+        padding: 0.75rem 1rem;
+        font-size: 1rem;
+        font-weight: 400;
+        line-height: 1.5;
+        color: #495057;
+        background-color: #fff;
+        background-clip: padding-box;
+        border: 1px solid #d1d9e6;
+        border-radius: 0.375rem;
+        transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+    }
+
+    input:focus, select:focus, textarea:focus {
+        color: #495057;
+        background-color: #fff;
+        border-color: #4e73df;
+        outline: 0;
+        box-shadow: 0 0 0 0.2rem rgba(78, 115, 223, 0.25);
+    }
+
+    textarea {
+        min-height: 120px;
+        resize: vertical;
+    }
+
+    .form-label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 600;
+        color: #4a5568;
+    }
+
+    /* Checkbox styling */
+    .form-check-input {
+        width: 1rem;
+        height: 1rem;
+        margin-top: 0.25rem;
+    }
+
+    .form-check-label {
+        margin-left: 0.5rem;
+    }
+
+    /* Buttons */
+    .btn {
+        border-radius: 0.375rem;
+        padding: 0.625rem 1.25rem;
+        font-weight: 500;
+        transition: all 0.2s ease;
+    }
+
+    .btn-success {
+        background-color: #1cc88a;
+        border-color: #1cc88a;
+    }
+
+    .btn-success:hover {
+        background-color: #17a673;
+        border-color: #169b6b;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08);
+    }
+
+    .btn-outline-secondary {
+        color: #858796;
+        border-color: #d1d3e2;
+    }
+
+    .btn-outline-secondary:hover {
+        background-color: #f8f9fc;
+        color: #6e707e;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08);
+    }
+
+    /* Helper text */
+    .form-text {
+        display: block;
+        margin-top: 0.25rem;
+        font-size: 80%;
+        color: #6e707e;
+    }
+
+    /* Error messaging */
+    .text-danger {
+        color: #e74a3b !important;
+        margin-top: 0.25rem;
+        font-size: 80%;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="container mt-4">
-    <!-- Service Subscription Form -->
-    <div class="card shadow-sm">
-        <div class="card-body">
-            <h1 class="h3 text-dark">
-                {% if form.instance.pk %}
-                    Edit Service Subscription
-                {% else %}
-                    New Service Subscription
-                {% endif %}
-            </h1>
-            <hr>
-
-            <form method="post" novalidate>
-                {% csrf_token %}
-                <div class="row g-3">
-                    <!-- Customer and Service Fields -->
-                    <div class="col-md-6">
-                        <label for="id_customer" class="form-label fw-bold">Customer</label>
-                        {{ form.customer }}
-                        {% if form.customer.errors %}
-                            <div class="text-danger small">{{ form.customer.errors }}</div>
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="m-0 font-weight-bold">
+                        {% if form.instance.pk %}
+                            <i class="fas fa-edit mr-2"></i>Edit Service Subscription
+                        {% else %}
+                            <i class="fas fa-file-invoice-dollar mr-2"></i>New Service Subscription
                         {% endif %}
-                    </div>
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" novalidate>
+                        {% csrf_token %}
 
-                    <div class="col-md-6">
-                        <label for="id_service" class="form-label fw-bold">Service</label>
-                        {{ form.service }}
-                        {% if form.service.errors %}
-                            <div class="text-danger small">{{ form.service.errors }}</div>
-                        {% endif %}
-                    </div>
-
-                    <!-- Billing Cycle -->
-                    <div class="col-md-6">
-                        <label for="billing_cycle" class="form-label fw-bold">Billing Cycle</label>
-                        {{ form.billing_cycle }}
-                        {% if form.billing_cycle.errors %}
-                            <div class="text-danger small">{{ form.billing_cycle.errors }}</div>
-                        {% endif %}
-                    </div>
-
-                    <!-- Hourly Rate and Hours -->
-                    <div class="col-md-6 hourly-fields" style="display: none;">
-                        <label for="id_hourly_rate" class="form-label fw-bold">Hourly Rate ($)</label>
-                        {{ form.hourly_rate }}
-                        {% if form.hourly_rate.errors %}
-                            <div class="text-danger small">{{ form.hourly_rate.errors }}</div>
-                        {% endif %}
-                        <div class="form-text">Rate charged per hour</div>
-                    </div>
-
-                    <div class="col-md-6 hourly-fields" style="display: none;">
-                        <label for="id_hours" class="form-label fw-bold">Number of Hours</label>
-                        {{ form.hours }}
-                        {% if form.hours.errors %}
-                            <div class="text-danger small">{{ form.hours.errors }}</div>
-                        {% endif %}
-                        <div class="form-text">Total number of hours to bill</div>
-                    </div>
-
-                    <!-- Regular Price -->
-                    <div class="col-md-6 non-hourly-fields">
-                        <label for="id_price" class="form-label fw-bold">Price</label>
-                        {{ form.price }}
-                        {% if form.price.errors %}
-                            <div class="text-danger small">{{ form.price.errors }}</div>
-                        {% endif %}
-                    </div>
-
-                    <!-- Dates -->
-                    <div class="col-md-6">
-                        <label for="id_start_date" class="form-label fw-bold">Start Date</label>
-                        {{ form.start_date }}
-                        {% if form.start_date.errors %}
-                            <div class="text-danger small">{{ form.start_date.errors }}</div>
-                        {% endif %}
-                    </div>
-
-                    <div class="col-md-6">
-                        <label for="id_end_date" class="form-label fw-bold">End Date</label>
-                        {{ form.end_date }}
-                        {% if form.end_date.errors %}
-                            <div class="text-danger small">{{ form.end_date.errors }}</div>
-                        {% endif %}
-                    </div>
-
-                    <!-- Status -->
-                    <div class="col-md-6">
-                        <label for="id_status" class="form-label fw-bold">Status</label>
-                        {{ form.status }}
-                        {% if form.status.errors %}
-                            <div class="text-danger small">{{ form.status.errors }}</div>
-                        {% endif %}
-                    </div>
-
-                    <!-- Is Active -->
-                    <div class="col-md-6">
-                        <div class="mt-4">
-                            {{ form.is_active }}
-                            <label class="form-check-label fw-bold" for="id_is_active">Active</label>
-                            {% if form.is_active.errors %}
-                                <div class="text-danger small">{{ form.is_active.errors }}</div>
-                            {% endif %}
+                        <!-- Basic Information Section -->
+                        <div class="form-section">
+                            <h6 class="section-heading">
+                                <i class="fas fa-info-circle mr-2"></i>Basic Information
+                            </h6>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="id_customer" class="form-label">Customer</label>
+                                    {{ form.customer }}
+                                    {% if form.customer.errors %}
+                                        <div class="text-danger">{{ form.customer.errors }}</div>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="id_service" class="form-label">Service</label>
+                                    {{ form.service }}
+                                    {% if form.service.errors %}
+                                        <div class="text-danger">{{ form.service.errors }}</div>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="billing_cycle" class="form-label">Billing Cycle</label>
+                                    {{ form.billing_cycle }}
+                                    {% if form.billing_cycle.errors %}
+                                        <div class="text-danger">{{ form.billing_cycle.errors }}</div>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="id_status" class="form-label">Status</label>
+                                    {{ form.status }}
+                                    {% if form.status.errors %}
+                                        <div class="text-danger">{{ form.status.errors }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                </div>
 
-                <!-- Form Buttons -->
-                <div class="mt-4">
-                    <button type="submit" class="btn btn-success">
-                        <i class="fas fa-save"></i> Save Subscription
-                    </button>
-                    <a href="{% url 'subscription-list' %}" class="btn btn-outline-secondary">
-                        <i class="fas fa-times"></i> Cancel
-                    </a>
+                        <!-- Pricing Section -->
+                        <div class="form-section">
+                            <h6 class="section-heading">
+                                <i class="fas fa-dollar-sign mr-2"></i>Pricing Information
+                            </h6>
+                            <div class="row">
+                                <!-- Hourly Rate Fields -->
+                                <div class="col-md-6 mb-3 hourly-fields" style="display: none;">
+                                    <label for="id_hourly_rate" class="form-label">Hourly Rate ($)</label>
+                                    {{ form.hourly_rate }}
+                                    {% if form.hourly_rate.errors %}
+                                        <div class="text-danger">{{ form.hourly_rate.errors }}</div>
+                                    {% endif %}
+                                    <div class="form-text">Rate charged per hour</div>
+                                </div>
+                                <div class="col-md-6 mb-3 hourly-fields" style="display: none;">
+                                    <label for="id_hours" class="form-label">Number of Hours</label>
+                                    {{ form.hours }}
+                                    {% if form.hours.errors %}
+                                        <div class="text-danger">{{ form.hours.errors }}</div>
+                                    {% endif %}
+                                    <div class="form-text">Total number of hours to bill</div>
+                                </div>
+
+                                <!-- Regular Price Field -->
+                                <div class="col-md-6 mb-3 non-hourly-fields">
+                                    <label for="id_price" class="form-label">Price</label>
+                                    {{ form.price }}
+                                    {% if form.price.errors %}
+                                        <div class="text-danger">{{ form.price.errors }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Schedule Section -->
+                        <div class="form-section">
+                            <h6 class="section-heading">
+                                <i class="fas fa-calendar-alt mr-2"></i>Schedule
+                            </h6>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="id_start_date" class="form-label">Start Date</label>
+                                    {{ form.start_date }}
+                                    {% if form.start_date.errors %}
+                                        <div class="text-danger">{{ form.start_date.errors }}</div>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="id_end_date" class="form-label">End Date</label>
+                                    {{ form.end_date }}
+                                    {% if form.end_date.errors %}
+                                        <div class="text-danger">{{ form.end_date.errors }}</div>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <div class="form-check mt-4">
+                                        {{ form.is_active }}
+                                        <label class="form-check-label" for="id_is_active">Active</label>
+                                        {% if form.is_active.errors %}
+                                            <div class="text-danger">{{ form.is_active.errors }}</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Form Buttons -->
+                        <div class="d-flex justify-content-between mt-4">
+                            <a href="{% url 'subscription-list' %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-times mr-2"></i>Cancel
+                            </a>
+                            <button type="submit" class="btn btn-success">
+                                <i class="fas fa-save mr-2"></i>Save Subscription
+                            </button>
+                        </div>
+                    </form>
                 </div>
-            </form>
+            </div>
         </div>
     </div>
 </div>
