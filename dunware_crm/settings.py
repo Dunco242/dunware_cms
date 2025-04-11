@@ -12,7 +12,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Development mode check
 DEBUG = True
-DEVELOPMENT_MODE = os.getenv('DJANGO_ENV', 'development') == 'development'
+DEVELOPMENT_MODE = os.getenv('DJANGO_ENV', 'development') == 'production'
 
 # Security settings - completely disabled in development
 SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-development-key-change-in-production')
