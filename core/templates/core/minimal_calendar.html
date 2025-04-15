@@ -104,6 +104,26 @@
        -moz-appearance: menulist !important;
        appearance: menulist !important;
    }
+
+   /* Import section styling */
+   .calendar-import-section {
+       margin-top: 2rem;
+   }
+
+   .calendar-import-card {
+       height: 100%;
+       margin-bottom: 1rem;
+   }
+
+   .meeting-list {
+       margin-top: 2rem;
+   }
+
+   .meeting-item {
+       display: flex;
+       justify-content: space-between;
+       align-items: center;
+   }
 </style>
 {% endblock %}
 
@@ -116,6 +136,12 @@
       <p>Please try refreshing the page or contact support if the issue persists.</p>
    </div>
    {% endif %}
+
+   <div class="row">
+      <div class="col-12">
+         <h2 class="mb-4">My Calendar - {{ current_date }}</h2>
+      </div>
+   </div>
 
    <div class="row calendar-row">
       <!-- Calendar Column -->
@@ -139,10 +165,119 @@
                <div id="calendar"></div>
             </div>
          </div>
+
+         <!-- Calendar Import Section (from second template) -->
+         <div class="card shadow mb-4 calendar-import-section">
+            <div class="card-header py-3">
+               <h6 class="m-0 font-weight-bold text-primary">Import Calendars</h6>
+            </div>
+            <div class="card-body">
+               <div class="row">
+                  <div class="col-md-4">
+                     <div class="card calendar-import-card">
+                        <div class="card-header bg-primary text-white">
+                           <h5 class="mb-0">Upload .ics File</h5>
+                        </div>
+                        <div class="card-body">
+                           <form method="post" enctype="multipart/form-data">
+                              {% csrf_token %}
+                              {{ ics_form.as_p }}
+                              <button type="submit" name="ics_upload" class="btn btn-primary">Import Events</button>
+                           </form>
+                        </div>
+                     </div>
+                  </div>
+
+                  <div class="col-md-4">
+                     <div class="card calendar-import-card">
+                        <div class="card-header bg-danger text-white">
+                           <h5 class="mb-0">Import from Google Calendar</h5>
+                        </div>
+                        <div class="card-body">
+                           <p>Import your events from Google Calendar for the next 30 days</p>
+                           <form method="post">
+                              {% csrf_token %}
+                              {{ google_form.as_p }}
+                              <button type="submit" name="import_google_calendar" class="btn btn-danger">Connect & Import</button>
+                           </form>
+                        </div>
+                     </div>
+                  </div>
+
+                  <div class="col-md-4">
+                     <div class="card calendar-import-card">
+                        <div class="card-header bg-success text-white">
+                           <h5 class="mb-0">Import from Calendar URL</h5>
+                        </div>
+                        <div class="card-body">
+                           <form method="post">
+                              {% csrf_token %}
+                              {{ universal_form.as_p }}
+                              <button type="submit" name="universal_calendar" class="btn btn-success">Import Calendar</button>
+                           </form>
+                        </div>
+                     </div>
+                  </div>
+               </div>
+            </div>
+         </div>
+
+         <!-- Meeting List (from second template) -->
+         <div class="card shadow mb-4 meeting-list">
+            <div class="card-header py-3">
+               <h6 class="m-0 font-weight-bold text-primary">My Meetings</h6>
+            </div>
+            <div class="card-body">
+               <ul class="list-group">
+                  {% for meeting in meetings %}
+                     <li class="list-group-item meeting-item">
+                        <div>
+                           <strong>{{ meeting.title }}</strong><br>
+                           {{ meeting.start_time }} to {{ meeting.end_time }}
+                           {% if meeting.location %}
+                           <br><small>Location: {{ meeting.location }}</small>
+                           {% endif %}
+                        </div>
+                        {% if meeting.meeting_type %}
+                        <span class="badge {% if 'google' in meeting.meeting_type %}bg-danger{% elif 'ics' in meeting.meeting_type %}bg-primary{% else %}bg-success{% endif %}">
+                            {{ meeting.meeting_type|title|replace_spaces }}
+                        </span>
+                        {% endif %}
+                     </li>
+                  {% empty %}
+                     <li class="list-group-item">No meetings found.</li>
+                  {% endfor %}
+               </ul>
+            </div>
+         </div>
+
+         <!-- Shifts List (from second template) -->
+         <div class="card shadow mb-4">
+            <div class="card-header py-3">
+               <h6 class="m-0 font-weight-bold text-primary">My Shifts</h6>
+            </div>
+            <div class="card-body">
+               <!-- Shifts content goes here -->
+            </div>
+         </div>
       </div>
 
       <!-- Sidebar Column -->
       <div class="col-lg-3 calendar-sidebar">
+         <!-- Add Meeting Form (from second template) -->
+         <div class="card shadow mb-4">
+            <div class="card-header py-3">
+               <h6 class="m-0 font-weight-bold text-primary">Add Meeting</h6>
+            </div>
+            <div class="card-body">
+               <form method="post">
+                  {% csrf_token %}
+                  {{ meeting_form.as_p }}
+                  <button type="submit" name="meeting_submit" class="btn btn-primary">Add Meeting</button>
+               </form>
+            </div>
+         </div>
+
          <!-- Availability Card - Added from Calendar View -->
          <div class="card shadow mb-4">
             <div class="card-header py-3">

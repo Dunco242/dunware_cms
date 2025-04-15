@@ -1,15 +1,22 @@
-# dunware_crm/urls.py
-
 from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib.auth.decorators import login_required
 from core.views import DashboardView
+from core import views  # Import your core views
+from django.shortcuts import redirect
+from django.contrib.auth.decorators import user_passes_test
+from django.contrib.auth.decorators import login_required
+
+def anonymous_user_only(user):
+    return not user.is_authenticated
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('', login_required(DashboardView.as_view()), name='dashboard'),
+    # Change this line:
+    path('', user_passes_test(anonymous_user_only, login_url='/dashboard/')(views.index), name='index'),
+    path('dashboard/', login_required(DashboardView.as_view()), name='dashboard'),
     path('account/', include('allauth.urls')),
     path('', include('core.urls')),
     path('customer-projects/', include('customer_projects.urls', namespace="customer_projects")),

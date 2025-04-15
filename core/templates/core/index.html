@@ -1,0 +1,748 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>DunWare Solutions - Business Management System</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #0d6efd;
+            --primary-dark: #0b5ed7;
+            --primary-light: #3d8bfd;
+            --primary-very-light: #e6f0ff;
+            --dark-bg: #212529;
+            --light-bg: #f8f9fa;
+            --card-bg: #ffffff;
+            --text-dark: #212529;
+            --text-light: #6c757d;
+            --text-white: #ffffff;
+            --border-radius: 10px;
+            --transition-speed: 0.3s;
+            --box-shadow: 0 8px 20px rgba(13, 110, 253, 0.1);
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+            background-color: var(--light-bg);
+            color: var(--text-dark);
+            line-height: 1.6;
+        }
+
+        /* Navbar Styles */
+        .navbar {
+            background-color: #ffffff;
+            box-shadow: 0 2px 15px rgba(0, 0, 0, 0.05);
+            padding: 15px 0;
+            transition: all var(--transition-speed);
+        }
+
+        .navbar-brand {
+            font-weight: 700;
+            color: var(--primary-color) !important;
+            display: flex;
+            align-items: center;
+        }
+
+        .navbar-brand i {
+            font-size: 1.5rem;
+            margin-right: 8px;
+            color: var(--primary-color);
+        }
+
+        /* Hero Section */
+        .hero {
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+            padding: 120px 0;
+            color: var(--text-white);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: url('https://images.unsplash.com/photo-1557804506-669a67965ba0?ixlib=rb-1.2.1&auto=format&fit=crop&w=1567&q=80') center/cover;
+            opacity: 0.1;
+            z-index: 0;
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 1;
+            max-width: 800px;
+            margin: 0 auto;
+            text-align: center;
+        }
+
+        .hero h1 {
+            font-weight: 800;
+            margin-bottom: 1.5rem;
+            font-size: 3rem;
+        }
+
+        .hero p {
+            font-size: 1.25rem;
+            margin-bottom: 2rem;
+            opacity: 0.9;
+        }
+
+        /* Service Cards */
+        .service-section {
+            padding: 80px 0;
+        }
+
+        .section-title {
+            text-align: center;
+            margin-bottom: 50px;
+            position: relative;
+        }
+
+        .section-title::after {
+            content: '';
+            display: block;
+            width: 80px;
+            height: 4px;
+            background-color: var(--primary-color);
+            margin: 20px auto 0;
+            border-radius: 2px;
+        }
+
+        .service-card {
+            background-color: var(--card-bg);
+            border-radius: var(--border-radius);
+            overflow: hidden;
+            box-shadow: var(--box-shadow);
+            transition: transform var(--transition-speed), box-shadow var(--transition-speed);
+            height: 100%;
+            border: none;
+        }
+
+        .service-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 15px 30px rgba(13, 110, 253, 0.15);
+        }
+
+        .service-img-container {
+            height: 200px;
+            overflow: hidden;
+        }
+
+        .service-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform var(--transition-speed);
+        }
+
+        .service-card:hover .service-img {
+            transform: scale(1.05);
+        }
+
+        .service-content {
+            padding: 25px;
+        }
+
+        .service-title {
+            color: var(--primary-dark);
+            font-weight: 600;
+            margin-bottom: 15px;
+            position: relative;
+            padding-bottom: 12px;
+        }
+
+        .service-title::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            bottom: 0;
+            width: 40px;
+            height: 3px;
+            background-color: var(--primary-color);
+            border-radius: 2px;
+        }
+
+        .service-desc {
+            color: var(--text-light);
+            font-size: 0.95rem;
+        }
+
+        /* CTA Section */
+        .cta-section {
+            background-color: var(--primary-very-light);
+            padding: 80px 0;
+            text-align: center;
+            border-radius: var(--border-radius);
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 0 40px rgba(13, 110, 253, 0.1) inset;
+        }
+
+        .cta-section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: url('https://images.unsplash.com/photo-1499750310107-5fef28a66643?ixlib=rb-1.2.1&auto=format&fit=crop&w=1500&q=80') center/cover;
+            opacity: 0.05;
+            z-index: 0;
+        }
+
+        .cta-content {
+            position: relative;
+            z-index: 1;
+            max-width: 700px;
+            margin: 0 auto;
+        }
+
+        .cta-section h2 {
+            color: var(--primary-dark);
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+        }
+
+        /* Footer */
+        .footer {
+            background-color: var(--dark-bg);
+            color: var(--text-white);
+            padding: 30px 0;
+            text-align: center;
+        }
+
+        /* Buttons */
+        .btn-primary {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+            border-radius: 50px;
+            padding: 12px 30px;
+            font-weight: 600;
+            box-shadow: 0 4px 15px rgba(13, 110, 253, 0.3);
+            transition: all var(--transition-speed);
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-dark);
+            border-color: var(--primary-dark);
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(13, 110, 253, 0.4);
+        }
+
+        .btn-outline {
+            color: var(--primary-color);
+            background-color: transparent;
+            border: 2px solid var(--primary-color);
+            border-radius: 50px;
+            padding: 10px 28px;
+            font-weight: 600;
+            transition: all var(--transition-speed);
+        }
+
+        .btn-outline:hover {
+            background-color: var(--primary-color);
+            color: white;
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(13, 110, 253, 0.2);
+        }
+
+        .btn-light {
+            background-color: white;
+            color: var(--primary-color);
+            border-radius: 50px;
+            padding: 12px 30px;
+            font-weight: 600;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            transition: all var(--transition-speed);
+        }
+
+        .btn-light:hover {
+            background-color: #f8f9fa;
+            color: var(--primary-dark);
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        }
+
+        /* Modal */
+        #demoModal {
+            display: none;
+            position: fixed;
+            z-index: 9999;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(5px);
+            transition: all 0.3s ease;
+        }
+
+        #demoModal .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 40px;
+            border: none;
+            border-radius: 20px;
+            width: 90%;
+            max-width: 550px;
+            box-shadow: 0 15px 50px rgba(0, 0, 0, 0.1);
+            transform: translateY(20px);
+            opacity: 0;
+            transition: all 0.4s ease;
+        }
+
+        #demoModal.show .modal-content {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        .close {
+            color: var(--text-light);
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: color var(--transition-speed);
+        }
+
+        .close:hover {
+            color: var(--primary-color);
+        }
+
+        .modal-title {
+            color: var(--primary-color);
+            font-weight: 700;
+            margin-bottom: 25px;
+            position: relative;
+            padding-bottom: 12px;
+            display: inline-block;
+        }
+
+        .modal-title::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            bottom: 0;
+            width: 40px;
+            height: 3px;
+            background-color: var(--primary-color);
+            border-radius: 2px;
+        }
+
+        /* Form */
+        .form-label {
+            color: var(--text-dark);
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+
+        .form-control {
+            padding: 12px 15px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            transition: all var(--transition-speed);
+        }
+
+        .form-control:focus {
+            border-color: var(--primary-light);
+            box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.15);
+        }
+
+        .form-status {
+            display: none;
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            font-weight: 500;
+            text-align: center;
+            transition: all var(--transition-speed);
+        }
+
+        .form-status.success {
+            background-color: rgba(25, 135, 84, 0.1);
+            color: #198754;
+            border: 1px solid rgba(25, 135, 84, 0.2);
+        }
+
+        .form-status.error {
+            background-color: rgba(220, 53, 69, 0.1);
+            color: #dc3545;
+            border: 1px solid rgba(220, 53, 69, 0.2);
+        }
+
+        /* Features */
+        .features-section {
+            padding: 80px 0;
+            background-color: #ffffff;
+        }
+
+        .features-list {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 50px;
+        }
+
+        .feature-item {
+            background-color: white;
+            border-radius: var(--border-radius);
+            padding: 30px;
+            box-shadow: var(--box-shadow);
+            transition: all var(--transition-speed);
+            text-align: center;
+            flex: 0 0 calc(33.333% - 30px);
+            max-width: calc(33.333% - 30px);
+        }
+
+        .feature-item:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 30px rgba(13, 110, 253, 0.15);
+        }
+
+        .feature-icon {
+            width: 70px;
+            height: 70px;
+            margin: 0 auto 20px;
+            background-color: var(--primary-very-light);
+            color: var(--primary-color);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 30px;
+        }
+
+        /* Responsive */
+        @media (max-width: 992px) {
+            .hero h1 {
+                font-size: 2.5rem;
+            }
+
+            .feature-item {
+                flex: 0 0 calc(50% - 30px);
+                max-width: calc(50% - 30px);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .hero {
+                padding: 80px 0;
+            }
+
+            .hero h1 {
+                font-size: 2rem;
+            }
+
+            .service-section, .features-section {
+                padding: 60px 0;
+            }
+
+            .feature-item {
+                flex: 0 0 100%;
+                max-width: 100%;
+            }
+
+            #demoModal .modal-content {
+                padding: 30px;
+                margin: 10% auto;
+            }
+        }
+
+        @media (max-width: 576px) {
+            .hero {
+                padding: 60px 0;
+            }
+
+            .hero h1 {
+                font-size: 1.8rem;
+            }
+
+            .cta-section {
+                padding: 60px 0;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<nav class="navbar navbar-expand-lg sticky-top">
+    <div class="container">
+        <a class="navbar-brand" href="#">
+            <img src="{% static 'img/landing_logo.png' %}" alt="Dunware Solutions" style="max-width: 220px; height: 40px;">
+                Dunware CMS
+        </a>
+        <div class="d-flex">
+            <a class="btn btn-outline me-2" href="{% url 'account_login' %}">Login</a>
+            <button class="btn btn-primary" onclick="showDemoForm()">Request a Demo</button>
+        </div>
+    </div>
+</nav>
+
+<div class="hero">
+    <div class="hero-content container">
+        <h1>All-in-One Business Management Solution</h1>
+        <p>Streamline operations, boost productivity, and grow your small business with our integrated platform.</p>
+        <button class="btn btn-light btn-lg" onclick="showDemoForm()">Get Started Free</button>
+    </div>
+</div>
+
+<div class="service-section">
+    <div class="container">
+        <h2 class="section-title">Comprehensive Business Tools</h2>
+        <div class="row g-4">
+            <div class="col-12 col-sm-6 col-lg-4 d-flex align-items-stretch">
+                <div class="service-card">
+                    <div class="service-img-container">
+                        <img src="https://images.unsplash.com/photo-1552581234-26160f608093?ixlib=rb-1.2.1&auto=format&fit=crop&w=1000&q=80" alt="CRM" class="service-img">
+                    </div>
+                    <div class="service-content">
+                        <h4 class="service-title">Customer Relationship Management</h4>
+                        <p class="service-desc">Track leads, manage customer data, and nurture relationships all in one centralized system.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-sm-6 col-lg-4 d-flex align-items-stretch">
+                <div class="service-card">
+                    <div class="service-img-container">
+                        <img src="https://images.unsplash.com/photo-1557200134-90327ee9fafa?ixlib=rb-1.2.1&auto=format&fit=crop&w=1000&q=80" alt="Email" class="service-img">
+                    </div>
+                    <div class="service-content">
+                        <h4 class="service-title">Integrated Email System</h4>
+                        <p class="service-desc">Streamline company communications with smart filters and automated sorting.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-sm-6 col-lg-4 d-flex align-items-stretch">
+                <div class="service-card">
+                    <div class="service-img-container">
+                        <img src="https://images.unsplash.com/photo-1531403009284-440f080d1e12?ixlib=rb-1.2.1&auto=format&fit=crop&w=1000&q=80" alt="Project Management" class="service-img">
+                    </div>
+                    <div class="service-content">
+                        <h4 class="service-title">Project Management</h4>
+                        <p class="service-desc">Organize tasks, track progress, and meet deadlines with our intuitive project tools.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-sm-6 col-lg-4 d-flex align-items-stretch">
+                <div class="service-card">
+                    <div class="service-img-container">
+                        <img src="https://images.unsplash.com/photo-1586281380117-5a60ae2050cc?ixlib=rb-1.2.1&auto=format&fit=crop&w=1000&q=80" alt="Document Management" class="service-img">
+                    </div>
+                    <div class="service-content">
+                        <h4 class="service-title">Document Management</h4>
+                        <p class="service-desc">Store, access, and share documents securely with team-based permissions.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-sm-6 col-lg-4 d-flex align-items-stretch">
+                <div class="service-card">
+                    <div class="service-img-container">
+                        <img src="https://images.pexels.com/photos/3050833/pexels-photo-3050833.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2auto=format&fit=crop&w=1000&q=80" alt="Route Management" class="service-img">
+                    </div>
+                    <div class="service-content">
+                        <h4 class="service-title">Route Management</h4>
+                        <p class="service-desc">Optimize delivery paths and track field operations with real-time monitoring.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-sm-6 col-lg-4 d-flex align-items-stretch">
+                <div class="service-card">
+                    <div class="service-img-container">
+                        <img src="https://images.unsplash.com/photo-1600880292203-757bb62b4baf?ixlib=rb-1.2.1&auto=format&fit=crop&w=1000&q=80" alt="Video Conferencing" class="service-img">
+                    </div>
+                    <div class="service-content">
+                        <h4 class="service-title">Video Conferencing</h4>
+                        <p class="service-desc">Connect with your team and clients through reliable, high-quality video meetings.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-sm-6 col-lg-4 d-flex align-items-stretch">
+                <div class="service-card">
+                    <div class="service-img-container">
+                        <img src="https://images.unsplash.com/photo-1573164574572-cb89e39749b4?ixlib=rb-1.2.1&auto=format&fit=crop&w=1000&q=80" alt="Company Chat" class="service-img">
+                    </div>
+                    <div class="service-content">
+                        <h4 class="service-title">Team Messaging</h4>
+                        <p class="service-desc">Enhance team collaboration with instant messaging and organized channels.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-sm-6 col-lg-4 d-flex align-items-stretch">
+                <div class="service-card">
+                    <div class="service-img-container">
+                        <img src="https://images.unsplash.com/photo-1519389950473-47ba0277781c?ixlib=rb-1.2.1&auto=format&fit=crop&w=1000&q=80" alt="Customer Onboarding" class="service-img">
+                    </div>
+                    <div class="service-content">
+                        <h4 class="service-title">Customer Onboarding</h4>
+                        <p class="service-desc">Create smooth customer experiences with automated workflows and checklists.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container">
+    <div class="cta-section">
+        <div class="cta-content">
+            <h2>Ready to Transform Your Business?</h2>
+            <p class="lead mb-4">Join us as we set out to make quality software for the small business affordable!!!.</p>
+            <button class="btn btn-primary btn-lg" onclick="showDemoForm()">Start Your Free Trial</button>
+            <p class="mt-3 text-muted">No credit card required, no obligations.  take advantage of a FREE 30 Day trial.</p>
+        </div>
+    </div>
+</div>
+
+<div class="footer">
+    <div class="container">
+        <p class="mb-0">&copy; 2025 DunWare Solutions. All rights reserved.</p>
+    </div>
+</div>
+
+<!-- Demo Modal -->
+<div id="demoModal">
+    <div class="modal-content">
+        <span class="close" onclick="closeDemoForm()">&times;</span>
+        <h4 class="modal-title">Request Your Free Demo</h4>
+        <form id="demoForm">
+            <div class="mb-3">
+                <label for="leadName" class="form-label">Full Name</label>
+                <input type="text" id="leadName" class="form-control" required>
+            </div>
+            <div class="mb-3">
+                <label for="leadCompany" class="form-label">Company Name</label>
+                <input type="text" id="leadCompany" class="form-control" required>
+            </div>
+            <div class="mb-3">
+                <label for="leadIndustry" class="form-label">Industry</label>
+                <input type="text" id="leadIndustry" class="form-control" required>
+            </div>
+            <div class="mb-3">
+                <label for="leadContact" class="form-label">Phone Number</label>
+                <input type="text" id="leadContact" class="form-control" required>
+            </div>
+            <div class="mb-3">
+                <label for="contactEmail" class="form-label">Business Email</label>
+                <input type="email" id="contactEmail" class="form-control" required>
+            </div>
+            <div class="mb-3">
+                <label for="leadWebsite" class="form-label">Website (optional)</label>
+                <input type="text" id="leadWebsite" class="form-control">
+            </div>
+            <button type="submit" class="btn btn-primary w-100 py-2">Submit Request</button>
+            <div id="formStatus" class="form-status"></div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function showDemoForm() {
+        const modal = document.getElementById('demoModal');
+        modal.style.display = 'block';
+        setTimeout(() => {
+            modal.classList.add('show');
+        }, 10);
+    }
+
+    function closeDemoForm() {
+        const modal = document.getElementById('demoModal');
+        modal.classList.remove('show');
+        setTimeout(() => {
+            modal.style.display = 'none';
+            // Reset form and status message
+            document.getElementById('demoForm').reset();
+            document.getElementById('formStatus').style.display = 'none';
+            document.getElementById('formStatus').className = 'form-status';
+        }, 300);
+    }
+
+    document.getElementById('demoForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const statusElement = document.getElementById('formStatus');
+
+        // Show loading state
+        statusElement.textContent = 'Submitting your request...';
+        statusElement.className = 'form-status';
+        statusElement.style.display = 'block';
+
+        const data = {
+            name: document.getElementById('leadName').value,
+            company: document.getElementById('leadCompany').value,
+            industry: document.getElementById('leadIndustry').value,
+            contact: document.getElementById('leadContact').value,
+            website: document.getElementById('leadWebsite').value,
+            email_address: document.getElementById('contactEmail').value,
+        };
+
+        fetch(window.location.href, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": getCookie('csrftoken')
+            },
+            body: JSON.stringify(data)
+        }).then(response => response.json())
+        .then(data => {
+            if (data.message) {
+                // Success
+                statusElement.textContent = 'Thank you! Your demo request has been submitted successfully.';
+                statusElement.className = 'form-status success';
+
+                // Reset form after 3 seconds and close modal
+                setTimeout(() => {
+                    document.getElementById('demoForm').reset();
+                    closeDemoForm();
+                }, 3000);
+            } else if (data.error) {
+                // Error from server
+                statusElement.textContent = 'Error: ' + data.error;
+                statusElement.className = 'form-status error';
+            }
+        }).catch(error => {
+            // Network or other error
+            statusElement.textContent = 'Something went wrong. Please try again.';
+            statusElement.className = 'form-status error';
+        });
+    });
+
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    // Close modal if user clicks outside of it
+    window.onclick = function(event) {
+        const modal = document.getElementById('demoModal');
+        if (event.target == modal) {
+            closeDemoForm();
+        }
+    }
+</script>
+
+</body>
+</html>

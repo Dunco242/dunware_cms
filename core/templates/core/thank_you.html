@@ -1,0 +1,10 @@
+# templates/thank_you.html
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container">
+    <h2>Thank You!</h2>
+    <p>Your message has been submitted successfully. We'll get back to you soon.</p>
+    <a href="{% url 'index' %}" class="btn btn-primary">Back to Contact Form</a>
+</div>
+{% endblock %}

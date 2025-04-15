@@ -4339,7 +4339,7 @@ def email_account_create(request):
             email_account = form.save(commit=False)
             email_account.employee = request.user.employee_profile  # Associate with logged-in employee
             email_account.save()
-            messages.success(request, 'Email account created successfully!')
+            messages.success(request, 'Email account registered successfully!')
             return redirect('email_account_list')
     else:
         form = EmailAccountForm()
@@ -5398,6 +5398,206 @@ def calendar_employee_debug(request):
     return render(request, 'core/employee_debug.html', context)
 
 
+# @login_required
+# def minimal_calendar_view(request):
+#     """Enhanced minimal calendar view with scheduling functionality"""
+
+#     # Get current employee directly from request.user (PRESERVED)
+#     try:
+#         current_employee = request.user.employee_profile
+#     except:
+#         try:
+#             current_employee = Employee.objects.get(user=request.user)
+#         except:
+#             messages.error(request, "You don't have an employee profile")
+#             return redirect('dashboard')
+
+#     # Get all active employees except current user
+#     available_employees = Employee.objects.exclude(id=current_employee.id).filter(is_active=True)
+
+#     # Get schedule rule information
+#     schedule_rules = ScheduleRule.objects.filter(
+#         user=request.user,
+#         is_active=True
+#     )
+
+#     # Format rule information for display
+#     rule_info = []
+#     for rule in schedule_rules:
+#         rule_info.append({
+#             'name': rule.name,
+#             'recurrence': rule.get_recurrence_type_display(),
+#             'time_range': f"{rule.start_time.strftime('%I:%M %p')} - {rule.end_time.strftime('%I:%M %p')}",
+#             'day_info': _get_rule_day_info(rule),
+#             'buffer': f"{rule.buffer_before} min before, {rule.buffer_after} min after"
+#         })
+
+#     # Add scheduling service data if available
+#     try:
+#         from .scheduling_service import SchedulingService
+#         scheduling_service = SchedulingService(request.user)
+
+#         # Get availability for today
+#         today = timezone.now().date()
+#         availability_data = {
+#             'today': scheduling_service.get_availability(today)
+#         }
+
+#         # Get suggested meeting slots
+#         available_slots = []
+#         for duration in [30, 60]:
+#             next_start, next_end = scheduling_service.get_next_available_slot(
+#                 from_datetime=timezone.now(),
+#                 duration_minutes=duration
+#             )
+
+#             if next_start and next_end:
+#                 available_slots.append({
+#                     'duration': duration,
+#                     'start': next_start,
+#                     'end': next_end,
+#                     'label': f"{duration} min at {next_start.strftime('%I:%M %p')} on {next_start.strftime('%b %d')}"
+#                 })
+
+#     except Exception as e:
+#         logger.error(f"Error getting scheduling data: {str(e)}")
+#         availability_data = {}
+#         available_slots = []
+
+#     if request.method == 'POST':
+#         action = request.POST.get('action')
+
+#         if action == 'suggest_meeting':
+#             # Get selected employees and duration
+#             employee_ids = request.POST.getlist('employees')
+#             duration = int(request.POST.get('duration', 60))  # Default to 1 hour
+
+#             if not employee_ids:
+#                 messages.error(request, "Please select at least one participant")
+#                 return redirect('minimal_calendar')
+
+#             # Get Employee objects for selected IDs
+#             selected_employees = Employee.objects.filter(id__in=employee_ids)
+
+#             # Find optimal time for all participants
+#             try:
+#                 from .scheduling_service import SchedulingService
+#                 scheduling_service = SchedulingService(request.user)
+
+#                 # Find optimal time for all participants
+#                 suggestion = scheduling_service.suggest_meeting_time(
+#                     participants=list(selected_employees) + [current_employee],
+#                     duration_minutes=duration,
+#                     within_days=7
+#                 )
+
+#                 # If successful, redirect to meeting creation
+#                 if suggestion.get('success'):
+#                     start_datetime = suggestion['start_datetime']
+#                     end_datetime = suggestion['end_datetime']
+
+#                     # Format for URL
+#                     start_str = start_datetime.strftime('%Y-%m-%dT%H:%M')
+#                     end_str = end_datetime.strftime('%Y-%m-%dT%H:%M')
+
+#                     # Create attendee param string for all selected employees
+#                     attendee_params = '&'.join([f'attendees={emp_id}' for emp_id in employee_ids])
+
+#                     # Success message
+#                     messages.success(
+#                         request,
+#                         f"Found optimal time: {start_datetime.strftime('%Y-%m-%d %H:%M')} to {end_datetime.strftime('%H:%M')}"
+#                     )
+
+#                     # Redirect to meeting creation with suggested time and attendees
+#                     return redirect(f'/meetings/create/?start_time={start_str}&end_time={end_str}&{attendee_params}')
+#                 else:
+#                     # Could not find a time
+#                     error_reason = suggestion.get('reason', 'No available time slots found')
+#                     messages.warning(request, f"Could not find a time that works for all participants: {error_reason}")
+#             except ImportError:
+#                 messages.error(request, "Scheduling service not available")
+#             except Exception as e:
+#                 logger.error(f"Error suggesting meeting time: {str(e)}")
+#                 messages.error(request, f"Error finding optimal meeting time: {str(e)}")
+
+#             return redirect('minimal_calendar')
+
+#         elif action == 'availability_check':
+#             # Handle availability check form
+#             date_str = request.POST.get('date')
+#             start_time_str = request.POST.get('start_time')
+#             duration = int(request.POST.get('duration', 60))
+
+#             try:
+#                 # Parse date and time
+#                 date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
+#                 start_time_obj = datetime.strptime(start_time_str, '%H:%M').time()
+
+#                 # Combine to create datetime
+#                 start_datetime = timezone.make_aware(datetime.combine(date_obj, start_time_obj))
+#                 end_datetime = start_datetime + timedelta(minutes=duration)
+
+#                 # Check availability using scheduling service
+#                 scheduling_service = SchedulingService(request.user)
+#                 is_available = scheduling_service.check_availability(
+#                     start_datetime,
+#                     end_datetime,
+#                     duration
+#                 )
+
+#                 if is_available:
+#                     messages.success(request, f"Time slot is available on {date_str} at {start_time_str}")
+#                 else:
+#                     # Get next available slot
+#                     next_start, next_end = scheduling_service.get_next_available_slot(
+#                         from_datetime=start_datetime,
+#                         duration_minutes=duration
+#                     )
+
+#                     if next_start and next_end:
+#                         messages.warning(
+#                             request,
+#                             f"Selected time is not available. Next available: {next_start.strftime('%Y-%m-%d %H:%M')}"
+#                         )
+#                     else:
+#                         messages.error(request, "Selected time is not available and no alternative found")
+#             except ValueError:
+#                 messages.error(request, "Invalid date or time format")
+#             except Exception as e:
+#                 logger.error(f"Error checking availability: {str(e)}")
+#                 messages.error(request, f"Error checking availability: {str(e)}")
+
+#             return redirect('minimal_calendar')
+
+#     # Comprehensive context with all required data
+#     context = {
+#         'current_employee': current_employee,
+#         'available_employees': available_employees,
+#         'employee_count': available_employees.count(),
+#         'schedule_rules': rule_info,
+#         'availability_data': availability_data,
+#         'available_slots': available_slots,
+#         'today': timezone.now().date(),
+#     }
+
+#     # Render the minimal template with enhanced context
+#     return render(request, 'core/minimal_calendar.html', context)
+
+# # Helper function for formatting rule day info (moved outside the view)
+# def _get_rule_day_info(rule):
+#     """Format day information for a schedule rule"""
+#     if rule.recurrence_type == 'daily':
+#         return "Every day"
+#     elif rule.recurrence_type == 'weekly':
+#         return f"Every {rule.get_day_of_week_display()}"
+#     elif rule.recurrence_type == 'monthly':
+#         return f"Day {rule.day_of_month} of each month"
+#     elif rule.recurrence_type == 'yearly':
+#         return f"{rule.get_month_display()} {rule.day_of_month}"
+#     return ""
+
+
 @login_required
 def minimal_calendar_view(request):
     """Enhanced minimal calendar view with scheduling functionality"""
@@ -5464,9 +5664,36 @@ def minimal_calendar_view(request):
         availability_data = {}
         available_slots = []
 
+    # Create forms for calendar imports
+    from django import forms
+
+    class IcsUploadForm(forms.Form):
+        ics_file = forms.FileField(label="Select ICS file")
+
+    class GoogleCalendarForm(forms.Form):
+        pass  # Google auth will be handled by the view
+
+    class UniversalCalendarForm(forms.Form):
+        calendar_url = forms.URLField(label="Calendar URL (iCal/WebCal)")
+        provider = forms.ChoiceField(
+            choices=[
+                ('', 'Select Provider'),
+                ('outlook', 'Outlook'),
+                ('ical', 'Apple iCalendar'),
+                ('yahoo', 'Yahoo Calendar'),
+                ('other', 'Other')
+            ],
+            required=True
+        )
+
+    ics_form = IcsUploadForm()
+    google_form = GoogleCalendarForm()
+    universal_form = UniversalCalendarForm()
+
     if request.method == 'POST':
         action = request.POST.get('action')
 
+        # Original functionality preserved
         if action == 'suggest_meeting':
             # Get selected employees and duration
             employee_ids = request.POST.getlist('employees')
@@ -5570,6 +5797,201 @@ def minimal_calendar_view(request):
 
             return redirect('minimal_calendar')
 
+        # NEW FUNCTIONALITY: ICS file upload
+        elif 'ics_upload' in request.POST:
+            ics_form = IcsUploadForm(request.POST, request.FILES)
+            if ics_form.is_valid():
+                try:
+                    from icalendar import Calendar
+                    from .models import Meeting  # Import your Meeting model
+
+                    ics_file = request.FILES['ics_file']
+                    cal = Calendar.from_ical(ics_file.read())
+
+                    events_imported = 0
+                    for component in cal.walk():
+                        if component.name == "VEVENT":
+                            # Extract event details
+                            summary = str(component.get('summary', 'Imported Event'))
+                            start_time = component.get('dtstart').dt
+                            end_time = component.get('dtend').dt
+                            description = str(component.get('description', ''))
+                            location = str(component.get('location', ''))
+
+                            # Convert to timezone-aware if datetime objects
+                            if isinstance(start_time, datetime) and start_time.tzinfo is None:
+                                start_time = timezone.make_aware(start_time)
+                            if isinstance(end_time, datetime) and end_time.tzinfo is None:
+                                end_time = timezone.make_aware(end_time)
+
+                            # Create meeting object with organizer (not user)
+                            Meeting.objects.create(
+                                organizer=request.user,
+                                title=summary,
+                                start_time=start_time,
+                                end_time=end_time,
+                                description=description,
+                                location=location,
+                                meeting_type='imported',
+                                status='scheduled'
+                            )
+                            events_imported += 1
+
+                    messages.success(request, f"Successfully imported {events_imported} events from ICS file")
+                except Exception as e:
+                    logger.error(f"Error importing ICS file: {str(e)}")
+                    messages.error(request, f"Error importing ICS file: {str(e)}")
+            else:
+                messages.error(request, "Invalid form submission")
+
+            return redirect('minimal_calendar')
+
+        # NEW FUNCTIONALITY: Google Calendar import
+        elif 'import_google_calendar' in request.POST:
+            try:
+                # Check if we have valid Google credentials
+                from .google_calendar_service import get_google_calendar_service
+
+                # Attempt to get the service or redirect to authentication
+                service = get_google_calendar_service(request)
+
+                if isinstance(service, str) and service.startswith('http'):
+                    # This is a redirect URL for authentication
+                    return redirect(service)
+
+                # We have a valid service, fetch events
+                from .models import Meeting
+
+                # Get events from primary calendar for next 30 days
+                now = datetime.utcnow().isoformat() + 'Z'  # 'Z' indicates UTC time
+                end_date = (datetime.utcnow() + timedelta(days=30)).isoformat() + 'Z'
+
+                events_result = service.events().list(
+                    calendarId='primary',
+                    timeMin=now,
+                    timeMax=end_date,
+                    singleEvents=True,
+                    orderBy='startTime'
+                ).execute()
+
+                events = events_result.get('items', [])
+                events_imported = 0
+
+                for event in events:
+                    # Extract event details
+                    summary = event.get('summary', 'Google Calendar Event')
+
+                    # Handle start time
+                    start = event['start'].get('dateTime', event['start'].get('date'))
+                    if 'T' in start:  # This is a datetime
+                        start_time = datetime.fromisoformat(start.replace('Z', '+00:00'))
+                    else:  # This is a date
+                        start_time = datetime.strptime(start, '%Y-%m-%d')
+
+                    # Handle end time
+                    end = event['end'].get('dateTime', event['end'].get('date'))
+                    if 'T' in end:  # This is a datetime
+                        end_time = datetime.fromisoformat(end.replace('Z', '+00:00'))
+                    else:  # This is a date
+                        end_time = datetime.strptime(end, '%Y-%m-%d')
+
+                    # Convert to timezone-aware
+                    if start_time.tzinfo is None:
+                        start_time = timezone.make_aware(start_time)
+                    if end_time.tzinfo is None:
+                        end_time = timezone.make_aware(end_time)
+
+                    # Create meeting object with organizer (not user)
+                    Meeting.objects.create(
+                        organizer=request.user,
+                        title=summary,
+                        start_time=start_time,
+                        end_time=end_time,
+                        description=event.get('description', ''),
+                        location=event.get('location', ''),
+                        meeting_type='google_import',
+                        status='scheduled'
+                    )
+                    events_imported += 1
+
+                messages.success(request, f"Successfully imported {events_imported} events from Google Calendar")
+
+            except Exception as e:
+                logger.error(f"Error importing from Google Calendar: {str(e)}")
+                messages.error(request, f"Error importing from Google Calendar: {str(e)}")
+
+            return redirect('minimal_calendar')
+
+        # NEW FUNCTIONALITY: Universal Calendar import (iCal/WebCal URLs)
+        elif 'universal_calendar' in request.POST:
+            universal_form = UniversalCalendarForm(request.POST)
+            if universal_form.is_valid():
+                try:
+                    import requests
+                    from icalendar import Calendar
+                    from .models import Meeting
+
+                    calendar_url = universal_form.cleaned_data['calendar_url']
+                    provider = universal_form.cleaned_data['provider']
+
+                    # Fetch the calendar data
+                    response = requests.get(calendar_url)
+                    if response.status_code != 200:
+                        messages.error(request, f"Failed to fetch calendar: HTTP {response.status_code}")
+                        return redirect('minimal_calendar')
+
+                    # Parse the calendar data
+                    cal = Calendar.from_ical(response.content)
+
+                    events_imported = 0
+                    for component in cal.walk():
+                        if component.name == "VEVENT":
+                            # Extract event details
+                            summary = str(component.get('summary', f'Imported Event from {provider}'))
+                            start_time = component.get('dtstart').dt
+                            end_time = component.get('dtend').dt
+                            description = str(component.get('description', ''))
+                            location = str(component.get('location', ''))
+
+                            # Convert to timezone-aware if datetime objects
+                            if isinstance(start_time, datetime) and start_time.tzinfo is None:
+                                start_time = timezone.make_aware(start_time)
+                            if isinstance(end_time, datetime) and end_time.tzinfo is None:
+                                end_time = timezone.make_aware(end_time)
+
+                            # Create meeting object with organizer (not user)
+                            Meeting.objects.create(
+                                organizer=request.user,
+                                title=summary,
+                                start_time=start_time,
+                                end_time=end_time,
+                                description=description,
+                                location=location,
+                                meeting_type=f'{provider}_import',
+                                status='scheduled'
+                            )
+                            events_imported += 1
+
+                    messages.success(request, f"Successfully imported {events_imported} events from {provider} Calendar")
+                except Exception as e:
+                    logger.error(f"Error importing calendar from URL: {str(e)}")
+                    messages.error(request, f"Error importing calendar: {str(e)}")
+            else:
+                messages.error(request, "Invalid form submission")
+
+            return redirect('minimal_calendar')
+
+    # Get meetings for display
+    from .models import Meeting
+    current_date = timezone.now().date()
+
+    # Get user's meetings for the next 30 days
+    meetings = Meeting.objects.filter(
+        organizer=request.user.employee_profile,  # Changed from user to organizer
+        start_time__date__gte=current_date,
+        start_time__date__lte=current_date + timedelta(days=30)
+    ).order_by('start_time')
+
     # Comprehensive context with all required data
     context = {
         'current_employee': current_employee,
@@ -5579,6 +6001,11 @@ def minimal_calendar_view(request):
         'availability_data': availability_data,
         'available_slots': available_slots,
         'today': timezone.now().date(),
+        'current_date': current_date,
+        'meetings': meetings,
+        'ics_form': ics_form,
+        'google_form': google_form,
+        'universal_form': universal_form,
     }
 
     # Render the minimal template with enhanced context
@@ -5596,6 +6023,54 @@ def _get_rule_day_info(rule):
     elif rule.recurrence_type == 'yearly':
         return f"{rule.get_month_display()} {rule.day_of_month}"
     return ""
+
+def handle_google_callback(request):
+    """
+    Handle the callback from Google OAuth. Add this to your urls.py:
+    path('calendar/google/callback/', views.handle_google_callback, name='google_callback')
+    """
+    from django.shortcuts import redirect
+    from django.contrib import messages
+
+    try:
+        # Get the authorization code from the request
+        code = request.GET.get('code')
+        if not code:
+            messages.error(request, "Authorization failed - no code received")
+            return redirect('minimal_calendar')
+
+        # Get flow object
+        credentials_file = settings.GOOGLE_CALENDAR_CREDENTIALS_FILE
+        flow = Flow.from_client_secrets_file(
+            credentials_file,
+            scopes=['https://www.googleapis.com/auth/calendar.readonly'],
+            redirect_uri=request.build_absolute_uri('/calendar/google/callback/')
+        )
+
+        # Exchange authorization code for tokens
+        flow.fetch_token(code=code)
+        creds = flow.credentials
+
+        # Save credentials
+        user_token_file = f'token_{request.user.id}.pickle'
+        token_path = os.path.join(os.path.dirname(__file__), user_token_file)
+        with open(token_path, 'wb') as token:
+            pickle.dump(creds, token)
+
+        # Redirect back to the original page
+        redirect_path = request.session.get('calendar_redirect', 'minimal_calendar')
+
+        messages.success(request, "Successfully connected to Google Calendar")
+        return redirect(redirect_path)
+
+    except Exception as e:
+        messages.error(request, f"Error connecting to Google Calendar: {str(e)}")
+        return redirect('minimal_calendar')
+
+
+def authenticated_user_only(user):
+    print(f"User: {user}, Authenticated: {user.is_authenticated}")  # Debugging
+    return user.is_authenticated
 
 
 
@@ -5741,3 +6216,117 @@ def check_uninvoiced_entries(request):
     except Exception as e:
         logger.error(f"Error checking uninvoiced entries: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+def index(request):
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            name = data.get('name')
+            company = data.get('company')
+            industry = data.get('industry')
+            contact = data.get('contact')
+            website = data.get('website', '')
+            email_address = data.get('email_address', '')
+
+            # Log the request data (for debugging)
+            print(f"Demo Request Received:\nName: {name}\nCompany: {company}\nIndustry: {industry}\nContact: {contact}\nWebsite: {website}\nEmail Address: {email_address}")
+
+            # Send data to Google Sheets
+            success = send_to_google_sheets(name, company, industry, contact, website, email_address)
+
+            if success:
+                return JsonResponse({'message': 'Demo request received successfully.'})
+            else:
+                return JsonResponse({'error': 'Failed to save data to Google Sheets'}, status=500)
+
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=400)
+
+    # Define all the services for display in the frontend
+    services = [
+        {
+            "name": "Customer Relationship Management (CRM)",
+            "description": "Manage leads, interactions, and customer data in one place.",
+            "icon": "img/dashboard.jpg"
+        },
+        {
+            "name": "Email",
+            "description": "Integrated company-wide email service with smart sorting and filters.",
+            "icon": "img/email.png"
+        },
+        {
+            "name": "Project Management",
+            "description": "Track projects, assign tasks, set deadlines, and manage progress.",
+            "icon": "img/project.png"
+        },
+        {
+            "name": "Document Management",
+            "description": "Securely store, edit, and share company documents with access controls.",
+            "icon": "img/documents.png"
+        },
+        {
+            "name": "Route Management",
+            "description": "Optimize delivery routes and monitor logistics in real-time.",
+            "icon": "img/routes.png"
+        },
+        {
+            "name": "Video Conferencing",
+            "description": "Hold meetings and collaborate in real-time with built-in video tools.",
+            "icon": "img/video.png"
+        },
+        {
+            "name": "Company Chat",
+            "description": "Keep teams connected with a streamlined internal chat platform.",
+            "icon": "img/chat.png"
+        },
+        {
+            "name": "Customer Onboarding",
+            "description": "Guide new customers through onboarding with checklists and automation.",
+            "icon": "img/onboarding.png"
+        },
+    ]
+
+    return render(request, 'core/index.html', {'services': services})
+
+def send_to_google_sheets(name, company, industry, contact, website, email_address):
+    try:
+        # Path to credentials - better to use environment variable if possible
+        # For example: credentials_path = settings.GOOGLE_CREDENTIALS_PATH
+
+
+        # Define scopes
+        SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
+
+        # Create credentials
+        credentials = service_account.Credentials.from_service_account_file(
+            settings.GOOGLE_CREDENTIALS_FILE,  # path already stored in settings
+            scopes=SCOPES)
+
+        # Build the service
+        service = build('sheets', 'v4', credentials=credentials)
+
+        # Your Google Sheet ID - better to store in settings.py or as environment variable
+        # For example: SPREADSHEET_ID = settings.GOOGLE_SHEET_ID
+        SPREADSHEET_ID = settings.GOOGLE_SHEET_ID
+
+        # The range where data will be added
+        RANGE_NAME = 'Sheet1!A:F1'
+
+        # Create the data to be inserted
+        values = [[name, company, industry, contact, website, email_address]]
+        body = {'values': values}
+
+        # Call the Sheets API to append the data
+        result = service.spreadsheets().values().append(
+            spreadsheetId=settings.GOOGLE_SHEET_ID,
+            range=RANGE_NAME,
+            valueInputOption='USER_ENTERED',
+            insertDataOption='INSERT_ROWS',
+            body=body).execute()
+
+        return True
+    except Exception as e:
+        print(f"Google Sheets Error: {e}")
+        return False

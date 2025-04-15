@@ -24,6 +24,8 @@ from .views import (
     EventUpdateView, EventDeleteView,
     CustomerEventListView, CustomerEventCreateView,
 
+    # Google Calendar Views
+    handle_google_callback,
     # Service Views
     ServiceListView, ServiceCreateView, ServiceDetailView,
     ServiceUpdateView, ServiceDeleteView,
@@ -56,6 +58,9 @@ from .views import (
     # Task Views
     TaskListView, TaskCreateView, TaskDetailView,
     TaskUpdateView, TaskDeleteView, task_status_update,
+
+    # index
+    index,
 
     #chat
     employee_list_api, chat_sessions_api, add_user_to_chat, leave_chat,
@@ -142,9 +147,10 @@ urlpatterns = [
     path('customer/<int:customer_id>/upload-ics/', views.upload_ics, name='customer-upload-ics'),
 
     # Calendar System URLs
-    path('calendar/', views.user_calendar_view, name='calendar'),
+    path('old_calendar/', views.user_calendar_view, name='old-calendar'),
     path('api/user-calendar-events/', views.user_calendar_events, name='user-calendar-events'),
     path('calendar/upload-ics/', views.upload_ics, name='upload-ics'),
+    path('calendar/google/callback', views.handle_google_callback, name='google-calendar-callback'),
 
     # Service URLs
     path('services/', ServiceListView.as_view(), name='service-list'),
@@ -267,9 +273,13 @@ urlpatterns = [
     # Debugging URLs
     path('websocket-test/', views.websocket_test, name='websocket_test'),
     path('employee-diagnostic/', views.employee_diagnostic, name='employee-diagnostic'),
-    path('minimal-calendar/', views.minimal_calendar_view, name='minimal_calendar'),
+    path('calendar/', views.minimal_calendar_view, name='calendar'),
     path('calendar-simplified/', CalendarViewSimplified.as_view(), name='calendar-simplified'),
     path('get-employees-json/', views.get_employees_json, name='get-employees-json'),
+
+    #Demo URLs
+    path('index/', views.index, name='index'),
+
 ]
 
 

@@ -2,31 +2,91 @@
 {% block content %}
 <div class="container mt-4">
     <div class="row">
-        <!-- Sidebar -->
-        <div class="col-md-3">
-            <div class="list-group">
-                <a href="{% url 'email_inbox' %}" class="list-group-item list-group-item-action active">
-                    Inbox
-                </a>
-                <a href="{% url 'email_sent' %}" class="list-group-item list-group-item-action">
-                    Sent Mail
-                </a>
-                <a href="{% url 'email_deleted' %}" class="list-group-item list-group-item-action">
-                    Deleted Mail
-                </a>
-                <a href="{% if latest_thread %}{% url 'email_thread' latest_thread.message_id %}{% else %}{% url 'compose_email' %}{% endif %}"
-                   class="list-group-item list-group-item-action">
-                    Email Threads
-                </a>
+        <!-- Email Sidebar -->
+<div class="col-md-3 email-sidebar">
+    <div class="list-group">
+        {% if email_account %}
+            <a href="{% url 'email_inbox' %}" class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'email_inbox' %}active{% endif %}">
+                Inbox
+            </a>
+            <a href="{% url 'email_sent' %}" class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'email_sent' %}active{% endif %}">
+                Sent Mail
+            </a>
+            <a href="{% url 'email_deleted' %}" class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'email_deleted' %}active{% endif %}">
+                Deleted Mail
+            </a>
+            <a href="{% if latest_thread %}{% url 'email_thread' latest_thread.message_id %}{% else %}{% url 'compose_email' %}{% endif %}"
+               class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'email_thread' or request.resolver_match.url_name == 'compose_email' %}active{% endif %}">
+                Email Threads
+            </a>
+        {% endif %}
 
-                <a href="{% url 'email_account_list' %}" class="list-group-item list-group-item-action">
-                    Manage Email Accounts
-                </a>
-            </div>
-            <a href="{% url 'compose_email' %}" class="btn btn-primary btn-block mt-3">
-                Compose Email
+        <a href="{% url 'email_account_list' %}" class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'email_account_list' %}active{% endif %}">
+            Manage Email Accounts
+        </a>
+    </div>
+
+    {% if email_account %}
+        <a href="{% url 'compose_email' %}" class="btn btn-primary btn-block mt-3">
+            Compose Email
+        </a>
+
+        <div class="text-center mt-3">
+            <p class="mb-1"><strong>{{ email_account.email_address }}</strong></p>
+            <a href="{% url 'email_account_update' email_account.pk %}" class="btn btn-outline-info btn-sm mb-2">
+                Update Email Account
+            </a>
+            <form method="post" action="{% url 'email_account_delete' email_account.pk %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-outline-danger btn-sm">
+                    Remove Email Account
+                </button>
+            </form>
+        </div>
+    {% else %}
+        <div class="text-center mt-3">
+            <a href="{% url 'email_account_create' %}" class="btn btn-outline-primary btn-block">
+                Add Email Address
             </a>
         </div>
+    {% endif %}
+</div>
+
+<!-- Inline CSS for Sidebar -->
+<style>
+    .email-sidebar {
+        min-height: 600px;
+        min-width: 200px;
+        max-height: 80vh;
+        overflow-y: auto;
+        background-color: #f8f9fa;
+        padding: 15px;
+        border-radius: 8px;
+        box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    .email-sidebar .list-group-item {
+        border: none;
+        font-weight: 500;
+        color: #333;
+        transition: background 0.3s ease-in-out;
+    }
+
+    .email-sidebar .list-group-item:hover {
+        background-color: #e2e6ea;
+    }
+
+    .email-sidebar .list-group-item.active {
+        background-color: #007bff !important;
+        color: #fff !important;
+        font-weight: bold;
+    }
+
+    .btn-block {
+        width: 100%;
+    }
+</style>
+
 
         <!-- Main Content -->
         <div class="col-md-9">
