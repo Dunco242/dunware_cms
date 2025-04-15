@@ -49,7 +49,11 @@ ALLOWED_HOSTS = [
     '.dunwaresolutions.com', # Include the base domain
 ]
 
-CSRF_TRUSTED_ORIGINS = ['https://www.dunwaresolutions.com']
+CSRF_TRUSTED_ORIGINS = [
+    'https://www.dunwaresolutions.com',
+    'https://dunwaresolutions.com',
+    'https://dunware-cms.onrender.com'
+]
 
 INSTALLED_APPS = [
     'django.contrib.admin',
