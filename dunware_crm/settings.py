@@ -41,7 +41,7 @@ else:
     X_FRAME_OPTIONS = 'DENY'
     USE_SECURE_WEBSOCKETS = True
 
-ALLOWED_HOSTS = ['127.0.0.1', 'localhost', 'dunware-cms.onrender.com', 'dunwaresolutions.com', 'www.dunwaresolutions.com']
+ALLOWED_HOSTS = ['127.0.0.1', 'localhost', 'dunware-cms.onrender.com', 'www.dunwaresolutions.com', 'https://www.dunwaresolutions.com', 'http://www.dunwaresolutions.com']
 
 INSTALLED_APPS = [
     'django.contrib.admin',
