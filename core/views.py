@@ -1740,28 +1740,26 @@ def user_calendar_events(request):
     """API endpoint to get calendar events for the current user"""
     try:
         employee = request.user.employee_profile
+        events = []
 
-        # Get date range from request
+        # 1. Fetch date range
         start_date = request.GET.get('start')
         end_date = request.GET.get('end')
-
+        # (Date range processing - same as before)
         if start_date and end_date:
             start_date = datetime.fromisoformat(start_date.rstrip('Z'))
             end_date = datetime.fromisoformat(end_date.rstrip('Z'))
             start_date = timezone.make_aware(start_date)
             end_date = timezone.make_aware(end_date)
         else:
-            # Default to current month if not specified
             today = timezone.now()
             start_date = today.replace(day=1, hour=0, minute=0, second=0)
             next_month = today.month + 1 if today.month < 12 else 1
             next_month_year = today.year if today.month < 12 else today.year + 1
             end_date = today.replace(year=next_month_year, month=next_month, day=1, hour=23, minute=59, second=59)
 
-        # Get events
-        events = []
-
-        # Add tasks
+        # 2. Fetch application events (tasks, meetings, events)
+        # (Your existing code for fetching tasks, meetings, and events... )
         tasks = Task.objects.filter(
             Q(assigned_to=employee) | Q(created_by=employee),
             due_date__range=(start_date, end_date)
@@ -1785,7 +1783,6 @@ def user_calendar_events(request):
                 }
             })
 
-        # Add meetings
         meetings = Meeting.objects.filter(
             Q(organizer=employee) | Q(attendees=employee),
             start_time__range=(start_date, end_date)
@@ -1809,7 +1806,6 @@ def user_calendar_events(request):
                 }
             })
 
-        # Add events
         calendar_events = Event.objects.filter(
             Q(created_by=employee) | Q(attendees=employee),
             start_time__range=(start_date, end_date)
@@ -1835,12 +1831,53 @@ def user_calendar_events(request):
                 }
             })
 
+        # 3. Fetch Google Calendar events
+        user_token_file = f'token_{request.user.id}.pickle'
+        token_path = os.path.join(os.path.dirname(__file__), user_token_file)
+
+        if os.path.exists(token_path):  # Check if token exists
+            try:
+                with open(token_path, 'rb') as token:
+                    creds = pickle.load(token)
+
+                service = build('calendar', 'v3', credentials=creds)
+                events_result = service.events().list(
+                    calendarId='primary',
+                    timeMin=start_date.isoformat(),  # Use the fetched start_date
+                    timeMax=end_date.isoformat(),    # and end_date
+                    maxResults=250,
+                    singleEvents=True,
+                    orderBy='startTime'
+                ).execute()
+                google_events = events_result.get('items', [])
+
+                for g_event in google_events:
+                    start = g_event['start'].get('dateTime', g_event['start'].get('date'))
+                    end = g_event['end'].get('dateTime', g_event['end'].get('date'))
+                    events.append({
+                        'id': f"google_{g_event['id']}",
+                        'title': g_event['summary'],
+                        'start': start,
+                        'end': end,
+                        'description': g_event.get('description', ''),
+                        'location': g_event.get('location', ''),
+                        'color': '#4CAF50',  # Google Calendar color
+                        'extendedProps': {
+                            'type': 'event',
+                            'event_type': 'google'
+                        }
+                    })
+            except Exception as e:
+                logger.error(f"Error fetching Google Calendar events: {e}", exc_info=True)
+                #  IMPORTANT:  Log the error and continue.  Don't prevent the rest of the calendar from loading.
+                messages.error(request, f"Error fetching Google Calendar events: {e}")
+
+        # 4. Return combined events
         return JsonResponse(events, safe=False)
 
     except Exception as e:
         logger.error(f"Error getting calendar events: {str(e)}", exc_info=True)
         return JsonResponse({'error': str(e)}, status=500)
-
 
 @login_required
 def calendar_events(request):
@@ -5701,7 +5738,7 @@ def minimal_calendar_view(request):
 
             if not employee_ids:
                 messages.error(request, "Please select at least one participant")
-                return redirect('minimal_calendar')
+                return redirect('calendar')
 
             # Get Employee objects for selected IDs
             selected_employees = Employee.objects.filter(id__in=employee_ids)
@@ -5748,7 +5785,7 @@ def minimal_calendar_view(request):
                 logger.error(f"Error suggesting meeting time: {str(e)}")
                 messages.error(request, f"Error finding optimal meeting time: {str(e)}")
 
-            return redirect('minimal_calendar')
+            return redirect('calendar')
 
         elif action == 'availability_check':
             # Handle availability check form
@@ -5795,7 +5832,7 @@ def minimal_calendar_view(request):
                 logger.error(f"Error checking availability: {str(e)}")
                 messages.error(request, f"Error checking availability: {str(e)}")
 
-            return redirect('minimal_calendar')
+            return redirect('calendar')
 
         # NEW FUNCTIONALITY: ICS file upload
         elif 'ics_upload' in request.POST:
@@ -5844,7 +5881,7 @@ def minimal_calendar_view(request):
             else:
                 messages.error(request, "Invalid form submission")
 
-            return redirect('minimal_calendar')
+            return redirect('calendar')
 
         # NEW FUNCTIONALITY: Google Calendar import
         elif 'import_google_calendar' in request.POST:
@@ -5920,7 +5957,7 @@ def minimal_calendar_view(request):
                 logger.error(f"Error importing from Google Calendar: {str(e)}")
                 messages.error(request, f"Error importing from Google Calendar: {str(e)}")
 
-            return redirect('minimal_calendar')
+            return redirect('calendar')
 
         # NEW FUNCTIONALITY: Universal Calendar import (iCal/WebCal URLs)
         elif 'universal_calendar' in request.POST:
@@ -5938,7 +5975,7 @@ def minimal_calendar_view(request):
                     response = requests.get(calendar_url)
                     if response.status_code != 200:
                         messages.error(request, f"Failed to fetch calendar: HTTP {response.status_code}")
-                        return redirect('minimal_calendar')
+                        return redirect('calendar')
 
                     # Parse the calendar data
                     cal = Calendar.from_ical(response.content)
