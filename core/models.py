@@ -701,6 +701,7 @@ class Meeting(models.Model):
         ('in_person', 'In Person'),
         ('phone', 'Phone Call'),
         ('teams', 'Microsoft Teams'),
+        ('google_import', 'Google Calendar Import'),
         ('other', 'Other')
     ]
 
