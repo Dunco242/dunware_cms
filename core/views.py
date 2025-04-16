@@ -5960,7 +5960,7 @@ def minimal_calendar_view(request):
 
                     # Create meeting object with organizer (not user)
                     Meeting.objects.create(
-                        organizer=request.user,
+                        organizer=request.user.employee_profile,
                         title=summary,
                         start_time=start_time,
                         end_time=end_time,
