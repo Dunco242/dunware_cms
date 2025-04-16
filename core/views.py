@@ -1490,7 +1490,7 @@ class MeetingDeleteView(LoginRequiredMixin, DeleteView):
         meeting = self.get_object()
 
         # Ensure the user has permission to delete
-        if meeting.organizer.user != request.user:
+        if meeting.organizer.user != request.user.employee_profile:
             messages.error(request, 'You do not have permission to delete this meeting.')
             return redirect('meeting-detail', pk=meeting.pk)
 
@@ -1801,7 +1801,7 @@ def user_calendar_events(request):
                     'type': 'meeting',
                     'meeting_type': meeting.get_meeting_type_display(),
                     'status': meeting.status,
-                    'organizer': meeting.organizer.user.get_full_name() if meeting.organizer else 'Unknown'
+                    'organizer': meeting.organizer.user.employee_profile() if meeting.organizer else 'Unknown'
                 }
             })
 
@@ -2241,7 +2241,7 @@ def export_meetings(request):
             meeting.start_time.strftime('%Y-%m-%d %H:%M:%S'),
             meeting.end_time.strftime('%Y-%m-%d %H:%M:%S'),
             meeting.description,
-            meeting.organizer.user.get_full_name(),
+            meeting.organizer.user.employee_profile(),
             attendees,
             meeting.created_at.strftime('%Y-%m-%d %H:%M:%S')
         ])
@@ -3336,7 +3336,7 @@ def user_calendar_events(request):
                     'status': meeting.status,
                     'customer': meeting.customers.first().company_name if meeting.customers.exists() else None,
                     'meeting_type': meeting.get_meeting_type_display(),
-                    'organizer': meeting.organizer.user.get_full_name(),
+                    'organizer': meeting.organizer.user.employee_profile(),
                 }
             })
 
@@ -4324,7 +4324,7 @@ def debug_calendar_items(request):
                 'title': meeting.title,
                 'start_time': meeting.start_time.isoformat() if meeting.start_time else None,
                 'end_time': meeting.end_time.isoformat() if meeting.end_time else None,
-                'organizer': meeting.organizer.user.username if meeting.organizer else None,
+                'organizer': meeting.organizer.user.employee_profile if meeting.organizer else None,
             } for meeting in meetings
         ],
         'events': [
@@ -4339,7 +4339,7 @@ def debug_calendar_items(request):
     }
 
     return JsonResponse({
-        'employee': employee.user.username,
+        'employee': employee.user_profile,
         'counts': {
             'tasks': tasks.count(),
             'meetings': meetings.count(),
