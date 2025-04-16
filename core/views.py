@@ -1745,7 +1745,7 @@ def user_calendar_events(request):
         # 1. Fetch date range
         start_date = request.GET.get('start')
         end_date = request.GET.get('end')
-        # (Date range processing - same as before)
+        # Date range processing
         if start_date and end_date:
             start_date = datetime.fromisoformat(start_date.rstrip('Z'))
             end_date = datetime.fromisoformat(end_date.rstrip('Z'))
@@ -1759,7 +1759,6 @@ def user_calendar_events(request):
             end_date = today.replace(year=next_month_year, month=next_month, day=1, hour=23, minute=59, second=59)
 
         # 2. Fetch application events (tasks, meetings, events)
-        # (Your existing code for fetching tasks, meetings, and events... )
         tasks = Task.objects.filter(
             Q(assigned_to=employee) | Q(created_by=employee),
             due_date__range=(start_date, end_date)
@@ -1831,46 +1830,87 @@ def user_calendar_events(request):
                 }
             })
 
-        # 3. Fetch Google Calendar events
+        # 3. Fetch Google Calendar events with improved error handling
         user_token_file = f'token_{request.user.id}.pickle'
         token_path = os.path.join(os.path.dirname(__file__), user_token_file)
+
+        google_calendar_connected = False
+        google_calendar_errors = None
 
         if os.path.exists(token_path):  # Check if token exists
             try:
                 with open(token_path, 'rb') as token:
                     creds = pickle.load(token)
 
-                service = build('calendar', 'v3', credentials=creds)
-                events_result = service.events().list(
-                    calendarId='primary',
-                    timeMin=start_date.isoformat(),  # Use the fetched start_date
-                    timeMax=end_date.isoformat(),    # and end_date
-                    maxResults=250,
-                    singleEvents=True,
-                    orderBy='startTime'
-                ).execute()
-                google_events = events_result.get('items', [])
+                # Check if token is expired and refresh if possible
+                if creds.expired and creds.refresh_token:
+                    try:
+                        from google.auth.transport.requests import Request
+                        creds.refresh(Request())
+                        # Save the refreshed credentials
+                        with open(token_path, 'wb') as token:
+                            pickle.dump(creds, token)
+                        logger.info(f"Google Calendar token refreshed for user {request.user.id}")
+                    except Exception as refresh_error:
+                        logger.error(f"Error refreshing Google credentials: {refresh_error}", exc_info=True)
+                        messages.error(request, "Your Google Calendar connection has expired. Please reconnect.")
+                        google_calendar_errors = f"Token refresh failed: {str(refresh_error)}"
 
-                for g_event in google_events:
-                    start = g_event['start'].get('dateTime', g_event['start'].get('date'))
-                    end = g_event['end'].get('dateTime', g_event['end'].get('date'))
-                    events.append({
-                        'id': f"google_{g_event['id']}",
-                        'title': g_event['summary'],
-                        'start': start,
-                        'end': end,
-                        'description': g_event.get('description', ''),
-                        'location': g_event.get('location', ''),
-                        'color': '#4CAF50',  # Google Calendar color
-                        'extendedProps': {
-                            'type': 'event',
-                            'event_type': 'google'
-                        }
-                    })
+                # Only proceed if we have valid credentials
+                if not creds.expired:
+                    google_calendar_connected = True
+                    service = build('calendar', 'v3', credentials=creds)
+
+                    events_result = service.events().list(
+                        calendarId='primary',
+                        timeMin=start_date.isoformat(),
+                        timeMax=end_date.isoformat(),
+                        maxResults=250,
+                        singleEvents=True,
+                        orderBy='startTime'
+                    ).execute()
+
+                    google_events = events_result.get('items', [])
+
+                    # Properly format Google Calendar events to match FullCalendar's expected format
+                    for g_event in google_events:
+                        start = g_event['start'].get('dateTime', g_event['start'].get('date'))
+                        end = g_event['end'].get('dateTime', g_event['end'].get('date'))
+
+                        events.append({
+                            'id': f"google_{g_event['id']}",
+                            'title': g_event['summary'],
+                            'start': start,
+                            'end': end,
+                            'backgroundColor': '#4CAF50',  # Google Calendar color
+                            'borderColor': '#4CAF50',
+                            'textColor': '#ffffff',
+                            'url': g_event.get('htmlLink', '#'),
+                            'extendedProps': {
+                                'type': 'event',
+                                'event_type': 'google',
+                                'description': g_event.get('description', ''),
+                                'location': g_event.get('location', ''),
+                                'organizer': g_event.get('organizer', {}).get('email', 'Unknown')
+                            }
+                        })
+
+                    logger.info(f"Successfully loaded {len(google_events)} Google Calendar events for user {request.user.id}")
+                else:
+                    logger.warning(f"Google Calendar token expired for user {request.user.id} and couldn't be refreshed")
+                    google_calendar_errors = "Token expired and couldn't be refreshed"
+
             except Exception as e:
                 logger.error(f"Error fetching Google Calendar events: {e}", exc_info=True)
-                #  IMPORTANT:  Log the error and continue.  Don't prevent the rest of the calendar from loading.
-                messages.error(request, f"Error fetching Google Calendar events: {e}")
+                messages.error(request, f"Error fetching Google Calendar events: {str(e)}")
+                google_calendar_errors = str(e)
+        else:
+            # User hasn't connected Google Calendar yet - no error, just info
+            logger.info(f"No Google Calendar token found for user {request.user.id}")
+
+        # Add debug information to request for template rendering if needed
+        request.google_calendar_connected = google_calendar_connected
+        request.google_calendar_errors = google_calendar_errors
 
         # 4. Return combined events
         return JsonResponse(events, safe=False)
@@ -1878,6 +1918,7 @@ def user_calendar_events(request):
     except Exception as e:
         logger.error(f"Error getting calendar events: {str(e)}", exc_info=True)
         return JsonResponse({'error': str(e)}, status=500)
+
 
 @login_required
 def calendar_events(request):
