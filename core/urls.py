@@ -150,7 +150,7 @@ urlpatterns = [
     path('old_calendar/', views.user_calendar_view, name='old-calendar'),
     path('api/user-calendar-events/', views.user_calendar_events, name='user-calendar-events'),
     path('calendar/upload-ics/', views.upload_ics, name='upload-ics'),
-    path('calendar/google/callback', views.handle_google_callback, name='google-calendar-callback'),
+    path('calendar/google/callback/', views.handle_google_callback, name='google-calendar-callback'),
 
     # Service URLs
     path('services/', ServiceListView.as_view(), name='service-list'),
