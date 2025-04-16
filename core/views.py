@@ -6065,7 +6065,7 @@ def handle_google_callback(request):
 
     except Exception as e:
         messages.error(request, f"Error connecting to Google Calendar: {str(e)}")
-        return redirect('minimal_calendar')
+        return redirect('calendar')
 
 
 def authenticated_user_only(user):
