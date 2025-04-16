@@ -844,7 +844,7 @@ class Meeting(models.Model):
                 raise ValidationError("Cannot schedule meetings in the past")
 
             # Maximum meeting duration validation
-            max_duration = timedelta(hours=8)
+            max_duration = timedelta(hours=96)
             if (self.end_time - self.start_time) > max_duration:
                 raise ValidationError("Meeting duration cannot exceed 8 hours")
 
