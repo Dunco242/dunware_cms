@@ -5904,7 +5904,7 @@ def minimal_calendar_view(request):
 
                             # Create meeting object with organizer (not user)
                             Meeting.objects.create(
-                                organizer=request.user.employee_profile,
+                                organizer=request.user,
                                 title=summary,
                                 start_time=start_time,
                                 end_time=end_time,
@@ -6087,7 +6087,7 @@ def minimal_calendar_view(request):
     }
 
     # Render the minimal template with enhanced context
-    return render(request, 'core/calendar.html', context)
+    return render(request, 'core/minimal_calendar.html', context)
 
 # Helper function for formatting rule day info (moved outside the view)
 def _get_rule_day_info(rule):
@@ -6115,7 +6115,7 @@ def handle_google_callback(request):
         code = request.GET.get('code')
         if not code:
             messages.error(request, "Authorization failed - no code received")
-            return redirect('calendar')
+            return redirect('minimal_calendar')
 
         # Get flow object
         credentials_file = settings.GOOGLE_CALENDAR_CREDENTIALS_FILE
@@ -6136,7 +6136,7 @@ def handle_google_callback(request):
             pickle.dump(creds, token)
 
         # Redirect back to the original page
-        redirect_path = request.session.get('calendar_redirect', 'minimal_calendar')
+        redirect_path = request.session.get('calendar_redirect', 'calendar')
 
         messages.success(request, "Successfully connected to Google Calendar")
         return redirect(redirect_path)
