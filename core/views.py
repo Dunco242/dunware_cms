@@ -1490,7 +1490,7 @@ class MeetingDeleteView(LoginRequiredMixin, DeleteView):
         meeting = self.get_object()
 
         # Ensure the user has permission to delete
-        if meeting.organizer.user != request.user.employee_profile:
+        if meeting.organizer != request.user.employee_profile:
             messages.error(request, 'You do not have permission to delete this meeting.')
             return redirect('meeting-detail', pk=meeting.pk)
 
@@ -1735,22 +1735,24 @@ def calendar_view(request):
 
     return render(request, 'core/calendar.html', context)
 
+logger = logging.getLogger(__name__)
+
+
 @login_required
 def user_calendar_events(request):
     """API endpoint to get calendar events for the current user"""
     try:
-        employee = request.user.employee_profile
+        employee = request.user.employee_profile  # Corrected reference
+
         events = []
 
         # 1. Fetch date range
         start_date = request.GET.get('start')
         end_date = request.GET.get('end')
-        # Date range processing
+
         if start_date and end_date:
-            start_date = datetime.fromisoformat(start_date.rstrip('Z'))
-            end_date = datetime.fromisoformat(end_date.rstrip('Z'))
-            start_date = timezone.make_aware(start_date)
-            end_date = timezone.make_aware(end_date)
+            start_date = timezone.make_aware(datetime.fromisoformat(start_date.rstrip('Z')))
+            end_date = timezone.make_aware(datetime.fromisoformat(end_date.rstrip('Z')))
         else:
             today = timezone.now()
             start_date = today.replace(day=1, hour=0, minute=0, second=0)
@@ -1801,7 +1803,7 @@ def user_calendar_events(request):
                     'type': 'meeting',
                     'meeting_type': meeting.get_meeting_type_display(),
                     'status': meeting.status,
-                    'organizer': meeting.organizer.user.employee_profile() if meeting.organizer else 'Unknown'
+                    'organizer': meeting.organizer.user.get_full_name() if meeting.organizer else 'Unknown'
                 }
             })
 
@@ -1830,33 +1832,24 @@ def user_calendar_events(request):
                 }
             })
 
-        # 3. Fetch Google Calendar events with improved error handling
+        # 3. Fetch Google Calendar events
         user_token_file = f'token_{request.user.id}.pickle'
         token_path = os.path.join(os.path.dirname(__file__), user_token_file)
 
         google_calendar_connected = False
         google_calendar_errors = None
 
-        if os.path.exists(token_path):  # Check if token exists
+        if os.path.exists(token_path):
             try:
                 with open(token_path, 'rb') as token:
                     creds = pickle.load(token)
 
-                # Check if token is expired and refresh if possible
                 if creds.expired and creds.refresh_token:
-                    try:
-                        from google.auth.transport.requests import Request
-                        creds.refresh(Request())
-                        # Save the refreshed credentials
-                        with open(token_path, 'wb') as token:
-                            pickle.dump(creds, token)
-                        logger.info(f"Google Calendar token refreshed for user {request.user.id}")
-                    except Exception as refresh_error:
-                        logger.error(f"Error refreshing Google credentials: {refresh_error}", exc_info=True)
-                        messages.error(request, "Your Google Calendar connection has expired. Please reconnect.")
-                        google_calendar_errors = f"Token refresh failed: {str(refresh_error)}"
+                    from google.auth.transport.requests import Request
+                    creds.refresh(Request())
+                    with open(token_path, 'wb') as token:
+                        pickle.dump(creds, token)
 
-                # Only proceed if we have valid credentials
                 if not creds.expired:
                     google_calendar_connected = True
                     service = build('calendar', 'v3', credentials=creds)
@@ -1872,7 +1865,6 @@ def user_calendar_events(request):
 
                     google_events = events_result.get('items', [])
 
-                    # Properly format Google Calendar events to match FullCalendar's expected format
                     for g_event in google_events:
                         start = g_event['start'].get('dateTime', g_event['start'].get('date'))
                         end = g_event['end'].get('dateTime', g_event['end'].get('date'))
@@ -1882,7 +1874,7 @@ def user_calendar_events(request):
                             'title': g_event['summary'],
                             'start': start,
                             'end': end,
-                            'backgroundColor': '#4CAF50',  # Google Calendar color
+                            'backgroundColor': '#4CAF50',
                             'borderColor': '#4CAF50',
                             'textColor': '#ffffff',
                             'url': g_event.get('htmlLink', '#'),
@@ -1895,24 +1887,13 @@ def user_calendar_events(request):
                             }
                         })
 
-                    logger.info(f"Successfully loaded {len(google_events)} Google Calendar events for user {request.user.id}")
-                else:
-                    logger.warning(f"Google Calendar token expired for user {request.user.id} and couldn't be refreshed")
-                    google_calendar_errors = "Token expired and couldn't be refreshed"
-
             except Exception as e:
                 logger.error(f"Error fetching Google Calendar events: {e}", exc_info=True)
-                messages.error(request, f"Error fetching Google Calendar events: {str(e)}")
                 google_calendar_errors = str(e)
-        else:
-            # User hasn't connected Google Calendar yet - no error, just info
-            logger.info(f"No Google Calendar token found for user {request.user.id}")
 
-        # Add debug information to request for template rendering if needed
         request.google_calendar_connected = google_calendar_connected
         request.google_calendar_errors = google_calendar_errors
 
-        # 4. Return combined events
         return JsonResponse(events, safe=False)
 
     except Exception as e:
@@ -1922,86 +1903,84 @@ def user_calendar_events(request):
 
 @login_required
 def calendar_events(request):
-    """
-    Retrieve events for a specific customer or for the current user
-    """
-    customer_id = request.GET.get('customer_id')
-    employee = request.user.employee_employee
+    """API endpoint to get calendar events for the current employee"""
+    try:
+        employee = request.user.employee_profile  # fixed reference
 
-    if customer_id:
-        # Get events specific to this customer
-        events = Event.objects.filter(customer_id=customer_id)
-    else:
-        # Get events where user is creator or attendee
         events = Event.objects.filter(
-            Q(created_by=employee) |
-            Q(attendees=employee)
-        ).distinct()
+            attendees=employee,
+            start_time__gte=timezone.now() - timedelta(days=30),
+            end_time__lte=timezone.now() + timedelta(days=365)
+        ).select_related('created_by', 'customer')
 
-    return JsonResponse([event.get_calendar_event_data() for event in events], safe=False)
+        data = []
 
+        for event in events:
+            data.append({
+                'id': f'event_{event.id}',
+                'title': event.title,
+                'start': event.start_time.isoformat(),
+                'end': event.end_time.isoformat(),
+                'backgroundColor': event.color or '#858796',
+                'borderColor': event.color or '#858796',
+                'textColor': '#ffffff',
+                'url': f'/events/{event.id}/',
+                'extendedProps': {
+                    'type': 'event',
+                    'event_type': event.event_type,
+                    'location': event.location or '',
+                    'description': event.description or '',
+                    'customer': event.customer.company_name if event.customer else None,
+                    'created_by': event.created_by.user.get_full_name() if event.created_by else None
+                }
+            })
+
+        return JsonResponse(data, safe=False)
+
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
 
 @login_required
 def available_slots(request):
-    """Get available time slots for scheduling meetings"""
-    date_str = request.GET.get('date')
-    duration = int(request.GET.get('duration', 30))  # Default to 30 minutes
-
+    """API endpoint to get available calendar slots for the current employee"""
     try:
-        date = datetime.strptime(date_str, '%Y-%m-%d').date()
-    except (ValueError, TypeError):
-        return JsonResponse({'error': 'Invalid date format'}, status=400)
+        employee = request.user.employee_profile  # fixed reference
 
-    # Define working hours (9 AM to 5 PM)
-    work_start = datetime.combine(date, datetime.strptime('09:00', '%H:%M').time())
-    work_end = datetime.combine(date, datetime.strptime('17:00', '%H:%M').time())
+        start_str = request.GET.get('start')
+        end_str = request.GET.get('end')
 
-    # Get all meetings for the day
-    employee = request.user.employee_employee
-    meetings = Meeting.objects.filter(
-        Q(organizer=employee) | Q(attendees=employee),
-        start_time__date=date
-    ).order_by('start_time')
+        if not start_str or not end_str:
+            return JsonResponse({'error': 'Start and end date are required.'}, status=400)
 
-    # Create list of busy slots
-    busy_slots = []
-    for meeting in meetings:
-        busy_slots.append({
-            'start': meeting.start_time,
-            'end': meeting.end_time
-        })
+        start = datetime.fromisoformat(start_str.rstrip('Z'))
+        end = datetime.fromisoformat(end_str.rstrip('Z'))
 
-    # Find available slots
-    available_slots = []
-    current_time = work_start
-    slot_duration = timedelta(minutes=duration)
+        events = Event.objects.filter(
+            attendees=employee,
+            start_time__lt=end,
+            end_time__gt=start
+        )
 
-    while current_time + slot_duration <= work_end:
-        slot_end = current_time + slot_duration
-        is_available = True
+        slots = []
+        current = start
 
-        # Check if slot overlaps with any meeting
-        for busy_slot in busy_slots:
-            if (current_time < busy_slot['end'] and
-                slot_end > busy_slot['start']):
-                is_available = False
-                current_time = busy_slot['end']
-                break
+        while current < end:
+            slot_start = current
+            slot_end = current + timedelta(minutes=30)
 
-        if is_available:
-            available_slots.append({
-                'start': current_time.strftime('%Y-%m-%dT%H:%M:%S'),
-                'end': slot_end.strftime('%Y-%m-%dT%H:%M:%S')
-            })
-            current_time += slot_duration
-        else:
-            continue
+            conflict = events.filter(start_time__lt=slot_end, end_time__gt=slot_start).exists()
+            if not conflict:
+                slots.append({
+                    'start': slot_start.isoformat(),
+                    'end': slot_end.isoformat()
+                })
 
-    return JsonResponse({
-        'date': date_str,
-        'duration': duration,
-        'slots': available_slots
-    })
+            current += timedelta(minutes=30)
+
+        return JsonResponse(slots, safe=False)
+
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
 
 @login_required
 def update_task_status(request):
