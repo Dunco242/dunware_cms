@@ -5904,7 +5904,7 @@ def minimal_calendar_view(request):
 
                             # Create meeting object with organizer (not user)
                             Meeting.objects.create(
-                                organizer=request.user,
+                                organizer=request.user.employee_profile,
                                 title=summary,
                                 start_time=start_time,
                                 end_time=end_time,
@@ -6057,7 +6057,7 @@ def minimal_calendar_view(request):
             else:
                 messages.error(request, "Invalid form submission")
 
-            return redirect('minimal_calendar')
+            return redirect('calendar')
 
     # Get meetings for display
     from .models import Meeting
@@ -6087,7 +6087,7 @@ def minimal_calendar_view(request):
     }
 
     # Render the minimal template with enhanced context
-    return render(request, 'core/minimal_calendar.html', context)
+    return render(request, 'core/calendar.html', context)
 
 # Helper function for formatting rule day info (moved outside the view)
 def _get_rule_day_info(rule):
@@ -6115,7 +6115,7 @@ def handle_google_callback(request):
         code = request.GET.get('code')
         if not code:
             messages.error(request, "Authorization failed - no code received")
-            return redirect('minimal_calendar')
+            return redirect('calendar')
 
         # Get flow object
         credentials_file = settings.GOOGLE_CALENDAR_CREDENTIALS_FILE
