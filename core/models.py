@@ -814,6 +814,10 @@ class Meeting(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     reminder_sent = models.BooleanField(default=False)
     notes = models.TextField(blank=True)
+    google_event_id = models.CharField(max_length=255, blank=True, null=True)
+
+    class Meta:
+        db_table = 'core_meeting'
 
     # Custom manager
     objects = MeetingManager()

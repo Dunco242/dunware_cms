@@ -1742,7 +1742,7 @@ logger = logging.getLogger(__name__)
 def user_calendar_events(request):
     """API endpoint to get calendar events for the current user"""
     try:
-        employee = request.user.employee_profile  # Corrected reference
+        employee = request.user.employee_profile
 
         events = []
 
@@ -1760,7 +1760,40 @@ def user_calendar_events(request):
             next_month_year = today.year if today.month < 12 else today.year + 1
             end_date = today.replace(year=next_month_year, month=next_month, day=1, hour=23, minute=59, second=59)
 
-        # 2. Fetch application events (tasks, meetings, events)
+        logger.debug(f"Fetching events for employee {employee.id}, range {start_date} to {end_date}")
+
+        # 2. Fetch meetings
+        meetings = Meeting.objects.filter(
+            Q(organizer=employee) | Q(attendees=employee),
+            start_time__range=(start_date, end_date)
+        ).distinct().select_related('organizer', 'organizer__user')
+
+        logger.debug(f"Found {meetings.count()} meetings")
+        for meeting in meetings:
+            logger.debug(f"Meeting ID: {meeting.id}, Title: {meeting.title}, Type: {meeting.meeting_type}, Start: {meeting.start_time}")
+
+        for meeting in meetings:
+            background_color = '#e74a3b'  # Default red
+            if meeting.meeting_type == 'google_import':
+                background_color = '#ff9800'  # Orange for google_import
+            events.append({
+                'id': f'meeting_{meeting.id}',
+                'title': meeting.title,
+                'start': meeting.start_time.isoformat(),
+                'end': meeting.end_time.isoformat(),
+                'backgroundColor': background_color,
+                'borderColor': background_color,
+                'textColor': '#ffffff',
+                'url': f'/meetings/{meeting.id}/',
+                'extendedProps': {
+                    'type': 'meeting',
+                    'meeting_type': meeting.get_meeting_type_display(),
+                    'status': meeting.status,
+                    'organizer': meeting.organizer.user.get_full_name() if meeting.organizer else 'Unknown'
+                }
+            })
+
+        # 3. Fetch tasks
         tasks = Task.objects.filter(
             Q(assigned_to=employee) | Q(created_by=employee),
             due_date__range=(start_date, end_date)
@@ -1784,29 +1817,7 @@ def user_calendar_events(request):
                 }
             })
 
-        meetings = Meeting.objects.filter(
-            Q(organizer=employee) | Q(attendees=employee),
-            start_time__range=(start_date, end_date)
-        ).distinct().select_related('organizer', 'organizer__user')
-
-        for meeting in meetings:
-            events.append({
-                'id': f'meeting_{meeting.id}',
-                'title': meeting.title,
-                'start': meeting.start_time.isoformat(),
-                'end': meeting.end_time.isoformat(),
-                'backgroundColor': '#e74a3b',
-                'borderColor': '#e74a3b',
-                'textColor': '#ffffff',
-                'url': f'/meetings/{meeting.id}/',
-                'extendedProps': {
-                    'type': 'meeting',
-                    'meeting_type': meeting.get_meeting_type_display(),
-                    'status': meeting.status,
-                    'organizer': meeting.organizer.user.get_full_name() if meeting.organizer else 'Unknown'
-                }
-            })
-
+        # 4. Fetch calendar events
         calendar_events = Event.objects.filter(
             Q(created_by=employee) | Q(attendees=employee),
             start_time__range=(start_date, end_date)
@@ -1831,7 +1842,6 @@ def user_calendar_events(request):
                     'created_by': event.created_by.user.get_full_name() if event.created_by else None
                 }
             })
-
         # 3. Fetch Google Calendar events
         user_token_file = f'token_{request.user.id}.pickle'
         token_path = os.path.join(os.path.dirname(__file__), user_token_file)
@@ -3315,7 +3325,7 @@ def user_calendar_events(request):
                     'status': meeting.status,
                     'customer': meeting.customers.first().company_name if meeting.customers.exists() else None,
                     'meeting_type': meeting.get_meeting_type_display(),
-                    'organizer': meeting.organizer.user.employee_profile(),
+                    'organizer': meeting.organizer.user.get_full_name() if meeting.organizer.user else 'Unknown',
                 }
             })
 
@@ -4339,7 +4349,6 @@ def notifications_ws(request, employee_id):
 
 logger = logging.getLogger(__name__)
 
-
 class EmailInboxView(LoginRequiredMixin, ListView):
     """Display inbox emails"""
     model = EmailMessage
@@ -4347,57 +4356,56 @@ class EmailInboxView(LoginRequiredMixin, ListView):
     context_object_name = 'emails'
     paginate_by = 20
 
-    class EmailInboxView(LoginRequiredMixin, ListView):
-        """Display inbox emails"""
-        model = EmailMessage
-        template_name = 'core/email_inbox.html'
-        context_object_name = 'emails'
-        paginate_by = 20
-
     def get_queryset(self):
         """Retrieve emails for the user's associated EmailAccount"""
-        user = self.request.user
-
-        # Ensure user has an Employee profile
-        if not hasattr(user, 'employee_profile'):
-            raise ValidationError("User does not have an associated employee profile.")
-
-        employee = user.employee_profile
-
-        # Ensure Employee has an EmailAccount
-        email_account = getattr(employee, 'email_account', None)
-        if not email_account:
-            raise ValidationError("User does not have an associated email account.")
-
-        return EmailMessage.objects.filter(
-            account=email_account,
-            message_type='incoming',
-            is_archived=False,
-            is_spam=False
-        ).order_by('-created_at')
+        try:
+            email_account = self.request.user.employee_profile.email_account
+            return EmailMessage.objects.filter(
+                account=email_account,
+                message_type='incoming',
+                is_archived=False,
+                is_spam=False
+            ).order_by('-created_at')
+        except (AttributeError, EmailAccount.DoesNotExist):
+            messages.error(self.request, "No email account configured.")
+            return EmailMessage.objects.none()
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        account = self.request.user.employee_profile.email_account
-
-        # Fetch the latest email thread (if any)
-        latest_thread = EmailMessage.objects.filter(account=account).order_by('-created_at').first()
-
-        context['latest_thread'] = latest_thread
+        try:
+            account = self.request.user.employee_profile.email_account
+            context['email_account'] = account
+            context['is_paginated'] = self.paginate_by and self.get_queryset().count() > self.paginate_by
+        except (AttributeError, EmailAccount.DoesNotExist):
+            context['email_account'] = None
         return context
 
 
 @login_required
 def email_account_create(request):
     """View for creating an email account"""
+    try:
+        employee = request.user.employee_profile
+    except AttributeError:
+        logger.error(f"No employee profile for user {request.user.id}")
+        messages.error(request, "No employee profile found.")
+        return redirect('dashboard')
+
     if request.method == 'POST':
         form = EmailAccountForm(request.POST)
         if form.is_valid():
-            email_account = form.save(commit=False)
-            email_account.employee = request.user.employee_profile  # Associate with logged-in employee
-            email_account.save()
-            messages.success(request, 'Email account registered successfully!')
-            return redirect('email_account_list')
+            try:
+                email_account = form.save(commit=False)
+                email_account.employee = employee
+                email_account.save()
+                logger.info(f"Email account created for user {request.user.id}")
+                messages.success(request, 'Email account registered successfully!')
+                return redirect('email_account_list')
+            except Exception as e:
+                logger.error(f"Error creating email account: {str(e)}")
+                messages.error(request, "Error creating email account.")
+        else:
+            messages.error(request, "Invalid form data. Please check and try again.")
     else:
         form = EmailAccountForm()
 
@@ -4407,17 +4415,26 @@ def email_account_create(request):
 @login_required
 def email_account_update(request, pk):
     """View for updating an email account"""
-    email_account = get_object_or_404(EmailAccount, pk=pk, employee=request.user.employee_profile)
+    try:
+        email_account = get_object_or_404(EmailAccount, pk=pk, employee=request.user.employee_profile)
+    except AttributeError:
+        logger.error(f"No employee profile for user {request.user.id}")
+        messages.error(request, "No employee profile found.")
+        return redirect('dashboard')
 
     if request.method == 'POST':
         form = EmailAccountForm(request.POST, instance=email_account)
         if form.is_valid():
-            form.save()
-            messages.success(request, 'Email account updated successfully!')
-            return redirect('email_inbox')  # ✅ Redirect to inbox after successful update
+            try:
+                form.save()
+                logger.info(f"Email account {pk} updated for user {request.user.id}")
+                messages.success(request, 'Email account updated successfully!')
+                return redirect('email_inbox')
+            except Exception as e:
+                logger.error(f"Error updating email account {pk}: {str(e)}")
+                messages.error(request, "Error updating email account.")
         else:
-            messages.error(request, 'Error updating email account. Please check the form and try again.')  # ✅ Flash an error message
-
+            messages.error(request, "Invalid form data. Please check and try again.")
     else:
         form = EmailAccountForm(instance=email_account)
 
@@ -4426,13 +4443,19 @@ def email_account_update(request, pk):
         'title': 'Update Email Account'
     })
 
+
 @login_required
 def activate_email_account(request):
     """Activate existing email account by setting password"""
     try:
-        email_account = request.user.employee_profile.email_account
+        employee = request.user.employee_profile
+    except AttributeError:
+        logger.error(f"No employee profile for user {request.user.id}")
+        messages.error(request, "No employee profile found.")
+        return redirect('dashboard')
 
-        # If account is already active, redirect to inbox
+    try:
+        email_account = employee.email_account
         if email_account.is_active:
             messages.info(request, "Your email account is already activated.")
             return redirect('email_inbox')
@@ -4441,80 +4464,69 @@ def activate_email_account(request):
             password = request.POST.get('password')
             if not password:
                 messages.error(request, "Password is required.")
-                return render(request, 'core/email_activation.html', {
-                    'email_address': email_account.email_address
-                })
-
-            try:
-                # Test the email credentials before saving
-                provider = email_account.provider
-                if provider:
-                    # Initialize test connection based on provider
-                    if '@gmail.com' in email_account.email_address:
-                        # Gmail specific test
+            else:
+                try:
+                    provider = email_account.provider
+                    if provider:
                         with smtplib.SMTP(provider.smtp_server, provider.smtp_port) as server:
                             server.starttls()
                             server.login(email_account.email_address, password)
-                    else:
-                        # Generic test for other providers
-                        with smtplib.SMTP(provider.smtp_server, provider.smtp_port) as server:
-                            server.starttls()
-                            server.login(email_account.email_address, password)
+                        email_account.password = password
+                        email_account.is_active = True
+                        email_account.save()
+                        logger.info(f"Email account activated for user {request.user.id}")
+                        messages.success(request, "Email account activated successfully!")
+                        return redirect('email_inbox')
+                except smtplib.SMTPAuthenticationError:
+                    logger.warning(f"Authentication failed for {email_account.email_address}")
+                    messages.error(request, "Invalid password. For Gmail with 2FA, use an App Password.")
+                except Exception as e:
+                    logger.error(f"Activation error for {email_account.email_address}: {str(e)}")
+                    messages.error(request, "Error connecting to email server.")
 
-                    # If login successful, save the credentials
-                    email_account.password = password
-                    email_account.is_active = True
-                    email_account.save()
-
-                    messages.success(request,
-                        "Email account activated successfully! You can now send and receive emails."
-                    )
-                    return redirect('email_inbox')
-
-            except smtplib.SMTPAuthenticationError:
-                messages.error(request,
-                    "Invalid password. If you're using Gmail with 2FA, please use an App Password."
-                )
-            except Exception as e:
-                logger.error(f"Email activation error: {str(e)}")
-                messages.error(request,
-                    "Error connecting to email server. Please verify your password and try again."
-                )
-
-        # Show the activation form
         return render(request, 'core/email_activation.html', {
             'email_address': email_account.email_address,
             'provider_name': email_account.provider.name if email_account.provider else 'Unknown'
         })
 
     except EmailAccount.DoesNotExist:
-        # Create email account if it doesn't exist
         try:
             provider = EmailProvider.get_provider_for_email(request.user.email)
             EmailAccount.objects.create(
-                employee=request.user.employee_profile,
+                employee=employee,
                 email_address=request.user.email,
                 provider=provider,
                 username=request.user.email,
                 is_active=False
             )
-            messages.info(request, "Email account created. Please activate it by entering your password.")
+            logger.info(f"Email account created for user {request.user.id}")
+            messages.info(request, "Email account created. Please activate it.")
             return redirect('activate_email_account')
         except Exception as e:
             logger.error(f"Error creating email account: {str(e)}")
-            messages.error(request, "Error setting up email account. Please contact support.")
+            messages.error(request, "Error setting up email account.")
             return redirect('dashboard')
 
 
 @login_required
 def email_account_delete(request, pk):
     """View for deleting an email account"""
-    email_account = get_object_or_404(EmailAccount, pk=pk, employee=request.user.employee_profile)
+    try:
+        email_account = get_object_or_404(EmailAccount, pk=pk, employee=request.user.employee_profile)
+    except AttributeError:
+        logger.error(f"No employee profile for user {request.user.id}")
+        messages.error(request, "No employee profile found.")
+        return redirect('dashboard')
 
     if request.method == 'POST':
-        email_account.delete()
-        messages.success(request, 'Email account deleted successfully!')
-        return redirect('email_account_list')
+        try:
+            email_account.delete()
+            logger.info(f"Email account {pk} deleted for user {request.user.id}")
+            messages.success(request, 'Email account deleted successfully!')
+            return redirect('email_account_list')
+        except Exception as e:
+            logger.error(f"Error deleting email account {pk}: {str(e)}")
+            messages.error(request, "Error deleting email account.")
 
     return render(request, 'core/email_account_confirm_delete.html', {'email_account': email_account})
 
@@ -4522,74 +4534,60 @@ def email_account_delete(request, pk):
 @login_required
 def email_account_list(request):
     """List all email accounts for the logged-in employee"""
-    email_accounts = EmailAccount.objects.filter(employee=request.user.employee_profile)
-    return render(request, 'core/email_account_list.html', {'email_accounts': email_accounts})
+    try:
+        employee = request.user.employee_profile
+        email_accounts = EmailAccount.objects.filter(employee=employee)
+        paginator = Paginator(email_accounts, 10)
+        page_obj = paginator.get_page(request.GET.get('page'))
+        return render(request, 'core/email_account_list.html', {
+            'email_accounts': page_obj,
+            'is_paginated': page_obj.has_other_pages()
+        })
+    except AttributeError:
+        logger.error(f"No employee profile for user {request.user.id}")
+        messages.error(request, "No employee profile found.")
+        return render(request, 'core/email_account_list.html', {'email_accounts': []})
+
 
 @login_required
 def compose_email(request):
-    """Compose and send a new email"""
-    employee = request.user.employee_profile
-
-    # Check if email account exists and needs activation
+    """Compose a new email"""
     try:
-        email_account = employee.email_account
-        if not email_account.is_active:
-            messages.info(request, "Please activate your email account to send emails.")
-            return redirect('activate_email_account')
-    except EmailAccount.DoesNotExist:
-        provider = EmailProvider.get_provider_for_email(employee.user.email)
-        EmailAccount.objects.create(
-            employee=employee,
-            email_address=employee.user.email,
-            provider=provider,
-            username=employee.user.email,
-            is_active=False
-        )
-        messages.info(request, "Please activate your email account to send emails.")
-        return redirect('activate_email_account')
-
-    context = {
-        'form': None,
-        'reply_to': request.GET.get('reply_to'),
-        'forward': request.GET.get('forward'),
-        'customer_id': request.GET.get('customer'),
-        'lead_id': request.GET.get('lead')
-    }
+        email_account = request.user.employee_profile.email_account
+    except (AttributeError, EmailAccount.DoesNotExist):
+        logger.error(f"No email account for user {request.user.id}")
+        messages.error(request, "No email account configured.")
+        email_account = None
+        form = EmailComposeForm()
+        return render(request, 'core/compose_email.html', {'form': form, 'email_account': None})
 
     if request.method == 'POST':
         form = EmailComposeForm(request.POST, request.FILES)
-        files = request.FILES.getlist('attachments')
-
         if form.is_valid():
+            to_email = form.cleaned_data['to_email']
+            email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+            if not re.match(email_regex, to_email):
+                logger.warning(f"Invalid email format: {to_email}")
+                messages.error(request, "Invalid recipient email address.")
+                return render(request, 'core/compose_email.html', {'form': form, 'email_account': email_account})
+
             try:
-                with transaction.atomic():
-                    email_message = form.save(commit=False)
-                    email_message.account = email_account
-                    email_message.from_email = email_account.email_address
-                    email_message.message_type = 'outgoing'
-                    email_message.message_id = uuid.uuid4()
+                email_message = EmailMessage(
+                    account=email_account,
+                    from_email=email_account.email_address,
+                    to_email=to_email,
+                    cc_email=form.cleaned_data.get('cc_email', ''),
+                    bcc_email=form.cleaned_data.get('bcc_email', ''),
+                    subject=form.cleaned_data['subject'],
+                    body_text=form.cleaned_data['body_text'],
+                    message_type='outgoing',
+                    status='pending',
+                    message_id=str(uuid.uuid4())
+                )
+                email_message.save()
 
-                    # Convert email fields from string to lists
-                    email_message.to_emails = [email.strip() for email in request.POST.get('to_emails', '').split(',') if email.strip()]
-                    email_message.cc_emails = [email.strip() for email in request.POST.get('cc_emails', '').split(',') if email.strip()]
-                    email_message.bcc_emails = [email.strip() for email in request.POST.get('bcc_emails', '').split(',') if email.strip()]
-
-                    # Ensure at least one recipient exists
-                    if not email_message.to_emails:
-                        messages.error(request, "At least one recipient (To) is required.")
-                        return render(request, 'core/email_compose.html', {'form': form})
-
-                    # Handle related entities
-                    if context['customer_id']:
-                        email_message.related_customer = get_object_or_404(Customer, id=context['customer_id'])
-                    if context['lead_id']:
-                        email_message.related_lead = get_object_or_404(Lead, id=context['lead_id'])
-
-                    # Save the email message first
-                    email_message.save()
-
-                    # Handle attachments separately
-                    for file in files:
+                for file in request.FILES.getlist('attachments'):
+                    try:
                         EmailAttachment.objects.create(
                             email=email_message,
                             file=file,
@@ -4597,128 +4595,46 @@ def compose_email(request):
                             content_type=file.content_type,
                             size=file.size
                         )
+                    except Exception as e:
+                        logger.error(f"Attachment error: {str(e)}")
+                        messages.warning(request, f"Failed to attach {file.name}")
 
-                    # Handle scheduled sending
-                    if form.cleaned_data.get('schedule_send'):
-                        email_message.status = 'scheduled'
-                        email_message.scheduled_time = form.cleaned_data.get('scheduled_time')
-                        email_message.save()
-                        messages.success(request, f"Email scheduled for {email_message.scheduled_time}")
-                    else:
-                        # Send email immediately
-                        try:
-                            with smtplib.SMTP(email_account.smtp_server, email_account.smtp_port) as server:
-                                server.starttls()
-                                server.login(email_account.username, email_account.password)
-
-                                # Create email message
-                                msg = MIMEMultipart('alternative')
-                                msg['Subject'] = email_message.subject
-                                msg['From'] = email_message.from_email
-                                msg['To'] = ', '.join(email_message.to_emails)
-                                if email_message.cc_emails:
-                                    msg['Cc'] = ', '.join(email_message.cc_emails)
-
-                                # Add text and HTML parts
-                                msg.attach(MIMEText(email_message.body_text, 'plain'))
-                                if email_message.body_html:
-                                    msg.attach(MIMEText(email_message.body_html, 'html'))
-
-                                # Add attachments
-                                for file in files:
-                                    part = MIMEBase('application', 'octet-stream')
-                                    part.set_payload(file.read())
-                                    encoders.encode_base64(part)
-                                    part.add_header(
-                                        'Content-Disposition',
-                                        f'attachment; filename="{file.name}"'
-                                    )
-                                    msg.attach(part)
-
-                                # Send email
-                                recipients = email_message.to_emails
-                                if email_message.cc_emails:
-                                    recipients.extend(email_message.cc_emails)
-                                if email_message.bcc_emails:
-                                    recipients.extend(email_message.bcc_emails)
-
-                                server.send_message(msg)
-
-                                # Update email status
-                                email_message.status = 'sent'
-                                email_message.sent_at = timezone.now()
-                                email_message.save()
-
-                                # Create sent folder if it doesn't exist
-                                sent_folder, _ = EmailFolder.objects.get_or_create(
-                                    account=email_account,
-                                    name='Sent',
-                                    system_type='sent',
-                                    is_system=True
-                                )
-
-                                # Add message to sent folder
-                                EmailFolderMessage.objects.create(
-                                    folder=sent_folder,
-                                    message=email_message
-                                )
-
-                                messages.success(request, "Email sent successfully!")
-                                return redirect('email_inbox')
-
-                        except Exception as e:
-                            email_message.status = 'failed'
-                            email_message.save()
-                            messages.error(request, f"Failed to send email: {str(e)}")
-                            return render(request, 'core/email_compose.html', {'form': form})
-
+                try:
+                    send_email_message(email_message)
+                    email_message.status = 'sent'
+                    email_message.sent_at = timezone.now()
+                    email_message.save()
+                    logger.info(f"Email {email_message.message_id} sent by user {request.user.id}")
+                    messages.success(request, 'Email sent successfully.')
+                    return redirect('email_inbox')
+                except Exception as e:
+                    logger.error(f"Send error: {str(e)}")
+                    email_message.status = 'failed'
+                    email_message.save()
+                    messages.error(request, "Failed to send email.")
+                    return render(request, 'core/compose_email.html', {'form': form, 'email_account': email_account})
             except Exception as e:
-                messages.error(request, f"An error occurred: {str(e)}")
-                return render(request, 'core/email_compose.html', {'form': form})
+                logger.error(f"Compose error: {str(e)}")
+                messages.error(request, "Error composing email.")
+                return render(request, 'core/compose_email.html', {'form': form, 'email_account': email_account})
+        else:
+            logger.warning(f"Invalid form submission by user {request.user.id}")
+            messages.error(request, "Invalid form data.")
     else:
-        initial = {}
+        form = EmailComposeForm()
 
-        if context['reply_to'] or context['forward']:
-            try:
-                original_email = EmailMessage.objects.get(message_id=context['reply_to'] or context['forward'])
-                initial['subject'] = f"{'Re: ' if context['reply_to'] else 'Fwd: '}{original_email.subject}"
-                initial['to_emails'] = original_email.from_email if context['reply_to'] else ''
-                initial['body_text'] = f"\n\n{'On ' + original_email.created_at.strftime('%Y-%m-%d %H:%M') + ' ' + original_email.from_email + ' wrote:' if context['reply_to'] else 'Forwarded message:'}\n> " + original_email.body_text.replace('\n', '\n> ')
-            except EmailMessage.DoesNotExist:
-                messages.error(request, "Original email not found.")
-
-        if context['customer_id']:
-            customer = get_object_or_404(Customer, id=context['customer_id'])
-            initial['to_emails'] = customer.email
-
-        if context['lead_id']:
-            lead = get_object_or_404(Lead, id=context['lead_id'])
-            initial['to_emails'] = lead.email
-
-        form = EmailComposeForm(initial=initial)
-
-    return render(request, 'core/email_compose.html', {'form': form})
-
-
+    return render(request, 'core/email_compose.html', {'form': form, 'email_account': email_account})
 
 @login_required
 def view_email(request, message_id):
     """View email details"""
-    user = request.user
-
-    # Ensure user has an Employee profile
-    if not hasattr(user, 'employee_profile'):
-        messages.error(request, "No employee profile found for this user.")
+    try:
+        employee = request.user.employee_profile
+        email_account = employee.email_account
+    except (AttributeError, EmailAccount.DoesNotExist):
+        logger.error(f"No email account for user {request.user.id}")
+        messages.error(request, "No email account found.")
         return redirect('dashboard')
-
-    employee = user.employee_profile
-
-    # Ensure Employee has an EmailAccount
-    if not hasattr(employee, 'email_account'):
-        messages.error(request, "No email account found for this employee.")
-        return redirect('dashboard')
-
-    email_account = employee.email_account
 
     email_message = get_object_or_404(
         EmailMessage,
@@ -4731,30 +4647,26 @@ def view_email(request, message_id):
         email_message.read_at = timezone.now()
         email_message.save()
 
+    attachments = EmailAttachment.objects.filter(email=email_message).only('filename', 'size', 'content_type')
+    thread = EmailMessage.objects.filter(thread_id=email_message.thread_id).order_by('created_at')[:10]
+
     return render(request, 'core/view_email.html', {
         'email': email_message,
-        'thread': EmailMessage.objects.filter(thread_id=email_message.thread_id).order_by('created_at')
+        'thread': thread,
+        'attachments': attachments,
+        'email_account': email_account
     })
-
 
 @login_required
 def reply_email(request, message_id):
     """Reply to an email with attachment support"""
-    user = request.user
-
-    # Ensure user has an Employee profile
-    if not hasattr(user, 'employee_profile'):
-        messages.error(request, "No employee profile found for this user.")
+    try:
+        employee = request.user.employee_profile
+        email_account = employee.email_account
+    except (AttributeError, EmailAccount.DoesNotExist):
+        logger.error(f"No email account for user {request.user.id}")
+        messages.error(request, "No email account found.")
         return redirect('dashboard')
-
-    employee = user.employee_profile
-
-    # Ensure Employee has an EmailAccount
-    if not hasattr(employee, 'email_account'):
-        messages.error(request, "No email account found for this employee.")
-        return redirect('dashboard')
-
-    email_account = employee.email_account
 
     original_email = get_object_or_404(
         EmailMessage,
@@ -4764,55 +4676,79 @@ def reply_email(request, message_id):
 
     if request.method == 'POST':
         form = EmailComposeForm(request.POST, request.FILES)
-        files = request.FILES.getlist('attachments')  # ✅ Get multiple file attachments
-
         if form.is_valid():
-            reply = form.save(commit=False)
-            reply.account = email_account
-            reply.from_email = email_account.email_address
-            reply.message_type = 'outgoing'
-            reply.thread_id = original_email.thread_id or original_email.message_id
-            reply.in_reply_to = original_email
-            reply.message_id = uuid.uuid4()  # ✅ Ensure a unique message ID
-
-            # ✅ Save email before handling attachments
-            reply.save()
-
-            # ✅ Save attachments
-            for file in files:
-                EmailAttachment.objects.create(
-                    email=reply,
-                    file=file,
-                    filename=file.name,
-                    content_type=file.content_type,
-                    size=file.size
-                )
-
             try:
-                # ✅ Call the function to send the email
-                send_email_message(reply)
-                reply.status = 'sent'
-                reply.sent_at = timezone.now()
+                reply = EmailMessage(
+                    account=email_account,
+                    from_email=email_account.email_address,
+                    to_email=form.cleaned_data['to_email'],
+                    cc_email=form.cleaned_data.get('cc_email', ''),
+                    bcc_email=form.cleaned_data.get('bcc_email', ''),
+                    subject=form.cleaned_data['subject'],
+                    body_text=form.cleaned_data['body_text'],
+                    message_type='outgoing',
+                    status='pending',
+                    thread_id=original_email.thread_id or original_email.message_id,
+                    in_reply_to=original_email.message_id,
+                    message_id=str(uuid.uuid4())
+                )
                 reply.save()
-                messages.success(request, 'Reply sent successfully.')
+
+                for file in request.FILES.getlist('attachments'):
+                    try:
+                        EmailAttachment.objects.create(
+                            email=reply,
+                            file=file,
+                            filename=file.name,
+                            content_type=file.content_type,
+                            size=file.size
+                        )
+                    except Exception as e:
+                        logger.error(f"Attachment error: {str(e)}")
+                        messages.warning(request, f"Failed to attach {file.name}")
+
+                try:
+                    send_email_message(reply)
+                    reply.status = 'sent'
+                    reply.sent_at = timezone.now()
+                    reply.save()
+                    logger.info(f"Reply {reply.message_id} sent by user {request.user.id}")
+                    messages.success(request, 'Reply sent successfully.')
+                    return redirect('view_email', message_id=message_id)
+                except Exception as e:
+                    logger.error(f"Send error: {str(e)}")
+                    reply.status = 'failed'
+                    reply.save()
+                    messages.error(request, "Failed to send reply.")
+                    return render(request, 'core/reply_email.html', {
+                        'form': form,
+                        'original_email': original_email,
+                        'email_account': email_account
+                    })
             except Exception as e:
-                messages.error(request, f'Failed to send reply: {str(e)}')
-
-            return redirect('view_email', message_id=message_id)
-
+                logger.error(f"Reply error: {str(e)}")
+                messages.error(request, "Error sending reply.")
+                return render(request, 'core/reply_email.html', {
+                    'form': form,
+                    'original_email': original_email,
+                    'email_account': email_account
+                })
+        else:
+            logger.warning(f"Invalid form submission by user {request.user.id}")
+            messages.error(request, "Invalid form data.")
     else:
-        # ✅ Prepopulate form fields with original email data
         quoted_body_text = original_email.body_text.replace('\n', '\n> ')
         form = EmailComposeForm(initial={
+            'to_email': original_email.from_email,
             'subject': f"Re: {original_email.subject}",
             'body_text': f"\n\nOn {original_email.created_at.strftime('%Y-%m-%d %H:%M')} {original_email.from_email} wrote:\n> {quoted_body_text}"
-})
+        })
 
     return render(request, 'core/reply_email.html', {
         'form': form,
-        'original_email': original_email
+        'original_email': original_email,
+        'email_account': email_account
     })
-
 
 class SentMailView(LoginRequiredMixin, ListView):
     """Display sent emails"""
@@ -4827,11 +4763,21 @@ class SentMailView(LoginRequiredMixin, ListView):
             return EmailMessage.objects.filter(
                 account=account,
                 message_type='outgoing',
+                status='sent',
                 is_archived=False
             ).order_by('-created_at')
-        except EmailAccount.DoesNotExist:
+        except (AttributeError, EmailAccount.DoesNotExist):
             messages.error(self.request, "No email account found.")
             return EmailMessage.objects.none()
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        try:
+            context['email_account'] = self.request.user.employee_profile.email_account
+            context['is_paginated'] = self.paginate_by and self.get_queryset().count() > self.paginate_by
+        except (AttributeError, EmailAccount.DoesNotExist):
+            context['email_account'] = None
+        return context
 
 class DeletedMailView(LoginRequiredMixin, ListView):
     """Display deleted (trashed) emails"""
@@ -4845,29 +4791,72 @@ class DeletedMailView(LoginRequiredMixin, ListView):
             account = self.request.user.employee_profile.email_account
             return EmailMessage.objects.filter(
                 account=account,
-                is_archived=True  # Marked as deleted
+                is_archived=True
             ).order_by('-created_at')
-        except EmailAccount.DoesNotExist:
+        except (AttributeError, EmailAccount.DoesNotExist):
             messages.error(self.request, "No email account found.")
             return EmailMessage.objects.none()
+
+    def post(self, request, *args, **kwargs):
+        try:
+            email_ids = request.POST.getlist('email_ids')
+            if request.POST.get('action') == 'restore':
+                emails = EmailMessage.objects.filter(
+                    message_id__in=email_ids,
+                    account=request.user.employee_profile.email_account
+                )
+                emails.update(is_archived=False)
+                logger.info(f"Restored {emails.count()} emails for user {request.user.id}")
+                messages.success(request, f"Restored {emails.count()} email(s).")
+            return redirect('email_deleted')
+        except (AttributeError, EmailAccount.DoesNotExist):
+            logger.error(f"No email account for user {request.user.id}")
+            messages.error(request, "No email account found.")
+            return redirect('email_deleted')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        try:
+            context['email_account'] = self.request.user.employee_profile.email_account
+            context['is_paginated'] = self.paginate_by and self.get_queryset().count() > self.paginate_by
+        except (AttributeError, EmailAccount.DoesNotExist):
+            context['email_account'] = None
+        return context
 
 class EmailThreadView(LoginRequiredMixin, ListView):
     """Display an email thread"""
     model = EmailMessage
     template_name = 'core/email_thread.html'
     context_object_name = 'emails'
+    paginate_by = 20
 
     def get_queryset(self):
-        message_id = self.kwargs.get('message_id')
-        original_email = get_object_or_404(EmailMessage, message_id=message_id)
-        return EmailMessage.objects.filter(
-            thread_id=original_email.thread_id
-        ).order_by('created_at')
+        try:
+            original_email = get_object_or_404(
+                EmailMessage,
+                message_id=self.kwargs.get('message_id'),
+                account=self.request.user.employee_profile.email_account
+            )
+            return EmailMessage.objects.filter(
+                thread_id=original_email.thread_id
+            ).order_by('created_at')
+        except (AttributeError, EmailAccount.DoesNotExist, EmailMessage.DoesNotExist):
+            messages.error(self.request, "Email thread not found.")
+            return EmailMessage.objects.none()
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        original_email = get_object_or_404(EmailMessage, message_id=self.kwargs.get('message_id'))
-        context['original_email'] = original_email
+        try:
+            original_email = EmailMessage.objects.get(
+                message_id=self.kwargs.get('message_id'),
+                account=self.request.user.employee_profile.email_account
+            )
+            context['original_email'] = original_email
+            context['email_account'] = self.request.user.employee_profile.email_account
+            context['is_paginated'] = self.paginate_by and self.get_queryset().count() > self.paginate_by
+        except (AttributeError, EmailAccount.DoesNotExist, EmailMessage.DoesNotExist):
+            context['original_email'] = None
+            context['email_account'] = None
         return context
 
 
@@ -5919,14 +5908,14 @@ def minimal_calendar_view(request):
                 # We have a valid service, fetch events
                 from .models import Meeting
 
-                # Get events from primary calendar for next 30 days
-                now = datetime.utcnow().isoformat() + 'Z'  # 'Z' indicates UTC time
-                end_date = (datetime.utcnow() + timedelta(days=30)).isoformat() + 'Z'
+                # Get events from primary calendar for next 120 days
+                now = timezone.now()
+                end_date = now + timedelta(days=120)
 
                 events_result = service.events().list(
                     calendarId='primary',
-                    timeMin=now,
-                    timeMax=end_date,
+                    timeMin=now.isoformat(),
+                    timeMax=end_date.isoformat(),
                     singleEvents=True,
                     orderBy='startTime'
                 ).execute()
@@ -5935,44 +5924,38 @@ def minimal_calendar_view(request):
                 events_imported = 0
 
                 for event in events:
-                    # Extract event details
-                    summary = event.get('summary', 'Google Calendar Event')
+                    try:
+                        summary = event.get('summary', 'Google Calendar Event')
+                        start = event['start'].get('dateTime', event['start'].get('date'))
+                        end = event['end'].get('dateTime', event['end'].get('date'))
 
-                    # Handle start time
-                    start = event['start'].get('dateTime', event['start'].get('date'))
-                    if 'T' in start:  # This is a datetime
-                        start_time = datetime.fromisoformat(start.replace('Z', '+00:00'))
-                    else:  # This is a date
-                        start_time = datetime.strptime(start, '%Y-%m-%d')
+                        # Parse dates with dateutil
+                        start_time = parse(start)
+                        end_time = parse(end)
 
-                    # Handle end time
-                    end = event['end'].get('dateTime', event['end'].get('date'))
-                    if 'T' in end:  # This is a datetime
-                        end_time = datetime.fromisoformat(end.replace('Z', '+00:00'))
-                    else:  # This is a date
-                        end_time = datetime.strptime(end, '%Y-%m-%d')
+                        # Ensure timezone-aware
+                        if start_time.tzinfo is None:
+                            start_time = timezone.make_aware(start_time, timezone.get_default_timezone())
+                        if end_time.tzinfo is None:
+                            end_time = timezone.make_aware(end_time, timezone.get_default_timezone())
 
-                    # Convert to timezone-aware
-                    if start_time.tzinfo is None:
-                        start_time = timezone.make_aware(start_time)
-                    if end_time.tzinfo is None:
-                        end_time = timezone.make_aware(end_time)
-
-                    # Create meeting object with organizer (not user)
-                    Meeting.objects.create(
-                        organizer=request.user.employee_profile,
-                        title=summary,
-                        start_time=start_time,
-                        end_time=end_time,
-                        description=event.get('description', ''),
-                        location=event.get('location', ''),
-                        meeting_type='google_import',
-                        status='scheduled'
-                    )
-                    events_imported += 1
+                        Meeting.objects.create(
+                            organizer=request.user.employee_profile,
+                            title=summary,
+                            start_time=start_time,
+                            end_time=end_time,
+                            description=event.get('description', ''),
+                            location=event.get('location', ''),
+                            meeting_type='google_import',
+                            status='scheduled',
+                            google_event_id=event.get('id', '')  # Optional: prevent duplicates
+                        )
+                        events_imported += 1
+                    except ValueError as e:
+                        logger.warning(f"Skipping event '{summary}' due to invalid date: {e}")
+                        continue
 
                 messages.success(request, f"Successfully imported {events_imported} events from Google Calendar")
-
             except Exception as e:
                 logger.error(f"Error importing from Google Calendar: {str(e)}")
                 messages.error(request, f"Error importing from Google Calendar: {str(e)}")
@@ -6042,11 +6025,11 @@ def minimal_calendar_view(request):
     from .models import Meeting
     current_date = timezone.now().date()
 
-    # Get user's meetings for the next 30 days
+    # Get user's meetings for the next 120 days
     meetings = Meeting.objects.filter(
         organizer=request.user.employee_profile,  # Changed from user to organizer
         start_time__date__gte=current_date,
-        start_time__date__lte=current_date + timedelta(days=30)
+        start_time__date__lte=current_date + timedelta(days=120)
     ).order_by('start_time')
 
     # Comprehensive context with all required data
