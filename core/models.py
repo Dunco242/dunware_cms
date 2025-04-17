@@ -139,7 +139,9 @@ class Employee(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-
+    last_known_latitude = models.FloatField(null=True, blank=True)
+    last_known_longitude = models.FloatField(null=True, blank=True)
+    last_location_update = models.DateTimeField(null=True, blank=True)
     class Meta:
         ordering = ['-created_at']
         indexes = [
@@ -265,14 +267,14 @@ class Customer(ProjectDatesMixin, models.Model):
     )
 
     zip_code = models.CharField(
-        max_length=10,
-        validators=[
-            RegexValidator(
-                regex=r'^\d{5}(-\d{4})?$',
-                message='ZIP code must be in the format: 12345 or 12345-6789'
-            )
-        ]
-    )
+    max_length=10,  # Adjust the length to accommodate Canadian postal codes with spaces
+    validators=[
+        RegexValidator(
+            regex=r'^(\d{5}(-\d{4})?|[A-Za-z]\d[A-Za-z]\s?\d[A-Za-z]\d)$',
+            message='ZIP/Postal code must be in the format: 12345, 12345-6789, or M3J 1L1'
+        )
+    ]
+)
 
     # Online Presence
     website = models.URLField(

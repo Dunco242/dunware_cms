@@ -1,0 +1,78 @@
+{% extends 'core/base.html' %}
+
+{% block title %}
+Live Tracking
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1>Live Tracking</h1>
+    <div class="search-container">
+        <form method="GET">
+            <label for="technician_name">Technician Name:</label>
+            <input type="text" id="technician_name" name="technician_name" value="{{ request.GET.technician_name }}" required>
+            <button type="submit">Search</button>
+        </form>
+    </div>
+    {% if technician_live_location %}
+    <div id="map"></div>
+    <script>
+        // Convert technician_live_location into JSON and pass to JavaScript
+        const technicianLiveLocation = JSON.parse('{{ technician_live_location|json_script:"technicianLiveLocation" }}');
+
+        // Set up the map using HERE API
+        const platform = new H.service.Platform({
+            apikey: '{{ api_key|safe }}', // Pass the API key safely
+        });
+
+        const defaultLayers = platform.createDefaultLayers();
+
+        // Initialize the map
+        const map = new H.Map(
+            document.getElementById('map'),
+            defaultLayers.vector.normal.map,
+            {
+                center: { lat: technicianLiveLocation.lat, lng: technicianLiveLocation.lng },
+                zoom: 15,
+            }
+        );
+
+        // Add interactivity
+        const behavior = new H.mapevents.Behavior(new H.mapevents.MapEvents(map));
+        const ui = H.ui.UI.createDefault(map, defaultLayers);
+
+        // Add live tracking marker
+        const technicianMarker = new H.map.Marker({
+            lat: technicianLiveLocation.lat,
+            lng: technicianLiveLocation.lng,
+        });
+        map.addObject(technicianMarker);
+
+        const bubble = new H.ui.InfoBubble(
+            { lat: technicianLiveLocation.lat, lng: technicianLiveLocation.lng },
+            { content: `Technician: ${technicianLiveLocation.name}<br>Last Update: ${technicianLiveLocation.last_update}` }
+        );
+        ui.addBubble(bubble);
+
+        // Center map
+        map.setCenter({ lat: technicianLiveLocation.lat, lng: technicianLiveLocation.lng });
+    </script>
+    {% else %}
+    <p>No live location data available. Please search for a technician.</p>
+    {% endif %}
+    <button id="exit-button" class="btn btn-secondary">Exit</button>
+</div>
+
+<script>
+    // JavaScript for exit button
+    const exitButton = document.getElementById('exit-button');
+    exitButton.addEventListener('click', () => {
+        const previousPage = document.referrer;
+        if (previousPage) {
+            window.location.href = previousPage;
+        } else {
+            window.history.back();
+        }
+    });
+</script>
+{% endblock %}

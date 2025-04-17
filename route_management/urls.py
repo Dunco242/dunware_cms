@@ -74,4 +74,9 @@ urlpatterns = [
 
     # Utility functions
     path('geocode-locations/', views.geocode_locations, name='geocode_locations'),
+
+    # LiveTrack Integration
+    path('live-tracking/', views.live_tracking_view, name='live_tracking'),
+    path('route-map/<int:pk>/', views.RouteMapView.as_view(), name='route_map'),
+
 ]

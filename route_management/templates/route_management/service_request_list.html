@@ -38,7 +38,7 @@
         position: absolute;
         right: 10px;
         top: 8px;
-        color: #858796;
+        color: #6c757d;
         cursor: pointer;
     }
     .date-filter {
@@ -59,446 +59,44 @@
 {% block content %}
 <div class="container-fluid">
     <!-- Page Heading -->
-    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <div class="d-flex align-items-center justify-content-between mb-4">
         <h1 class="h3 mb-0 text-gray-800">Service Requests</h1>
-        <a href="{% url 'route_management:service_request_create' %}" class="d-none d-sm-inline-block btn btn-sm btn-primary shadow-sm">
+        <a href="{% url 'route_management:service_request_create' %}" class="btn btn-sm btn-primary shadow-sm">
             <i class="fas fa-plus fa-sm text-white-50"></i> Create New Request
         </a>
     </div>
 
-    <!-- Content Row -->
-    <div class="row">
-        <!-- Filters Card -->
-        <div class="col-lg-12">
-            <div class="card shadow filter-card">
-                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
-                    <h6 class="m-0 font-weight-bold text-primary">Filters</h6>
-                    <div class="dropdown no-arrow">
-                        <a class="dropdown-toggle" href="#" role="button" id="filterOptionsDropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                            <i class="fas fa-ellipsis-v fa-sm fa-fw text-gray-400"></i>
-                        </a>
-                        <div class="dropdown-menu dropdown-menu-right shadow animated--fade-in" aria-labelledby="filterOptionsDropdown">
-                            <div class="dropdown-header">Filter Options:</div>
-                            <a class="dropdown-item" href="#" id="clearFilters"><i class="fas fa-trash fa-sm fa-fw mr-2 text-gray-400"></i>Clear All Filters</a>
-                            <a class="dropdown-item" href="#" id="saveFilters"><i class="fas fa-save fa-sm fa-fw mr-2 text-gray-400"></i>Save Current Filters</a>
-                            <div class="dropdown-divider"></div>
-                            <a class="dropdown-item" href="#" id="toggleAdvancedFilters"><i class="fas fa-cog fa-sm fa-fw mr-2 text-gray-400"></i>Advanced Filters</a>
-                        </div>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-3">
-                            <div class="form-group search-box">
-                                <label for="search">Search</label>
-                                <input type="text" class="form-control" id="search" placeholder="Search by ID, customer, location...">
-                                <span class="clear-search"><i class="fas fa-times"></i></span>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="form-group">
-                                <label for="status-filter">Status</label>
-                                <select class="form-control" id="status-filter">
-                                    <option value="">All Statuses</option>
-                                    <option value="pending">Pending</option>
-                                    <option value="scheduled">Scheduled</option>
-                                    <option value="in_progress">In Progress</option>
-                                    <option value="completed">Completed</option>
-                                    <option value="cancelled">Cancelled</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="form-group">
-                                <label for="priority-filter">Priority</label>
-                                <select class="form-control" id="priority-filter">
-                                    <option value="">All Priorities</option>
-                                    <option value="high">High</option>
-                                    <option value="medium">Medium</option>
-                                    <option value="low">Low</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="form-group">
-                                <label for="date-filter-type">Date Filter</label>
-                                <select class="form-control" id="date-filter-type">
-                                    <option value="">No Date Filter</option>
-                                    <option value="requested_date">Requested Date</option>
-                                    <option value="due_date">Due Date</option>
-                                    <option value="created_at">Created Date</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="row date-filter">
-                        <div class="col-md-3">
-                            <div class="form-group">
-                                <label for="date-filter-range">Range</label>
-                                <select class="form-control" id="date-filter-range">
-                                    <option value="all">All Dates</option>
-                                    <option value="today">Today</option>
-                                    <option value="tomorrow">Tomorrow</option>
-                                    <option value="this_week">This Week</option>
-                                    <option value="next_week">Next Week</option>
-                                    <option value="this_month">This Month</option>
-                                    <option value="custom">Custom Range</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="col-md-3 custom-date-range" style="display: none;">
-                            <div class="form-group">
-                                <label for="date-filter-start">Start Date</label>
-                                <input type="date" class="form-control" id="date-filter-start">
-                            </div>
-                        </div>
-                        <div class="col-md-3 custom-date-range" style="display: none;">
-                            <div class="form-group">
-                                <label for="date-filter-end">End Date</label>
-                                <input type="date" class="form-control" id="date-filter-end">
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="form-group">
-                                <label>&nbsp;</label>
-                                <button class="btn btn-primary btn-block" id="apply-date-filter">Apply</button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div id="advanced-filters" style="display: none;">
-                        <hr>
-                        <div class="row">
-                            <div class="col-md-3">
-                                <div class="form-group">
-                                    <label for="customer-filter">Customer</label>
-                                    <select class="form-control" id="customer-filter">
-                                        <option value="">All Customers</option>
-                                        {% for customer in customers %}
-                                            <option value="{{ customer.id }}">{{ customer.company_name }}</option>
-                                        {% endfor %}
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="form-group">
-                                    <label for="service-type-filter">Service Type</label>
-                                    <select class="form-control" id="service-type-filter">
-                                        <option value="">All Service Types</option>
-                                        {% for service_type in service_types %}
-                                            <option value="{{ service_type.id }}">{{ service_type.name }}</option>
-                                        {% endfor %}
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="form-group">
-                                    <label for="technician-filter">Assigned Technician</label>
-                                    <select class="form-control" id="technician-filter">
-                                        <option value="">All Technicians</option>
-                                        <option value="unassigned">Unassigned</option>
-                                        {% for tech in technicians %}
-                                            <option value="{{ tech.id }}">{{ tech.get_full_name }}</option>
-                                        {% endfor %}
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="form-group">
-                                    <label for="location-filter">Service Area</label>
-                                    <select class="form-control" id="location-filter">
-                                        <option value="">All Service Areas</option>
-                                        {% for area in service_areas %}
-                                            <option value="{{ area.id }}">{{ area.name }}</option>
-                                        {% endfor %}
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Bulk Actions -->
-    <div class="row mb-3 bulk-actions">
-        <div class="col-md-12">
-            <div class="card shadow">
-                <div class="card-body py-2">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <span id="selected-count">0 requests selected</span>
-                        <div class="btn-group">
-                            <button class="btn btn-sm btn-primary" id="bulk-assign"><i class="fas fa-user-plus"></i> Assign to Technician</button>
-                            <button class="btn btn-sm btn-success" id="bulk-route"><i class="fas fa-route"></i> Add to Route</button>
-                            <button class="btn btn-sm btn-info" id="bulk-status"><i class="fas fa-exchange-alt"></i> Update Status</button>
-                            <button class="btn btn-sm btn-danger" id="bulk-cancel"><i class="fas fa-times"></i> Cancel Requests</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Service Requests Table Card -->
-    <div class="card shadow mb-4">
-        <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
-            <h6 class="m-0 font-weight-bold text-primary">Service Requests</h6>
-            <div class="dropdown no-arrow">
-                <a class="dropdown-toggle" href="#" role="button" id="requestsDropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+    <!-- Filters Card -->
+    <div class="card shadow filter-card">
+        <div class="card-header py-3 d-flex align-items-center justify-content-between">
+            <h6 class="m-0 fw-bold text-primary">Filters</h6>
+            <div class="dropdown">
+                <button class="btn btn-link dropdown-toggle" type="button" id="filterOptionsDropdown" data-bs-toggle="dropdown" aria-expanded="false">
                     <i class="fas fa-ellipsis-v fa-sm fa-fw text-gray-400"></i>
-                </a>
-                <div class="dropdown-menu dropdown-menu-right shadow animated--fade-in" aria-labelledby="requestsDropdown">
-                    <div class="dropdown-header">View Options:</div>
-                    <a class="dropdown-item" href="#" id="view-all-requests"><i class="fas fa-list fa-sm fa-fw mr-2 text-gray-400"></i>View All</a>
-                    <a class="dropdown-item" href="#" id="view-pending-requests"><i class="fas fa-clock fa-sm fa-fw mr-2 text-gray-400"></i>View Pending</a>
-                    <a class="dropdown-item" href="#" id="view-today-requests"><i class="fas fa-calendar-day fa-sm fa-fw mr-2 text-gray-400"></i>View Today's</a>
-                    <div class="dropdown-divider"></div>
-                    <a class="dropdown-item" href="#" id="export-csv"><i class="fas fa-file-csv fa-sm fa-fw mr-2 text-gray-400"></i>Export to CSV</a>
-                    <a class="dropdown-item" href="#" id="export-pdf"><i class="fas fa-file-pdf fa-sm fa-fw mr-2 text-gray-400"></i>Export to PDF</a>
-                </div>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end shadow animated--fade-in" aria-labelledby="filterOptionsDropdown">
+                    <li><h6 class="dropdown-header">Filter Options:</h6></li>
+                    <li><a class="dropdown-item" href="#" id="clearFilters"><i class="fas fa-trash fa-sm fa-fw me-2 text-gray-400"></i>Clear All Filters</a></li>
+                    <li><a class="dropdown-item" href="#" id="saveFilters"><i class="fas fa-save fa-sm fa-fw me-2 text-gray-400"></i>Save Current Filters</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item" href="#" id="toggleAdvancedFilters"><i class="fas fa-cog fa-sm fa-fw me-2 text-gray-400"></i>Advanced Filters</a></li>
+                </ul>
             </div>
         </div>
         <div class="card-body">
-            <div class="table-responsive">
-                <table class="table table-bordered" id="serviceRequestsTable" width="100%" cellspacing="0">
-                    <thead>
-                        <tr>
-                            <th>
-                                <div class="custom-control custom-checkbox">
-                                    <input type="checkbox" class="custom-control-input" id="select-all-checkbox">
-                                    <label class="custom-control-label" for="select-all-checkbox"></label>
-                                </div>
-                            </th>
-                            <th>ID</th>
-                            <th>Customer</th>
-                            <th>Service Location</th>
-                            <th>Service Type</th>
-                            <th>Priority</th>
-                            <th>Due Date</th>
-                            <th>Status</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for request in service_requests %}
-                            <tr class="service-request-row" data-request-id="{{ request.id }}">
-                                <td>
-                                    <div class="custom-control custom-checkbox">
-                                        <input type="checkbox" class="custom-control-input request-checkbox" id="request-{{ request.id }}" data-request-id="{{ request.id }}">
-                                        <label class="custom-control-label" for="request-{{ request.id }}"></label>
-                                    </div>
-                                </td>
-                                <td>{{ request.id }}</td>
-                                <td>{{ request.customer.company_name }}</td>
-                                <td>{{ request.service_location.name }}</td>
-                                <td>{{ request.service_type.name }}</td>
-                                <td>
-                                    <span class="badge badge-pill priority-{{ request.priority }}">
-                                        {{ request.get_priority_display }}
-                                    </span>
-                                </td>
-                                <td>{{ request.due_date|default:"Not set" }}</td>
-                                <td>
-                                    <span class="status-indicator status-{{ request.status }}"></span>
-                                    {{ request.get_status_display }}
-                                </td>
-                                <td>
-                                    <div class="btn-group btn-group-sm">
-                                        <a href="{% url 'route_management:service_request_detail' request.id %}" class="btn btn-info">
-                                            <i class="fas fa-eye"></i>
-                                        </a>
-                                        <a href="{% url 'route_management:service_request_update' request.id %}" class="btn btn-warning">
-                                            <i class="fas fa-edit"></i>
-                                        </a>
-                                        <div class="btn-group btn-group-sm">
-                                            <button type="button" class="btn btn-primary dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                                                <i class="fas fa-cog"></i>
-                                            </button>
-                                            <div class="dropdown-menu">
-                                                <a class="dropdown-item" href="{% url 'route_management:service_request_detail' request.id %}">View Details</a>
-                                                <a class="dropdown-item" href="{% url 'route_management:service_request_update' request.id %}">Edit Request</a>
-                                                <div class="dropdown-divider"></div>
-                                                {% if request.status != 'cancelled' %}
-                                                    <a class="dropdown-item text-danger cancel-request" href="#" data-request-id="{{ request.id }}">Cancel Request</a>
-                                                {% endif %}
-                                                <a class="dropdown-item" href="{% url 'route_management:duplicate_service_request' request.id %}">Duplicate Request</a>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </td>
-                            </tr>
-                        {% empty %}
-                            <tr>
-                                <td colspan="9" class="text-center">No service requests found.</td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-
-            <!-- Pagination -->
-            {% if service_requests.has_other_pages %}
-                <div class="mt-4">
-                    <nav aria-label="Page navigation">
-                        <ul class="pagination justify-content-center">
-                            {% if service_requests.has_previous %}
-                                <li class="page-item">
-                                    <a class="page-link" href="?page=1" aria-label="First">
-                                        <span aria-hidden="true">&laquo;&laquo;</span>
-                                    </a>
-                                </li>
-                                <li class="page-item">
-                                    <a class="page-link" href="?page={{ service_requests.previous_page_number }}" aria-label="Previous">
-                                        <span aria-hidden="true">&laquo;</span>
-                                    </a>
-                                </li>
-                            {% else %}
-                                <li class="page-item disabled">
-                                    <a class="page-link" href="#" aria-label="First">
-                                        <span aria-hidden="true">&laquo;&laquo;</span>
-                                    </a>
-                                </li>
-                                <li class="page-item disabled">
-                                    <a class="page-link" href="#" aria-label="Previous">
-                                        <span aria-hidden="true">&laquo;</span>
-                                    </a>
-                                </li>
-                            {% endif %}
-
-                            {% for i in service_requests.paginator.page_range %}
-                                {% if service_requests.number == i %}
-                                    <li class="page-item active">
-                                        <a class="page-link" href="#">{{ i }}</a>
-                                    </li>
-                                {% elif i >= service_requests.number|add:'-2' and i <= service_requests.number|add:'2' %}
-                                    <li class="page-item">
-                                        <a class="page-link" href="?page={{ i }}">{{ i }}</a>
-                                    </li>
-                                {% endif %}
-                            {% endfor %}
-
-                            {% if service_requests.has_next %}
-                                <li class="page-item">
-                                    <a class="page-link" href="?page={{ service_requests.next_page_number }}" aria-label="Next">
-                                        <span aria-hidden="true">&raquo;</span>
-                                    </a>
-                                </li>
-                                <li class="page-item">
-                                    <a class="page-link" href="?page={{ service_requests.paginator.num_pages }}" aria-label="Last">
-                                        <span aria-hidden="true">&raquo;&raquo;</span>
-                                    </a>
-                                </li>
-                            {% else %}
-                                <li class="page-item disabled">
-                                    <a class="page-link" href="#" aria-label="Next">
-                                        <span aria-hidden="true">&raquo;</span>
-                                    </a>
-                                </li>
-                                <li class="page-item disabled">
-                                    <a class="page-link" href="#" aria-label="Last">
-                                        <span aria-hidden="true">&raquo;&raquo;</span>
-                                    </a>
-                                </li>
-                            {% endif %}
-                        </ul>
-                    </nav>
-                    <p class="text-center text-muted">
-                        Showing {{ service_requests.start_index }}-{{ service_requests.end_index }} of {{ service_requests.paginator.count }} service requests
-                    </p>
-                </div>
-            {% endif %}
-        </div>
-    </div>
-</div>
-
-<!-- Bulk Assign Modal -->
-<div class="modal fade" id="bulkAssignModal" tabindex="-1" role="dialog" aria-labelledby="bulkAssignModalLabel" aria-hidden="true">
-    <div class="modal-dialog" role="document">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="bulkAssignModalLabel">Assign to Technician</h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
-            </div>
-            <form id="bulk-assign-form" method="post" action="{% url 'route_management:bulk_assign_technician' %}">
-                {% csrf_token %}
-                <div class="modal-body">
-                    <input type="hidden" name="request_ids" id="bulk-assign-request-ids">
-                    <div class="form-group">
-                        <label for="bulk-technician">Select Technician</label>
-                        <select class="form-control" id="bulk-technician" name="technician_id" required>
-                            <option value="">Select a technician...</option>
-                            {% for tech in technicians %}
-                                <option value="{{ tech.id }}">{{ tech.get_full_name }}</option>
-                            {% endfor %}
-                        </select>
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    <div class="form-group search-box">
+                        <label for="search">Search</label>
+                        <input type="text" class="form-control" id="search" placeholder="Search by ID, customer, location...">
+                        <span class="clear-search"><i class="fas fa-times"></i></span>
                     </div>
-                    <p id="bulk-assign-count"></p>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Assign</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<!-- Bulk Route Modal -->
-<div class="modal fade" id="bulkRouteModal" tabindex="-1" role="dialog" aria-labelledby="bulkRouteModalLabel" aria-hidden="true">
-    <div class="modal-dialog" role="document">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="bulkRouteModalLabel">Add to Route</h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
-            </div>
-            <form id="bulk-route-form" method="post" action="{% url 'route_management:bulk_add_to_route' %}">
-                {% csrf_token %}
-                <div class="modal-body">
-                    <input type="hidden" name="request_ids" id="bulk-route-request-ids">
+                <div class="col-md-3">
                     <div class="form-group">
-                        <label for="bulk-route">Select Route</label>
-                        <select class="form-control" id="bulk-route" name="route_id" required>
-                            <option value="">Select a route...</option>
-                            {% for route in available_routes %}
-                                <option value="{{ route.id }}">Route {{ route.route_id }} - {{ route.date|date:"M d, Y" }} - {{ route.technician.get_full_name }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <p id="bulk-route-count"></p>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Add to Route</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<!-- Bulk Status Modal -->
-<div class="modal fade" id="bulkStatusModal" tabindex="-1" role="dialog" aria-labelledby="bulkStatusModalLabel" aria-hidden="true">
-    <div class="modal-dialog" role="document">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="bulkStatusModalLabel">Update Status</h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
-            </div>
-            <form id="bulk-status-form" method="post" action="{% url 'route_management:bulk_update_status' %}">
-                {% csrf_token %}
-                <div class="modal-body">
-                    <input type="hidden" name="request_ids" id="bulk-status-request-ids">
-                    <div class="form-group">
-                        <label for="bulk-status">Select Status</label>
-                        <select class="form-control" id="bulk-status" name="status" required>
-                            <option value="">Select a status...</option>
+                        <label for="status-filter">Status</label>
+                        <select class="form-select" id="status-filter">
+                            <option value="">All Statuses</option>
                             <option value="pending">Pending</option>
                             <option value="scheduled">Scheduled</option>
                             <option value="in_progress">In Progress</option>
@@ -506,314 +104,505 @@
                             <option value="cancelled">Cancelled</option>
                         </select>
                     </div>
-                    <p id="bulk-status-count"></p>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Update Status</button>
+                <div class="col-md-3">
+                    <div class="form-group">
+                        <label for="priority-filter">Priority</label>
+                        <select class="form-select" id="priority-filter">
+                            <option value="">All Priorities</option>
+                            <option value="high">High</option>
+                            <option value="medium">Medium</option>
+                            <option value="low">Low</option>
+                        </select>
+                    </div>
                 </div>
-            </form>
+                <div class="col-md-3">
+                    <div class="form-group">
+                        <label for="date-filter-type">Date Filter</label>
+                        <select class="form-select" id="date-filter-type">
+                            <option value="">No Date Filter</option>
+                            <option value="requested_date">Requested Date</option>
+                            <option value="due_date">Due Date</option>
+                            <option value="created_at">Created Date</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row date-filter">
+                <div class="col-md-3">
+                    <div class="form-group">
+                        <label for="date-filter-range">Range</label>
+                        <select class="form-select" id="date-filter-range">
+                            <option value="all">All Dates</option>
+                            <option value="today">Today</option>
+                            <option value="tomorrow">Tomorrow</option>
+                            <option value="this_week">This Week</option>
+                            <option value="next_week">Next Week</option>
+                            <option value="this_month">This Month</option>
+                            <option value="custom">Custom Range</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-3 custom-date-range" style="display: none;">
+                    <div class="form-group">
+                        <label for="date-filter-start">Start Date</label>
+                        <input type="date" class="form-control" id="date-filter-start">
+                    </div>
+                </div>
+                <div class="col-md-3 custom-date-range" style="display: none;">
+                    <div class="form-group">
+                        <label for="date-filter-end">End Date</label>
+                        <input type="date" class="form-control" id="date-filter-end">
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="form-group">
+                        <label>&nbsp;</label>
+                        <button class="btn btn-primary btn-block" id="apply-date-filter">Apply</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="advanced-filters" style="display: none;">
+                <hr>
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="form-group">
+                            <label for="customer-filter">Customer</label>
+                            <select class="form-select" id="customer-filter">
+                                <option value="">All Customers</option>
+                                {% for customer in customers %}
+                                    <option value="{{ customer.id }}">{{ customer.company_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="form-group">
+                            <label for="service-type-filter">Service Type</label>
+                            <select class="form-select" id="service-type-filter">
+                                <option value="">All Service Types</option>
+                                {% for service_type in service_types %}
+                                    <option value="{{ service_type.id }}">{{ service_type.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="form-group">
+                            <label for="technician-filter">Assigned Technician</label>
+                            <select class="form-select" id="technician-filter">
+                                <option value="">All Technicians</option>
+                                <option value="unassigned">Unassigned</option>
+                                {% for tech in technicians %}
+                                    <option value="{{ tech.id }}">{{ tech.get_full_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="form-group">
+                            <label for="location-filter">Service Area</label>
+                            <select class="form-select" id="location-filter">
+                                <option value="">All Service Areas</option>
+                                {% for area in service_areas %}
+                                    <option value="{{ area.id }}">{{ area.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- Bulk Actions -->
+<div class="row mb-3 bulk-actions">
+    <div class="col-md-12">
+        <div class="card shadow">
+            <div class="card-body py-2">
+                <div class="d-flex justify-content-between align-items-center">
+                    <span id="selected-count">0 requests selected</span>
+                    <div class="btn-group">
+                        <button class="btn btn-sm btn-primary" id="bulk-assign"><i class="fas fa-user-plus"></i> Assign to Technician</button>
+                        <button class="btn btn-sm btn-success" id="bulk-route"><i class="fas fa-route"></i> Add to Route</button>
+                        <button class="btn btn-sm btn-info" id="bulk-status"><i class="fas fa-exchange-alt"></i> Update Status</button>
+                        <button class="btn btn-sm btn-danger" id="bulk-cancel"><i class="fas fa-times"></i> Cancel Requests</button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
-<!-- Confirm Cancel Modal -->
-<div class="modal fade" id="confirmCancelModal" tabindex="-1" role="dialog" aria-labelledby="confirmCancelModalLabel" aria-hidden="true">
-    <div class="modal-dialog" role="document">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="confirmCancelModalLabel">Confirm Cancellation</h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
-            </div>
-            <div class="modal-body">
-                <p>Are you sure you want to cancel the selected service request(s)?</p>
-                <p class="text-danger">This action cannot be undone.</p>
-                <p id="cancel-count"></p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">No, Keep Active</button>
-                <button type="button" class="btn btn-danger" id="confirm-cancel-btn">Yes, Cancel Request(s)</button>
-            </div>
+<!-- Service Requests Table Card -->
+<div class="card shadow mb-4">
+    <div class="card-header py-3 d-flex align-items-center justify-content-between">
+        <h6 class="m-0 fw-bold text-primary">Service Requests</h6>
+        <div class="dropdown">
+            <button class="btn btn-link dropdown-toggle" type="button" id="requestsDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="fas fa-ellipsis-v fa-sm fa-fw text-gray-400"></i>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end shadow animated--fade-in" aria-labelledby="requestsDropdown">
+                <li><h6 class="dropdown-header">View Options:</h6></li>
+                <li><a class="dropdown-item" href="#" id="view-all-requests"><i class="fas fa-list fa-sm fa-fw me-2 text-gray-400"></i>View All</a></li>
+                <li><a class="dropdown-item" href="#" id="view-pending-requests"><i class="fas fa-clock fa-sm fa-fw me-2 text-gray-400"></i>View Pending</a></li>
+                <li><a class="dropdown-item" href="#" id="view-today-requests"><i class="fas fa-calendar-day fa-sm fa-fw me-2 text-gray-400"></i>View Today's</a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item" href="#" id="export-csv"><i class="fas fa-file-csv fa-sm fa-fw me-2 text-gray-400"></i>Export to CSV</a></li>
+                <li><a class="dropdown-item" href="#" id="export-pdf"><i class="fas fa-file-pdf fa-sm fa-fw me-2 text-gray-400"></i>Export to PDF</a></li>
+            </ul>
         </div>
     </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered" id="serviceRequestsTable" width="100%" cellspacing="0">
+                <thead>
+                    <tr>
+                        <th>
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" id="select-all-checkbox">
+                                <label class="form-check-label" for="select-all-checkbox"></label>
+                            </div>
+                        </th>
+                        <th>ID</th>
+                        <th>Customer</th>
+                        <th>Service Location</th>
+                        <th>Service Type</th>
+                        <th>Priority</th>
+                        <th>Due Date</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for request in service_requests %}
+                        <tr class="service-request-row" data-request-id="{{ request.id }}">
+                            <td>
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input request-checkbox" id="request-{{ request.id }}" data-request-id="{{ request.id }}">
+                                    <label class="form-check-label" for="request-{{ request.id }}"></label>
+                                </div>
+                            </td>
+                            <td>{{ request.id }}</td>
+                            <td>{{ request.customer.company_name }}</td>
+                            <td>{{ request.service_location.name }}</td>
+                            <td>{{ request.service_type.name }}</td>
+                            <td>
+                                <span class="badge bg-{{ request.priority }}">
+                                    {{ request.get_priority_display }}
+                                </span>
+                            </td>
+                            <td>{{ request.due_date|default:"Not set" }}</td>
+                            <td>
+                                <span class="status-indicator status-{{ request.status }}"></span>
+                                {{ request.get_status_display }}
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{% url 'route_management:service_request_detail' request.id %}" class="btn btn-info">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    <a href="{% url 'route_management:service_request_update' request.id %}" class="btn btn-warning">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <button type="button" class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i class="fas fa-cog"></i>
+                                    </button>
+                                    <ul class="dropdown-menu">
+                                        <li><a class="dropdown-item" href="{% url 'route_management:service_request_detail' request.id %}">View Details</a></li>
+                                        <li><a class="dropdown-item" href="{% url 'route_management:service_request_update' request.id %}">Edit Request</a></li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        {% if request.status != 'cancelled' %}
+                                            <li><a class="dropdown-item text-danger cancel-request" href="#" data-request-id="{{ request.id }}">Cancel Request</a></li>
+                                        {% endif %}
+                                        <li><a class="dropdown-item" href="{% url 'route_management:duplicate_service_request' request.id %}">Duplicate Request</a></li>
+                                    </ul>
+                                </div>
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="9" class="text-center">No service requests found.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
 </div>
 {% endblock %}
-
 {% block scripts %}
 <script>
-$(document).ready(function() {
-    // Initialize DataTable
-    var table = $('#serviceRequestsTable').DataTable({
-        paging: false,
-        searching: false,
-        info: false,
-        order: [[1, 'desc']]
-    });
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize DataTable
+        var table = new DataTable('#serviceRequestsTable', {
+            paging: false,
+            searching: false,
+            info: false,
+            order: [[1, 'desc']]
+        });
 
-    // Toggle advanced filters
-    $('#toggleAdvancedFilters').click(function(e) {
-        e.preventDefault();
-        $('#advanced-filters').slideToggle();
-    });
+        // Toggle advanced filters
+        document.getElementById('toggleAdvancedFilters').addEventListener('click', function(e) {
+            e.preventDefault();
+            var advancedFilters = document.getElementById('advanced-filters');
+            advancedFilters.style.display = (advancedFilters.style.display === 'none' || !advancedFilters.style.display) ? 'block' : 'none';
+        });
 
-    // Show date filter options when a date filter type is selected
-    $('#date-filter-type').change(function() {
-        if ($(this).val()) {
-            $('.date-filter').slideDown();
-        } else {
-            $('.date-filter').slideUp();
-        }
-    });
-
-    // Show custom date range inputs when custom range is selected
-    $('#date-filter-range').change(function() {
-        if ($(this).val() === 'custom') {
-            $('.custom-date-range').show();
-        } else {
-            $('.custom-date-range').hide();
-        }
-    });
-
-    // Clear search button
-    $('.clear-search').click(function() {
-        $('#search').val('').focus().trigger('keyup');
-    });
-
-    // Clear all filters
-    $('#clearFilters').click(function(e) {
-        e.preventDefault();
-        $('#search').val('');
-        $('#status-filter, #priority-filter, #date-filter-type, #customer-filter, #service-type-filter, #technician-filter, #location-filter').val('');
-        $('.date-filter').slideUp();
-        // Reload the page without any filters
-        window.location.href = "{% url 'route_management:service_request_list' %}";
-    });
-
-    // Filter functionality
-    function applyFilters() {
-        var search = $('#search').val().toLowerCase();
-        table.rows().every(function() {
-            var row = this.node();
-            var data = this.data();
-            var showRow = true;
-
-            // Search filter
-            if (search && !row.textContent.toLowerCase().includes(search)) {
-                showRow = false;
+        // Show date filter options when a date filter type is selected
+        document.getElementById('date-filter-type').addEventListener('change', function() {
+            var dateFilter = document.querySelector('.date-filter');
+            if (this.value) {
+                dateFilter.style.display = 'block';
+            } else {
+                dateFilter.style.display = 'none';
             }
-
-            // Status filter
-            var statusFilter = $('#status-filter').val();
-            if (statusFilter && !$(row).find('td:eq(7)').text().toLowerCase().includes(statusFilter)) {
-                showRow = false;
-            }
-
-            // Priority filter
-            var priorityFilter = $('#priority-filter').val();
-            if (priorityFilter && !$(row).find('td:eq(5)').text().toLowerCase().includes(priorityFilter)) {
-                showRow = false;
-            }
-
-            // Apply customer, service type, technician, and location filters using data attributes
-            // These would need to be added to the table rows in a real implementation
-
-            $(row).toggle(showRow);
-        });
-    }
-
-    // Apply filters on input or select change
-    $('#search, #status-filter, #priority-filter, #customer-filter, #service-type-filter, #technician-filter, #location-filter').on('change keyup', function() {
-        applyFilters();
-    });
-
-    // Apply date filter button
-    $('#apply-date-filter').click(function() {
-        // In a real implementation, this would send the date filter parameters to the server
-        // For demo purposes, we'll just reload the page
-        toastr.success('Date filter applied');
-    });
-
-    // Select all checkbox functionality
-    $('#select-all-checkbox').change(function() {
-        var isChecked = $(this).prop('checked');
-        $('.request-checkbox').prop('checked', isChecked);
-        updateBulkActions();
-    });
-
-    // Individual checkbox change
-    $('.request-checkbox').change(function() {
-        updateBulkActions();
-
-        // If all checkboxes are checked, also check the "select all" checkbox
-        var allChecked = $('.request-checkbox:checked').length === $('.request-checkbox').length;
-        $('#select-all-checkbox').prop('checked', allChecked);
-    });
-
-    // Update bulk actions visibility and count
-    function updateBulkActions() {
-        var checkedCount = $('.request-checkbox:checked').length;
-        if (checkedCount > 0) {
-            $('.bulk-actions').slideDown();
-            $('#selected-count').text(checkedCount + ' request' + (checkedCount > 1 ? 's' : '') + ' selected');
-        } else {
-            $('.bulk-actions').slideUp();
-        }
-    }
-
-    // Row click to view details (excluding clicks on checkboxes and action buttons)
-    $('.service-request-row').click(function(event) {
-        if (!$(event.target).closest('input[type="checkbox"], .btn, .dropdown-toggle, .dropdown-menu').length) {
-            var requestId = $(this).data('request-id');
-            window.location.href = '{% url "route_management:service_request_detail" 0 %}'.replace('0', requestId);
-        }
-    });
-
-    // Bulk assign button
-    $('#bulk-assign').click(function() {
-        var selectedIds = [];
-        $('.request-checkbox:checked').each(function() {
-            selectedIds.push($(this).data('request-id'));
         });
 
-        $('#bulk-assign-request-ids').val(selectedIds.join(','));
-        $('#bulk-assign-count').text('You are about to assign ' + selectedIds.length + ' service request' + (selectedIds.length > 1 ? 's' : '') + ' to the selected technician.');
-        $('#bulkAssignModal').modal('show');
-    });
-
-    // Bulk route button
-    $('#bulk-route').click(function() {
-        var selectedIds = [];
-        $('.request-checkbox:checked').each(function() {
-            selectedIds.push($(this).data('request-id'));
+        // Show custom date range inputs when custom range is selected
+        document.getElementById('date-filter-range').addEventListener('change', function() {
+            var customDateRanges = document.querySelectorAll('.custom-date-range');
+            customDateRanges.forEach(function(range) {
+                range.style.display = (this.value === 'custom') ? 'block' : 'none';
+            }.bind(this));
         });
 
-        $('#bulk-route-request-ids').val(selectedIds.join(','));
-        $('#bulk-route-count').text('You are about to add ' + selectedIds.length + ' service request' + (selectedIds.length > 1 ? 's' : '') + ' to the selected route.');
-        $('#bulkRouteModal').modal('show');
-    });
-
-    // Bulk status button
-    $('#bulk-status').click(function() {
-        var selectedIds = [];
-        $('.request-checkbox:checked').each(function() {
-            selectedIds.push($(this).data('request-id'));
+        // Clear search button
+        document.querySelector('.clear-search').addEventListener('click', function() {
+            var searchBox = document.getElementById('search');
+            searchBox.value = '';
+            searchBox.focus();
+            searchBox.dispatchEvent(new Event('keyup'));
         });
 
-        $('#bulk-status-request-ids').val(selectedIds.join(','));
-        $('#bulk-status-count').text('You are about to update the status of ' + selectedIds.length + ' service request' + (selectedIds.length > 1 ? 's' : '') + '.');
-        $('#bulkStatusModal').modal('show');
-    });
-
-    // Bulk cancel button
-    $('#bulk-cancel').click(function() {
-        var selectedIds = [];
-        $('.request-checkbox:checked').each(function() {
-            selectedIds.push($(this).data('request-id'));
+        // Clear all filters
+        document.getElementById('clearFilters').addEventListener('click', function(e) {
+            e.preventDefault();
+            document.getElementById('search').value = '';
+            var filters = ['status-filter', 'priority-filter', 'date-filter-type', 'customer-filter', 'service-type-filter', 'technician-filter', 'location-filter'];
+            filters.forEach(function(filterId) {
+                document.getElementById(filterId).value = '';
+            });
+            document.querySelector('.date-filter').style.display = 'none';
+            window.location.href = "{% url 'route_management:service_request_list' %}";
         });
 
-        $('#cancel-count').text('You are about to cancel ' + selectedIds.length + ' service request' + (selectedIds.length > 1 ? 's' : '') + '.');
-        $('#confirmCancelModal').modal('show');
-    });
+        // Filter functionality
+        function applyFilters() {
+            var search = document.getElementById('search').value.toLowerCase();
+            table.rows().every(function() {
+                var row = this.node();
+                var showRow = true;
 
-    // Confirm cancel button
-    $('#confirm-cancel-btn').click(function() {
-        var selectedIds = [];
-        $('.request-checkbox:checked').each(function() {
-            selectedIds.push($(this).data('request-id'));
-        });
-
-        // Make AJAX request to cancel the selected requests
-        $.ajax({
-            url: '{% url "route_management:bulk_cancel_requests" %}',
-            type: 'POST',
-            data: {
-                request_ids: selectedIds.join(','),
-                csrfmiddlewaretoken: '{{ csrf_token }}'
-            },
-            success: function(response) {
-                $('#confirmCancelModal').modal('hide');
-                if (response.success) {
-                    toastr.success('Successfully cancelled ' + selectedIds.length + ' service request' + (selectedIds.length > 1 ? 's' : '') + '.');
-                    setTimeout(function() {
-                        window.location.reload();
-                    }, 1500);
-                } else {
-                    toastr.error('Error cancelling service requests: ' + response.error);
+                // Search filter
+                if (search && !row.textContent.toLowerCase().includes(search)) {
+                    showRow = false;
                 }
-            },
-            error: function() {
-                $('#confirmCancelModal').modal('hide');
-                toastr.error('An error occurred while cancelling service requests.');
+
+                // Status filter
+                var statusFilter = document.getElementById('status-filter').value;
+                if (statusFilter && !row.querySelector('td:nth-child(8)').textContent.toLowerCase().includes(statusFilter)) {
+                    showRow = false;
+                }
+
+                // Priority filter
+                var priorityFilter = document.getElementById('priority-filter').value;
+                if (priorityFilter && !row.querySelector('td:nth-child(6)').textContent.toLowerCase().includes(priorityFilter)) {
+                    showRow = false;
+                }
+
+                row.style.display = showRow ? '' : 'none';
+            });
+        }
+
+        // Apply filters on input or select change
+        var filters = ['search', 'status-filter', 'priority-filter', 'customer-filter', 'service-type-filter', 'technician-filter', 'location-filter'];
+        filters.forEach(function(filterId) {
+            document.getElementById(filterId).addEventListener('change', applyFilters);
+            document.getElementById(filterId).addEventListener('keyup', applyFilters);
+        });
+
+        // Apply date filter button
+        document.getElementById('apply-date-filter').addEventListener('click', function() {
+            toastr.success('Date filter applied');
+        });
+
+        // Select all checkbox functionality
+        document.getElementById('select-all-checkbox').addEventListener('change', function() {
+            var isChecked = this.checked;
+            var checkboxes = document.querySelectorAll('.request-checkbox');
+            checkboxes.forEach(function(checkbox) {
+                checkbox.checked = isChecked;
+            });
+            updateBulkActions();
+        });
+
+        // Individual checkbox change
+        var requestCheckboxes = document.querySelectorAll('.request-checkbox');
+        requestCheckboxes.forEach(function(checkbox) {
+            checkbox.addEventListener('change', function() {
+                updateBulkActions();
+                var allChecked = Array.from(requestCheckboxes).every(function(cb) { return cb.checked; });
+                document.getElementById('select-all-checkbox').checked = allChecked;
+            });
+        });
+
+        // Update bulk actions visibility and count
+        function updateBulkActions() {
+            var checkedCount = document.querySelectorAll('.request-checkbox:checked').length;
+            var bulkActions = document.querySelector('.bulk-actions');
+            var selectedCount = document.getElementById('selected-count');
+            if (checkedCount > 0) {
+                bulkActions.style.display = 'block';
+                selectedCount.textContent = checkedCount + ' request' + (checkedCount > 1 ? 's' : '') + ' selected';
+            } else {
+                bulkActions.style.display = 'none';
             }
+        }
+
+        // Row click to view details
+        var requestRows = document.querySelectorAll('.service-request-row');
+        requestRows.forEach(function(row) {
+            row.addEventListener('click', function(event) {
+                if (!event.target.closest('input[type="checkbox"], .btn, .dropdown-toggle, .dropdown-menu')) {
+                    var requestId = this.dataset.requestId;
+                    window.location.href = '{% url "route_management:service_request_detail" 0 %}'.replace('0', requestId);
+                }
+            });
+        });
+
+        // Bulk assign button
+        document.getElementById('bulk-assign').addEventListener('click', function() {
+            var selectedIds = Array.from(document.querySelectorAll('.request-checkbox:checked')).map(function(cb) {
+                return cb.dataset.requestId;
+            });
+            document.getElementById('bulk-assign-request-ids').value = selectedIds.join(',');
+            document.getElementById('bulk-assign-count').textContent = 'You are about to assign ' + selectedIds.length + ' service request' + (selectedIds.length > 1 ? 's' : '') + ' to the selected technician.';
+            new bootstrap.Modal(document.getElementById('bulkAssignModal')).show();
+        });
+
+        // Bulk route button
+        document.getElementById('bulk-route').addEventListener('click', function() {
+            var selectedIds = Array.from(document.querySelectorAll('.request-checkbox:checked')).map(function(cb) {
+                return cb.dataset.requestId;
+            });
+            document.getElementById('bulk-route-request-ids').value = selectedIds.join(',');
+            document.getElementById('bulk-route-count').textContent = 'You are about to add ' + selectedIds.length + ' service request' + (selectedIds.length > 1 ? 's' : '') + ' to the selected route.';
+            new bootstrap.Modal(document.getElementById('bulkRouteModal')).show();
+        });
+
+        // Bulk status button
+        document.getElementById('bulk-status').addEventListener('click', function() {
+            var selectedIds = Array.from(document.querySelectorAll('.request-checkbox:checked')).map(function(cb) {
+                return cb.dataset.requestId;
+            });
+            document.getElementById('bulk-status-request-ids').value = selectedIds.join(',');
+            document.getElementById('bulk-status-count').textContent = 'You are about to update the status of ' + selectedIds.length + ' service request' + (selectedIds.length > 1 ? 's' : '') + '.';
+            new bootstrap.Modal(document.getElementById('bulkStatusModal')).show();
+        });
+
+        // Bulk cancel button
+        document.getElementById('bulk-cancel').addEventListener('click', function() {
+            var selectedIds = Array.from(document.querySelectorAll('.request-checkbox:checked')).map(function(cb) {
+                return cb.dataset.requestId;
+            });
+            document.getElementById('cancel-count').textContent = 'You are about to cancel ' + selectedIds.length + ' service request' + (selectedIds.length > 1 ? 's' : '') + '.';
+            new bootstrap.Modal(document.getElementById('confirmCancelModal')).show();
+        });
+
+        // Confirm cancel button
+        document.getElementById('confirm-cancel-btn').addEventListener('click', function() {
+            var selectedIds = Array.from(document.querySelectorAll('.request-checkbox:checked')).map(function(cb) {
+                return cb.dataset.requestId;
+            });
+            fetch('{% url "route_management:bulk_cancel_requests" %}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ request_ids: selectedIds.join(',') })
+            }).then(response => response.json()).then(data => {
+                new bootstrap.Modal(document.getElementById('confirmCancelModal')).hide();
+                if (data.success) {
+                    toastr.success('Successfully cancelled ' + selectedIds.length + ' service request' + (selectedIds.length > 1 ? 's' : '') + '.');
+                    setTimeout(function() { window.location.reload(); }, 1500);
+                } else {
+                    toastr.error('Error cancelling service requests: ' + data.error);
+                }
+            }).catch(() => {
+            new bootstrap.Modal(document.getElementById('confirmCancelModal')).hide();
+            toastr.error('An error occurred while cancelling the service requests.');
         });
     });
 
     // Individual cancel request
-    $('.cancel-request').click(function(e) {
-        e.preventDefault();
-        var requestId = $(this).data('request-id');
+    document.querySelectorAll('.cancel-request').forEach(function(cancelButton) {
+        cancelButton.addEventListener('click', function(e) {
+            e.preventDefault();
+            var requestId = this.getAttribute('data-request-id');
 
-        $('#cancel-count').text('You are about to cancel service request #' + requestId + '.');
-        $('#confirmCancelModal').modal('show');
+            document.getElementById('cancel-count').textContent = 'You are about to cancel service request #' + requestId + '.';
+            new bootstrap.Modal(document.getElementById('confirmCancelModal')).show();
 
-        // Update confirm button to handle single cancellation
-        $('#confirm-cancel-btn').off('click').click(function() {
-            $.ajax({
-                url: '{% url "route_management:cancel_service_request" 0 %}'.replace('0', requestId),
-                type: 'POST',
-                data: {
-                    csrfmiddlewaretoken: '{{ csrf_token }}'
-                },
-                success: function(response) {
-                    $('#confirmCancelModal').modal('hide');
-                    if (response.success) {
+            document.getElementById('confirm-cancel-btn').onclick = function() {
+                fetch('{% url "route_management:cancel_service_request" 0 %}'.replace('0', requestId), {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': '{{ csrf_token }}',
+                        'Content-Type': 'application/json'
+                    }
+                }).then(response => response.json()).then(data => {
+                    new bootstrap.Modal(document.getElementById('confirmCancelModal')).hide();
+                    if (data.success) {
                         toastr.success('Successfully cancelled service request #' + requestId + '.');
                         setTimeout(function() {
                             window.location.reload();
                         }, 1500);
                     } else {
-                        toastr.error('Error cancelling service request: ' + response.error);
+                        toastr.error('Error cancelling service request: ' + data.error);
                     }
-                },
-                error: function() {
-                    $('#confirmCancelModal').modal('hide');
+                }).catch(() => {
+                    new bootstrap.Modal(document.getElementById('confirmCancelModal')).hide();
                     toastr.error('An error occurred while cancelling the service request.');
-                }
-            });
+                });
+            };
         });
     });
 
     // View options
-    $('#view-all-requests').click(function(e) {
+    document.getElementById('view-all-requests').addEventListener('click', function(e) {
         e.preventDefault();
         window.location.href = '{% url "route_management:service_request_list" %}';
     });
 
-    $('#view-pending-requests').click(function(e) {
+    document.getElementById('view-pending-requests').addEventListener('click', function(e) {
         e.preventDefault();
         window.location.href = '{% url "route_management:service_request_list" %}?status=pending';
     });
 
-    $('#view-today-requests').click(function(e) {
+    document.getElementById('view-today-requests').addEventListener('click', function(e) {
         e.preventDefault();
         window.location.href = '{% url "route_management:service_request_list" %}?date=today';
     });
 
-    // Export functions
-    $('#export-csv').click(function(e) {
+    // Export to CSV
+    document.getElementById('export-csv').addEventListener('click', function(e) {
         e.preventDefault();
-        // In a real implementation, this would trigger a download of the CSV file
         toastr.info('Exporting service requests to CSV...');
         setTimeout(function() {
             toastr.success('Export completed successfully.');
         }, 1500);
     });
 
-    $('#export-pdf').click(function(e) {
+    // Export to PDF
+    document.getElementById('export-pdf').addEventListener('click', function(e) {
         e.preventDefault();
-        // In a real implementation, this would trigger a download of the PDF file
         toastr.info('Exporting service requests to PDF...');
         setTimeout(function() {
             toastr.success('Export completed successfully.');

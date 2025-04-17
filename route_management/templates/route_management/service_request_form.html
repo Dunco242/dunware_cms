@@ -98,10 +98,10 @@
                     <label for="{{ form.assigned_technician.id_for_label }}" class="block text-sm font-medium text-gray-700">
                         Assigned Technician
                     </label>
-                    {{ form.assigned_technician }}
-                    {% if form.assigned_technician.errors %}
-                        <div class="text-red-500 text-sm mt-1">
-                            {{ form.assigned_technician.errors }}
+                    {% if assigned_technician %}
+                        <div class="form-group">
+                            <label>Assigned Technician:</label>
+                            <p>{{ assigned_technician.get_full_name }}</p>
                         </div>
                     {% endif %}
                 </div>

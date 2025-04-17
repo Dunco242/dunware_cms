@@ -33,13 +33,15 @@ class ServiceRequestForm(forms.ModelForm):
         fields = [
             'customer', 'service_location', 'service_type', 'description',
             'priority', 'preferred_date', 'preferred_time_start', 'preferred_time_end',
-            'contact_name', 'contact_phone', 'contact_email'
+            'contact_name', 'contact_phone', 'contact_email',
+            'assigned_technician'
         ]
         widgets = {
             'preferred_date': forms.DateInput(attrs={'type': 'date'}),
             'preferred_time_start': forms.TimeInput(attrs={'type': 'time'}),
             'preferred_time_end': forms.TimeInput(attrs={'type': 'time'}),
             'description': forms.Textarea(attrs={'rows': 4}),
+            'assigned_technician': forms.Select(attrs={'class': 'form-control'}),
         }
 
     def __init__(self, *args, **kwargs):

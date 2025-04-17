@@ -297,655 +297,269 @@
 
 <!-- Map initialization script -->
 <script>
- // Global variables
-var map;
-var router;
-var routeLineGroup;
-var ui;
-var markers = [];
-var infoBubbles = [];
-var mapData = {% if map_data.stops %}{{ map_data.stops|safe }}{% else %}[]{% endif %};
-var trafficLayerVisible = false;
-var trafficLayer;
-var mapInitialized = false;
+    // Global variables
+    var map;
+    var router;
+    var routeLineGroup;
+    var ui;
+    var markers = [];
+    var infoBubbles = [];
+    var mapData = {% if map_data.stops %}{{ map_data.stops|safe }}{% else %}[]{% endif %};
+    var trafficLayerVisible = false;
+    var trafficLayer;
+    var mapInitialized = false;
+    var technicianMarker; // Marker for the technician's live location
 
-// Update status alert
-function updateMapStatus(message, type) {
-    var statusAlert = document.getElementById('mapStatusAlert');
-    if (statusAlert) {
-        statusAlert.className = 'alert alert-' + (type || 'info');
-        statusAlert.innerHTML = message;
-    }
-}
-
-// Initialize the map
-function initMap() {
-    // Prevent double initialization
-    if (mapInitialized) {
-        console.log("Map already initialized, skipping");
-        return;
+    // Update status alert
+    function updateMapStatus(message, type) {
+        var statusAlert = document.getElementById('mapStatusAlert');
+        if (statusAlert) {
+            statusAlert.className = 'alert alert-' + (type || 'info');
+            statusAlert.innerHTML = message;
+        }
     }
 
-    console.log("Map initialization started");
-    updateMapStatus('<i class="fas fa-spinner fa-spin"></i> Initializing map...', 'info');
+    // Initialize the map
+    function initMap() {
+        // Prevent double initialization
+        if (mapInitialized) {
+            console.log("Map already initialized, skipping");
+            return;
+        }
 
-    // Set a timeout to detect initialization problems
-    const initTimeout = setTimeout(function() {
-        console.error("Map initialization timed out after 10 seconds");
-        updateMapStatus('<i class="fas fa-exclamation-triangle"></i> Map initialization timed out. Try refreshing the page.', 'danger');
-        mapInitialized = false; // Allow another initialization attempt
-    }, 10000);
+        console.log("Map initialization started");
+        updateMapStatus('<i class="fas fa-spinner fa-spin"></i> Initializing map...', 'info');
 
-    // Check container
-    var mapContainer = document.getElementById('fullRouteMap');
-    if (!mapContainer) {
-        console.error("Map container element not found");
-        updateMapStatus('<i class="fas fa-exclamation-triangle"></i> Error: Map container not found', 'danger');
-        clearTimeout(initTimeout);
-        return;
-    }
+        // Set a timeout to detect initialization problems
+        const initTimeout = setTimeout(function() {
+            console.error("Map initialization timed out after 10 seconds");
+            updateMapStatus('<i class="fas fa-exclamation-triangle"></i> Map initialization timed out. Try refreshing the page.', 'danger');
+            mapInitialized = false; // Allow another initialization attempt
+        }, 10000);
 
-    // Check container dimensions
-    if (mapContainer.offsetWidth === 0 || mapContainer.offsetHeight === 0) {
-        console.log("Fixing map container dimensions");
-        mapContainer.style.width = "100%";
-        mapContainer.style.height = "500px";
-        mapContainer.style.display = "block";
-    }
+        // Check container
+        var mapContainer = document.getElementById('fullRouteMap');
+        if (!mapContainer) {
+            console.error("Map container element not found");
+            updateMapStatus('<i class="fas fa-exclamation-triangle"></i> Error: Map container not found', 'danger');
+            clearTimeout(initTimeout);
+            return;
+        }
 
-    // API key validation
-    var apiKey = "{{ here_maps_api_key }}";
-    console.log("API Key (first 5 chars):", apiKey.substring(0, 5), "Length:", apiKey.length);
+        // Check container dimensions
+        if (mapContainer.offsetWidth === 0 || mapContainer.offsetHeight === 0) {
+            console.log("Fixing map container dimensions");
+            mapContainer.style.width = "100%";
+            mapContainer.style.height = "500px";
+            mapContainer.style.display = "block";
+        }
 
-    if (!apiKey || apiKey.trim() === "" || apiKey.includes("{") || apiKey.includes("}")) {
-        console.error("HERE Maps API key is missing, empty, or contains template tags");
-        updateMapStatus('<i class="fas fa-exclamation-triangle"></i> Error: Invalid HERE Maps API key', 'danger');
-        clearTimeout(initTimeout);
-        return;
-    }
+        // API key validation
+        var apiKey = "{{ here_maps_api_key }}";
+        console.log("API Key (first 5 chars):", apiKey.substring(0, 5), "Length:", apiKey.length);
 
-    try {
-        // Initialize HERE Map
-        var platform = new H.service.Platform({
-            'apikey': apiKey.trim()
-        });
+        if (!apiKey || apiKey.trim() === "" || apiKey.includes("{") || apiKey.includes("}")) {
+            console.error("HERE Maps API key is missing, empty, or contains template tags");
+            updateMapStatus('<i class="fas fa-exclamation-triangle"></i> Error: Invalid HERE Maps API key', 'danger');
+            clearTimeout(initTimeout);
+            return;
+        }
 
-        // Obtain the default map types with additional options
-        var defaultLayers = platform.createDefaultLayers({
-            tileSize: 256,
-            ppi: 320
-        });
-
-        // Get map center with fallback if invalid
-        var mapCenter;
         try {
-            mapCenter = {
-                lat: parseFloat("{{ map_data.center.lat|default:0 }}"),
-                lng: parseFloat("{{ map_data.center.lng|default:0 }}")
-            };
+            // Initialize HERE Map
+            var platform = new H.service.Platform({
+                'apikey': apiKey.trim()
+            });
 
-            // Validate coordinates
-            if (isNaN(mapCenter.lat) || isNaN(mapCenter.lng) ||
-                Math.abs(mapCenter.lat) > 90 || Math.abs(mapCenter.lng) > 180) {
-                throw new Error("Invalid coordinates");
-            }
-        } catch (e) {
-            console.warn("Invalid map center coordinates, using fallback", e);
-            // Default to center of US as fallback
-            mapCenter = { lat: 39.8283, lng: -98.5795 };
-        }
+            // Obtain the default map types with additional options
+            var defaultLayers = platform.createDefaultLayers({
+                tileSize: 256,
+                ppi: 320
+            });
 
-        console.log("Using map center:", mapCenter);
+            // Get map center with fallback if invalid
+            var mapCenter;
+            try {
+                mapCenter = {
+                    lat: parseFloat("{{ map_data.center.lat|default:0 }}"),
+                    lng: parseFloat("{{ map_data.center.lng|default:0 }}")
+                };
 
-        // Initialize map with basic settings
-        map = new H.Map(
-            mapContainer,
-            defaultLayers.vector.normal.map,
-            {
-                zoom: 10,
-                center: mapCenter,
-                pixelRatio: window.devicePixelRatio || 1
-            }
-        );
-
-        console.log("Map object created");
-
-        // Add map interaction and UI components
-        var behavior = new H.mapevents.Behavior(new H.mapevents.MapEvents(map));
-        ui = H.ui.UI.createDefault(map, defaultLayers);
-
-        // Enable map type control (satellite, terrain, etc.)
-        var mapSettings = ui.getControl('mapsettings');
-        if (mapSettings) {
-            mapSettings.setAlignment('top-right');
-            mapSettings.setVisibility(true);
-            console.log("Map settings control enabled");
-        } else {
-            console.warn("Map settings control not available");
-        }
-
-        // Initialize the router and route line group with error handling
-        try {
-            router = platform.getRoutingService(null, 8);
-            routeLineGroup = new H.map.Group();
-            map.addObject(routeLineGroup);
-            console.log("Router initialized successfully");
-        } catch (routerError) {
-            console.error("Error initializing router:", routerError);
-            // Continue without routing capability
-        }
-
-        // Initialize traffic layer
-        try {
-            trafficLayer = platform.getTrafficService();
-        } catch (trafficError) {
-            console.warn("Traffic layer not available:", trafficError);
-        }
-
-        // Make the map responsive
-        window.addEventListener('resize', function() {
-            if (map && map.getViewPort()) {
-                map.getViewPort().resize();
-            }
-        });
-
-        // Add markers
-        if (mapData && mapData.length > 0) {
-            console.log("Adding markers:", mapData.length);
-
-            // Add markers for all stops
-            for (let index = 0; index < mapData.length; index++) {
-                let stop = mapData[index];
-
-                // Skip invalid coordinates
-                if (!stop.lat || !stop.lng) {
-                    console.warn("Skipping marker with invalid coordinates:", stop);
-                    continue;
+                // Validate coordinates
+                if (isNaN(mapCenter.lat) || isNaN(mapCenter.lng) ||
+                    Math.abs(mapCenter.lat) > 90 || Math.abs(mapCenter.lng) > 180) {
+                    throw new Error("Invalid coordinates");
                 }
+            } catch (e) {
+                console.warn("Invalid map center coordinates, using fallback", e);
+                // Default to center of US as fallback
+                mapCenter = { lat: 39.8283, lng: -98.5795 };
+            }
 
-                try {
-                    // Validate coordinates
-                    let lat = parseFloat(stop.lat);
-                    let lng = parseFloat(stop.lng);
+            console.log("Using map center:", mapCenter);
 
-                    if (isNaN(lat) || isNaN(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
-                        console.warn("Invalid coordinates, skipping marker:", stop);
+            // Initialize map with basic settings
+            map = new H.Map(
+                mapContainer,
+                defaultLayers.vector.normal.map,
+                {
+                    zoom: 10,
+                    center: mapCenter,
+                    pixelRatio: window.devicePixelRatio || 1
+                }
+            );
+
+            console.log("Map object created");
+
+            // Add map interaction and UI components
+            var behavior = new H.mapevents.Behavior(new H.mapevents.MapEvents(map));
+            ui = H.ui.UI.createDefault(map, defaultLayers);
+
+            // Enable map type control (satellite, terrain, etc.)
+            var mapSettings = ui.getControl('mapsettings');
+            if (mapSettings) {
+                mapSettings.setAlignment('top-right');
+                mapSettings.setVisibility(true);
+                console.log("Map settings control enabled");
+            } else {
+                console.warn("Map settings control not available");
+            }
+
+            // Initialize the router and route line group with error handling
+            try {
+                router = platform.getRoutingService(null, 8);
+                routeLineGroup = new H.map.Group();
+                map.addObject(routeLineGroup);
+                console.log("Router initialized successfully");
+            } catch (routerError) {
+                console.error("Error initializing router:", routerError);
+                // Continue without routing capability
+            }
+
+            // Initialize traffic layer
+            try {
+                trafficLayer = platform.getTrafficService();
+            } catch (trafficError) {
+                console.warn("Traffic layer not available:", trafficError);
+            }
+
+            // Make the map responsive
+            window.addEventListener('resize', function() {
+                if (map && map.getViewPort()) {
+                    map.getViewPort().resize();
+                }
+            });
+
+            // Add markers
+            if (mapData && mapData.length > 0) {
+                console.log("Adding markers:", mapData.length);
+
+                // Add markers for all stops
+                for (let index = 0; index < mapData.length; index++) {
+                    let stop = mapData[index];
+
+                    // Skip invalid coordinates
+                    if (!stop.lat || !stop.lng) {
+                        console.warn("Skipping marker with invalid coordinates:", stop);
                         continue;
                     }
 
-                    // Create marker icon based on stop type
-                    let svgMarkup;
-                    if (stop.type === 'start') {
-                        svgMarkup = '<svg width="32" height="32" xmlns="http://www.w3.org/2000/svg">' +
-                            '<rect stroke="white" stroke-width="2" fill="#4CAF50" x="1" y="1" width="30" height="30" />' +
-                            '<text x="16" y="22" font-size="14pt" font-family="Arial" font-weight="bold" ' +
-                            'text-anchor="middle" fill="white">S</text></svg>';
-                    } else if (stop.type === 'end') {
-                        svgMarkup = '<svg width="32" height="32" xmlns="http://www.w3.org/2000/svg">' +
-                            '<rect stroke="white" stroke-width="2" fill="#F44336" x="1" y="1" width="30" height="30" />' +
-                            '<text x="16" y="22" font-size="14pt" font-family="Arial" font-weight="bold" ' +
-                            'text-anchor="middle" fill="white">E</text></svg>';
-                    } else {
-                        // Regular stop marker
-                        let color = getMarkerColor(stop.type, stop.status);
-                        svgMarkup = '<svg width="32" height="32" xmlns="http://www.w3.org/2000/svg">' +
-                            '<circle cx="16" cy="16" r="14" stroke="white" stroke-width="2" fill="' + color + '"/>' +
-                            '<text x="16" y="21" font-size="12pt" font-family="Arial" font-weight="bold" ' +
-                            'text-anchor="middle" fill="white">' + stop.stop_number + '</text></svg>';
-                    }
+                    try {
+                        // Validate coordinates
+                        let lat = parseFloat(stop.lat);
+                        let lng = parseFloat(stop.lng);
 
-                    // Create icon and marker
-                    let icon = new H.map.Icon(svgMarkup);
-                    let marker = new H.map.Marker({
-                        lat: lat,
-                        lng: lng
-                    }, {
-                        icon: icon
-                    });
+                        if (isNaN(lat) || isNaN(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
+                            console.warn("Invalid coordinates, skipping marker:", stop);
+                            continue;
+                        }
 
-                    // Create info bubble
-                    let bubbleContent = document.createElement('div');
-                    bubbleContent.style.padding = '10px';
-                    bubbleContent.innerHTML = '<h5 style="margin-top:0">' + stop.name + '</h5>';
+                        // Create marker icon based on stop type
+                        let svgMarkup;
+                        if (stop.type === 'start') {
+                            svgMarkup = '<svg width="32" height="32" xmlns="http://www.w3.org/2000/svg">' +
+                                '<rect stroke="white" stroke-width="2" fill="#4CAF50" x="1" y="1" width="30" height="30" />' +
+                                '<text x="16" y="22" font-size="14pt" font-family="Arial" font-weight="bold" ' +
+                                'text-anchor="middle" fill="white">S</text></svg>';
+                        } else if (stop.type === 'end') {
+                            svgMarkup = '<svg width="32" height="32" xmlns="http://www.w3.org/2000/svg">' +
+                                '<rect stroke="white" stroke-width="2" fill="#F44336" x="1" y="1" width="30" height="30" />' +
+                                '<text x="16" y="22" font-size="14pt" font-family="Arial" font-weight="bold" ' +
+                                'text-anchor="middle" fill="white">E</text></svg>';
+                        } else {
+                            // Regular stop marker
+                            let color = getMarkerColor(stop.type, stop.status);
+                            svgMarkup = '<svg width="32" height="32" xmlns="http://www.w3.org/2000/svg">' +
+                                '<circle cx="16" cy="16" r="14" stroke="white" stroke-width="2" fill="' + color + '"/>' +
+                                '<text x="16" y="21" font-size="12pt" font-family="Arial" font-weight="bold" ' +
+                                'text-anchor="middle" fill="white">' + stop.stop_number + '</text></svg>';
+                        }
 
-                    if (stop.address) {
-                        bubbleContent.innerHTML += '<p style="margin:5px 0"><small>' + stop.address + '</small></p>';
-                    }
-
-                    if (stop.status) {
-                        bubbleContent.innerHTML += '<p style="margin:5px 0"><strong>Status: </strong>' + stop.status + '</p>';
-                    }
-
-                    if (stop.scheduled_time) {
-                        bubbleContent.innerHTML += '<p style="margin:5px 0"><strong>ETA: </strong>' + stop.scheduled_time + '</p>';
-                    }
-
-                    if (stop.stop_id && stop.service_request_id) {
-                        bubbleContent.innerHTML += '<p style="text-align:center;margin-top:10px"><a href="/route_management/service_request/' +
-                            stop.service_request_id + '/" class="btn btn-sm btn-primary">View Service Request</a></p>';
-                    }
-
-                    // Create info bubble
-                    let infoBubble = new H.ui.InfoBubble({ lat: lat, lng: lng }, {
-                        content: bubbleContent
-                    });
-
-                    // Hide it initially
-                    infoBubble.close();
-
-                    // Save references
-                    infoBubbles.push(infoBubble);
-                    markers.push(marker);
-
-                    // Add marker to map
-                    map.addObject(marker);
-
-                    // Add click event
-                    marker.addEventListener('tap', function() {
-                        // Close any open info windows
-                        infoBubbles.forEach(function(bubble) {
-                            bubble.close();
+                        // Create icon and marker
+                        let icon = new H.map.Icon(svgMarkup);
+                        let marker = new H.map.Marker({
+                            lat: lat,
+                            lng: lng
+                        }, {
+                            icon: icon
                         });
 
-                        // Open this info window
-                        ui.addBubble(infoBubble);
-                    });
-                } catch (markerError) {
-                    console.error("Error creating marker:", markerError, stop);
-                }
-            }
 
-            // Calculate and display route if we have at least 2 valid markers
-            if (markers.length >= 2 && router) {
-                calculateAndDisplayRoute();
-            } else if (markers.length < 2) {
-                console.warn("Not enough valid markers for routing");
-            }
-        } else {
-            console.warn("No map data points available");
-            updateMapStatus('<i class="fas fa-exclamation-triangle"></i> Warning: No location data available for this route', 'warning');
-        }
+                        // Create info bubble
+                        let infoBubble = new H.ui.InfoBubble(
+                            { lat: parseFloat(stop.lat), lng: parseFloat(stop.lng) },
+                            { content: bubbleContent }
+                        );
 
-        // Setup event handlers
-        setupEventHandlers();
+                        // Close the info bubble initially
+                        infoBubble.close();
 
-        // Clear timeout and mark as initialized
-        clearTimeout(initTimeout);
-        mapInitialized = true;
-        console.log("Map initialization complete");
-        updateMapStatus('<i class="fas fa-check-circle"></i> Map loaded successfully', 'success');
+                        // Save references to the info bubble
+                        infoBubbles.push(infoBubble);
 
-        // Hide status after a delay
-        setTimeout(function() {
-            var statusAlert = document.getElementById('mapStatusAlert');
-            if (statusAlert) {
-                statusAlert.style.display = 'none';
-            }
-        }, 3000);
+                        // Create a marker for the stop
+                        let markerIcon = new H.map.Icon(svgMarkup);
+                        let marker = new H.map.Marker(
+                            { lat: parseFloat(stop.lat), lng: parseFloat(stop.lng) },
+                            { icon: markerIcon }
+                        );
 
-    } catch (error) {
-        console.error("Error initializing map:", error);
-        updateMapStatus('<i class="fas fa-exclamation-triangle"></i> Error initializing map: ' + error.message, 'danger');
-        clearTimeout(initTimeout);
-    }
-}
+                        // Save the marker reference for later
+                        markers.push(marker);
 
-// Calculate and display route
-function calculateAndDisplayRoute() {
-    if (mapData.length < 2) {
-        console.warn("Not enough waypoints for route calculation");
-        return;
-    }
+                        // Add the marker to the map
+                        map.addObject(marker);
 
-    console.log("Calculating route with", mapData.length, "waypoints");
+                        // Add click event listener to open the info bubble when the marker is clicked
+                        marker.addEventListener('tap', function () {
+                            // Close all other info bubbles
+                            infoBubbles.forEach(function (bubble) {
+                                bubble.close();
+                            });
 
-    // Clear existing route lines
-    routeLineGroup.removeAll();
-
-    // Create waypoints array with validation
-    var validWaypoints = [];
-    for (var i = 0; i < mapData.length; i++) {
-        // Ensure coordinates are valid numbers
-        var lat = parseFloat(mapData[i].lat);
-        var lng = parseFloat(mapData[i].lng);
-
-        if (!isNaN(lat) && !isNaN(lng) &&
-            Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
-            validWaypoints.push({ lat: lat, lng: lng });
-        } else {
-            console.warn("Invalid coordinates skipped:", mapData[i]);
-        }
-    }
-
-    // Exit if we don't have enough valid waypoints
-    if (validWaypoints.length < 2) {
-        console.error("Not enough valid waypoints for routing");
-        updateMapStatus('<i class="fas fa-exclamation-triangle"></i> Error: Not enough valid waypoints', 'warning');
-        return;
-    }
-
-    try {
-        // Create routing parameters with minimum required fields
-        var routingParameters = {
-            'mode': 'fastest;car',
-            'representation': 'display'
-        };
-
-        // Add waypoints in proper format
-        for (var j = 0; j < validWaypoints.length; j++) {
-            routingParameters['waypoint' + j] = validWaypoints[j].lat + ',' + validWaypoints[j].lng;
-        }
-
-        // Use a basic routing request as it's more reliable
-        console.log("Sending route calculation request with parameters:", routingParameters);
-        router.calculateRoute(routingParameters, onRouteSuccess, onRouteError);
-    } catch (error) {
-        console.error("Error setting up route calculation:", error);
-        updateMapStatus('<i class="fas fa-exclamation-triangle"></i> Error calculating route', 'warning');
-    }
-}
-
-// Route calculation success handler
-function onRouteSuccess(result) {
-    console.log("Route calculation successful");
-
-    if (result.routes.length) {
-        var route = result.routes[0];
-
-        // Get route shape
-        var lineString = new H.geo.LineString();
-        route.sections.forEach(function(section) {
-            // Decode the polyline
-            section.polyline.forEach(function(point) {
-                lineString.pushLatLngAlt(point.lat, point.lng);
-            });
-        });
-
-        // Create a polyline from the shape
-        var routeLine = new H.map.Polyline(lineString, {
-            style: {
-                lineWidth: 5,
-                strokeColor: '#4e73df',
-                lineTailCap: 'arrow-tail',
-                lineHeadCap: 'arrow-head'
-            }
-        });
-
-        // Add the polyline to the map
-        routeLineGroup.addObject(routeLine);
-
-        // Zoom to the route bounds
-        map.getViewModel().setLookAtData({
-            bounds: routeLine.getBoundingBox()
-        });
-
-        // Calculate total distance and duration
-        var totalDistance = 0;
-        var totalDuration = 0;
-
-        route.sections.forEach(function(section) {
-            totalDistance += section.travelSummary.length;
-            totalDuration += section.travelSummary.duration;
-        });
-
-        // Convert to miles and minutes
-        var distanceMiles = (totalDistance / 1609.34).toFixed(1);
-        var durationMinutes = Math.round(totalDuration / 60);
-
-        // Log the results
-        console.log("Total Distance: " + distanceMiles + " miles");
-        console.log("Total Duration: " + durationMinutes + " minutes");
-    } else {
-        console.warn("No routes returned from calculation");
-    }
-}
-
-// Route calculation error handler
-function onRouteError(error) {
-    console.error('Routing error:', error);
-
-    // Try a simpler route calculation as fallback
-    if (!window.routeRetryAttempted) {
-        window.routeRetryAttempted = true;
-        console.log("Trying simplified route calculation with just start and end points...");
-
-        // Make sure we have at least start and end points
-        if (mapData.length >= 2) {
-            // Get first and last points only
-            var start = {
-                lat: parseFloat(mapData[0].lat),
-                lng: parseFloat(mapData[0].lng)
-            };
-
-            var end = {
-                lat: parseFloat(mapData[mapData.length-1].lat),
-                lng: parseFloat(mapData[mapData.length-1].lng)
-            };
-
-            // Validate coordinates
-            if (!isNaN(start.lat) && !isNaN(start.lng) && !isNaN(end.lat) && !isNaN(end.lng)) {
-                // Create a very basic routing request - just start and end
-                var simplifiedParams = {
-                    'mode': 'fastest;car'
-                };
-
-                simplifiedParams['waypoint0'] = start.lat + ',' + start.lng;
-                simplifiedParams['waypoint1'] = end.lat + ',' + end.lng;
-
-                console.log("Simplified routing parameters:", simplifiedParams);
-
-                // Attempt the simpler calculation
-                router.calculateRoute(simplifiedParams, onRouteSuccess, function(secondError) {
-                    console.error("Even simplified routing failed:", secondError);
-                    updateMapStatus('<i class="fas fa-exclamation-triangle"></i> Could not calculate route between stops', 'warning');
-                });
-                return;
-            }
-        }
-    }
-
-    updateMapStatus('<i class="fas fa-exclamation-triangle"></i> Could not calculate route between stops', 'warning');
-}
-
-// Get marker color based on type and status
-function getMarkerColor(type, status) {
-    if (type === 'start') return '#4CAF50';
-    if (type === 'end') return '#F44336';
-
-    // Status-based colors for stops
-    switch(status) {
-        case 'completed': return '#1cc88a';
-        case 'in_progress': return '#4e73df';
-        case 'en_route': return '#36b9cc';
-        case 'arrived': return '#4e73df';
-        case 'pending': return '#f6c23e';
-        case 'skipped': return '#858796';
-        case 'cancelled': return '#e74a3b';
-        default: return '#4e73df';
-    }
-}
-
-// Setup event handlers for UI
-function setupEventHandlers() {
-    try {
-        // Toggle traffic layer
-        var trafficToggle = document.querySelector('.toggle-traffic');
-        if (trafficToggle) {
-            trafficToggle.addEventListener('click', function(e) {
-                e.preventDefault();
-                toggleTrafficLayer();
-            });
-        }
-
-        // Toggle all info windows
-        var infoToggle = document.querySelector('.toggle-all-info');
-        if (infoToggle) {
-            infoToggle.addEventListener('click', function(e) {
-                e.preventDefault();
-                toggleAllInfoWindows();
-            });
-        }
-
-        // Stop list item clicks
-        var stopItems = document.querySelectorAll('.stop-item');
-        if (stopItems) {
-            stopItems.forEach(function(item) {
-                item.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    var index = parseInt(this.dataset.stopIndex, 10);
-                    focusOnStop(index);
-                });
-            });
-        }
-
-        // Geocode button
-        var geocodeButton = document.getElementById('geocode-locations');
-        if (geocodeButton) {
-            geocodeButton.addEventListener('click', function() {
-                this.disabled = true;
-                this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Geocoding...';
-                geocodeLocations();
-            });
-        }
-
-        // Force refresh button
-        var refreshButton = document.getElementById('forceRefresh');
-        if (refreshButton) {
-            refreshButton.addEventListener('click', function() {
-                this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Refreshing...';
-                mapInitialized = false;
-                setTimeout(function() {
-                    initMap();
-                    refreshButton.innerHTML = '<i class="fas fa-sync-alt"></i> Refresh Map';
-                }, 100);
-            });
-        }
-    } catch (error) {
-        console.error("Error setting up event handlers:", error);
-    }
-}
-
-// Toggle traffic layer
-function toggleTrafficLayer() {
-    if (!map) return;
-
-    if (trafficLayerVisible) {
-        // Implementation depends on HERE Maps traffic layer API
-        trafficLayerVisible = false;
-        updateMapStatus('Traffic layer turned off', 'info');
-    } else {
-        // Implementation depends on HERE Maps traffic layer API
-        trafficLayerVisible = true;
-        updateMapStatus('Traffic layer turned on', 'info');
-    }
-}
-
-// Toggle all info windows
-function toggleAllInfoWindows() {
-    if (!infoBubbles || !ui) return;
-
-    var anyOpen = infoBubbles.some(function(bubble) {
-        return bubble.getState() === 'open';
-    });
-
-    if (anyOpen) {
-        // Close all
-        infoBubbles.forEach(function(bubble) {
-            bubble.close();
-        });
-    } else {
-        // Open all
-        infoBubbles.forEach(function(bubble) {
-            ui.addBubble(bubble);
-        });
-    }
-}
-
-// Focus on a specific stop
-function focusOnStop(index) {
-    if (!map || !markers || index < 0 || index >= markers.length) return;
-
-    // Find the marker by index and center map on it
-    var position = markers[index].getGeometry();
-    map.setCenter(position);
-    map.setZoom(14);
-
-    // Close any open info windows
-    if (infoBubbles) {
-        infoBubbles.forEach(function(bubble) {
-            bubble.close();
-        });
-    }
-
-    // Open this stop's info window
-    if (ui && infoBubbles && infoBubbles[index]) {
-        ui.addBubble(infoBubbles[index]);
-    }
-}
-
-// Geocode locations
-function geocodeLocations() {
-    $.ajax({
-        url: '{% url "route_management:geocode_locations" %}',
-        type: 'POST',
-        headers: {
-            'X-CSRFToken': '{{ csrf_token }}'
-        },
-        success: function(data) {
-            if (data.success) {
-                // Display success message
-                var message = "Geocoded " + data.success_count + " locations successfully. ";
-                if (data.error_count > 0) {
-                    message += data.error_count + " had errors.";
+                            // Open the clicked info bubble
+                            ui.addBubble(infoBubble);
+                        });
+                    } catch (markerError) {
+                        console.error("Error creating marker and info bubble:", markerError, stop);
+                    }
                 }
 
-                // Use alert since toastr might not be available
-                alert(message);
-
-                // Reload the page after a short delay
-                setTimeout(function() { window.location.reload(); }, 1500);
+                // Calculate and display the route if valid markers are available
+                if (markers.length >= 2 && router) {
+                    calculateAndDisplayRoute();
+                } else {
+                    console.warn("Not enough valid markers to calculate a route");
+                }
             } else {
-                var errorMsg = 'Error geocoding locations';
-                alert(errorMsg);
-                $('#geocode-locations').prop('disabled', false);
-                $('#geocode-locations').html('<i class="fas fa-map-marker-alt"></i> Geocode Locations');
+                console.warn("No map data available for stops");
+                updateMapStatus('<i class="fas fa-exclamation-triangle"></i> No location data available for this route', 'warning');
             }
-        },
-        error: function() {
-            var errorMsg = 'Error geocoding locations';
-            alert(errorMsg);
-            $('#geocode-locations').prop('disabled', false);
-            $('#geocode-locations').html('<i class="fas fa-map-marker-alt"></i> Geocode Locations');
+        } catch (error) {
+            console.error("Error processing stops:", error);
+            updateMapStatus('<i class="fas fa-exclamation-triangle"></i> Error loading map stops', 'danger');
         }
-    });
-}
-
-// Wait for the script resources to load first
-window.addEventListener('load', function() {
-    console.log("Window fully loaded, calling initMap with a small delay");
-    setTimeout(initMap, 100); // Small delay to ensure all scripts are ready
-});
-
-// Add DOMContentLoaded as a backup initialization method
-document.addEventListener('DOMContentLoaded', function() {
-    console.log("DOM content loaded, will call initMap if window load hasn't triggered");
-    setTimeout(function() {
-        if (!mapInitialized) {
-            console.log("Calling initMap from DOMContentLoaded handler");
-            initMap();
-        }
-    }, 500);
-});
-
-// If document is already loaded, initialize immediately
-if (document.readyState === "complete" || document.readyState === "interactive") {
-    console.log("Document already loaded, calling initMap with a small delay");
-    setTimeout(function() {
-        if (!mapInitialized) {
-            initMap();
-        }
-    }, 200);
-}
+    }
 </script>
 {% endif %}
 {% endblock %}

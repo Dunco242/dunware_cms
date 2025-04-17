@@ -13,7 +13,9 @@ from django.db.models.functions import ExtractHour
 from weasyprint import HTML, CSS
 from django.conf import settings
 import tempfile
-
+from django.views.decorators.csrf import csrf_exempt
+import json
+from django.utils.timezone import now
 from django.core.paginator import Paginator
 from django.contrib.auth.decorators import login_required
 
@@ -226,7 +228,10 @@ class ServiceRequestCreateView(LoginRequiredMixin, CreateView):
     def form_valid(self, form):
         # Set created_by to current user
         form.instance.created_by = self.request.user
-
+         # Assign technician if necessary (this step might already be handled by the form)
+        technician_id = self.request.POST.get('assigned_technician')
+        if technician_id:
+            form.instance.assigned_technician_id = technician_id
         # Save the instance
         response = super().form_valid(form)
 
@@ -287,7 +292,7 @@ class ServiceRequestUpdateView(LoginRequiredMixin, UpdateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         # Add any additional context data needed by the template
-        context['customers'] = Customer.objects.filter(is_active=True)
+        context['customers'] = Customer.objects.filter(status='active')
         context['service_types'] = ServiceType.objects.filter(is_active=True)
 
         # Add available service locations for the current customer
@@ -296,7 +301,12 @@ class ServiceRequestUpdateView(LoginRequiredMixin, UpdateView):
                 customer_id=self.object.customer_id
             )
 
+        # Add the assigned technician to the context
+        if self.object.assigned_technician:
+            context['assigned_technician'] = self.object.assigned_technician
+
         return context
+
 
 class RouteListView(LoginRequiredMixin, ListView):
     """List of routes with filtering options"""
@@ -1689,9 +1699,8 @@ class TechnicianProfileView(LoginRequiredMixin, DetailView):
 
         return context
 
-
 class RouteMapView(LoginRequiredMixin, DetailView):
-    """Full-screen map view of a route with robust geocoding"""
+    """Full-screen map view of a route with live tracking"""
     model = Route
     template_name = 'route_management/route_map.html'
     context_object_name = 'route'
@@ -1700,27 +1709,13 @@ class RouteMapView(LoginRequiredMixin, DetailView):
         context = super().get_context_data(**kwargs)
         route = self.get_object()
 
-        # Print debug info
-        print(f"RouteMapView: Processing Route #{route.id}")
-        print(f"Route start: {route.start_location}, coords: {route.start_latitude}, {route.start_longitude}")
-        print(f"Route end: {route.end_location}, coords: {route.end_latitude}, {route.end_longitude}")
-
-        # Attempt geocoding if needed
-        geocoding_performed = self.attempt_geocoding(route)
-        if geocoding_performed:
-            messages.info(self.request, "Some locations were automatically geocoded.")
-
         # Get stops in order
         stops = RouteStop.objects.filter(
             route=route
         ).select_related(
             'service_request',
-            'service_request__service_location',
-            'service_request__service_type',
-            'service_request__customer'
+            'service_request__service_location'
         ).order_by('stop_number')
-
-        print(f"Found {stops.count()} stops for this route")
 
         # Prepare map data
         map_data = {
@@ -1729,178 +1724,77 @@ class RouteMapView(LoginRequiredMixin, DetailView):
             'route_line': []
         }
 
-        # Track valid points for debugging
-        valid_point_count = 0
-
         # Start location
         if route.start_latitude and route.start_longitude:
-            try:
-                start_point = {
-                    'lat': float(route.start_latitude),
-                    'lng': float(route.start_longitude),
-                    'name': 'Start: ' + route.start_location,
-                    'type': 'start'
-                }
-                map_data['stops'].append(start_point)
-                map_data['route_line'].append([float(route.start_latitude), float(route.start_longitude)])
-                valid_point_count += 1
-                print(f"Added start point: {route.start_latitude}, {route.start_longitude}")
-            except (ValueError, TypeError) as e:
-                print(f"Error adding start point: {str(e)}")
+            start_point = {
+                'lat': float(route.start_latitude),
+                'lng': float(route.start_longitude),
+                'name': 'Start: ' + route.start_location,
+                'type': 'start'
+            }
+            map_data['stops'].append(start_point)
+            map_data['route_line'].append([float(route.start_latitude), float(route.start_longitude)])
 
         # Service stops
         for stop in stops:
             location = stop.service_request.service_location
             if location.latitude and location.longitude:
-                try:
-                    stop_data = {
-                        'lat': float(location.latitude),
-                        'lng': float(location.longitude),
-                        'name': f"Stop #{stop.stop_number}: {location.name}",
-                        'address': location.get_full_address(),
-                        'status': stop.status,
-                        'scheduled_time': stop.scheduled_arrival_time.strftime('%H:%M') if stop.scheduled_arrival_time else 'TBD',
-                        'service_type': stop.service_request.service_type.name,
-                        'customer': stop.service_request.customer.company_name,
-                        'type': 'stop',
-                        'stop_id': stop.id,
-                        'service_request_id': stop.service_request.id
-                    }
-                    map_data['stops'].append(stop_data)
-                    map_data['route_line'].append([float(location.latitude), float(location.longitude)])
-                    valid_point_count += 1
-                    print(f"Added stop #{stop.stop_number} point: {location.latitude}, {location.longitude}")
-                except (ValueError, TypeError) as e:
-                    print(f"Error adding stop #{stop.stop_number} point: {str(e)}")
+                stop_data = {
+                    'lat': float(location.latitude),
+                    'lng': float(location.longitude),
+                    'name': f"Stop #{stop.stop_number}: {location.name}",
+                    'address': location.get_full_address(),
+                    'status': stop.status,
+                    'scheduled_time': stop.scheduled_arrival_time.strftime('%H:%M') if stop.scheduled_arrival_time else 'TBD',
+                    'service_type': stop.service_request.service_type.name,
+                    'customer': stop.service_request.customer.company_name,
+                    'type': 'stop',
+                    'stop_id': stop.id
+                }
+                map_data['stops'].append(stop_data)
+                map_data['route_line'].append([float(location.latitude), float(location.longitude)])
 
         # End location
         if route.end_latitude and route.end_longitude:
-            try:
-                end_point = {
-                    'lat': float(route.end_latitude),
-                    'lng': float(route.end_longitude),
-                    'name': 'End: ' + route.end_location,
-                    'type': 'end'
-                }
-                map_data['stops'].append(end_point)
-                map_data['route_line'].append([float(route.end_latitude), float(route.end_longitude)])
-                valid_point_count += 1
-                print(f"Added end point: {route.end_latitude}, {route.end_longitude}")
-            except (ValueError, TypeError) as e:
-                print(f"Error adding end point: {str(e)}")
+            end_point = {
+                'lat': float(route.end_latitude),
+                'lng': float(route.end_longitude),
+                'name': 'End: ' + route.end_location,
+                'type': 'end'
+            }
+            map_data['stops'].append(end_point)
+            map_data['route_line'].append([float(route.end_latitude), float(route.end_longitude)])
 
         # Find center point for map (average of all coordinates)
         if map_data['stops']:
-            try:
-                lat_sum = sum(float(stop['lat']) for stop in map_data['stops'])
-                lng_sum = sum(float(stop['lng']) for stop in map_data['stops'])
-                map_data['center'] = {
-                    'lat': lat_sum / len(map_data['stops']),
-                    'lng': lng_sum / len(map_data['stops'])
-                }
-                print(f"Map center calculated: {map_data['center']}")
-            except (ValueError, TypeError) as e:
-                print(f"Error calculating map center: {str(e)}")
-                # Fallback to New York coordinates as default
-                map_data['center'] = {'lat': 40.7128, 'lng': -74.0060}
-                print("Using fallback map center")
-        else:
-            # Fallback center if no points are available
-            print("No valid map points, using fallback center")
-            map_data['center'] = {'lat': 40.7128, 'lng': -74.0060}  # New York coordinates
+            lat_sum = sum(float(stop['lat']) for stop in map_data['stops'])
+            lng_sum = sum(float(stop['lng']) for stop in map_data['stops'])
+            map_data['center'] = {
+                'lat': lat_sum / len(map_data['stops']),
+                'lng': lng_sum / len(map_data['stops'])
+            }
 
-        # Calculate completion percentage
-        completed_stops = stops.filter(status='completed').count()
-        total_stops = stops.count()
-        context['completion_percent'] = (completed_stops / total_stops * 100) if total_stops > 0 else 0
-
-        # Add map data to context
         context['map_data'] = map_data
-        context['stops'] = stops
+        context['api_key'] = settings.HERE_MAPS_API_KEY
 
-        # Add the HERE Maps API key
-        context['here_maps_api_key'] = settings.HERE_MAPS_API_KEY
-        print(f"HERE Maps API key present: {bool(settings.HERE_MAPS_API_KEY)}")
-
-        # Check for any missing coordinates
-        missing_coordinates = self.check_missing_coordinates(route, stops)
-        context['missing_coordinates'] = missing_coordinates
-        if missing_coordinates:
-            print(f"Missing coordinates detected: {len(missing_coordinates)} locations")
-            for location in missing_coordinates:
-                print(f"- {location}")
-
-        # Final validation
-        print(f"Map data summary: center={bool(map_data['center'])}, points={len(map_data['stops'])}, valid_points={valid_point_count}")
+        # Include technician's live location if tracking is enabled
+        technician = self.get_technician_live_location(route.technician)
+        if technician:
+            context['technician_live_location'] = {
+                'lat': technician.last_known_latitude,
+                'lng': technician.last_known_longitude,
+                'name': f"Technician: {technician.employee.get_full_name()}",
+                'last_update': technician.last_location_update
+            }
 
         return context
 
-    def attempt_geocoding(self, route):
-        """Simplified geocoding that doesn't use temporary ServiceLocation objects"""
-        geocoding_performed = False
+    def get_technician_live_location(self, technician):
+        """Fetch live GPS location of the technician."""
+        if technician and technician.last_known_latitude and technician.last_known_longitude:
+            return technician
+        return None
 
-        # Geocode route start location
-        if route.start_location and (not route.start_latitude or not route.start_longitude):
-            try:
-                print(f"Geocoding start location: {route.start_location}")
-                from .services.geocoding import GeocodingService
-                coords = GeocodingService.get_coordinates(route.start_location)
-                if coords:
-                    route.start_latitude = coords['lat']
-                    route.start_longitude = coords['lng']
-                    route.save(update_fields=['start_latitude', 'start_longitude'])
-                    geocoding_performed = True
-                    print(f"Successfully geocoded start location: {coords}")
-            except Exception as e:
-                print(f"Error geocoding start location: {str(e)}")
-
-        # Geocode route end location
-        if route.end_location and (not route.end_latitude or not route.end_longitude):
-            try:
-                print(f"Geocoding end location: {route.end_location}")
-                from .services.geocoding import GeocodingService
-                coords = GeocodingService.get_coordinates(route.end_location)
-                if coords:
-                    route.end_latitude = coords['lat']
-                    route.end_longitude = coords['lng']
-                    route.save(update_fields=['end_latitude', 'end_longitude'])
-                    geocoding_performed = True
-                    print(f"Successfully geocoded end location: {coords}")
-            except Exception as e:
-                print(f"Error geocoding end location: {str(e)}")
-
-        # For existing stops, use the original method
-        for stop in RouteStop.objects.filter(route=route).select_related('service_request__service_location'):
-            location = stop.service_request.service_location
-            if not location.latitude or not location.longitude:
-                try:
-                    print(f"Geocoding stop location: {location.get_full_address()}")
-                    success = GeocodingService.geocode_location(location)
-                    if success:
-                        geocoding_performed = True
-                except Exception as e:
-                    print(f"Error geocoding stop location: {str(e)}")
-
-        return geocoding_performed
-    def check_missing_coordinates(self, route, stops):
-        """Check for any missing coordinates that would prevent the map from displaying properly"""
-        missing = []
-
-        # Check route start coordinates
-        if route.start_location and (not route.start_latitude or not route.start_longitude):
-            missing.append(f"Start location: {route.start_location}")
-
-        # Check route end coordinates
-        if route.end_location and (not route.end_latitude or not route.end_longitude):
-            missing.append(f"End location: {route.end_location}")
-
-        # Check stop coordinates
-        for stop in stops:
-            location = stop.service_request.service_location
-            if not location.latitude or not location.longitude:
-                missing.append(f"Stop #{stop.stop_number}: {location.name}")
-
-        return missing
 
 class RouteScheduleListView(LoginRequiredMixin, ListView):
     """List view of route schedules"""
@@ -3054,3 +2948,58 @@ def technician_availability_delete(request, pk):
 
     # Redirect back to technician profile for non-AJAX requests
     return redirect('route_management:technician_profile', pk=technician_id)
+#############################################################
+#############################################################
+
+@csrf_exempt
+def update_technician_location(request):
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        technician = request.user.employee.technician_profile  # Ensure the user is linked to a technician profile
+        latitude = data.get('latitude')
+        longitude = data.get('longitude')
+
+        if technician and latitude and longitude:
+            technician.update_location(latitude, longitude)
+            return JsonResponse({'status': 'success', 'latitude': latitude, 'longitude': longitude})
+
+        return JsonResponse({'status': 'error', 'message': 'Missing or invalid data'}, status=400)
+
+    return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
+
+
+def get_technician_locations(request):
+    profiles = TechnicianProfile.objects.filter(enable_location_tracking=True).exclude(last_location_update__isnull=True)
+    locations = [
+        {
+            'id': profile.employee.id,
+            'name': profile.employee.get_full_name(),
+            'latitude': profile.last_known_latitude,
+            'longitude': profile.last_known_longitude,
+            'last_update': profile.last_location_update.isoformat(),
+        }
+        for profile in profiles
+    ]
+    return JsonResponse({'locations': locations})
+
+@login_required
+def live_tracking_view(request):
+    """Live tracking view requiring technician name input."""
+    technician_name = request.GET.get('technician_name')
+    context = {'api_key': settings.HERE_MAPS_API_KEY}
+
+    if technician_name:
+        technician = TechnicianProfile.objects.filter(
+            employee__user__first_name__icontains=technician_name
+        ).first()
+        if technician and technician.last_known_latitude and technician.last_known_longitude:
+            context['technician_live_location'] = {
+                'lat': technician.last_known_latitude,
+                'lng': technician.last_known_longitude,
+                'name': technician.employee.get_full_name(),
+                'last_update': technician.last_location_update.isoformat()
+            }
+        else:
+            context['error'] = f"No live location found for technician '{technician_name}'."
+
+    return render(request, 'route_management/live_tracking.html', context)

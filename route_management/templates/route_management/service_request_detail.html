@@ -685,7 +685,7 @@
                             <option value="">Choose a technician...</option>
                             {% for technician in available_technicians %}
                             <option value="{{ technician.id }}" {% if service_request.assigned_technician.id == technician.id %}selected{% endif %}>
-                                {{ technician.get_full_name }}
+                                {{ technician.user.get_full_name }}
                             </option>
                             {% endfor %}
                         </select>
