@@ -2952,54 +2952,137 @@ def technician_availability_delete(request, pk):
 #############################################################
 
 @csrf_exempt
+@login_required
 def update_technician_location(request):
+    """Update the technician's current location"""
     if request.method == 'POST':
-        data = json.loads(request.body)
-        technician = request.user.employee.technician_profile  # Ensure the user is linked to a technician profile
-        latitude = data.get('latitude')
-        longitude = data.get('longitude')
+        try:
+            data = json.loads(request.body)
+            technician = request.user.employee_profile.technician_profile
 
-        if technician and latitude and longitude:
-            technician.update_location(latitude, longitude)
-            return JsonResponse({'status': 'success', 'latitude': latitude, 'longitude': longitude})
+            if not technician.enable_location_tracking:
+                return JsonResponse({'status': 'error', 'message': 'Location tracking is disabled'}, status=400)
 
-        return JsonResponse({'status': 'error', 'message': 'Missing or invalid data'}, status=400)
+            latitude = data.get('latitude')
+            longitude = data.get('longitude')
+
+            if latitude and longitude:
+                technician.last_known_latitude = latitude
+                technician.last_known_longitude = longitude
+                technician.last_location_update = timezone.now()
+                technician.save()
+                return JsonResponse({
+                    'status': 'success',
+                    'latitude': latitude,
+                    'longitude': longitude,
+                    'timestamp': technician.last_location_update.isoformat()
+                })
+
+            return JsonResponse({'status': 'error', 'message': 'Invalid location data'}, status=400)
+
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
 
+@login_required
+def check_auth(request):
+    """Simple endpoint to verify authentication status"""
+    return JsonResponse({'authenticated': True})
 
-def get_technician_locations(request):
-    profiles = TechnicianProfile.objects.filter(enable_location_tracking=True).exclude(last_location_update__isnull=True)
-    locations = [
-        {
-            'id': profile.employee.id,
-            'name': profile.employee.get_full_name(),
-            'latitude': profile.last_known_latitude,
-            'longitude': profile.last_known_longitude,
-            'last_update': profile.last_location_update.isoformat(),
-        }
-        for profile in profiles
-    ]
-    return JsonResponse({'locations': locations})
 
 @login_required
-def live_tracking_view(request):
-    """Live tracking view requiring technician name input."""
-    technician_name = request.GET.get('technician_name')
-    context = {'api_key': settings.HERE_MAPS_API_KEY}
+def get_technician_locations(request):
+    employee_id = request.GET.get('employee_id')
+    if not employee_id:
+        return JsonResponse({'status': 'error', 'error': 'Employee ID is required'}, status=400)
+    try:
+        employee = Employee.objects.get(id=employee_id)
+        technician = employee.technician_profile
+        if not technician.enable_location_tracking:
+            return JsonResponse({'status': 'error', 'error': 'Location tracking is disabled for this technician'}, status=400)
+        if not technician.last_known_latitude or not technician.last_known_longitude:
+            return JsonResponse({'status': 'error', 'error': "Technician's location has not been updated yet"}, status=404)
+        location_data = {
+            'status': 'success',
+            'technicians': [{  # Changed from 'locations' to 'technicians'
+                'name': employee.user.get_full_name() or employee.user.username,
+                'latitude': technician.last_known_latitude,
+                'longitude': technician.last_known_longitude,
+                'last_update': technician.last_location_update.isoformat() if technician.last_location_update else None
+            }]
+        }
+        return JsonResponse(location_data)
+    except Employee.DoesNotExist:
+        return JsonResponse({'status': 'error', 'error': 'Technician not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'error': str(e)}, status=500)
 
-    if technician_name:
-        technician = TechnicianProfile.objects.filter(
-            employee__user__first_name__icontains=technician_name
-        ).first()
-        if technician and technician.last_known_latitude and technician.last_known_longitude:
-            context['technician_live_location'] = {
-                'lat': technician.last_known_latitude,
-                'lng': technician.last_known_longitude,
-                'name': technician.employee.get_full_name(),
-                'last_update': technician.last_location_update.isoformat()
-            }
-        else:
-            context['error'] = f"No live location found for technician '{technician_name}'."
+@login_required
+def live_tracking(request):
+    service_area_id = request.GET.get('service_area_id')
+    employee_id = request.GET.get('employee_id')
+    technician_location = None
+    error_message = None
+    service_areas = ServiceArea.objects.filter(is_active=True)
+    technicians = []
+    selected_service_area = None
 
-    return render(request, 'route_management/live_tracking.html', context)
+    if service_area_id:
+        try:
+            selected_service_area = ServiceArea.objects.get(id=service_area_id)
+            technicians = selected_service_area.technicians.filter(
+                technician_profile__enable_location_tracking=True
+            )
+            if employee_id:
+                employee = selected_service_area.technicians.filter(id=employee_id).first()
+                if employee and hasattr(employee, 'technician_profile'):
+                    technician = employee.technician_profile
+                    if technician.last_known_latitude and technician.last_known_longitude:
+                        technician_location = {
+                            'name': employee.user.get_full_name() or employee.user.username,
+                            'lat': technician.last_known_latitude,
+                            'lng': technician.last_known_longitude,
+                            'last_update': technician.last_location_update.isoformat() if technician.last_location_update else None
+                        }
+                    else:
+                        error_message = "Technician's location has not been updated yet"
+                else:
+                    error_message = "Technician not found in this service area"
+        except ServiceArea.DoesNotExist:
+            error_message = "Service area not found"
+        except Exception as e:
+            error_message = f"Error fetching technician: {str(e)}"
+
+    return render(request, 'route_management/live_tracking.html', {
+        'technician_location': json.dumps(technician_location) if technician_location else None,
+        'api_key': settings.HERE_MAPS_API_KEY,
+        'error_message': error_message,
+        'service_area_id': service_area_id,
+        'employee_id': employee_id,
+        'service_areas': service_areas,
+        'technicians': technicians
+    })
+
+@login_required
+def get_technicians(request):
+    service_area_id = request.GET.get('service_area_id')
+    if not service_area_id:
+        return JsonResponse({'status': 'error', 'error': 'Service area ID is required'}, status=400)
+    try:
+        service_area = ServiceArea.objects.get(id=service_area_id)
+        technicians = service_area.technicians.filter(
+            technician_profile__enable_location_tracking=True
+        )
+        technician_data = [{
+            'employee_id': employee.id,  # Changed from 'id' to 'employee_id'
+            'name': employee.user.get_full_name() or employee.user.username
+        } for employee in technicians]
+        return JsonResponse({
+            'status': 'success',
+            'technicians': technician_data
+        })
+    except ServiceArea.DoesNotExist:
+        return JsonResponse({'status': 'error', 'error': 'Service area not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'error': str(e)}, status=500)

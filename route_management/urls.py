@@ -76,7 +76,10 @@ urlpatterns = [
     path('geocode-locations/', views.geocode_locations, name='geocode_locations'),
 
     # LiveTrack Integration
-    path('live-tracking/', views.live_tracking_view, name='live_tracking'),
+    path('live-tracking/', views.live_tracking, name='live_tracking'),
     path('route-map/<int:pk>/', views.RouteMapView.as_view(), name='route_map'),
-
+    path('update_technician_location/', views.update_technician_location, name='update_technician_location'),
+    path('check-auth/', views.check_auth, name='check_auth'),
+    path('get_technician_locations/', views.get_technician_locations, name='get_technician_locations'),
+    path('get_technicians/', views.get_technicians, name='get_technicians'),
 ]

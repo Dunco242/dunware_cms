@@ -464,5 +464,153 @@
             }
         });
     </script>
+<!-- Technician Location Tracking -->
+{% if user.is_authenticated %}
+<form style="display: none;">
+    {% csrf_token %}
+</form>
+<script>
+console.log('Authenticated user:', '{{ user.username }}');
+try {
+    console.log('Enable location tracking:', {% if user.employee_profile.technician_profile.enable_location_tracking %}true{% else %}false{% endif %});
+} catch (error) {
+    console.error('Error checking enable_location_tracking:', error);
+}
+
+class TechnicianLocationTracker {
+    constructor() {
+        this.isTracking = false;
+        this.watchId = null;
+        this.csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value;
+        console.log('CSRF Token:', this.csrfToken);
+        if (!this.csrfToken) {
+            console.error('CSRF token not found in DOM');
+            alert('CSRF token missing. Please refresh the page.');
+        }
+        this.authCheckInterval = setInterval(() => this.checkAuthStatus(), 60000);
+    }
+
+    startTracking() {
+        if (!navigator.geolocation) {
+            console.error('Geolocation not supported by browser');
+            alert('Your browser does not support geolocation. Please use Chrome or Firefox.');
+            return;
+        }
+        if (this.isTracking) {
+            console.warn('Already tracking');
+            return;
+        }
+        console.log('Secure context:', window.isSecureContext);
+        if (!window.isSecureContext) {
+            console.error('Geolocation requires HTTPS or localhost');
+            alert('Location tracking requires a secure connection. Please use HTTPS or localhost.');
+            return;
+        }
+        console.log('Starting location tracking');
+        this.isTracking = true;
+        try {
+            this.watchId = navigator.geolocation.watchPosition(
+                (position) => {
+                    console.log('Geolocation received:', position.coords.latitude, position.coords.longitude);
+                    this.updateLocation(position);
+                },
+                (error) => {
+                    console.error('Geolocation error:', error.code, error.message);
+                    if (error.code === error.PERMISSION_DENIED) {
+                        alert('Please allow location access in your browser settings.');
+                    } else if (error.code === error.POSITION_UNAVAILABLE) {
+                        alert('Location data is unavailable. Please ensure GPS is enabled.');
+                    } else if (error.code === error.TIMEOUT) {
+                        alert('Location request timed out. Please try again.');
+                    }
+                },
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            );
+            console.log('watchPosition initiated, watchId:', this.watchId);
+        } catch (error) {
+            console.error('Error in watchPosition:', error);
+        }
+    }
+
+    async updateLocation(position) {
+        console.log('Sending location update:', position.coords);
+        try {
+            const response = await fetch('/route_management/update_technician_location/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': this.csrfToken || ''
+                },
+                body: JSON.stringify({
+                    latitude: position.coords.latitude,
+                    longitude: position.coords.longitude
+                })
+            });
+            const data = await response.json();
+            console.log('Server response:', data);
+            if (!response.ok) {
+                throw new Error(`Failed to update location: ${data.message || response.statusText}`);
+            }
+            console.log('Location updated successfully:', data);
+        } catch (error) {
+            console.error('Error updating location:', error.message);
+            if (error.message.includes('401')) {
+                console.warn('Stopping tracking due to auth failure');
+                this.stopTracking();
+            }
+        }
+    }
+
+    async checkAuthStatus() {
+        console.log('Checking auth status');
+        try {
+            const response = await fetch('/route_management/check-auth/', {
+                headers: { 'X-CSRFToken': this.csrfToken || '' }
+            });
+            const data = await response.json();
+            console.log('Auth check response:', data);
+            if (!response.ok || response.status === 401) {
+                console.warn('Stopping tracking due to auth failure');
+                this.stopTracking();
+            }
+        } catch (error) {
+            console.error('Auth check failed:', error);
+            this.stopTracking();
+        }
+    }
+
+    stopTracking() {
+        if (this.watchId !== null) {
+            navigator.geolocation.clearWatch(this.watchId);
+            this.watchId = null;
+        }
+        this.isTracking = false;
+        clearInterval(this.authCheckInterval);
+        console.log('Tracking stopped');
+    }
+}
+
+try {
+    {% if user.employee_profile.technician_profile.enable_location_tracking %}
+        console.log('Initializing tracker');
+        const tracker = new TechnicianLocationTracker();
+        tracker.startTracking();
+    {% else %}
+        console.warn('Location tracking disabled for user');
+    {% endif %}
+} catch (error) {
+    console.error('Error initializing tracker:', error);
+}
+</script>
+{% endif %}
+    {% if messages %}
+    <div class="messages">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
 </body>
 </html>

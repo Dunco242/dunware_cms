@@ -1,78 +1,199 @@
 {% extends 'core/base.html' %}
 
-{% block title %}
-Live Tracking
-{% endblock %}
-
 {% block content %}
-<div class="container">
-    <h1>Live Tracking</h1>
-    <div class="search-container">
-        <form method="GET">
-            <label for="technician_name">Technician Name:</label>
-            <input type="text" id="technician_name" name="technician_name" value="{{ request.GET.technician_name }}" required>
-            <button type="submit">Search</button>
-        </form>
+<div class="container mt-4">
+    <h1>Live Technician Tracking</h1>
+    <div id="mapStatusAlert" class="alert alert-info" role="alert">
+        Initializing map...
     </div>
-    {% if technician_live_location %}
-    <div id="map"></div>
-    <script>
-        // Convert technician_live_location into JSON and pass to JavaScript
-        const technicianLiveLocation = JSON.parse('{{ technician_live_location|json_script:"technicianLiveLocation" }}');
 
-        // Set up the map using HERE API
-        const platform = new H.service.Platform({
-            apikey: '{{ api_key|safe }}', // Pass the API key safely
-        });
+    <form id="technician-search-form" class="mb-4" onsubmit="searchTechnician(event)">
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label for="service_area_id" class="form-label">Service Area</label>
+                <select id="service_area_id" name="service_area_id" class="form-select" onchange="updateTechnicians()">
+                    <option value="">Select a service area</option>
+                    {% for area in service_areas %}
+                        <option value="{{ area.id }}" {% if area.id|stringformat:"s" == service_area_id %}selected{% endif %}>{{ area.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-6 mb-3">
+                <label for="employee_id" class="form-label">Technician</label>
+                <select id="employee_id" name="employee_id" class="form-select" {% if not employee_id %}disabled{% endif %}>
+                    <option value="">Select a technician</option>
+                    {% for technician in technicians %}
+                        <option value="{{ technician.id }}" {% if technician.id|stringformat:"s" == employee_id %}selected{% endif %}>
+                            {{ technician.user.get_full_name|default:technician.user.username }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary">Search</button>
+    </form>
 
-        const defaultLayers = platform.createDefaultLayers();
-
-        // Initialize the map
-        const map = new H.Map(
-            document.getElementById('map'),
-            defaultLayers.vector.normal.map,
-            {
-                center: { lat: technicianLiveLocation.lat, lng: technicianLiveLocation.lng },
-                zoom: 15,
-            }
-        );
-
-        // Add interactivity
-        const behavior = new H.mapevents.Behavior(new H.mapevents.MapEvents(map));
-        const ui = H.ui.UI.createDefault(map, defaultLayers);
-
-        // Add live tracking marker
-        const technicianMarker = new H.map.Marker({
-            lat: technicianLiveLocation.lat,
-            lng: technicianLiveLocation.lng,
-        });
-        map.addObject(technicianMarker);
-
-        const bubble = new H.ui.InfoBubble(
-            { lat: technicianLiveLocation.lat, lng: technicianLiveLocation.lng },
-            { content: `Technician: ${technicianLiveLocation.name}<br>Last Update: ${technicianLiveLocation.last_update}` }
-        );
-        ui.addBubble(bubble);
-
-        // Center map
-        map.setCenter({ lat: technicianLiveLocation.lat, lng: technicianLiveLocation.lng });
-    </script>
-    {% else %}
-    <p>No live location data available. Please search for a technician.</p>
-    {% endif %}
-    <button id="exit-button" class="btn btn-secondary">Exit</button>
+    <div id="fullRouteMap" style="width: 100%; height: 500px;"></div>
 </div>
 
+<!-- HERE Maps API scripts -->
+<script src="https://js.api.here.com/v3/3.1/mapsjs-core.js"></script>
+<script src="https://js.api.here.com/v3/3.1/mapsjs-service.js"></script>
+<script src="https://js.api.here.com/v3/3.1/mapsjs-ui.js"></script>
+<script src="https://js.api.here.com/v3/3.1/mapsjs-mapevents.js"></script>
+
 <script>
-    // JavaScript for exit button
-    const exitButton = document.getElementById('exit-button');
-    exitButton.addEventListener('click', () => {
-        const previousPage = document.referrer;
-        if (previousPage) {
-            window.location.href = previousPage;
-        } else {
-            window.history.back();
+    let map, marker, locationInterval;
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const hereApiKey = '{{ api_key }}';
+        const serviceAreaSelect = document.getElementById('service_area_id');
+        const technicianSelect = document.getElementById('employee_id');
+
+        if (!hereApiKey || typeof H === 'undefined') {
+            const msg = !hereApiKey ? 'HERE Maps API key is missing' : 'HERE Maps library not loaded';
+            showMapAlert(msg, 'danger');
+            return;
         }
+
+        try {
+            const platform = new H.service.Platform({ apikey: hereApiKey });
+            const defaultLayers = platform.createDefaultLayers();
+
+            map = new H.Map(
+                document.getElementById('fullRouteMap'),
+                defaultLayers.vector.normal.map,
+                { zoom: 12, center: { lat: 40.7128, lng: -74.0060 } }
+            );
+
+            new H.mapevents.Behavior(new H.mapevents.MapEvents(map));
+            H.ui.UI.createDefault(map, defaultLayers);
+            showMapAlert('Map initialized', 'success');
+        } catch (err) {
+            showMapAlert('Map initialization failed: ' + err.message, 'danger');
+            return;
+        }
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const employeeId = urlParams.get('employee_id');
+        const serviceAreaId = urlParams.get('service_area_id');
+
+        // Always load technicians if a service area is pre-selected
+        if (serviceAreaId) {
+            serviceAreaSelect.value = serviceAreaId;
+            fetchTechnicians(serviceAreaId).then(() => {
+                if (employeeId) {
+                    technicianSelect.value = employeeId;
+                    fetchTechnicianLocation(employeeId);
+                    locationInterval = setInterval(() => fetchTechnicianLocation(employeeId), 30000);
+                }
+            });
+        }
+
+        // Load technicians when service area changes
+        serviceAreaSelect.addEventListener('change', () => {
+            const selectedAreaId = serviceAreaSelect.value;
+            technicianSelect.innerHTML = '<option value="">Select a technician</option>';
+            technicianSelect.disabled = true;
+
+            if (selectedAreaId) {
+                fetchTechnicians(selectedAreaId);
+            } else {
+                showMapAlert('Select a service area to load technicians', 'info');
+            }
+        });
     });
+
+    function showMapAlert(message, type = 'info') {
+        const alertBox = document.getElementById('mapStatusAlert');
+        alertBox.className = `alert alert-${type}`;
+        alertBox.textContent = message;
+    }
+
+    async function fetchTechnicians(serviceAreaId) {
+        if (!serviceAreaId) {
+            showMapAlert('Please select a service area', 'danger');
+            return;
+        }
+
+        try {
+            const response = await fetch(`/route_management/get_technicians/?service_area_id=${serviceAreaId}`, {
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'Accept': 'application/json'
+                }
+            });
+
+            const data = await response.json();
+            const technicianSelect = document.getElementById('employee_id');
+            technicianSelect.innerHTML = '<option value="">Select a technician</option>';
+
+            if (data.status === 'success' && data.technicians.length) {
+                data.technicians.forEach(tech => {
+                    const option = document.createElement('option');
+                    option.value = tech.employee_id;
+                    option.textContent = tech.name;
+                    technicianSelect.appendChild(option);
+                });
+                technicianSelect.disabled = false;
+                showMapAlert('Technicians loaded. Select a technician and click Search.', 'info');
+            } else {
+                technicianSelect.disabled = true;
+                showMapAlert('No technicians available for this service area.', 'warning');
+            }
+        } catch (err) {
+            console.error(err);
+            showMapAlert('Error fetching technicians: ' + err.message, 'danger');
+        }
+    }
+
+    async function fetchTechnicianLocation(employeeId) {
+        try {
+            const response = await fetch(`/route_management/get_technician_locations/?employee_id=${employeeId}`, {
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'Accept': 'application/json'
+                }
+            });
+
+            const data = await response.json();
+            if (data.status === 'success' && data.technicians.length) {
+                const tech = data.technicians[0];
+                if (tech.latitude && tech.longitude) {
+                    if (marker) map.removeObject(marker);
+                    marker = new H.map.Marker({ lat: tech.latitude, lng: tech.longitude });
+                    map.addObject(marker);
+                    map.setCenter({ lat: tech.latitude, lng: tech.longitude });
+                    showMapAlert('Tracking ' + (tech.name || 'Technician'), 'success');
+                } else {
+                    showMapAlert('Technician location not yet updated', 'warning');
+                }
+            } else {
+                throw new Error(data.message || 'No technician location found');
+            }
+        } catch (err) {
+            console.error(err);
+            showMapAlert('Error searching technician: ' + err.message, 'danger');
+        }
+    }
+
+    function searchTechnician(event) {
+        event.preventDefault();
+        const employeeId = document.getElementById('employee_id').value;
+
+        if (locationInterval) clearInterval(locationInterval);
+        if (marker) {
+            map.removeObject(marker);
+            marker = null;
+        }
+
+        if (employeeId) {
+            fetchTechnicianLocation(employeeId);
+            locationInterval = setInterval(() => fetchTechnicianLocation(employeeId), 30000);
+        } else {
+            showMapAlert('Please select a technician to track', 'warning');
+        }
+    }
 </script>
+
 {% endblock %}
