@@ -1,0 +1,28 @@
+{% extends 'customer_projects/base_projects.html' %}
+
+{% block title %}Add Comment{% endblock %}
+
+{% block project_content %}
+<div class="container py-4">
+    <div class="card">
+        <div class="card-header">
+            <h2 class="m-0">Add Comment</h2>
+        </div>
+        <div class="card-body">
+            <form method="post" novalidate>
+                {% csrf_token %}
+                {{ form.as_p }}
+
+                <input type="hidden" name="content_type" value="{{ content_type }}">
+                <input type="hidden" name="object_id" value="{{ object_id }}">
+
+                <div class="mt-3">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-comment me-1"></i> Submit Comment
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

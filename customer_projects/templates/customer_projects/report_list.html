@@ -1,42 +1,255 @@
 {% extends 'customer_projects/base_projects.html' %}
 
-{% block title %}Project Reports | {{ block.super }}{% endblock %}
+{% block title %}Reports for {{ project.name }} | {{ block.super }}{% endblock %}
+
+{% block extra_css %}
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+<link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.2/css/all.min.css" rel="stylesheet">
+<style>
+body {
+    background-color: #f5f5f5;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+
+.container {
+    max-width: 1200px;
+}
+
+.card {
+    border: none;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-bottom: 1.5rem;
+}
+
+.card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #e5e7eb;
+    padding: 1rem 1.5rem;
+    font-weight: 500;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.table {
+    margin-bottom: 0;
+}
+
+.table th {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #6b7280;
+    text-transform: uppercase;
+    padding: 1rem;
+}
+
+.table td {
+    padding: 1rem;
+    vertical-align: middle;
+    font-size: 0.875rem;
+    color: #374151;
+}
+
+.table-hover tbody tr:hover {
+    background-color: #f9fafb;
+}
+
+.btn-primary {
+    background-color: #2563eb;
+    border-color: #2563eb;
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    border-radius: 6px;
+}
+
+.btn-primary:hover {
+    background-color: #1d4ed8;
+    border-color: #1d4ed8;
+}
+
+.btn-outline-secondary {
+    border-color: #d1d5db;
+    color: #4b5563;
+    font-size: 0.875rem;
+    border-radius: 6px;
+}
+
+.btn-outline-secondary:hover {
+    background-color: #f3f4f6;
+    border-color: #9ca3af;
+}
+
+.text-indigo-600 {
+    color: #4f46e5;
+}
+
+.text-indigo-600:hover {
+    color: #4338ca;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 2rem;
+    color: #6b7280;
+    font-size: 0.875rem;
+}
+
+.modal-content {
+    border-radius: 8px;
+}
+
+.modal-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.modal-body {
+    font-size: 0.875rem;
+    white-space: pre-wrap;
+}
+
+.badge-report-type {
+    font-size: 0.75rem;
+    padding: 0.35em 0.65em;
+}
+
+@media (max-width: 576px) {
+    .card-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+    .table-responsive {
+        border-radius: 8px;
+    }
+    .btn {
+        width: 100%;
+        margin-bottom: 0.5rem;
+    }
+}
+</style>
+{% endblock %}
 
 {% block project_content %}
-<div class="bg-white shadow rounded-lg">
-    <div class="px-6 py-4 border-b border-gray-200">
-        <h1 class="text-2xl font-semibold text-gray-900">Project Reports</h1>
-    </div>
-
-    <div class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
-                <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Report Name</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date Generated</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                </tr>
-            </thead>
-            <tbody class="bg-white divide-y divide-gray-200">
-                {% for report in reports %}
-                <tr class="hover:bg-gray-50">
-                    <td class="px-6 py-4">{{ report.title }}</td>
-                    <td class="px-6 py-4">{{ report.generated_at|date:"M d, Y H:i" }}</td>
-                    <td class="px-6 py-4 text-right text-sm font-medium">
-                        <a href="{{ report.file.url }}" class="text-indigo-600 hover:text-indigo-900">
-                            <i class="fas fa-download"></i> Download
-                        </a>
-                    </td>
-                </tr>
-                {% empty %}
-                <tr>
-                    <td colspan="3" class="px-6 py-4 text-center text-gray-500">
-                        No reports found.
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+<div class="container py-4">
+    <div class="card">
+        <div class="card-header">
+            <h2 class="m-0">Reports for {{ project.name }}</h2>
+            <a href="{% url 'customer_projects:report-create' project.id %}" class="btn btn-primary btn-sm">Create Report</a>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th scope="col" aria-sort="none">Report Name</th>
+                            <th scope="col" aria-sort="none">Type</th>
+                            <th scope="col" aria-sort="none">Date Generated</th>
+                            <th scope="col" class="text-end" aria-label="Actions">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for report in reports %}
+                            <tr>
+                                <td>{{ report.title }}</td>
+                                <td>
+                                    <span class="badge badge-report-type bg-{% if report.report_type == 'progress' %}primary{% elif report.report_type == 'status' %}info{% elif report.report_type == 'financial' %}success{% elif report.report_type == 'risk' %}danger{% elif report.report_type == 'milestone' %}warning{% else %}secondary{% endif %}">
+                                        {{ report.get_report_type_display }}
+                                    </span>
+                                </td>
+                                <td>{{ report.created_at|date:"M d, Y H:i"|default:"N/A" }}</td>
+                                <td class="text-end">
+                                    <button class="btn btn-outline-secondary btn-sm me-2" data-bs-toggle="modal" data-bs-target="#reportModal{{ report.id }}" aria-label="View report {{ report.title }}">
+                                        <i class="fas fa-eye me-1"></i> View
+                                    </button>
+                                    {% if report.attachments %}
+                                        <a href="{% url 'customer_projects:report-download' report.id %}" class="btn btn-outline-secondary btn-sm" download aria-label="Download report {{ report.title }}">
+                                            <i class="fas fa-download me-1"></i> Download
+                                        </a>
+                                    {% else %}
+                                        <span class="text-muted small" aria-label="No attachment available for {{ report.title }}">No attachment</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            <!-- Report Preview Modal -->
+                            <div class="modal fade" id="reportModal{{ report.id }}" tabindex="-1" aria-labelledby="reportModalLabel{{ report.id }}" aria-hidden="true">
+                                <div class="modal-dialog modal-lg">
+                                    <div class="modal-content">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title" id="reportModalLabel{{ report.id }}">{{ report.title }}</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <div class="mb-3">
+                                                <span class="badge badge-report-type bg-{% if report.report_type == 'progress' %}primary{% elif report.report_type == 'status' %}info{% elif report.report_type == 'financial' %}success{% elif report.report_type == 'risk' %}danger{% elif report.report_type == 'milestone' %}warning{% else %}secondary{% endif %}">
+                                                    {{ report.get_report_type_display }}
+                                                </span>
+                                            </div>
+                                            <p><strong>Generated:</strong> {{ report.created_at|date:"M d, Y H:i"|default:"N/A" }}</p>
+                                            <p><strong>By:</strong> {{ report.generated_by.get_full_name|default:"Unknown" }}</p>
+                                            <hr>
+                                            <h6>Content</h6>
+                                            {{ report.content|linebreaks }}
+                                        </div>
+                                        <div class="modal-footer">
+                                            {% if report.attachments %}
+                                                <a href="{% url 'customer_projects:report-download' report.id %}" class="btn btn-primary" download>Download Report</a>
+                                            {% endif %}
+                                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        {% empty %}
+                            <tr>
+                                <td colspan="4" class="empty-state">
+                                    No reports found. <a href="{% url 'customer_projects:report-create' project.id %}" class="text-indigo-600">Create a new report</a>.
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% if is_paginated %}
+            <div class="card-footer d-flex justify-content-between align-items-center">
+                <div class="text-muted small">
+                    Showing {{ page_obj.start_index }} to {{ page_obj.end_index }} of {{ paginator.count }} reports
+                </div>
+                <nav aria-label="Report pagination">
+                    <ul class="pagination pagination-sm m-0">
+                        {% if page_obj.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.previous_page_number }}" aria-label="Previous page">«</a>
+                            </li>
+                        {% else %}
+                            <li class="page-item disabled">
+                                <span class="page-link">«</span>
+                            </li>
+                        {% endif %}
+                        {% for num in page_obj.paginator.page_range %}
+                            <li class="page-item {% if page_obj.number == num %}active{% endif %}">
+                                <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                            </li>
+                        {% endfor %}
+                        {% if page_obj.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.next_page_number }}" aria-label="Next page">»</a>
+                            </li>
+                        {% else %}
+                            <li class="page-item disabled">
+                                <span class="page-link">»</span>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            </div>
+        {% endif %}
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
 {% endblock %}

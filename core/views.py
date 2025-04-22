@@ -4347,8 +4347,6 @@ def notifications_ws(request, employee_id):
     return HttpResponse(status=200)
 
 
-logger = logging.getLogger(__name__)
-
 class EmailInboxView(LoginRequiredMixin, ListView):
     """Display inbox emails"""
     model = EmailMessage
@@ -4356,10 +4354,222 @@ class EmailInboxView(LoginRequiredMixin, ListView):
     context_object_name = 'emails'
     paginate_by = 20
 
+    def decode_email_header(self, header):
+        """Decode email header to handle different encodings"""
+        if not header:
+            return ""
+
+        decoded_parts = []
+        for part, encoding in decode_header(header):
+            if isinstance(part, bytes):
+                try:
+                    if encoding:
+                        decoded_parts.append(part.decode(encoding))
+                    else:
+                        decoded_parts.append(part.decode('utf-8', errors='replace'))
+                except:
+                    decoded_parts.append(part.decode('ascii', errors='replace'))
+            else:
+                decoded_parts.append(part)
+
+        return ' '.join(decoded_parts)
+
+    def extract_email_address(self, address_string):
+        """Extract email address from a string like 'John Doe <john@example.com>'"""
+        import re
+        pattern = r'<([^>]+)>'
+        match = re.search(pattern, address_string)
+        if match:
+            return match.group(1)
+
+        # If no angle brackets, check if it's a plain email
+        email_pattern = r'[\w\.-]+@[\w\.-]+'
+        email_match = re.search(email_pattern, address_string)
+        if email_match:
+            return email_match.group(0)
+
+        return address_string  # Return as is if no match
+
+    def get_email_addresses(self, header_value):
+        """Parse multiple email addresses from header fields like To, CC, BCC"""
+        if not header_value:
+            return []
+
+        # Split by commas outside of angle brackets
+        import re
+        addresses = []
+        current = ""
+        in_brackets = False
+
+        for char in header_value:
+            if char == '<':
+                in_brackets = True
+            elif char == '>':
+                in_brackets = False
+
+            if char == ',' and not in_brackets:
+                addresses.append(current.strip())
+                current = ""
+            else:
+                current += char
+
+        if current.strip():
+            addresses.append(current.strip())
+
+        # Extract actual email addresses
+        return [self.extract_email_address(addr) for addr in addresses]
+
+    def sync_email_inbox(self, email_account):
+        """
+        Synchronize emails from the IMAP server to the local database
+        """
+        # Connect to the IMAP server
+        mail = imaplib.IMAP4_SSL(email_account.imap_server, email_account.imap_port)
+
+        try:
+            # Login
+            mail.login(email_account.email_address, email_account.password)
+
+            # Select the inbox
+            mail.select('INBOX')
+
+            # Search for all emails in the inbox
+            status, message_ids = mail.search(None, 'ALL')
+
+            if status != 'OK':
+                return False
+
+            # Get the list of message IDs
+            message_id_list = message_ids[0].split()
+
+            # Process the most recent emails first (last 50)
+            count = 0
+            for msg_id in reversed(message_id_list[-50:]):
+                # Fetch the email
+                status, msg_data = mail.fetch(msg_id, '(RFC822)')
+
+                if status != 'OK':
+                    continue
+
+                # Parse the email
+                msg = email.message_from_bytes(msg_data[0][1])
+
+                # Get basic email info
+                subject = self.decode_email_header(msg.get('Subject', ''))
+                from_email_raw = self.decode_email_header(msg.get('From', ''))
+                from_email = self.extract_email_address(from_email_raw)
+
+                # Get recipient information
+                to_emails_raw = self.decode_email_header(msg.get('To', ''))
+                to_emails = self.get_email_addresses(to_emails_raw)
+
+                cc_emails_raw = self.decode_email_header(msg.get('Cc', ''))
+                cc_emails = self.get_email_addresses(cc_emails_raw) if cc_emails_raw else []
+
+                bcc_emails_raw = self.decode_email_header(msg.get('Bcc', ''))
+                bcc_emails = self.get_email_addresses(bcc_emails_raw) if bcc_emails_raw else []
+
+                date_str = msg.get('Date', '')
+                try:
+                    created_at = email.utils.parsedate_to_datetime(date_str)
+                except:
+                    created_at = timezone.now()
+
+                # Get Message-ID for tracking and thread identification
+                original_message_id = msg.get('Message-ID', '')
+                thread_id = msg.get('Thread-Index', '') or msg.get('References', '') or original_message_id
+                in_reply_to_id = msg.get('In-Reply-To', '')
+
+                # Generate a unique ID for our database
+                message_id = uuid.uuid4()
+
+                # Get email body (both text and HTML versions)
+                body_text = ""
+                body_html = None
+
+                if msg.is_multipart():
+                    for part in msg.walk():
+                        content_type = part.get_content_type()
+                        if content_type == "text/plain":
+                            try:
+                                body_text = part.get_payload(decode=True).decode(errors='replace')
+                            except:
+                                body_text = "Unable to decode plain text body"
+                        elif content_type == "text/html":
+                            try:
+                                body_html = part.get_payload(decode=True).decode(errors='replace')
+                            except:
+                                body_html = "Unable to decode HTML body"
+                else:
+                    content_type = msg.get_content_type()
+                    if content_type == "text/html":
+                        try:
+                            body_html = msg.get_payload(decode=True).decode(errors='replace')
+                            body_text = "HTML email content"  # Placeholder for plain text
+                        except:
+                            body_html = "Unable to decode HTML body"
+                    else:
+                        try:
+                            body_text = msg.get_payload(decode=True).decode(errors='replace')
+                        except:
+                            body_text = "Unable to decode email body"
+
+                # Check if we already have a similar email in our database to avoid duplicates
+                existing_email = EmailMessage.objects.filter(
+                    original_message_id=original_message_id,
+                    account=email_account
+                ).first()
+
+                if not existing_email:
+                    # Create a new EmailMessage record
+                    EmailMessage.objects.create(
+                        message_id=message_id,
+                        original_message_id=original_message_id,
+                        account=email_account,
+                        message_type='incoming',
+                        status='delivered',
+                        from_email=from_email,
+                        to_emails=json.dumps(to_emails),
+                        cc_emails=json.dumps(cc_emails) if cc_emails else None,
+                        bcc_emails=json.dumps(bcc_emails) if bcc_emails else None,
+                        subject=subject,
+                        body_text=body_text,
+                        body_html=body_html,
+                        thread_id=thread_id if thread_id else None,
+                        created_at=created_at,
+                        is_read=False,
+                        is_starred=False,
+                        is_spam=False,
+                        is_archived=False
+                    )
+                    count += 1
+
+            # Close the connection
+            mail.logout()
+            return count
+
+        except Exception as e:
+            # Handle connection errors
+            print(f"Error syncing emails: {str(e)}")
+            return False
+
     def get_queryset(self):
         """Retrieve emails for the user's associated EmailAccount"""
         try:
             email_account = self.request.user.employee_profile.email_account
+
+            # Check if sync is requested
+            if self.request.GET.get('sync') == 'true':
+                try:
+                    sync_result = self.sync_email_inbox(email_account)
+                    if isinstance(sync_result, int):
+                        messages.success(self.request, f"{sync_result} new emails synchronized successfully.")
+                    else:
+                        messages.warning(self.request, "Could not synchronize with email server.")
+                except Exception as e:
+                    messages.error(self.request, f"Error syncing emails: {str(e)}")
+
+            # Return the updated queryset
             return EmailMessage.objects.filter(
                 account=email_account,
                 message_type='incoming',
@@ -4376,10 +4586,12 @@ class EmailInboxView(LoginRequiredMixin, ListView):
             account = self.request.user.employee_profile.email_account
             context['email_account'] = account
             context['is_paginated'] = self.paginate_by and self.get_queryset().count() > self.paginate_by
+
+            # Add a refresh time to show when emails were last synced
+            context['last_synced'] = timezone.now()
         except (AttributeError, EmailAccount.DoesNotExist):
             context['email_account'] = None
         return context
-
 
 @login_required
 def email_account_create(request):
@@ -4559,25 +4771,26 @@ def compose_email(request):
         messages.error(request, "No email account configured.")
         email_account = None
         form = EmailComposeForm()
-        return render(request, 'core/compose_email.html', {'form': form, 'email_account': None})
+        return render(request, 'core/email_compose.html', {'form': form, 'email_account': None})
 
     if request.method == 'POST':
         form = EmailComposeForm(request.POST, request.FILES)
         if form.is_valid():
-            to_email = form.cleaned_data['to_email']
+            to_emails = form.cleaned_data['to_emails']
             email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-            if not re.match(email_regex, to_email):
-                logger.warning(f"Invalid email format: {to_email}")
-                messages.error(request, "Invalid recipient email address.")
-                return render(request, 'core/compose_email.html', {'form': form, 'email_account': email_account})
+            for email in to_emails:
+                if not re.match(email_regex, email):
+                    messages.error(request, f"Invalid email address: {email}")
+                    return render(request, 'core/email_compose.html', {'form': form, 'email_account': email_account})
+
 
             try:
                 email_message = EmailMessage(
                     account=email_account,
                     from_email=email_account.email_address,
-                    to_email=to_email,
-                    cc_email=form.cleaned_data.get('cc_email', ''),
-                    bcc_email=form.cleaned_data.get('bcc_email', ''),
+                    to_emails=to_emails,
+                    cc_emails=form.cleaned_data.get('cc_email', ''),
+                    bcc_emails=form.cleaned_data.get('bcc_email', ''),
                     subject=form.cleaned_data['subject'],
                     body_text=form.cleaned_data['body_text'],
                     message_type='outgoing',
@@ -4612,11 +4825,11 @@ def compose_email(request):
                     email_message.status = 'failed'
                     email_message.save()
                     messages.error(request, "Failed to send email.")
-                    return render(request, 'core/compose_email.html', {'form': form, 'email_account': email_account})
+                    return render(request, 'core/email_compose.html', {'form': form, 'email_account': email_account})
             except Exception as e:
                 logger.error(f"Compose error: {str(e)}")
                 messages.error(request, "Error composing email.")
-                return render(request, 'core/compose_email.html', {'form': form, 'email_account': email_account})
+                return render(request, 'core/email_compose.html', {'form': form, 'email_account': email_account})
         else:
             logger.warning(f"Invalid form submission by user {request.user.id}")
             messages.error(request, "Invalid form data.")
@@ -4624,6 +4837,9 @@ def compose_email(request):
         form = EmailComposeForm()
 
     return render(request, 'core/email_compose.html', {'form': form, 'email_account': email_account})
+
+
+logger = logging.getLogger(__name__)
 
 @login_required
 def view_email(request, message_id):
@@ -4636,26 +4852,85 @@ def view_email(request, message_id):
         messages.error(request, "No email account found.")
         return redirect('dashboard')
 
+    # Retrieve email message
     email_message = get_object_or_404(
         EmailMessage,
         message_id=message_id,
         account=email_account
     )
 
+    # Mark as read if not already
     if not email_message.is_read:
         email_message.is_read = True
         email_message.read_at = timezone.now()
         email_message.save()
 
+    # Extract raw body content
+    body_text = email_message.body_text or ''
+    body_html = email_message.body_html or ''
+
+    # Debug logs
+    logger.debug(f"Email ID {message_id} body_text length: {len(body_text)}")
+    logger.debug(f"Email ID {message_id} body_html length: {len(body_html)}")
+    if not body_text and not body_html:
+        logger.warning(f"Empty body for email ID {message_id} from {email_account.email_address}")
+
+    # Allowed tags and attributes for bleach sanitization
+    allowed_tags = [
+        'a', 'p', 'br', 'strong', 'em', 'b', 'i', 'u', 'span', 'div',
+        'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'img',
+        'table', 'tr', 'td', 'th', 'tbody', 'thead', 'tfoot', 'button'
+    ]
+    allowed_attributes = {
+        'a': ['href', 'title'],
+        'img': ['src', 'alt', 'width', 'height'],
+        'span': ['style'],
+        'div': ['style', 'class'],
+        'button': ['style', 'type'],
+        '*': ['class']
+    }
+
+    # Extract inner HTML from <body>
+    body_inner = body_html
+    if '<body' in body_html:
+        try:
+            body_inner = body_html.split('<body', 1)[1].split('>', 1)[1].split('</body>', 1)[0]
+        except IndexError:
+            logger.warning(f"Could not extract <body> contents for email {message_id}")
+            body_inner = body_html
+
+    # Remove <style> tags
+    body_cleaned = re.sub(r'<style.*?>.*?</style>', '', body_inner, flags=re.DOTALL | re.IGNORECASE)
+
+    # Final HTML sanitization
+    sanitized_html = bleach.clean(
+        body_cleaned,
+        tags=allowed_tags,
+        attributes=allowed_attributes,
+        strip=True
+    ) if body_cleaned else ''
+
+    # Markdown fallback rendering
+    rendered_markdown = markdown.markdown(body_text) if body_text else ''
+
+    # Load attachments
     attachments = EmailAttachment.objects.filter(email=email_message).only('filename', 'size', 'content_type')
+
+    # Load thread (recent messages in the same conversation)
     thread = EmailMessage.objects.filter(thread_id=email_message.thread_id).order_by('created_at')[:10]
 
-    return render(request, 'core/view_email.html', {
+    return render(request, 'core/email_detail.html', {
         'email': email_message,
+        'body_text': body_text,
+        'body_html': body_html,
+        'sanitized_html': sanitized_html,
+        'rendered_markdown': rendered_markdown,
         'thread': thread,
         'attachments': attachments,
         'email_account': email_account
     })
+
+
 
 @login_required
 def reply_email(request, message_id):
@@ -4858,6 +5133,121 @@ class EmailThreadView(LoginRequiredMixin, ListView):
             context['original_email'] = None
             context['email_account'] = None
         return context
+
+
+
+def sync_email_inbox(email_account):
+    """
+    Synchronize emails from the IMAP server to the local database
+    """
+    # Connect to the IMAP server
+    mail = imaplib.IMAP4_SSL(email_account.imap_server, email_account.imap_port)
+
+    try:
+        # Login
+        mail.login(email_account.email_address, email_account.password)
+
+        # Select the inbox
+        mail.select('INBOX')
+
+        # Search for all emails in the inbox
+        status, message_ids = mail.search(None, 'ALL')
+
+        if status != 'OK':
+            return False
+
+        # Get the list of message IDs
+        message_id_list = message_ids[0].split()
+
+        # Process the most recent emails first (last 20)
+        for msg_id in reversed(message_id_list[-50:]):  # Limiting to last 50 to avoid too much processing
+            # Fetch the email
+            status, msg_data = mail.fetch(msg_id, '(RFC822)')
+
+            if status != 'OK':
+                continue
+
+            # Parse the email
+            msg = email.message_from_bytes(msg_data[0][1])
+
+            # Get basic email info
+            subject = decode_email_header(msg.get('Subject', ''))
+            from_email = decode_email_header(msg.get('From', ''))
+            date_str = msg.get('Date', '')
+
+            try:
+                created_at = email.utils.parsedate_to_datetime(date_str)
+            except:
+                created_at = timezone.now()
+
+            # Generate a unique message_id
+            message_id = msg.get('Message-ID', '') or f"{email_account.id}-{msg_id.decode()}"
+
+            # Check if we already have this email in our database
+            if not EmailMessage.objects.filter(message_id=message_id).exists():
+                # Get email body
+                body = ""
+                if msg.is_multipart():
+                    for part in msg.walk():
+                        content_type = part.get_content_type()
+                        if content_type == "text/plain" or content_type == "text/html":
+                            try:
+                                body = part.get_payload(decode=True).decode()
+                                break
+                            except:
+                                continue
+                else:
+                    try:
+                        body = msg.get_payload(decode=True).decode()
+                    except:
+                        body = "Unable to decode email body"
+
+                # Create a new EmailMessage record
+                EmailMessage.objects.create(
+                    account=email_account,
+                    message_id=message_id,
+                    from_email=from_email,
+                    to_email=email_account.email_address,
+                    subject=subject,
+                    body=body,
+                    created_at=created_at,
+                    message_type='incoming',
+                    is_read=False,
+                    is_archived=False,
+                    is_spam=False,
+                    raw_message=str(msg)
+                )
+
+        # Close the connection
+        mail.logout()
+        return True
+
+    except Exception as e:
+        # Handle connection errors
+        print(f"Error syncing emails: {str(e)}")
+        return False
+
+def decode_email_header(header):
+    """Decode email header to handle different encodings"""
+    if not header:
+        return ""
+
+    decoded_parts = []
+    for part, encoding in decode_header(header):
+        if isinstance(part, bytes):
+            try:
+                if encoding:
+                    decoded_parts.append(part.decode(encoding))
+                else:
+                    decoded_parts.append(part.decode('utf-8', errors='replace'))
+            except:
+                decoded_parts.append(part.decode('ascii', errors='replace'))
+        else:
+            decoded_parts.append(part)
+
+    return ' '.join(decoded_parts)
+
+
 
 
 

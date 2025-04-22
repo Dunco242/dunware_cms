@@ -49,6 +49,11 @@
                        class="btn btn-primary btn-block mt-3 {% if request.resolver_match.url_name == 'report-list' %}active{% endif %}">
                         <i class="fas fa-chart-bar mr-2"></i> Reports
                     </a>
+                    <!-- Analytics -->
+                     <a href="{% url 'customer_projects:analytics' %}"
+                          class="btn btn-primary btn-block mt-3 {% if request.resolver_match.url_name == 'analytics' %}active{% endif %}">
+                            <i class="fas fa-chart-pie mr-2"></i> Analytics
+                    </a>
                 {% else %}
                     <!-- Message for new project creation -->
                     <div class="list-group-item text-muted">

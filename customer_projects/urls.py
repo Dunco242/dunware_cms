@@ -14,6 +14,7 @@ urlpatterns = [
     # Dashboard & Analytics
     path('', views.ProjectDashboardView.as_view(), name='dashboard'),
     path('analytics/', views.ProjectAnalyticsView.as_view(), name='analytics'),
+    path('analytics/data/', views.project_analytics_data, name='analytics-data'),
 
     # Project Management
     path('projects/', views.ProjectListView.as_view(), name='project-list'),
@@ -22,6 +23,7 @@ urlpatterns = [
     path('projects/<int:pk>/update/', views.ProjectUpdateView.as_view(), name='project-update'),
     path('projects/<int:pk>/delete/', views.ProjectDeleteView.as_view(), name='project-delete'),
     path('projects/<int:pk>/report/', views.ProjectReportView.as_view(), name='project-report'),
+    path('reports/<int:report_id>/download/', views.report_download, name='report-download'),
     path('projects/<int:project_id>/export/', views.export_project_data, name='project-export'),
     path('projects/<int:project_id>/progress/', views.project_progress_update, name='project-progress-update'),
 
@@ -42,6 +44,8 @@ urlpatterns = [
     path('projects/<int:project_id>/phases/<int:phase_id>/tasks/',
          ProjectTaskListView.as_view(),
          name='project-task-list'),
+     path('<int:project_id>/fetch_statistics/', views.fetch_report_statistics, name='fetch-statistics'),
+
     path('projects/<int:project_id>/phases/<int:phase_id>/tasks/create/',
          TaskCreateView.as_view(),
          name='task-create'),

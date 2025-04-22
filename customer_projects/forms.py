@@ -448,12 +448,14 @@ class ProjectDocumentForm(forms.ModelForm):
         return file
 
 class ProjectRiskForm(forms.ModelForm):
-    """Form for project risks"""
+    """Form for creating project risks"""
+
     title = forms.CharField(
         widget=forms.TextInput(attrs={
             'class': 'form-control',
             'placeholder': 'Enter risk title'
-        })
+        }),
+        help_text="Enter a brief title for the risk"
     )
 
     description = forms.CharField(
@@ -461,33 +463,40 @@ class ProjectRiskForm(forms.ModelForm):
             'class': 'form-control',
             'rows': 3,
             'placeholder': 'Describe the risk'
-        })
+        }),
+        help_text="Provide a detailed description of the risk"
     )
 
     risk_level = forms.ChoiceField(
         choices=ProjectRisk.RISK_LEVELS,
-        widget=forms.Select(attrs={'class': 'form-control'})
+        widget=forms.Select(attrs={'class': 'form-control'}),
+        help_text="Select the severity of the risk"
     )
 
     probability = forms.IntegerField(
         widget=forms.NumberInput(attrs={
             'class': 'form-control',
             'min': '0',
-            'max': '100'
-        })
+            'max': '100',
+            'placeholder': '0-100'
+        }),
+        help_text="Enter the likelihood of the risk occurring (0-100)"
     )
 
     impact = forms.IntegerField(
         widget=forms.NumberInput(attrs={
             'class': 'form-control',
             'min': '0',
-            'max': '100'
-        })
+            'max': '100',
+            'placeholder': '0-100'
+        }),
+        help_text="Enter the potential impact on the project (0-100)"
     )
 
     status = forms.ChoiceField(
         choices=ProjectRisk.RISK_STATUS,
-        widget=forms.Select(attrs={'class': 'form-control'})
+        widget=forms.Select(attrs={'class': 'form-control'}),
+        help_text="Select the current status of the risk"
     )
 
     mitigation_plan = forms.CharField(
@@ -496,28 +505,34 @@ class ProjectRiskForm(forms.ModelForm):
             'class': 'form-control',
             'rows': 3,
             'placeholder': 'Describe how to mitigate this risk'
-        })
+        }),
+        help_text="Describe the plan to mitigate or manage the risk"
     )
 
     class Meta:
         model = ProjectRisk
-        fields = [
-            'project', 'title', 'description', 'risk_level',
-            'probability', 'impact', 'status', 'mitigation_plan'
-        ]
+        fields = ['title', 'description', 'risk_level', 'probability', 'impact', 'status', 'mitigation_plan']
 
-    def __init__(self, *args, **kwargs):
-        user = kwargs.pop('user', None)
-        super().__init__(*args, **kwargs)
-        if user:
-            self.fields['project'] = forms.ModelChoiceField(
-                queryset=Project.objects.filter(
-                    Q(project_manager=user.employee_profile) |
-                    Q(team_members=user.employee_profile)
-                ).distinct(),
-                empty_label="Select a Project",
-                widget=forms.Select(attrs={'class': 'form-control'})
-            )
+    def clean_probability(self):
+        probability = self.cleaned_data.get('probability')
+        if not 0 <= probability <= 100:
+            raise ValidationError("Probability must be between 0 and 100.")
+        return probability
+
+    def clean_impact(self):
+        impact = self.cleaned_data.get('impact')
+        if not 0 <= impact <= 100:
+            raise ValidationError("Impact must be between 0 and 100.")
+        return impact
+
+    def clean(self):
+        cleaned_data = super().clean()
+        description = cleaned_data.get('description')
+        mitigation_plan = cleaned_data.get('mitigation_plan')
+        if not description and not mitigation_plan:
+            raise ValidationError("Please provide a description or mitigation plan.")
+        return cleaned_data
+
 
 class ProjectCommentForm(forms.ModelForm):
     """Form for project comments"""
@@ -541,61 +556,98 @@ class ProjectCommentForm(forms.ModelForm):
         return text
 
 class ProjectReportForm(forms.ModelForm):
-    """Form for project reports"""
+    """Form for creating and editing project reports"""
+
     title = forms.CharField(
         widget=forms.TextInput(attrs={
             'class': 'form-control',
-            'placeholder': 'Enter report title'
-        })
+            'placeholder': 'Enter report title',
+            'id': 'id_title'
+        }),
+        label="Report Title",
+        help_text="Enter a concise title for the report."
     )
 
     content = forms.CharField(
         widget=forms.Textarea(attrs={
             'class': 'form-control',
-            'rows': 4,
-            'placeholder': 'Enter report content here...'
-        })
+            'rows': 6,
+            'placeholder': 'Enter the report content here...',
+            'id': 'id_content'
+        }),
+        required=False,
+        label="Report Content",
+        help_text="Provide the main content or summary of the report."
     )
 
     report_type = forms.ChoiceField(
         choices=ProjectReport.REPORT_TYPES,
-        widget=forms.Select(attrs={'class': 'form-control'})
+        widget=forms.Select(attrs={
+            'class': 'form-control',
+            'id': 'id_report_type'
+        }),
+        label="Report Type",
+        help_text="Select the type of report."
     )
 
     attachments = forms.FileField(
         required=False,
-        widget=forms.FileInput(attrs={'class': 'form-control'})
+        widget=forms.FileInput(attrs={
+            'class': 'form-control',
+            'id': 'id_attachments'
+        }),
+        label="Attachments (Optional)",
+        help_text="Upload supporting documents (PDF, DOC, XLS, TXT; max 10MB)."
+    )
+
+    include_tasks = forms.BooleanField(
+        required=False,
+        label="Include Task Summary",
+        widget=forms.CheckboxInput(attrs={
+            'class': 'form-check-input',
+            'id': 'id_include_tasks'
+        }),
+        help_text="Check to include task statistics in the report."
+    )
+
+    include_risks = forms.BooleanField(
+        required=False,
+        label="Include Risk Summary",
+        widget=forms.CheckboxInput(attrs={
+            'class': 'form-check-input',
+            'id': 'id_include_risks'
+        }),
+        help_text="Check to include risk statistics in the report."
+    )
+
+    generate_pdf = forms.BooleanField(
+        required=False,
+        label="Generate PDF Attachment",
+        widget=forms.CheckboxInput(attrs={
+            'class': 'form-check-input',
+            'id': 'id_generate_pdf'
+        }),
+        help_text="Check to generate a PDF version of the report."
     )
 
     class Meta:
         model = ProjectReport
-        fields = ['project', 'title', 'content', 'report_type', 'attachments']
-
-    def __init__(self, *args, **kwargs):
-        user = kwargs.pop('user', None)
-        super().__init__(*args, **kwargs)
-        if user:
-            self.fields['project'] = forms.ModelChoiceField(
-                queryset=Project.objects.filter(
-                    Q(project_manager=user.employee_profile) |
-                    Q(team_members=user.employee_profile)
-                ).distinct(),
-                empty_label="Select a Project",
-                widget=forms.Select(attrs={'class': 'form-control'})
-            )
+        fields = ['title', 'content', 'report_type', 'attachments', 'include_tasks', 'include_risks', 'generate_pdf']
 
     def clean_attachments(self):
         attachments = self.cleaned_data.get('attachments')
         if attachments:
-            if attachments.size > 10485760:  # 10MB limit
-                raise ValidationError("File size cannot exceed 10MB")
+            max_size = 10 * 1024 * 1024  # 10MB in bytes
+            if attachments.size > max_size:
+                raise ValidationError("File size cannot exceed 10MB.")
             allowed_extensions = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.txt']
-            ext = attachments.name.lower()[-4:]
+            ext = os.path.splitext(attachments.name.lower())[1]
             if ext not in allowed_extensions:
                 raise ValidationError(
-                    f"File type not supported. Allowed types: {', '.join(allowed_extensions)}"
+                    f"File type not supported. Allowed types: {', '.join(allowed_extensions)}."
                 )
         return attachments
+
 
 class BulkDocumentUploadForm(forms.Form):
     """Form for bulk document uploads"""

@@ -380,7 +380,7 @@ class ProjectDocument(models.Model):
     file = models.FileField(upload_to='project_documents/%Y/%m/')
     version = models.CharField(max_length=10)
     uploaded_by = models.ForeignKey(Employee, on_delete=models.SET_NULL, null=True)
-    upload_date = models.DateTimeField(auto_now_add=True)
+    upload_date = models.DateTimeField(auto_now_add=True, null=False)
     description = models.TextField(blank=True)
 
     class Meta:
@@ -483,7 +483,7 @@ class ProjectComment(models.Model):
 
     author = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='project_comments')
     text = models.TextField()
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=False)
 
     class Meta:
         ordering = ['-created_at']
@@ -531,7 +531,7 @@ class ProjectReport(models.Model):
         blank=True,
         related_name="generated_reports"
     )
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=False)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

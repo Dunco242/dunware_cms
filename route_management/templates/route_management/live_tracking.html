@@ -49,6 +49,7 @@
         const hereApiKey = '{{ api_key }}';
         const serviceAreaSelect = document.getElementById('service_area_id');
         const technicianSelect = document.getElementById('employee_id');
+        const isTechnician = {{ user.employee.technician_profile.enable_location_tracking|default:'false' }};
 
         if (!hereApiKey || typeof H === 'undefined') {
             const msg = !hereApiKey ? 'HERE Maps API key is missing' : 'HERE Maps library not loaded';
@@ -67,18 +68,28 @@
             );
 
             new H.mapevents.Behavior(new H.mapevents.MapEvents(map));
-            H.ui.UI.createDefault(map, defaultLayers);
-            showMapAlert('Map initialized', 'success');
+            const ui = H.ui.UI.createDefault(map, defaultLayers);
+
+            // Add traffic flow and incidents layers
+            map.addLayer(defaultLayers.vector.normal.traffic);
+            map.addLayer(defaultLayers.vector.normal.trafficincidents);
+
+            showMapAlert('Map initialized with traffic layers', 'success');
         } catch (err) {
             showMapAlert('Map initialization failed: ' + err.message, 'danger');
             return;
+        }
+
+        // Start sending location updates if the user is a technician
+        if (isTechnician) {
+            sendTechnicianLocation();
         }
 
         const urlParams = new URLSearchParams(window.location.search);
         const employeeId = urlParams.get('employee_id');
         const serviceAreaId = urlParams.get('service_area_id');
 
-        // Always load technicians if a service area is pre-selected
+        // Load technicians if a service area is pre-selected
         if (serviceAreaId) {
             serviceAreaSelect.value = serviceAreaId;
             fetchTechnicians(serviceAreaId).then(() => {
@@ -110,6 +121,55 @@
         alertBox.textContent = message;
     }
 
+    function getCsrfToken() {
+        const token = document.querySelector('[name=csrfmiddlewaretoken]')?.value;
+        if (!token) console.error('CSRF token not found');
+        return token;
+    }
+
+    async function sendTechnicianLocation() {
+        if (!navigator.geolocation) {
+            showMapAlert('Geolocation not supported by this browser', 'danger');
+            console.error('Geolocation not supported');
+            return;
+        }
+
+        navigator.geolocation.watchPosition(
+            async (position) => {
+                const { latitude, longitude } = position.coords;
+                console.log('Sending location:', { latitude, longitude });
+
+                try {
+                    const response = await fetch('/route_management/update_technician_location/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': getCsrfToken(),
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify({ latitude, longitude })
+                    });
+
+                    const data = await response.json();
+                    console.log('Location update response:', data);
+                    if (data.status === 'success') {
+                        showMapAlert('Location updated successfully', 'success');
+                    } else {
+                        showMapAlert(`Failed to update location: ${data.error || 'Unknown error'}`, 'warning');
+                    }
+                } catch (err) {
+                    console.error('Error sending location:', err);
+                    showMapAlert(`Error sending location: ${err.message}`, 'danger');
+                }
+            },
+            (error) => {
+                console.error('Geolocation error:', error.message);
+                showMapAlert(`Geolocation error: ${error.message}`, 'danger');
+            },
+            { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
+        );
+    }
+
     async function fetchTechnicians(serviceAreaId) {
         if (!serviceAreaId) {
             showMapAlert('Please select a service area', 'danger');
@@ -117,7 +177,7 @@
         }
 
         try {
-            const response = await fetch(`/route_management/get_technicians/?service_area_id=${serviceAreaId}`, {
+            const response = await fetch(`/route_management/get_technicians/?service_area_id=${serviceAreaId}&t=${Date.now()}`, {
                 headers: {
                     'X-CSRFToken': '{{ csrf_token }}',
                     'Accept': 'application/json'
@@ -149,7 +209,7 @@
 
     async function fetchTechnicianLocation(employeeId) {
         try {
-            const response = await fetch(`/route_management/get_technician_locations/?employee_id=${employeeId}`, {
+            const response = await fetch(`/route_management/get_technician_locations/?employee_id=${employeeId}&t=${Date.now()}`, {
                 headers: {
                     'X-CSRFToken': '{{ csrf_token }}',
                     'Accept': 'application/json'
@@ -157,6 +217,7 @@
             });
 
             const data = await response.json();
+            console.log('fetchTechnicianLocation response:', data);
             if (data.status === 'success' && data.technicians.length) {
                 const tech = data.technicians[0];
                 if (tech.latitude && tech.longitude) {
@@ -169,7 +230,7 @@
                     showMapAlert('Technician location not yet updated', 'warning');
                 }
             } else {
-                throw new Error(data.message || 'No technician location found');
+                throw new Error(data.error || 'No technician location found');
             }
         } catch (err) {
             console.error(err);
@@ -195,5 +256,4 @@
         }
     }
 </script>
-
 {% endblock %}

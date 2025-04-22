@@ -1,146 +1,177 @@
 {% extends "core/base.html" %}
 {% block content %}
-<div class="container mt-4">
+<div class="container-fluid mt-4">
     <div class="row">
         <!-- Email Sidebar -->
-<div class="col-md-3 email-sidebar">
-    <div class="list-group">
-        {% if email_account %}
-            <a href="{% url 'email_inbox' %}" class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'email_inbox' %}active{% endif %}">
-                Inbox
-            </a>
-            <a href="{% url 'email_sent' %}" class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'email_sent' %}active{% endif %}">
-                Sent Mail
-            </a>
-            <a href="{% url 'email_deleted' %}" class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'email_deleted' %}active{% endif %}">
-                Deleted Mail
-            </a>
-            <a href="{% if latest_thread %}{% url 'email_thread' latest_thread.message_id %}{% else %}{% url 'compose_email' %}{% endif %}"
-               class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'email_thread' or request.resolver_match.url_name == 'compose_email' %}active{% endif %}">
-                Email Threads
-            </a>
-        {% endif %}
+        <div class="col-md-3 email-sidebar">
+            <div class="list-group mb-3">
+                {% if email_account %}
+                    <a href="{% url 'email_inbox' %}" class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'email_inbox' %}active{% endif %}">
+                        <i class="fas fa-inbox me-2"></i>Inbox
+                    </a>
+                    <a href="{% url 'email_sent' %}" class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'email_sent' %}active{% endif %}">
+                        <i class="fas fa-paper-plane me-2"></i>Sent Mail
+                    </a>
+                    <a href="{% url 'email_deleted' %}" class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'email_deleted' %}active{% endif %}">
+                        <i class="fas fa-trash me-2"></i>Deleted Mail
+                    </a>
+                    <a href="{% if latest_thread %}{% url 'email_thread' latest_thread.message_id %}{% else %}{% url 'compose_email' %}{% endif %}"
+                       class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'email_thread' or request.resolver_match.url_name == 'compose_email' %}active{% endif %}">
+                        <i class="fas fa-comment-alt me-2"></i>Email Threads
+                    </a>
+                {% endif %}
+                <a href="{% url 'email_account_list' %}" class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'email_account_list' %}active{% endif %}">
+                    <i class="fas fa-cog me-2"></i>Manage Email Accounts
+                </a>
+            </div>
 
-        <a href="{% url 'email_account_list' %}" class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'email_account_list' %}active{% endif %}">
-            Manage Email Accounts
-        </a>
-    </div>
-
-    {% if email_account %}
-        <a href="{% url 'compose_email' %}" class="btn btn-primary btn-block mt-3">
-            Compose Email
-        </a>
-
-        <div class="text-center mt-3">
-            <p class="mb-1"><strong>{{ email_account.email_address }}</strong></p>
-            <a href="{% url 'email_account_update' email_account.pk %}" class="btn btn-outline-info btn-sm mb-2">
-                Update Email Account
-            </a>
-            <form method="post" action="{% url 'email_account_delete' email_account.pk %}">
-                {% csrf_token %}
-                <button type="submit" class="btn btn-outline-danger btn-sm">
-                    Remove Email Account
-                </button>
-            </form>
+            {% if email_account %}
+                <a href="{% url 'compose_email' %}" class="btn btn-primary w-100 mb-3">
+                    <i class="fas fa-pen me-2"></i>Compose Email
+                </a>
+                <div class="text-center">
+                    <p class="mb-1"><strong>{{ email_account.email_address }}</strong></p>
+                    <a href="{% url 'email_account_update' email_account.pk %}" class="btn btn-outline-info btn-sm mb-2">
+                        Update Account
+                    </a>
+                    <form method="post" action="{% url 'email_account_delete' email_account.pk %}">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-outline-danger btn-sm">
+                            Remove Account
+                        </button>
+                    </form>
+                </div>
+            {% else %}
+                <div class="text-center">
+                    <a href="{% url 'email_account_create' %}" class="btn btn-outline-primary w-100">
+                        Add Email Address
+                    </a>
+                </div>
+            {% endif %}
         </div>
-    {% else %}
-        <div class="text-center mt-3">
-            <a href="{% url 'email_account_create' %}" class="btn btn-outline-primary btn-block">
-                Add Email Address
-            </a>
-        </div>
-    {% endif %}
-</div>
-
-<!-- Inline CSS for Sidebar -->
-<style>
-    .email-sidebar {
-        min-height: 600px;
-        min-width: 200px;
-        max-height: 80vh;
-        overflow-y: auto;
-        background-color: #f8f9fa;
-        padding: 15px;
-        border-radius: 8px;
-        box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
-    }
-
-    .email-sidebar .list-group-item {
-        border: none;
-        font-weight: 500;
-        color: #333;
-        transition: background 0.3s ease-in-out;
-    }
-
-    .email-sidebar .list-group-item:hover {
-        background-color: #e2e6ea;
-    }
-
-    .email-sidebar .list-group-item.active {
-        background-color: #007bff !important;
-        color: #fff !important;
-        font-weight: bold;
-    }
-
-    .btn-block {
-        width: 100%;
-    }
-</style>
-
 
         <!-- Main Content -->
         <div class="col-md-9">
-            <h2>Email Inbox</h2>
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2 class="mb-0">Email Inbox</h2>
+                <form method="get" action="{% url 'email_inbox' %}">
+                    <input type="hidden" name="sync" value="true">
+                    <button type="submit" class="btn btn-outline-primary">
+                        <i class="fas fa-sync me-2"></i>Refresh
+                    </button>
+                </form>
+            </div>
+            <p class="text-muted small">Last synchronized: {{ last_synced|date:"M d, Y H:i:s" }}</p>
 
-            <table class="table table-bordered">
-                <thead>
-                    <tr>
-                        <th>From</th>
-                        <th>Subject</th>
-                        <th>Date</th>
-                        <th>Status</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for email in emails %}
-                        <tr class="{% if not email.is_read %}font-weight-bold{% endif %}">
-                            <td>{{ email.from_email }}</td>
-                            <td>
-                                <a href="{% url 'view_email' email.message_id %}">
-                                    {{ email.subject }}
-                                </a>
-                            </td>
-                            <td>{{ email.created_at|date:"M d, Y H:i" }}</td>
-                            <td>
-                                {% if email.is_read %}
-                                    <span class="badge bg-success">Read</span>
-                                {% else %}
-                                    <span class="badge bg-warning">Unread</span>
-                                {% endif %}
-                            </td>
-                        </tr>
-                    {% empty %}
-                        <tr>
-                            <td colspan="4" class="text-center">No emails found.</td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+            <div class="card shadow-sm border-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="bg-light">
+                            <tr>
+                                <th scope="col">From</th>
+                                <th scope="col">Subject</th>
+                                <th scope="col">Date</th>
+                                <th scope="col">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for email in emails %}
+                                <tr class="{% if not email.is_read %}fw-bold{% endif %}">
+                                    <td>{{ email.from_email }}</td>
+                                    <td>
+                                        <a href="{% url 'view_email' email.message_id %}" class="text-decoration-none">
+                                            {{ email.subject|truncatechars:50 }}
+                                        </a>
+                                    </td>
+                                    <td>{{ email.created_at|date:"M d, Y H:i" }}</td>
+                                    <td>
+                                        {% if email.is_read %}
+                                            <span class="badge bg-success">Read</span>
+                                        {% else %}
+                                            <span class="badge bg-warning text-dark">Unread</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% empty %}
+                                <tr>
+                                    <td colspan="4" class="text-center py-4">No emails found.</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
 
             {% if is_paginated %}
-                <div class="pagination">
-                    {% if page_obj.has_previous %}
-                        <a href="?page=1">&laquo; First</a>
-                        <a href="?page={{ page_obj.previous_page_number }}">Previous</a>
-                    {% endif %}
-                    <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
-                    {% if page_obj.has_next %}
-                        <a href="?page={{ page_obj.next_page_number }}">Next</a>
-                        <a href="?page={{ page_obj.paginator.num_pages }}">Last &raquo;</a>
-                    {% endif %}
-                </div>
+                <nav aria-label="Page navigation" class="mt-3">
+                    <ul class="pagination justify-content-center">
+                        {% if page_obj.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page=1">&laquo; First</a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a>
+                            </li>
+                        {% endif %}
+                        <li class="page-item disabled">
+                            <span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+                        </li>
+                        {% if page_obj.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">Last &raquo;</a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
             {% endif %}
         </div>
     </div>
 </div>
+
+<!-- Inline CSS for Inbox -->
+<style>
+    .email-sidebar {
+        min-height: 600px;
+        max-height: 80vh;
+        overflow-y: auto;
+        background-color: #f8f9fa;
+        padding: 1rem;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    }
+    .email-sidebar .list-group-item {
+        border: none;
+        padding: 0.75rem 1rem;
+        color: #333;
+        transition: background-color 0.2s;
+        border-radius: 4px;
+    }
+    .email-sidebar .list-group-item:hover {
+        background-color: #e9ecef;
+    }
+    .email-sidebar .list-group-item.active {
+        background-color: #007bff;
+        color: white;
+        font-weight: 500;
+    }
+    .card {
+        border-radius: 8px;
+    }
+    .table {
+        margin-bottom: 0;
+    }
+    .table-hover tbody tr:hover {
+        background-color: #f1f3f5;
+    }
+    .badge {
+        font-size: 0.85rem;
+    }
+    .pagination .page-link {
+        border-radius: 4px;
+        margin: 0 2px;
+    }
+</style>
 {% endblock %}

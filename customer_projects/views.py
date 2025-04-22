@@ -9,10 +9,12 @@ from django.urls import reverse_lazy, reverse
 from django.contrib import messages
 from django.db.models import (
     Q, Sum, Count, F, Avg, Max, Min,
-    Prefetch, ExpressionWrapper, DecimalField
+    Prefetch, ExpressionWrapper, DecimalField, When, Case, FloatField
 )
 from django.db.models.functions import Coalesce
 from django.db import transaction
+from weasyprint import HTML
+from django.views.decorators.http import require_POST
 from django.http import JsonResponse, HttpResponse, FileResponse, Http404
 from django.utils import timezone
 from django.core.exceptions import (
@@ -30,6 +32,7 @@ from django.contrib.contenttypes.models import ContentType
 # Core App Models and Forms
 from core.models import Employee, Customer
 from core.mixins import EmployeeRequiredMixin
+from reportlab.pdfgen import canvas
 
 # Local Models
 from .models import (
@@ -40,6 +43,9 @@ from .models import (
 from core.models import Task
 from django.utils.text import slugify
 from django.db.utils import IntegrityError
+from reportlab.lib.pagesizes import letter
+from io import BytesIO
+from django.core.files.base import ContentFile
 from django.contrib import messages
 from .models import Project
 
@@ -1186,7 +1192,7 @@ class ProjectCommentCreateView(LoginRequiredMixin, CreateView):
         try:
             form.instance.author = self.request.user.employee_profile
 
-            # Set the content object based on comment type
+            # Set content object
             content_type = self.request.POST.get('content_type')
             object_id = self.request.POST.get('object_id')
 
@@ -1199,9 +1205,11 @@ class ProjectCommentCreateView(LoginRequiredMixin, CreateView):
             else:
                 raise ValueError("Invalid content type")
 
-            response = super().form_valid(form)
+            # ✅ Actually save the comment
+            form.save()
 
-            if self.request.is_ajax():
+            # AJAX Response
+            if self.request.headers.get("x-requested-with") == "XMLHttpRequest":
                 return JsonResponse({
                     'status': 'success',
                     'comment': {
@@ -1213,7 +1221,7 @@ class ProjectCommentCreateView(LoginRequiredMixin, CreateView):
                 })
 
             messages.success(self.request, "Comment added successfully.")
-            return response
+            return redirect(self.get_success_url())
 
         except Exception as e:
             logger.error(f"Error creating comment: {str(e)}")
@@ -1331,6 +1339,28 @@ class ProjectReportView(LoginRequiredMixin, DetailView):
             })
         return phases
 
+    def get(self, request, *args, **kwargs):
+        if request.GET.get('format') == 'pdf':
+            return self.generate_pdf()
+        return super().get(request, *args, **kwargs)
+
+    def generate_pdf(self):
+        project = self.get_object()
+        response = HttpResponse(content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="{project.project_code}_report.pdf"'
+        p = canvas.Canvas(response)
+        p.drawString(100, 800, f"Project Report: {project.name}")
+        task_stats = ProjectTask.objects.filter(phase__project=project).aggregate(
+            total_tasks=Count('id'),
+            completed_tasks=Count('id', filter=Q(status='done'))
+        )
+        p.drawString(100, 780, f"Total Tasks: {task_stats['total_tasks']}")
+        p.drawString(100, 760, f"Completed Tasks: {task_stats['completed_tasks']}")
+        p.showPage()
+        p.save()
+        return response
+
+
 # Comments and Discussion Views
 @login_required
 def add_comment(request, project_id):
@@ -1370,57 +1400,91 @@ def add_comment(request, project_id):
 
     return JsonResponse({'error': 'Invalid request'}, status=400)
 
-# Project Analytics Views
+
+logger = logging.getLogger(__name__)
+
 class ProjectAnalyticsView(LoginRequiredMixin, TemplateView):
     """
     Project analytics and metrics dashboard
     """
-    template_name = 'customer_projects/project_analytics.html'
+    template_name = 'customer_projects/analytics.html'
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         employee = self.request.user.employee_profile
 
-        # Get projects where user is manager or team member
+        # Optimize project query with select_related and prefetch_related
         projects = Project.objects.filter(
             Q(project_manager=employee) | Q(team_members=employee)
-        ).distinct()
+        ).distinct().select_related('project_manager').prefetch_related('phases__tasks')
 
         # Project Status Distribution
-        status_distribution = projects.values('status').annotate(
-            count=Count('id')
-        ).order_by('status')
+        status_distribution = projects.values('status').annotate(count=Count('id')).order_by('status')
+        status_labels = [item['status'] for item in status_distribution]
+        status_data = [item['count'] for item in status_distribution]
 
         # Task Status Distribution
-        task_distribution = ProjectTask.objects.filter(
-            phase__project__in=projects
-        ).values('status').annotate(
-            count=Count('id')
-        ).order_by('status')
+        task_distribution = []
+        if projects.exists():
+            task_distribution = ProjectTask.objects.filter(
+                phase__project__in=projects
+            ).values('status').annotate(count=Count('id')).order_by('status')
+        task_labels = [item['status'] for item in task_distribution]
+        task_data = [item['count'] for item in task_distribution]
 
         # Time Tracking Analysis
-        time_analysis = TimeEntry.objects.filter(
-            task__phase__project__in=projects
-        ).aggregate(
-            total_hours=Sum('hours'),
-            billable_hours=Sum('hours', filter=Q(is_billable=True)),
-            non_billable_hours=Sum('hours', filter=Q(is_billable=False))
-        )
+        time_analysis = {'total_hours': 0, 'billable_hours': 0, 'non_billable_hours': 0}
+        if projects.exists():
+            time_analysis = TimeEntry.objects.filter(
+                task__phase__project__in=projects
+            ).aggregate(
+                total_hours=Sum('hours'),
+                billable_hours=Sum('hours', filter=Q(is_billable=True)),
+                non_billable_hours=Sum('hours', filter=Q(is_billable=False))
+            )
 
         # Risk Analysis
         risk_analysis = ProjectRisk.objects.filter(
             project__in=projects
-        ).values('risk_level').annotate(
-            count=Count('id')
-        ).order_by('risk_level')
+        ).values('risk_level').annotate(count=Count('id')).order_by('risk_level')
+        risk_labels = [item['risk_level'] for item in risk_analysis]
+        risk_data = [item['count'] for item in risk_analysis]
+
+        # Calculate Metrics
+        active_projects = projects.filter(status__in=['in_progress']).count()
+        total_budget = projects.aggregate(total=Sum('budget'))['total'] or 0
+
+        # Average Duration (in days)
+        completed_projects = projects.filter(status='completed', actual_end_date__isnull=False)
+        avg_duration = 0
+        if completed_projects.exists():
+            durations = [(p.actual_end_date - p.start_date).days for p in completed_projects if p.start_date and p.actual_end_date]
+            avg_duration = sum(durations) / len(durations) if durations else 0
+
+        # Completion Rate
+        progress_data = self.get_project_progress(projects)
+        completion_rate = 0
+        if progress_data.exists():
+            total_progress = sum(p.progress_percentage or 0 for p in progress_data if p.total_tasks > 0)
+            completion_rate = total_progress / len([p for p in progress_data if p.total_tasks > 0]) if progress_data else 0
 
         context.update({
-            'status_distribution': status_distribution,
-            'task_distribution': task_distribution,
+            'projects': projects,
+            'status_labels': json.dumps(status_labels),
+            'status_data': json.dumps(status_data),
+            'task_labels': json.dumps(task_labels),
+            'task_data': json.dumps(task_data),
+            'risk_labels': json.dumps(risk_labels),
+            'risk_data': json.dumps(risk_data),
             'time_analysis': time_analysis,
-            'risk_analysis': risk_analysis,
-            'project_progress': self.get_project_progress(projects),
-            'team_performance': self.get_team_performance(projects)
+            'progress_data': progress_data,
+            'progress_labels': json.dumps([p.name for p in progress_data]),
+            'progress_data_values': json.dumps([float(p.progress_percentage or 0) for p in progress_data]),
+            'team_performance': self.get_team_performance(projects),
+            'completion_rate': round(completion_rate, 2),
+            'avg_duration': round(avg_duration, 2),
+            'active_projects': active_projects,
+            'total_budget': total_budget,
         })
 
         return context
@@ -1434,14 +1498,18 @@ class ProjectAnalyticsView(LoginRequiredMixin, TemplateView):
                 filter=Q(phases__tasks__status='done')
             )
         ).annotate(
-            progress_percentage=F('completed_tasks') * 100.0 / F('total_tasks')
+            progress_percentage=Case(
+                When(total_tasks__gt=0, then=F('completed_tasks') * 100.0 / F('total_tasks')),
+                default=0.0,
+                output_field=FloatField()
+            )
         )
 
     def get_team_performance(self, projects):
         """Calculate team performance metrics"""
         return Employee.objects.filter(
             Q(managed_projects__in=projects) |
-            Q(project_assignments__project__in=projects)
+            Q(id__in=ProjectTeamMember.objects.filter(project__in=projects).values('employee_id'))
         ).distinct().annotate(
             tasks_assigned=Count('project_tasks'),
             tasks_completed=Count(
@@ -1450,6 +1518,68 @@ class ProjectAnalyticsView(LoginRequiredMixin, TemplateView):
             ),
             hours_logged=Sum('time_entries__hours')
         )
+
+
+def project_analytics_data(request):
+    employee = request.user.employee_profile
+    project_id = request.GET.get('project_id')
+
+    # Filter projects
+    projects = Project.objects.filter(
+        Q(project_manager=employee) | Q(team_members=employee)
+    ).distinct()
+    if project_id:
+        projects = projects.filter(id=project_id)
+
+    # Status Distribution
+    status_distribution = projects.values('status').annotate(count=Count('id')).order_by('status')
+    status_labels = [item['status'] for item in status_distribution]
+    status_data = [item['count'] for item in status_distribution]
+
+    # Task Distribution
+    task_distribution = []
+    if projects.exists():
+        task_distribution = ProjectTask.objects.filter(
+            phase__project__in=projects
+        ).values('status').annotate(count=Count('id')).order_by('status')
+    task_labels = [item['status'] for item in task_distribution]
+    task_data = [item['count'] for item in task_distribution]
+
+    # Risk Analysis
+    risk_analysis = ProjectRisk.objects.filter(
+        project__in=projects
+    ).values('risk_level').annotate(count=Count('id')).order_by('risk_level')
+    risk_labels = [item['risk_level'] for item in risk_analysis]
+    risk_data = [item['count'] for item in risk_analysis]
+
+    # Progress Data
+    progress_qs = projects.annotate(
+        total_tasks=Count('phases__tasks'),
+        completed_tasks=Count(
+            'phases__tasks',
+            filter=Q(phases__tasks__status='done')
+        )
+    ).annotate(
+        progress_percentage=Case(
+            When(total_tasks__gt=0, then=F('completed_tasks') * 100.0 / F('total_tasks')),
+            default=0.0,
+            output_field=FloatField()
+        )
+    )
+    progress_labels = [p.name for p in progress_qs]
+    progress_data = [float(p.progress_percentage or 0) for p in progress_qs]
+
+    return JsonResponse({
+        'status_labels': status_labels,
+        'status_data': status_data,
+        'task_labels': task_labels,
+        'task_data': task_data,
+        'risk_labels': risk_labels,
+        'risk_data': risk_data,
+        'progress_labels': progress_labels,
+        'progress_data': progress_data
+    })
+
 
 # Export Views
 @login_required
@@ -1975,6 +2105,7 @@ class ProjectFinanceView(LoginRequiredMixin, DetailView):
         })
         return context
 
+
 @method_decorator(login_required, name='dispatch')
 class RiskCreateView(LoginRequiredMixin, CreateView):
     """View to create a new project risk."""
@@ -1994,10 +2125,19 @@ class RiskCreateView(LoginRequiredMixin, CreateView):
         return context
 
     def form_valid(self, form):
-        """Set project and identified_by before saving"""
+        """Set project and identified_by, then save"""
+        # Set additional fields before saving the form instance
         form.instance.project = self.project
         form.instance.identified_by = self.request.user.employee_profile
-        messages.success(self.request, "Risk created successfully.")
+
+        try:
+            # Save the instance manually and catch any issues
+            form.instance.save()
+            messages.success(self.request, "Risk created successfully.")
+        except Exception as e:
+            messages.error(self.request, f"An error occurred: {e}")
+            return self.form_invalid(form)
+
         return super().form_valid(form)
 
     def get_success_url(self):
@@ -2039,35 +2179,94 @@ class RiskListView(ListView):
 
 
 class ReportListView(ListView):
-    """List all reports associated with a project"""
     model = ProjectReport
     template_name = "customer_projects/report_list.html"
     context_object_name = "reports"
+    paginate_by = 10  # Optional: ensure pagination
 
     def get_queryset(self):
         project = get_object_or_404(Project, id=self.kwargs['project_id'])
-        return ProjectReport.objects.filter(project=project)
+        return ProjectReport.objects.filter(project=project).select_related('generated_by')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['project'] = get_object_or_404(Project, id=self.kwargs['project_id'])
         return context
 
+logger = logging.getLogger(__name__)
 
 class ReportCreateView(LoginRequiredMixin, CreateView):
     model = ProjectReport
     form_class = ProjectReportForm
     template_name = 'customer_projects/report_form.html'
 
+    def dispatch(self, request, *args, **kwargs):
+        self.project = get_object_or_404(Project, id=self.kwargs['project_id'])
+        if not (self.project.project_manager == request.user.employee_profile or
+                request.user.employee_profile in self.project.team_members.all()):
+            raise PermissionDenied
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['project'] = self.project
+        context['is_preview'] = True
+        return context
+
     def form_valid(self, form):
-        form.instance.project_id = self.kwargs['project_id']
-        form.instance.created_by = self.request.user.employee_profile
-        messages.success(self.request, "Report created successfully.")
-        return super().form_valid(form)
+        try:
+            with transaction.atomic():
+                form.instance.project = self.project
+                form.instance.generated_by = self.request.user.employee_profile
+                logger.info(f"Attempting to create report for project {self.project.id}")
+
+                # Generate dynamic content
+                content = form.cleaned_data.get('content', '')
+                if form.cleaned_data.get('include_tasks', False):
+                    task_stats = ProjectTask.objects.filter(phase__project=self.project).aggregate(
+                        total=Count('id'),
+                        completed=Count('id', filter=Q(status='done'))
+                    )
+                    content += f"\n\nTask Summary:\n- Total Tasks: {task_stats['total']}\n- Completed Tasks: {task_stats['completed']}"
+                if form.cleaned_data.get('include_risks', False):
+                    risks = ProjectRisk.objects.filter(project=self.project).count()
+                    content += f"\n\nRisk Summary:\n- Total Risks: {risks}"
+                form.instance.content = content
+
+                # Save the report
+                response = super().form_valid(form)
+                logger.info(f"Report saved successfully: {form.instance.id}")
+
+                # Generate PDF if requested
+                if form.cleaned_data.get('generate_pdf', False):
+                    try:
+                        # Render HTML for PDF
+                        html_content = render_to_string('customer_projects/report_pdf.html', {
+                            'report': form.instance,
+                            'project': self.project,
+                            'task_stats': task_stats if form.cleaned_data.get('include_tasks') else None,
+                            'risk_stats': {'total': risks} if form.cleaned_data.get('include_risks') else None
+                        })
+                        pdf_file = HTML(string=html_content).write_pdf()
+                        form.instance.attachments.save(
+                            f'report_{form.instance.id}.pdf',
+                            ContentFile(pdf_file),
+                            save=True
+                        )
+                        logger.info(f"PDF generated for report {form.instance.id}")
+                    except Exception as e:
+                        logger.error(f"Error generating PDF for report {form.instance.id}: {str(e)}")
+                        messages.warning(self.request, "Report created, but PDF generation failed.")
+
+                messages.success(self.request, "Report created successfully.")
+                return response
+        except Exception as e:
+            logger.error(f"Error creating report: {str(e)}")
+            messages.error(self.request, f"Error creating report: {str(e)}")
+            return self.form_invalid(form)
 
     def get_success_url(self):
-        return reverse('customer_projects:project-detail',
-                      kwargs={'pk': self.kwargs['project_id']})
+        return reverse('customer_projects:report-list', kwargs={'project_id': self.project.id})
 
 class ReportUpdateView(LoginRequiredMixin, UpdateView):
     model = ProjectReport
@@ -2673,3 +2872,122 @@ class IntegratedProjectCreateView(LoginRequiredMixin, View):
                 'num_phases': num_phases
             }
             return render(request, self.template_name, context)
+
+
+def report_download(request, report_id):
+    report = get_object_or_404(ProjectReport, id=report_id)
+    if not report.attachments:
+        messages.error(request, "No attachment available for this report.")
+        return redirect('customer_projects:report-list', project_id=report.project.id)
+    return FileResponse(report.attachments.open(), as_attachment=True, filename=report.attachments.name.split('/')[-1])
+
+
+
+@login_required
+@require_POST
+def fetch_report_statistics(request, project_id):
+    """
+    API endpoint to fetch task and risk statistics for report preview
+    """
+    try:
+        project = get_object_or_404(Project, pk=project_id)
+
+        # Verify permissions
+        if not (project.project_manager == request.user.employee_profile or
+                request.user.employee_profile in project.team_members.all()):
+            raise PermissionDenied
+
+        data = json.loads(request.body)
+        include_tasks = data.get('include_tasks', False)
+        include_risks = data.get('include_risks', False)
+
+        response_data = {}
+
+        if include_tasks:
+            task_stats = ProjectTask.objects.filter(phase__project=project).aggregate(
+                total=Count('id'),
+                completed=Count('id', filter=Q(status='done'))
+            )
+            response_data['task_stats'] = {
+                'total': task_stats['total'] or 0,
+                'completed': task_stats['completed'] or 0
+            }
+
+        if include_risks:
+            risk_stats = ProjectRisk.objects.filter(project=project).aggregate(
+                total=Count('id')
+            )
+            response_data['risk_stats'] = {
+                'total': risk_stats['total'] or 0
+            }
+
+        return JsonResponse({
+            'status': 'success',
+            'data': response_data
+        })
+
+    except Exception as e:
+        logger.error(f"Error fetching report statistics: {str(e)}")
+        return JsonResponse({
+            'status': 'error',
+            'error': str(e)
+        }, status=500)
+
+
+def project_analytics_data(request):
+    employee = request.user.employee_profile
+    project_id = request.GET.get('project_id')
+
+    # Filter projects
+    projects = Project.objects.filter(
+        Q(project_manager=employee) | Q(team_members=employee)
+    ).distinct()
+    if project_id:
+        projects = projects.filter(id=project_id)
+
+    # Status Distribution
+    status_distribution = projects.values('status').annotate(count=Count('id')).order_by('status')
+    status_labels = [item['status'] for item in status_distribution]
+    status_data = [item['count'] for item in status_distribution]
+
+    # Task Distribution
+    task_distribution = ProjectTask.objects.filter(
+        phase__project__in=projects
+    ).values('status').annotate(count=Count('id')).order_by('status')
+    task_labels = [item['status'] for item in task_distribution]
+    task_data = [item['count'] for item in task_distribution]
+
+    # Risk Analysis
+    risk_analysis = ProjectRisk.objects.filter(
+        project__in=projects
+    ).values('risk_level').annotate(count=Count('id')).order_by('risk_level')
+    risk_labels = [item['risk_level'] for item in risk_analysis]
+    risk_data = [item['count'] for item in risk_analysis]
+
+    # Progress Data
+    progress_qs = projects.annotate(
+        total_tasks=Count('phases__tasks'),
+        completed_tasks=Count(
+            'phases__tasks',
+            filter=Q(phases__tasks__status='done')
+        )
+    ).annotate(
+        progress_percentage=Case(
+            When(total_tasks__gt=0, then=F('completed_tasks') * 100.0 / F('total_tasks')),
+            default=0.0,
+            output_field=FloatField()
+        )
+    )
+    progress_labels = [p.name for p in progress_qs]
+    progress_data = [float(p.progress_percentage or 0) for p in progress_qs]
+
+    return JsonResponse({
+        'status_labels': status_labels,
+        'status_data': status_data,
+        'task_labels': task_labels,
+        'task_data': task_data,
+        'risk_labels': risk_labels,
+        'risk_data': risk_data,
+        'progress_labels': progress_labels,
+        'progress_data': progress_data
+    })

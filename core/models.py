@@ -15,6 +15,7 @@ from django.utils.crypto import get_random_string
 from decimal import Decimal
 from django.utils.timezone import make_aware
 from dateutil.rrule import rrulestr
+import json
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator, EmailValidator, URLValidator,  MinLengthValidator
 import pytz
@@ -2504,6 +2505,7 @@ class EmailMessage(models.Model):
     ]
 
     message_id = models.UUIDField(default=uuid.uuid4, editable=False)
+    original_message_id = models.TextField(blank=True, null=True)
     account = models.ForeignKey(EmailAccount, on_delete=models.CASCADE)
     message_type = models.CharField(max_length=10, choices=MESSAGE_TYPE_CHOICES)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='draft')
@@ -2548,6 +2550,19 @@ class EmailMessage(models.Model):
 
     def __str__(self):
         return f"{self.subject} - {self.created_at}"
+
+    @property
+    def to_emails_list(self):
+        """Deserialize to_emails JSON string to a list."""
+        try:
+            return json.loads(self.to_emails)
+        except (json.JSONDecodeError, TypeError):
+            return [self.to_emails] if self.to_emails else []
+
+    def __str__(self):
+        return f"{self.subject} from {self.from_email}"
+
+
 
 class EmailAttachment(models.Model):
     """Store email attachments"""

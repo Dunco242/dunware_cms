@@ -12,10 +12,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Development mode check
 DEBUG = True
-DEVELOPMENT_MODE = os.getenv('DJANGO_ENV', 'development') == 'production'
+DEVELOPMENT_MODE = os.getenv('DJANGO_ENV')
 
 # Security settings - completely disabled in development
-SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-development-key-change-in-production')
+SECRET_KEY = os.getenv('SECRET_KEY')
 
 if DEVELOPMENT_MODE:
     SECURE_SSL_REDIRECT = False

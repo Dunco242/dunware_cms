@@ -11,6 +11,8 @@ import time
 import traceback
 import imaplib
 import smtplib
+import bleach
+import markdown
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
@@ -21,6 +23,8 @@ from datetime import datetime, timedelta
 from django.utils.timezone import now
 from decimal import Decimal
 from core.mixins import EmployeeRequiredMixin
+from email.header import decode_header
+
 
 
 
@@ -62,6 +66,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin, 
 # Third-Party Libraries
 import pytz
 from dateutil.parser import parse
+import re
 from weasyprint import HTML
 from zoomus import ZoomClient
 from icalendar import Calendar
