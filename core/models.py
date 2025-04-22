@@ -847,7 +847,7 @@ class Meeting(models.Model):
             if self.start_time >= self.end_time:
                 raise ValidationError("End time must be after start time")
 
-            if self.start_time < timezone.now() and not self.pk:
+            if self.start_time < timezone.now() and not self.pk and self.meeting_type != 'google_import':
                 raise ValidationError("Cannot schedule meetings in the past")
 
             # Maximum meeting duration validation
