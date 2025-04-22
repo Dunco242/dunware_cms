@@ -1169,6 +1169,10 @@ class MeetingDetailView(LoginRequiredMixin, DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         meeting = self.get_object()
+
+        # Add current time to context for accurate past/upcoming badge display
+        context['now'] = timezone.now()
+
         context['notes'] = Note.objects.filter(
             note_type='meeting',
             created_at__range=(meeting.start_time, meeting.end_time)
@@ -6262,13 +6266,13 @@ def minimal_calendar_view(request):
 
                             # Create meeting object with organizer (not user)
                             Meeting.objects.create(
-                                organizer=request.user,
+                                organizer=current_employee,
                                 title=summary,
                                 start_time=start_time,
                                 end_time=end_time,
                                 description=description,
                                 location=location,
-                                meeting_type='imported',
+                                meeting_type='other',
                                 status='scheduled'
                             )
                             events_imported += 1
@@ -6391,7 +6395,7 @@ def minimal_calendar_view(request):
 
                             # Create meeting object with organizer (not user)
                             Meeting.objects.create(
-                                organizer=request.user,
+                                organizer=current_employee,
                                 title=summary,
                                 start_time=start_time,
                                 end_time=end_time,

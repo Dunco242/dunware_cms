@@ -1017,21 +1017,17 @@ class Meeting(models.Model):
     def is_past(self) -> bool:
         """Check if meeting is in the past"""
         now = timezone.now()
-
-        # Compare against start time, not end time
         meeting_time = self.start_time
 
-        # Ensure both times are timezone-aware for proper comparison
         if not timezone.is_aware(meeting_time):
             meeting_time = timezone.make_aware(meeting_time)
 
-        is_past = meeting_time < now
-        print(f"Now: {now}, Meeting start time: {meeting_time}, Is past: {is_past}")
-        return is_past
-        @property
-        def can_be_cancelled(self) -> bool:
-            """Check if meeting can be cancelled"""
-            return self.status in ['scheduled', 'rescheduled'] and self.start_time > timezone.now()
+        return meeting_time < now
+
+    @property
+    def can_be_cancelled(self) -> bool:
+        """Check if meeting can be cancelled"""
+        return self.status in ['scheduled', 'rescheduled'] and self.start_time > timezone.now()
 
 
 # core/models.py (Invoice model updates)
