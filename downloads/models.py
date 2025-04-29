@@ -8,5 +8,8 @@ class VerificationCode(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     used_at = models.DateTimeField(null=True, blank=True)
 
+    download_ip = models.GenericIPAddressField(null=True, blank=True)
+    download_user_agent = models.TextField(null=True, blank=True)
+
     def __str__(self):
         return self.code
