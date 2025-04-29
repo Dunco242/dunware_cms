@@ -34,7 +34,7 @@ class DownloadView(View):
             code.save()
 
             # Redirect to GitHub release asset for download
-            github_download_url = "https://github.com/your-username/your-repo/releases/download/v1.0.0/Setup_Dunware_CMS.exe"
+            github_download_url = "https://github.com/Dunco242/dunware_cms/releases/download/v1.0.0/Setup_DunWare_CMS.exe"
             return redirect(github_download_url)
 
         except VerificationCode.DoesNotExist:
