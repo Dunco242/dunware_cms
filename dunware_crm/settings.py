@@ -83,6 +83,7 @@ INSTALLED_APPS = [
     'video_conference.apps.VideoConferenceConfig',
     'onboarding',
     'route_management.apps.RouteManagementConfig',
+    'downloads.apps.DownloadsConfig',
 ]
 
 MIDDLEWARE = [
@@ -149,6 +150,14 @@ DATABASES = {
         'PORT': os.getenv('DB_PORT', '3306'),
     }
 }
+# THIS IS FOR TROUBLESHOOTING AND DEBUGGING. Activate this DB if you are in need of testing for troubleshooting.
+# DATABASES = {
+#     "default": {
+#         "ENGINE": "django.db.backends.sqlite3",
+#         "NAME": "mydatabase",
+#     }
+# }
+
 REDIS_URL = os.getenv('REDIS_URL')
 CHANNEL_LAYERS = {
     'default': {
